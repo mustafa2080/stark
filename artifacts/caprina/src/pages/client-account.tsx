@@ -269,7 +269,7 @@ export default function ClientAccountPage() {
   });
 
   const client = data?.client;
-  const representative = data?.representative;
+  const branch = data?.branch;
   const summary = data?.shipmentsSummary ?? { total: 0, received: 0, notReceived: 0 };
   const statusBreakdown = chartData?.statusBreakdown ?? {};
   const pendingApprovals = data?.pendingApprovals ?? { pickupRequests: 0 };
@@ -474,49 +474,33 @@ export default function ClientAccountPage() {
               )}
             </div>
 
-            {/* Representative Card */}
+            {/* Branch (Warehouse) Card */}
             <div className="rounded-2xl p-5 bg-card border border-border">
               <p className="text-xs text-muted-foreground font-bold mb-4 flex items-center gap-1.5">
-                <Truck size={13} /> المندوب المتابع
+                <Building2 size={13} /> الفرع التابع
               </p>
-              {representative ? (
+              {branch ? (
                 <div className="space-y-3">
                   <div className="flex items-center gap-3">
-                    <ClientAvatar avatar={representative.avatar} name={representative.name || "?"} size={48} />
+                    <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                      <Building2 size={22} className="text-primary" />
+                    </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-black truncate">{representative.name || "—"}</p>
-                      {representative.companyName && (
-                        <p className="text-[11px] text-muted-foreground truncate">{representative.companyName}</p>
+                      <p className="text-sm font-black truncate">{branch.name || "—"}</p>
+                      {branch.city && (
+                        <p className="text-[11px] text-muted-foreground truncate">{branch.city}</p>
                       )}
                     </div>
                   </div>
-                  {(representative.phone || representative.companyPhone) && (
-                    <div className="grid grid-cols-2 gap-2">
-                      <a href={`tel:${representative.phone || representative.companyPhone}`}
-                        className="flex items-center justify-center gap-1.5 w-full py-2 rounded-xl bg-muted/40 border border-border text-sm font-bold hover:bg-muted/60 transition-colors">
-                        <Phone size={13} /> اتصال
-                      </a>
-                      <a
-                        href={`https://wa.me/2${(representative.phone || representative.companyPhone || "").replace(/\D/g, "").replace(/^0+/, "")}`}
-                        target="_blank" rel="noopener noreferrer"
-                        className="flex items-center justify-center gap-1.5 w-full py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 text-sm font-bold hover:bg-emerald-500/20 transition-colors">
-                        <MessageCircle size={13} /> واتساب
-                      </a>
+                  {branch.address && (
+                    <div className="flex items-start gap-1.5 text-xs text-muted-foreground rounded-xl bg-muted/25 p-2.5">
+                      <MapPin size={13} className="shrink-0 mt-0.5" />
+                      <span className="leading-relaxed">{branch.address}</span>
                     </div>
                   )}
-                  <div className="grid grid-cols-2 gap-2 pt-1">
-                    <div className="rounded-lg p-2.5 bg-muted/25 text-center">
-                      <p className="text-lg font-black text-primary">{fn(representative.shipmentsCount || 0)}</p>
-                      <p className="text-[10px] text-muted-foreground">إجمالي الشحنات معاه</p>
-                    </div>
-                    <div className="rounded-lg p-2.5 bg-muted/25 text-center">
-                      <p className="text-lg font-black text-emerald-500">{fn(representative.deliveredCount || 0)}</p>
-                      <p className="text-[10px] text-muted-foreground">تم التسليم</p>
-                    </div>
-                  </div>
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground text-center py-4">لا يوجد مندوب مرتبط بعد</p>
+                <p className="text-sm text-muted-foreground text-center py-4">لا يوجد فرع مرتبط بعد</p>
               )}
             </div>
 

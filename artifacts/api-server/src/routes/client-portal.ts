@@ -1210,9 +1210,20 @@ router.get("/client-portal/profile-full", async (req, res): Promise<void> => {
       (sum, inv) => sum + (Number(inv.totalAmount) - Number(inv.paidAmount)), 0
     );
 
+    // ── الفرع (المخزن) التابع للعميل ──
+    let branch: any = null;
+    if (client.warehouseId) {
+      const [wh] = await db.select({
+        id: warehousesTable.id, name: warehousesTable.name,
+        address: warehousesTable.address, city: warehousesTable.city,
+      }).from(warehousesTable).where(eq(warehousesTable.id, client.warehouseId)).limit(1);
+      if (wh) branch = wh;
+    }
+
     res.json({
       client,
       representative,
+      branch,
       shipmentsSummary: {
         total: shipments.length,
         received: received.length,
