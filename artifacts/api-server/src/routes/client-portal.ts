@@ -1568,13 +1568,6 @@ router.get("/client-portal/manifests/:id", async (req, res): Promise<void> => {
     if (!manifest) { res.status(404).json({ error: "البيان غير موجود" }); return; }
     if (manifest.clientId !== user.clientId) { res.status(403).json({ error: "غير مصرح لك بعرض هذا البيان" }); return; }
 
-    // ── تصنيف العميل (لتحديد أي عمود سعر نستخدمه من جدول مناطق الشحن) ──────
-    const [clientRow] = await db
-      .select({ clientType: clientsTable.clientType })
-      .from(clientsTable)
-      .where(eq(clientsTable.id, manifest.clientId));
-    const clientType = clientRow?.clientType ?? "normal";
-
     // ── الحالات اللي لسه معتبرة "لم تستلمها الشركة فعليًا" — بيان العميل ──────
     // متعرضش شحنات لسه بحالة قيد الانتظار (pending/waiting) أو مؤكدة بس لسه
     // مش داخلة المخزن (confirmed). البيان يبدأ من "قيد الشحن في المخزن" فصاعدًا.
@@ -1601,22 +1594,6 @@ router.get("/client-portal/manifests/:id", async (req, res): Promise<void> => {
     const shipmentIds = items.map(i => i.shipmentId);
     const shipmentMap: Record<number, any> = {};
     allShipments.forEach(s => { shipmentMap[s.id] = s; });
-
-    // ── سعر المنطقة (zone pricing) حسب تصنيف العميل — نفس منطق شاشة المندوب ──
-    // مش تكلفة المندوب (courierCost)، ده سعر التوصيل بتاع منطقة الشحنة (مثلاً أسوان 115، القاهرة 85).
-    const zoneIds = [...new Set(items.map(i => shipmentMap[i.shipmentId]?.zoneId).filter((v): v is number => !!v))];
-    let zonePriceMap: Record<number, number> = {};
-    if (zoneIds.length) {
-      const zoneRows = await db.select().from(shipmentZonesTable).where(inArray(shipmentZonesTable.id, zoneIds));
-      zonePriceMap = Object.fromEntries(zoneRows.map(z => {
-        const priceByType =
-          clientType === "vip"        ? z.priceVip :
-          clientType === "commercial" ? z.priceCommercial :
-          z.priceNormal;
-        const resolved = (priceByType != null && Number(priceByType) > 0) ? priceByType : z.price;
-        return [z.id, Number(resolved) || 0];
-      }));
-    }
 
     const repUserIds = [...new Set(items.map(i => shipmentMap[i.shipmentId]?.assignedUserId).filter((v): v is number => !!v))];
     let repNameMap: Record<number, string> = {};
@@ -1677,8 +1654,11 @@ router.get("/client-portal/manifests/:id", async (req, res): Promise<void> => {
       const effectiveReturnReason = (item as any).returnReason ?? sh?.returnReason ?? null;
       const isReturnedWithValue = item.deliveryStatus === "returned"
         && RETURN_REASONS_WITH_VALUE.has(String(effectiveReturnReason ?? ""));
-      const zoneShippingForItem = (item.deliveryStatus !== "returned" || isReturnedWithValue)
-        ? (sh?.zoneId ? (zonePriceMap[sh.zoneId] ?? 0) : Number(sh?.shippingFee ?? 0))
+      // نفس مصدر الأدمن بالظبط (client-account-sheet.ts): shippingFee المسجل فعليًا
+      // على الشحنة وقت إضافتها، مش سعر المنطقة الحالي في جدول shippingZones —
+      // عشان لو الأسعار اتغيرت بعدين الرقم يفضل ثابت ومطابق لصفحة الأدمن.
+      const actualShippingForItem = (item.deliveryStatus !== "returned" || isReturnedWithValue)
+        ? Number(sh?.shippingFee ?? 0)
         : 0;
       return {
         ...item,
@@ -1693,12 +1673,12 @@ router.get("/client-portal/manifests/:id", async (req, res): Promise<void> => {
         address:       sh?.receiverAddress ?? "",
         senderName:    sh?.senderName    ?? "",
         quantity:      sh?.pieces        ?? 1,
-        totalPrice:    Number(sh?.codAmount ?? sh?.totalAmount ?? 0) + zoneShippingForItem,
-        unitPrice:     Number(sh?.codAmount ?? sh?.totalAmount ?? 0) + zoneShippingForItem,
-        shippingCost:  zoneShippingForItem,
+        totalPrice:    Number(sh?.totalAmount ?? sh?.codAmount ?? 0),
+        unitPrice:     Number(sh?.totalAmount ?? sh?.codAmount ?? 0),
+        shippingCost:  actualShippingForItem,
         // بيان العميل بيعرض سعر العميل (basePrice) — مش تكلفة المندوب الداخلية
-        repExtraCost:  (zoneShippingForItem > 0 && sh?.parcelType) ? (parcelPricingMap[sh.parcelType]?.basePrice ?? 0) : 0,
-        repExtraReason: (zoneShippingForItem > 0 && sh?.parcelType && (parcelPricingMap[sh.parcelType]?.basePrice ?? 0) > 0)
+        repExtraCost:  (actualShippingForItem > 0 && sh?.parcelType) ? (parcelPricingMap[sh.parcelType]?.basePrice ?? 0) : 0,
+        repExtraReason: (actualShippingForItem > 0 && sh?.parcelType && (parcelPricingMap[sh.parcelType]?.basePrice ?? 0) > 0)
           ? (parcelPricingMap[sh.parcelType]?.label ?? sh.parcelType)
           : null,
         invoiceNumber: sh?.shipmentNumber ?? "",
