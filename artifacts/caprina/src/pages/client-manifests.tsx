@@ -145,7 +145,7 @@ function OpenManifestCard({ manifest }: { manifest: ClientPortalManifestListItem
   const handleClick = () => {
     toast({
       title: "البيان لم يغلق بعد",
-      description: "فى بيانتى البيان لم يغلق بعد من طرف المدير يرجى انتظار اغلاقه",
+      description: "البيان لم يغلق بعد من طرف المدير يرجى انتظار اغلاقه",
       variant: "destructive",
     });
   };
