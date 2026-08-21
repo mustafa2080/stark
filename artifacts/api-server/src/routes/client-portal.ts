@@ -1638,19 +1638,69 @@ router.get("/client-portal/manifests/:id", async (req, res): Promise<void> => {
       warehouseNameMap = Object.fromEntries(warehouseRows.map(w => [w.id, w.name]));
     }
 
+    // ── أسعار "الزيادة على نوع الشحنة" (basePrice = سعر العميل، مش repExtraCost
+    // بتاع المندوب) — نفس منطق /client-account-manifests/:id في الأدمن بالظبط ──
+    const parcelTypes = [...new Set(items.map(i => shipmentMap[i.shipmentId]?.parcelType).filter((v): v is string => !!v))];
+    let parcelPricingMap: Record<string, { label: string; basePrice: number }> = {};
+    if (parcelTypes.length) {
+      const conds: any[] = [inArray(parcelTypePricingTable.parcelType, parcelTypes)];
+      if (manifest.tenantId !== null && manifest.tenantId !== undefined) {
+        conds.push(or(eq(parcelTypePricingTable.tenantId, manifest.tenantId), isNull(parcelTypePricingTable.tenantId)));
+      }
+      const pricingRows = await db
+        .select({
+          tenantId: parcelTypePricingTable.tenantId,
+          parcelType: parcelTypePricingTable.parcelType,
+          label: parcelTypePricingTable.label,
+          basePrice: parcelTypePricingTable.basePrice,
+        })
+        .from(parcelTypePricingTable)
+        .where(and(...conds));
+      const currentTenantId = manifest.tenantId ?? null;
+      for (const row of pricingRows) {
+        const existing = parcelPricingMap[row.parcelType];
+        const isTenantRow = row.tenantId !== null && row.tenantId !== undefined && row.tenantId === currentTenantId;
+        if (!existing || isTenantRow) {
+          parcelPricingMap[row.parcelType] = { label: row.label ?? row.parcelType, basePrice: Number(row.basePrice ?? 0) };
+        }
+      }
+    }
+
+    // نفس الأسباب المالية الثلاثة المستخدمة في الأدمن — لازم تفضل متطابقة عشان
+    // القيمة المستلمة/سعر الشحن يطابقوا الظاهر فعليًا في صفحة الأدمن.
+    const RETURN_REASONS_WITH_VALUE = new Set(["refused_paid", "refused_unpaid", "quality"]);
+
     const enrichedItems = items.map(item => {
       const sh = shipmentMap[item.shipmentId] ?? null;
+      // fallback: السبب/القيمة الحقيقية ممكن تكون مسجلة على مستوى الشحنة نفسها
+      // مش على مستوى item بيان حساب العميل — نفس منطق الأدمن بالظبط.
+      const effectiveReturnReason = (item as any).returnReason ?? sh?.returnReason ?? null;
+      const isReturnedWithValue = item.deliveryStatus === "returned"
+        && RETURN_REASONS_WITH_VALUE.has(String(effectiveReturnReason ?? ""));
+      const zoneShippingForItem = (item.deliveryStatus !== "returned" || isReturnedWithValue)
+        ? (sh?.zoneId ? (zonePriceMap[sh.zoneId] ?? 0) : Number(sh?.shippingFee ?? 0))
+        : 0;
       return {
         ...item,
+        returnReason: effectiveReturnReason,
+        partialQuantity: item.partialQuantity != null ? item.partialQuantity : (sh?.partialQuantity ?? null),
+        returnValueReceived: isReturnedWithValue ? (item as any).returnValueReceived ?? null : null,
         shipment: sh,
+        status:        sh?.status ?? null,
         customerName:  sh?.receiverName  ?? "",
         phone:         sh?.receiverPhone ?? "",
         city:          sh?.receiverCity  ?? "",
         address:       sh?.receiverAddress ?? "",
         senderName:    sh?.senderName    ?? "",
         quantity:      sh?.pieces        ?? 1,
-        totalPrice:    Number(sh?.codAmount  ?? 0) || Number(sh?.totalAmount ?? 0),
-        shippingCost:  sh?.zoneId ? (zonePriceMap[sh.zoneId] ?? 0) : Number(sh?.shippingFee ?? 0),
+        totalPrice:    Number(sh?.codAmount ?? sh?.totalAmount ?? 0) + zoneShippingForItem,
+        unitPrice:     Number(sh?.codAmount ?? sh?.totalAmount ?? 0) + zoneShippingForItem,
+        shippingCost:  zoneShippingForItem,
+        // بيان العميل بيعرض سعر العميل (basePrice) — مش تكلفة المندوب الداخلية
+        repExtraCost:  (zoneShippingForItem > 0 && sh?.parcelType) ? (parcelPricingMap[sh.parcelType]?.basePrice ?? 0) : 0,
+        repExtraReason: (zoneShippingForItem > 0 && sh?.parcelType && (parcelPricingMap[sh.parcelType]?.basePrice ?? 0) > 0)
+          ? (parcelPricingMap[sh.parcelType]?.label ?? sh.parcelType)
+          : null,
         invoiceNumber: sh?.shipmentNumber ?? "",
         representativeName: sh?.assignedUserId ? (repNameMap[sh.assignedUserId] ?? null) : null,
         warehouseName: sh?.warehouseId ? (warehouseNameMap[sh.warehouseId] ?? null) : null,
@@ -1672,6 +1722,35 @@ router.get("/client-portal/manifests/:id", async (req, res): Promise<void> => {
   } catch (e) {
     console.error("[GET /client-portal/manifests/:id]", e);
     res.status(500).json({ error: "خطأ في جلب البيان" });
+  }
+});
+
+// ─── POST /client-portal/manifests/:manifestId/items/:itemId/confirm-return — العميل يأكد استلام البضاعة من شركة الشحن ──
+// العميل يقدر بس يأكد "تم الاستلام" (returnReceived=1) — مفيش صلاحية للتراجع أو تعديل حالة الشحنة نفسها،
+// ده محصور في الأدمن/المندوب فقط عبر /client-account-manifests.
+router.post("/client-portal/manifests/:manifestId/items/:itemId/confirm-return", async (req, res): Promise<void> => {
+  try {
+    const user = (req as any).user;
+    if (!user.clientId) { res.status(403).json({ error: "لا يوجد حساب عميل مرتبط" }); return; }
+    const manifestId = Number(req.params.manifestId);
+    const itemId = Number(req.params.itemId);
+
+    const [manifest] = await db.select().from(clientAccountManifestsTable).where(eq(clientAccountManifestsTable.id, manifestId));
+    if (!manifest) { res.status(404).json({ error: "البيان غير موجود" }); return; }
+    if (manifest.clientId !== user.clientId) { res.status(403).json({ error: "غير مصرح لك بهذا البيان" }); return; }
+
+    const [item] = await db.select().from(clientAccountManifestItemsTable)
+      .where(and(eq(clientAccountManifestItemsTable.id, itemId), eq(clientAccountManifestItemsTable.manifestId, manifestId)));
+    if (!item) { res.status(404).json({ error: "الشحنة غير موجودة في هذا البيان" }); return; }
+
+    await db.update(clientAccountManifestItemsTable)
+      .set({ returnReceived: 1 })
+      .where(eq(clientAccountManifestItemsTable.id, itemId));
+
+    res.json({ success: true });
+  } catch (e) {
+    console.error("[POST /client-portal/manifests/:manifestId/items/:itemId/confirm-return]", e);
+    res.status(500).json({ error: "خطأ في تحديث حالة الاستلام" });
   }
 });
 

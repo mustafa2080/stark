@@ -1,49 +1,79 @@
 import { useParams, Link } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
-import { useState, useMemo } from "react";
+import { useState, type ElementType } from "react";
 import {
   ArrowRight, FileText, Lock, LockOpen, Package, CheckCircle2,
   Clock, RotateCcw, AlertCircle, Printer, Search, Truck, MapPin, Phone,
-  PackageX, Sparkles, Layers,
+  ChevronDown,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ar } from "date-fns/locale";
+import { useToast } from "@/hooks/use-toast";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { RETURN_REASONS, returnReasonLabel } from "@/lib/order-constants";
 
 const formatCurrency = (n: number | string | null | undefined) =>
   new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(Number(n) || 0);
 
-// القيمة المستلمة فعليًا لكل شحنة — نفس منطق بيان التسوية فى اكونت العميل بالأدمن
-const RETURN_REASONS_WITH_SHIPPING = ["refused_paid", "refused_unpaid", "quality"];
-function getReceivedValue(item: ManifestItem): number {
+// ─── نفس منطق الحسابات المالية المستخدم في صفحة الأدمن (client-account-manifest-detail.tsx) بالظبط ───
+const RETURN_REASONS_FINANCIAL = ["refused_paid", "refused_unpaid", "quality"];
+
+function getCollectedAmount(item: ManifestItem): number {
   if (item.deliveryStatus === "delivered") {
     const dvr = item.deliveredValueReceived;
-    return dvr != null ? Number(dvr) : Number(item.totalPrice || 0);
+    return dvr != null ? Number(dvr) : Number(item.totalPrice ?? 0);
   }
-  if (item.deliveryStatus === "partial_delivered" && item.partialQuantity != null) {
-    return Number(item.partialQuantity);
+  if (item.deliveryStatus === "partial_delivered") {
+    return item.partialQuantity != null ? Number(item.partialQuantity) : 0;
   }
-  if (item.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING.includes(String(item.returnReason ?? ""))) {
-    return item.returnValueReceived != null ? Number(item.returnValueReceived) : 0;
+  if (item.deliveryStatus === "partial_received") {
+    return item.partialQuantity != null ? Math.round(Number(item.partialQuantity)) : 0;
+  }
+  if (item.deliveryStatus === "returned" && RETURN_REASONS_FINANCIAL.includes(String(item.returnReason ?? ""))) {
+    const rvr = item.returnValueReceived;
+    return rvr != null ? Number(rvr) : 0;
   }
   return 0;
 }
-// سعر الشحن المخصوم فعليًا — بس على الشحنات اللي دخلت فى الحساب (نفس الشرط اللي فى الأدمن)
-function getEffectiveShipping(item: ManifestItem): number {
-  const counted =
-    item.deliveryStatus === "delivered" ||
-    item.deliveryStatus === "partial_delivered" ||
-    (item.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING.includes(String(item.returnReason ?? "")));
-  return counted ? Number(item.shippingCost || 0) : 0;
+
+function isShippingZeroedRow(item: ManifestItem): boolean {
+  const st = item.deliveryStatus;
+  if (st === "postponed" || st === "delayed" || st === "pending") return true;
+  if (st === "returned") {
+    if (!RETURN_REASONS_FINANCIAL.includes(String(item.returnReason ?? ""))) return true;
+  }
+  return false;
+}
+
+function getChargeableShipping(item: ManifestItem): number {
+  return isShippingZeroedRow(item) ? 0 : Number(item.shippingCost ?? 0);
+}
+
+// ─── تجميع الشحنات المتشابهة (نفس رقم الفاتورة أو نفس العميل/الهاتف/العنوان) — نفس منطق الأدمن ───
+function getManifestGroupKey(item: ManifestItem) {
+  return item.invoiceNumber?.trim() || `${item.customerName}__${item.phone ?? ""}__${item.address ?? ""}`;
+}
+function groupManifestItems(items: ManifestItem[]) {
+  const groupMap = new Map<string, ManifestItem[]>();
+  items.forEach((item) => {
+    const key = getManifestGroupKey(item);
+    if (!groupMap.has(key)) groupMap.set(key, []);
+    groupMap.get(key)!.push(item);
+  });
+  return Array.from(groupMap.values());
 }
 
 interface ManifestItem {
   id: number;
   shipmentId: number;
-  deliveryStatus: "pending" | "delivered" | "returned" | "delayed" | "partial_delivered";
+  deliveryStatus: "pending" | "delivered" | "returned" | "delayed" | "postponed" | "partial_delivered" | "partial_received";
   deliveryNote: string | null;
   partialQuantity: number | null;
   returnReceived: number | null;
+  returnReason: string | null;
+  returnValueReceived: number | null;
+  deliveredValueReceived: number | null;
   addedAt: string;
   customerName: string;
   phone: string;
@@ -57,9 +87,8 @@ interface ManifestItem {
   representativeName: string | null;
   warehouseName: string | null;
   unitPrice?: number | null;
-  deliveredValueReceived?: number | null;
-  returnValueReceived?: number | null;
-  returnReason?: string | null;
+  repExtraCost?: number | null;
+  repExtraReason?: string | null;
 }
 
 interface ManifestDetail {
@@ -77,933 +106,390 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
   pending:           { label: "قيد الانتظار", color: "text-muted-foreground",  bg: "border-border" },
   delivered:         { label: "مسلَّم ✓",      color: "text-emerald-400",       bg: "border-emerald-700 bg-emerald-900/20" },
   partial_delivered: { label: "مسلَّم جزئي",   color: "text-teal-400",          bg: "border-teal-700 bg-teal-900/20" },
+  partial_received:  { label: "مسلَّم جزئي",   color: "text-teal-400",          bg: "border-teal-700 bg-teal-900/20" },
   delayed:           { label: "مؤجل",          color: "text-orange-400",        bg: "border-orange-700 bg-orange-900/20" },
+  postponed:         { label: "مؤجل",          color: "text-orange-400",        bg: "border-orange-700 bg-orange-900/20" },
   returned:          { label: "مرتجع",         color: "text-red-400",           bg: "border-red-700 bg-red-900/20" },
 };
+
+// ─── كارت مصغّر لعرض العداد داخل الحاوية القابلة للطي — نفس شكل ClientLookCard في الأدمن ───
+function StatusCountCard({
+  icon: Icon,
+  value,
+  label,
+  tone,
+}: {
+  icon: ElementType;
+  value: number;
+  label: string;
+  tone: "amber" | "sky" | "orange" | "muted" | "red" | "emerald";
+}) {
+  const styles = {
+    amber: "from-amber-500/15 via-amber-500/5 to-transparent border-amber-500/30 text-amber-300 bg-amber-500/15 border-amber-500/30",
+    sky: "from-sky-500/15 via-sky-500/5 to-transparent border-sky-500/30 text-sky-300 bg-sky-500/15 border-sky-500/30",
+    orange: "from-orange-500/15 via-orange-500/5 to-transparent border-orange-500/30 text-orange-300 bg-orange-500/15 border-orange-500/30",
+    muted: "from-gray-500/15 via-gray-500/5 to-transparent border-gray-500/30 text-foreground bg-gray-500/15 border-gray-500/30",
+    red: "from-red-500/15 via-red-500/5 to-transparent border-red-500/30 text-red-300 bg-red-500/15 border-red-500/30",
+    emerald: "from-emerald-500/15 via-emerald-500/5 to-transparent border-emerald-500/30 text-emerald-300 bg-emerald-500/15 border-emerald-500/30",
+  }[tone];
+  const [wrap, iconBg] = styles.split(" bg-");
+
+  return (
+    <div className={`relative overflow-hidden rounded-2xl border bg-gradient-to-br ${wrap} p-3 flex flex-col items-center gap-1.5 shadow-lg shadow-black/20 transition-transform hover:-translate-y-0.5`}>
+      <div className={`w-8 h-8 rounded-lg border flex items-center justify-center bg-${iconBg}`}>
+        <Icon className="w-4 h-4" />
+      </div>
+      <span className="text-xl font-black">{value}</span>
+      <span className="text-[10px] text-muted-foreground text-center">{label}</span>
+    </div>
+  );
+}
+
+// ─── زرار "تم الاستلام" للعميل — نسخة محدودة من ReturnReceivedButton بتاع الأدمن، بتسمح بس بالتأكيد (returnReceived=1) ───
+function ClientConfirmReturnButton({
+  manifestId,
+  item,
+  onSaved,
+}: {
+  manifestId: number;
+  item: ManifestItem;
+  onSaved: () => void;
+}) {
+  const { toast } = useToast();
+  const mutation = useMutation({
+    mutationFn: async () => {
+      return apiFetch(`/client-portal/manifests/${manifestId}/items/${item.id}/confirm-return`, {
+        method: "POST",
+      });
+    },
+    onSuccess: () => {
+      toast({ title: "تم التأكيد", description: "تم تسجيل استلام البضاعة" });
+      onSaved();
+    },
+    onError: () => {
+      toast({ title: "خطأ", description: "حصل خطأ أثناء الحفظ، حاول تاني", variant: "destructive" });
+    },
+  });
+
+  return (
+    <button
+      type="button"
+      onClick={() => mutation.mutate()}
+      disabled={mutation.isPending}
+      className="flex-1 sm:flex-none h-8 px-3 rounded-lg border border-emerald-700 bg-emerald-900/20 text-emerald-400 text-xs font-bold hover:bg-emerald-900/40 transition-colors disabled:opacity-50"
+    >
+      {mutation.isPending ? "جارٍ الحفظ..." : "تم الاستلام"}
+    </button>
+  );
+}
 
 export default function ClientManifestViewPage() {
   const params = useParams();
   const id = Number(params.id);
+  const [statusBreakdownOpen, setStatusBreakdownOpen] = useState(true);
   const [search, setSearch] = useState("");
 
-  const { data: manifest, isLoading, error } = useQuery<ManifestDetail>({
-    queryKey: ["client-portal-manifest", id],
-    queryFn: () => apiFetch(`/client-portal/manifests/${id}`),
+  const { data: manifest, isLoading, refetch } = useQuery<ManifestDetail>({
+    queryKey: [`/client-portal/manifests/${id}`],
+    queryFn: async () => apiFetch<ManifestDetail>(`/client-portal/manifests/${id}`),
     enabled: !isNaN(id),
   });
 
-  const filteredItems = useMemo(() => {
-    if (!manifest) return [];
-    if (!search.trim()) return manifest.items;
-    const q = search.trim().toLowerCase();
-    return manifest.items.filter(i =>
-      i.customerName?.toLowerCase().includes(q) ||
-      i.phone?.includes(q) ||
-      i.invoiceNumber?.toLowerCase().includes(q)
-    );
-  }, [manifest, search]);
-
-  const stillAtShipping = useMemo(() => {
-    if (!manifest) return [];
-    return manifest.items.filter(i =>
-      i.deliveryStatus === "delayed" ||
-      (i.deliveryStatus === "returned" && i.returnReceived !== 1) ||
-      (i.deliveryStatus === "partial_delivered" && i.returnReceived !== 1)
-    );
-  }, [manifest]);
-
   if (isLoading) {
-    return <div className="min-h-screen flex items-center justify-center text-sm text-muted-foreground">جاري التحميل...</div>;
-  }
-  if (error || !manifest) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
-        <AlertCircle className="w-8 h-8 text-red-400" />
-        <p>تعذر جلب بيانات هذا البيان</p>
-        <Link href="/client-manifests" className="text-primary text-xs font-bold">العودة لبياناتي</Link>
+      <div className="flex items-center justify-center py-20 text-sm text-muted-foreground">
+        جارٍ التحميل...
       </div>
     );
   }
 
-  const sc = manifest.stats;
-  const completed = sc.delivered + sc.partial;
-  const deliveryPct = sc.total > 0 ? Math.round((completed / sc.total) * 100) : 0;
-  const isOpen = manifest.status === "open";
-  const returnedNotArrived = manifest.items.filter(
-    (i) => i.deliveryStatus === "returned" && i.returnReceived !== 1
+  if (!manifest) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3 text-sm text-muted-foreground">
+        <AlertCircle className="w-8 h-8" />
+        البيان غير موجود
+      </div>
+    );
+  }
+
+  const items = manifest.items ?? [];
+  const groupedItems = groupManifestItems(items);
+
+  const manifestGroupPriority: Record<string, number> = {
+    returned: 5,
+    postponed: 4,
+    delayed: 4,
+    partial_received: 3,
+    partial_delivered: 3,
+    pending: 2,
+    delivered: 1,
+  };
+  const groupStatus = (group: ManifestItem[]) =>
+    group.reduce(
+      (worst, item) =>
+        (manifestGroupPriority[item.deliveryStatus] ?? 0) > (manifestGroupPriority[worst] ?? 0)
+          ? item.deliveryStatus
+          : worst,
+      group[0]?.deliveryStatus ?? "pending"
+    );
+
+  const groupedDeliveredCount = groupedItems.filter((g) => groupStatus(g) === "delivered").length;
+  const groupedPartialCountDisplay = groupedItems.filter((g) =>
+    ["partial_received", "partial_delivered"].includes(groupStatus(g))
   ).length;
-  const newItemsCount = manifest.items.filter((i) => {
-    if (!i.addedAt) return false;
-    const addedTime = new Date(i.addedAt).getTime();
-    return Date.now() - addedTime <= 24 * 60 * 60 * 1000;
-  }).length;
-  const totalCod = manifest.items.reduce((s, i) => s + Number(i.totalPrice || 0), 0);
-  const totalShippingCost = manifest.items.reduce((s, i) => s + Number(i.shippingCost || 0), 0);
-  const grandTotal = totalCod + totalShippingCost;
+  const groupedPostponedCount = groupedItems.filter((g) =>
+    ["postponed", "delayed"].includes(groupStatus(g))
+  ).length;
+  const groupedPendingCount = groupedItems.filter((g) => groupStatus(g) === "pending").length;
+  const groupedReturnedCount = groupedItems.filter((g) => groupStatus(g) === "returned").length;
+  const groupedCompletedCount = groupedDeliveredCount + groupedPartialCountDisplay;
+  const groupedTotal = groupedItems.length || 1;
+  const groupedDeliveryRate = Math.round((groupedCompletedCount / groupedTotal) * 100);
 
-  // توزيع الشحنات على المندوبين — بيانات موجودة أصلاً من الـ API ومش معروضة سابقًا
-  const repMap = new Map<string, number>();
-  manifest.items.forEach((i) => {
-    const name = i.representativeName || "غير محدد";
-    repMap.set(name, (repMap.get(name) || 0) + 1);
-  });
-  const representativeBreakdown = Array.from(repMap.entries()).sort((a, b) => b[1] - a[1]);
+  const searchLower = search.trim().toLowerCase();
+  const displayGroups = searchLower
+    ? groupedItems.filter((group) =>
+        group.some(
+          (item) =>
+            item.customerName?.toLowerCase().includes(searchLower) ||
+            item.phone?.toLowerCase().includes(searchLower) ||
+            String(item.shipmentId).includes(searchLower)
+        )
+      )
+    : groupedItems;
 
-  return (
-    <>
-    <div className="min-h-screen -m-4 md:-m-6 p-4 md:p-6 bg-background print:hidden" dir="rtl">
-      <div className="max-w-[1200px] mx-auto space-y-5">
-
-        {/* ── Header ── */}
-        <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-muted/40 via-muted/10 to-transparent p-4 sm:p-5">
-          <div className={`absolute -top-10 -left-10 w-40 h-40 rounded-full blur-3xl opacity-40 ${isOpen ? "bg-emerald-500/30" : "bg-slate-400/20"}`} />
-          <div className="relative flex items-center justify-between flex-wrap gap-3">
-            <div className="flex items-center gap-3">
-              <Link href="/client-manifests">
-                <button className="w-9 h-9 rounded-xl flex items-center justify-center bg-muted/40 border border-border hover:bg-muted/60 hover:border-primary/40 transition-all">
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              </Link>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h1 className="text-xl sm:text-2xl font-black text-foreground tracking-tight">{manifest.manifestNumber}</h1>
-                  <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1 shadow-sm ${
-                    isOpen
-                      ? "bg-emerald-900/30 text-emerald-400 border border-emerald-700/60 shadow-emerald-900/30"
-                      : "bg-muted text-muted-foreground border border-border"
-                  }`}>
-                    {isOpen ? <LockOpen className="w-2.5 h-2.5" /> : <Lock className="w-2.5 h-2.5" />}
-                    {isOpen ? "مفتوح" : "مغلق"}
-                  </span>
-                </div>
-                <p className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1.5">
-                  {format(new Date(manifest.createdAt), "d MMMM yyyy", { locale: ar })}
-                  {manifest.closedAt && (
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-1 h-1 rounded-full bg-muted-foreground/50" />
-                      أُغلق في {format(new Date(manifest.closedAt), "d MMMM yyyy", { locale: ar })}
-                    </span>
-                  )}
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => window.print()}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-foreground/70 bg-muted/40 border border-border hover:bg-muted/60 hover:border-primary/30 transition-all shadow-sm"
-            >
-              <Printer size={15} /> طباعة
-            </button>
-          </div>
-        </div>
-
-        {/* ── Highlight cards (مؤجل / مرتجع لم يصل / الشحنات الجديدة / الإجمالي) — بس للبيان المفتوح ── */}
-        {isOpen && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <HighlightCard
-              icon={Clock}
-              value={sc.delayed}
-              label="مؤجل"
-              tone="amber"
-            />
-            <HighlightCard
-              icon={PackageX}
-              value={returnedNotArrived}
-              label="مرتجع لم يصل"
-              tone="rose"
-            />
-            <HighlightCard
-              icon={Sparkles}
-              value={newItemsCount}
-              label="الشحنات الجديدة"
-              tone="sky"
-            />
-            <HighlightCard
-              icon={Layers}
-              value={sc.total}
-              label="الإجمالي"
-              tone="violet"
-            />
-          </div>
-        )}
-
-        {/* ── Stats cards — بس للبيان المفتوح ── */}
-        {isOpen && (
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-            <StatCard icon={Package} value={sc.total} label="إجمالي الشحنات" tone="violet" />
-            <StatCard icon={CheckCircle2} value={sc.delivered} label="مسلَّم" tone="emerald" />
-            <StatCard icon={Clock} value={sc.pending} label="قيد الانتظار" tone="muted" />
-            <StatCard icon={AlertCircle} value={sc.delayed} label="مؤجل" tone="orange" />
-            <StatCard icon={RotateCcw} value={sc.returned} label="مرتجع" tone="red" />
-          </div>
-        )}
-
-        {/* ── توزيع المندوبين — بس للبيان المفتوح ولو فيه أكتر من مندوب واحد ── */}
-        {isOpen && representativeBreakdown.length > 1 && (
-          <div className="grid gap-3">
-            <BreakdownCard title="توزيع الشحنات على المندوبين" icon={Truck} tone="violet" data={representativeBreakdown} total={sc.total} />
-          </div>
-        )}
-
-        {/* ── Closed manifest summary — عرض بسيط واحترافي بدون إحصائيات متابعة لحظية ── */}
-        {!isOpen && (
-          <div className="rounded-2xl border border-border bg-muted/15 p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-              <p className="text-sm font-black text-foreground">ملخص البيان النهائي</p>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <div>
-                <p className="text-[11px] text-muted-foreground mb-1">إجمالي الشحنات</p>
-                <p className="text-lg font-black">{sc.total}</p>
-              </div>
-              <div>
-                <p className="text-[11px] text-muted-foreground mb-1">مسلَّم</p>
-                <p className="text-lg font-black text-emerald-400">{sc.delivered}</p>
-              </div>
-              <div>
-                <p className="text-[11px] text-muted-foreground mb-1">مرتجع</p>
-                <p className="text-lg font-black text-red-400">{sc.returned}</p>
-              </div>
-              <div>
-                <p className="text-[11px] text-muted-foreground mb-1">نسبة التسليم</p>
-                <p className="text-lg font-black text-foreground">{deliveryPct}%</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── Progress bar — بس للبيان المفتوح ── */}
-        {isOpen && (
-          <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-muted/25 to-transparent p-4 shadow-md shadow-black/10">
-            <div className="flex items-center justify-between text-xs mb-2">
-              <span className="text-muted-foreground font-bold">نسبة التسليم</span>
-              <span className="font-black text-emerald-400 text-lg drop-shadow-[0_0_8px_rgba(52,211,153,0.35)]">{deliveryPct}%</span>
-            </div>
-            <div className="h-2.5 rounded-full bg-muted overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-l from-emerald-400 to-emerald-600 rounded-full transition-all shadow-[0_0_10px_rgba(52,211,153,0.5)]"
-                style={{ width: `${deliveryPct}%` }}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* ── Financial summary ── */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          <div className="relative overflow-hidden rounded-2xl border border-emerald-500/25 bg-gradient-to-br from-emerald-500/10 via-emerald-500/[0.03] to-transparent p-4 shadow-lg shadow-black/10">
-            <div className="absolute -bottom-6 -left-6 w-24 h-24 rounded-full blur-3xl opacity-50 bg-emerald-500/20" />
-            <p className="relative text-[11px] text-muted-foreground mb-1">إجمالي قيمة الشحنات</p>
-            <p className="relative text-xl font-black text-emerald-300">{formatCurrency(totalCod)}</p>
-          </div>
-          <div className="relative overflow-hidden rounded-2xl border border-sky-500/25 bg-gradient-to-br from-sky-500/10 via-sky-500/[0.03] to-transparent p-4 shadow-lg shadow-black/10">
-            <div className="absolute -bottom-6 -left-6 w-24 h-24 rounded-full blur-3xl opacity-50 bg-sky-500/20" />
-            <p className="relative text-[11px] text-muted-foreground mb-1">إجمالي سعر المنطقة</p>
-            <p className="relative text-xl font-black text-sky-300">{formatCurrency(totalShippingCost)}</p>
-          </div>
-          <div className="relative overflow-hidden rounded-2xl border border-violet-500/25 bg-gradient-to-br from-violet-500/10 via-violet-500/[0.03] to-transparent p-4 shadow-lg shadow-black/10 col-span-2 sm:col-span-1">
-            <div className="absolute -bottom-6 -left-6 w-24 h-24 rounded-full blur-3xl opacity-50 bg-violet-500/20" />
-            <p className="relative text-[11px] text-muted-foreground mb-1">الإجمالي الكلي</p>
-            <p className="relative text-xl font-black text-violet-300">{formatCurrency(grandTotal)}</p>
-          </div>
-        </div>
-
-        {/* ── Search ── */}
-        <div className="relative">
-          <Search className="w-4 h-4 text-muted-foreground absolute right-3 top-1/2 -translate-y-1/2" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="ابحث باسم العميل أو رقم الشحنة أو الهاتف..."
-            className="w-full h-11 rounded-xl bg-muted/25 border border-border pr-10 pl-3 text-sm outline-none focus:border-primary/50 focus:bg-muted/35 focus:shadow-[0_0_0_3px_rgba(var(--primary-rgb,59,130,246),0.1)] transition-all"
-          />
-        </div>
-
-        {/* ── Table ── */}
-        <div className="rounded-2xl border border-border bg-muted/10 overflow-hidden shadow-lg shadow-black/10">
-          <div className="px-4 py-3.5 border-b border-border flex items-center justify-between bg-gradient-to-l from-muted/30 to-transparent">
-            <p className="text-sm font-black flex items-center gap-2">
-              <Package className="w-4 h-4 text-primary" />
-              الشحنات في البيان
-            </p>
-            <span className="text-[11px] text-muted-foreground font-bold px-2.5 py-1 rounded-full bg-muted/40 border border-border/60">{filteredItems.length} شحنة</span>
-          </div>
-
-          <div className="hidden md:grid grid-cols-[100px_1fr_110px_90px_1fr_100px_100px_100px_100px] gap-0 px-4 py-2 text-[11px] font-bold text-muted-foreground border-b border-border/60 bg-muted/20">
-            <span>الراسل</span>
-            <span>العميل</span>
-            <span>الهاتف</span>
-            <span>المحافظة</span>
-            <span>العنوان</span>
-            <span className="text-left">إجمالي سعر الشحنة</span>
-            <span className="text-center">القيمة المستلمة</span>
-            <span className="text-center">سعر الشحن</span>
-            <span className="text-center">الحالة</span>
-          </div>
-
-          {filteredItems.length === 0 ? (
-            <div className="text-center py-10 text-sm text-muted-foreground">لا توجد نتائج مطابقة</div>
-          ) : (
-            filteredItems.map((item) => (
-              <ItemRow key={item.id} item={item} />
-            ))
-          )}
-        </div>
-
-        {/* ── بضاعة لسه مع مندوب الشحن ── */}
-        {stillAtShipping.length > 0 && (
-          <div className="relative overflow-hidden rounded-2xl border border-orange-700/50 bg-gradient-to-br from-orange-950/30 via-orange-950/10 to-transparent shadow-lg shadow-black/10">
-            <div className="absolute -top-8 -left-8 w-28 h-28 rounded-full blur-3xl opacity-30 bg-orange-500/30" />
-            <div className="relative px-4 py-3 border-b border-orange-800/40 flex items-center gap-2">
-              <Truck className="w-4 h-4 text-orange-400" />
-              <p className="text-sm font-black text-orange-300">
-                بضاعة لسه مع مندوب الشحن ({stillAtShipping.length})
-              </p>
-            </div>
-            {stillAtShipping.map((item) => (
-              <div key={item.id} className="px-4 py-3 border-b border-orange-800/20 last:border-0 flex items-center justify-between gap-3 flex-wrap">
-                <div className="min-w-0">
-                  <p className="text-sm font-bold truncate">{item.customerName}</p>
-                  <p className="text-[11px] text-muted-foreground">{item.phone} — {item.invoiceNumber}</p>
-                </div>
-                <span className={`text-[10px] font-bold px-2 py-1 rounded-full border shrink-0 ${STATUS_META[item.deliveryStatus]?.bg} ${STATUS_META[item.deliveryStatus]?.color}`}>
-                  {STATUS_META[item.deliveryStatus]?.label}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-
-    <PrintDocument
-      manifest={manifest}
-      items={manifest.items}
-      sc={sc}
-      deliveryPct={deliveryPct}
-      totalCod={totalCod}
-      totalShippingCost={totalShippingCost}
-      isOpen={isOpen}
-    />
-    </>
+  // ─── بضاعة لسه عند شركة الشحن (مرتجع/جزئي لسه محتاج تأكيد استلام) ───
+  const pendingReturnItems = items.filter(
+    (item) =>
+      (item.deliveryStatus === "returned" ||
+        item.deliveryStatus === "partial_received" ||
+        item.deliveryStatus === "partial_delivered") &&
+      item.returnReceived !== 1
   );
-}
 
-function HighlightCard({ icon: Icon, value, label, tone }: {
-  icon: React.ElementType; value: number; label: string;
-  tone: "amber" | "rose" | "sky" | "violet";
-}) {
-  const toneStyles = {
-    amber: {
-      wrap: "from-amber-500/15 via-amber-500/5 to-transparent border-amber-500/30",
-      glow: "bg-amber-500/25",
-      icon: "text-amber-400",
-      value: "text-amber-300",
-      iconBg: "bg-amber-500/15 border-amber-500/30",
-    },
-    rose: {
-      wrap: "from-rose-500/15 via-rose-500/5 to-transparent border-rose-500/30",
-      glow: "bg-rose-500/25",
-      icon: "text-rose-400",
-      value: "text-rose-300",
-      iconBg: "bg-rose-500/15 border-rose-500/30",
-    },
-    sky: {
-      wrap: "from-sky-500/15 via-sky-500/5 to-transparent border-sky-500/30",
-      glow: "bg-sky-500/25",
-      icon: "text-sky-400",
-      value: "text-sky-300",
-      iconBg: "bg-sky-500/15 border-sky-500/30",
-    },
-    violet: {
-      wrap: "from-violet-500/15 via-violet-500/5 to-transparent border-violet-500/30",
-      glow: "bg-violet-500/25",
-      icon: "text-violet-400",
-      value: "text-violet-300",
-      iconBg: "bg-violet-500/15 border-violet-500/30",
-    },
-  }[tone];
-
-  return (
-    <div
-      className={`relative overflow-hidden rounded-2xl border bg-gradient-to-br ${toneStyles.wrap} p-4 shadow-lg shadow-black/20 transition-transform hover:-translate-y-0.5 hover:shadow-xl`}
-    >
-      {/* glow blob */}
-      <div className={`absolute -top-6 -left-6 w-20 h-20 rounded-full blur-2xl opacity-60 ${toneStyles.glow}`} />
-      <div className="relative flex items-center gap-3">
-        <div className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 ${toneStyles.iconBg}`}>
-          <Icon className={`w-5 h-5 ${toneStyles.icon}`} />
-        </div>
-        <div className="min-w-0">
-          <p className={`text-2xl font-black leading-none ${toneStyles.value}`}>{value}</p>
-          <p className="text-[11px] text-muted-foreground mt-1 truncate">{label}</p>
-        </div>
-      </div>
-    </div>
+  // ─── كروت المجاميع المالية — بدون أي بيانات تكلفة داخلية (zoneCost/costPrice) ───
+  const deliveredItems = items.filter((i) => i.deliveryStatus === "delivered");
+  const partialItems = items.filter(
+    (i) => i.deliveryStatus === "partial_received" || i.deliveryStatus === "partial_delivered"
   );
-}
-
-function BreakdownCard({ title, icon: Icon, tone, data, total }: {
-  title: string;
-  icon: React.ElementType;
-  tone: "sky" | "violet";
-  data: [string, number][];
-  total: number;
-}) {
-  const toneStyles = {
-    sky: { border: "border-sky-500/25", glow: "bg-sky-500/20", icon: "text-sky-400", bar: "from-sky-400 to-sky-600" },
-    violet: { border: "border-violet-500/25", glow: "bg-violet-500/20", icon: "text-violet-400", bar: "from-violet-400 to-violet-600" },
-  }[tone];
-
-  return (
-    <div className={`relative overflow-hidden rounded-2xl border ${toneStyles.border} bg-gradient-to-br from-muted/25 to-transparent p-4 shadow-lg shadow-black/10`}>
-      <div className={`absolute -top-6 -left-6 w-24 h-24 rounded-full blur-3xl opacity-40 ${toneStyles.glow}`} />
-      <div className="relative flex items-center gap-2 mb-3">
-        <Icon className={`w-4 h-4 ${toneStyles.icon}`} />
-        <p className="text-sm font-black text-foreground">{title}</p>
-      </div>
-      <div className="relative space-y-2">
-        {data.slice(0, 5).map(([name, count]) => {
-          const pct = total > 0 ? Math.round((count / total) * 100) : 0;
-          return (
-            <div key={name}>
-              <div className="flex items-center justify-between text-[11px] mb-1">
-                <span className="text-foreground/80 font-bold truncate">{name}</span>
-                <span className="text-muted-foreground shrink-0">{count} ({pct}%)</span>
-              </div>
-              <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                <div className={`h-full bg-gradient-to-l ${toneStyles.bar} rounded-full transition-all`} style={{ width: `${pct}%` }} />
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
+  const returnedItems = items.filter((i) => i.deliveryStatus === "returned");
+  const returnedDueItems = returnedItems.filter((i) =>
+    RETURN_REASONS_FINANCIAL.includes(String(i.returnReason ?? ""))
   );
-}
-
-function StatCard({ icon: Icon, value, label, tone = "default" }: {
-  icon: React.ElementType; value: number; label: string;
-  tone?: "default" | "emerald" | "orange" | "red" | "muted" | "violet";
-}) {
-  const toneStyles = {
-    default: {
-      wrap: "from-slate-500/15 via-slate-500/5 to-transparent border-slate-500/30",
-      glow: "bg-slate-400/25",
-      icon: "text-slate-300",
-      value: "text-foreground",
-      iconBg: "bg-slate-500/15 border-slate-500/30",
-    },
-    emerald: {
-      wrap: "from-emerald-500/15 via-emerald-500/5 to-transparent border-emerald-500/30",
-      glow: "bg-emerald-500/25",
-      icon: "text-emerald-400",
-      value: "text-emerald-300",
-      iconBg: "bg-emerald-500/15 border-emerald-500/30",
-    },
-    orange: {
-      wrap: "from-orange-500/15 via-orange-500/5 to-transparent border-orange-500/30",
-      glow: "bg-orange-500/25",
-      icon: "text-orange-400",
-      value: "text-orange-300",
-      iconBg: "bg-orange-500/15 border-orange-500/30",
-    },
-    red: {
-      wrap: "from-red-500/15 via-red-500/5 to-transparent border-red-500/30",
-      glow: "bg-red-500/25",
-      icon: "text-red-400",
-      value: "text-red-300",
-      iconBg: "bg-red-500/15 border-red-500/30",
-    },
-    muted: {
-      wrap: "from-gray-500/15 via-gray-500/5 to-transparent border-gray-500/30",
-      glow: "bg-gray-400/20",
-      icon: "text-muted-foreground",
-      value: "text-foreground",
-      iconBg: "bg-gray-500/15 border-gray-500/30",
-    },
-    violet: {
-      wrap: "from-violet-500/15 via-violet-500/5 to-transparent border-violet-500/30",
-      glow: "bg-violet-500/25",
-      icon: "text-violet-400",
-      value: "text-violet-300",
-      iconBg: "bg-violet-500/15 border-violet-500/30",
-    },
-  }[tone];
-  return (
-    <div
-      className={`relative overflow-hidden rounded-2xl border bg-gradient-to-br ${toneStyles.wrap} p-3 flex flex-col items-center gap-1.5 shadow-lg shadow-black/20 transition-transform hover:-translate-y-0.5 hover:shadow-xl`}
-    >
-      <div className={`absolute -top-5 -left-5 w-16 h-16 rounded-full blur-2xl opacity-60 ${toneStyles.glow}`} />
-      <div className={`relative w-8 h-8 rounded-lg border flex items-center justify-center ${toneStyles.iconBg}`}>
-        <Icon className={`w-4 h-4 ${toneStyles.icon}`} />
-      </div>
-      <span className={`relative text-xl font-black ${toneStyles.value}`}>{value}</span>
-      <span className="relative text-[10px] text-muted-foreground text-center">{label}</span>
-    </div>
+  const netAmount = items.reduce((s, i) => s + getCollectedAmount(i), 0);
+  const shippingCost = items.reduce((s, i) => s + getChargeableShipping(i), 0);
+  const repExtraCostTotal = items.reduce(
+    (s, i) => s + (isShippingZeroedRow(i) ? 0 : Number(i.repExtraCost ?? 0)),
+    0
   );
-}
+  const displayedShippingCost = shippingCost + repExtraCostTotal;
+  const totalDueFromClient = netAmount - displayedShippingCost;
+  const dueOrdersCount = deliveredItems.length + partialItems.length + returnedDueItems.length;
 
-function ItemRow({ item }: { item: ManifestItem }) {
-  const meta = STATUS_META[item.deliveryStatus] ?? STATUS_META.pending;
   return (
-    <>
-      <div className="hidden md:grid grid-cols-[100px_1fr_110px_90px_1fr_100px_100px_100px_100px] gap-0 px-4 py-3 text-xs items-center border-b border-border/40 hover:bg-muted/10 transition-colors">
-        <div className="min-w-0 pr-2 text-muted-foreground truncate">
-          {item.senderName || <span className="text-muted-foreground/40">—</span>}
-        </div>
-        <div className="min-w-0 pr-2">
-          <p className="font-bold truncate">{item.customerName}</p>
-          <p className="text-[10px] text-muted-foreground font-mono">{item.invoiceNumber}</p>
-        </div>
-        <div className="min-w-0 pr-2 text-muted-foreground flex items-center gap-1">
-          <Phone className="w-2.5 h-2.5 shrink-0" />
-          <span className="truncate">{item.phone}</span>
-        </div>
-        <div className="min-w-0 pr-2 font-semibold truncate">{item.city || <span className="text-muted-foreground/40">—</span>}</div>
-        <div className="min-w-0 pr-2 flex items-start gap-1">
-          <MapPin className="w-3 h-3 text-muted-foreground shrink-0 mt-0.5" />
-          <span className="truncate text-muted-foreground">{item.address || "—"}</span>
-        </div>
-        <div className="text-left font-bold" style={{ color: "#15803d" }}>{formatCurrency(Number((item as any).totalPrice ?? 0))}</div>
-        <div className="text-center font-bold text-emerald-400">{formatCurrency(getReceivedValue(item))}</div>
-        <div className="text-center font-semibold text-sky-400">
-          {formatCurrency(getEffectiveShipping(item))}
-          {Number((item as any).repExtraCost ?? 0) > 0 && (
-            <p className="text-[9px] text-amber-400 font-semibold truncate">
-              {(item as any).repExtraReason || "نوع الشحنة"} +{formatCurrency(Number((item as any).repExtraCost))}
-            </p>
-          )}
-        </div>
-        <div className="text-center">
-          <span className={`text-[10px] font-bold px-2 py-1 rounded-full border ${meta.bg} ${meta.color}`}>
-            {meta.label}
-          </span>
-          {item.deliveryStatus === "delayed" && item.deliveryNote && (
-            <p className="text-[9px] text-orange-400 mt-1 truncate">⏸ {item.deliveryNote}</p>
-          )}
-        </div>
-      </div>
-
-      <div className="md:hidden px-4 py-3 border-b border-border/40 flex flex-col gap-1.5 text-xs">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <p className="font-bold truncate">{item.customerName}</p>
-            <p className="text-[10px] text-muted-foreground">{item.phone}</p>
-          </div>
-          <span className={`text-[10px] font-bold px-2 py-1 rounded-full border shrink-0 ${meta.bg} ${meta.color}`}>
-            {meta.label}
-          </span>
-        </div>
-        {item.senderName && (
-          <p className="text-[10px] text-muted-foreground">الراسل: {item.senderName}</p>
-        )}
-        <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-          <MapPin className="w-2.5 h-2.5" />{item.city}{item.address ? ` — ${item.address}` : ""}
-        </p>
-        <div className="flex items-center justify-between">
-          <span className="font-mono text-[10px] text-muted-foreground">{item.invoiceNumber}</span>
-          <span className="font-bold" style={{ color: "#15803d" }}>{formatCurrency(Number((item as any).totalPrice ?? 0))}</span>
-        </div>
-        <div className="flex items-center justify-between text-[10px]">
-          <span className="text-muted-foreground">القيمة المستلمة</span>
-          <span className="font-bold text-emerald-400">{formatCurrency(getReceivedValue(item))}</span>
-        </div>
-        <div className="flex items-center justify-between text-[10px]">
-          <span className="text-muted-foreground">سعر الشحن</span>
-          <span className="font-bold text-sky-400 text-left">
-            {formatCurrency(getEffectiveShipping(item))}
-            {Number((item as any).repExtraCost ?? 0) > 0 && (
-              <span className="block text-[9px] text-amber-400 font-semibold">
-                {(item as any).repExtraReason || "نوع الشحنة"} +{formatCurrency(Number((item as any).repExtraCost))}
+    <div className="flex flex-col gap-4 max-w-3xl mx-auto p-4" dir="rtl">
+      <div className="flex items-center gap-2">
+        <Link href="/client-manifests" className="p-2 rounded-lg hover:bg-muted/40 transition-colors">
+          <ArrowRight className="w-4 h-4" />
+        </Link>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-base font-black flex items-center gap-1.5 truncate">
+            <FileText className="w-4 h-4 text-primary shrink-0" />
+            بيان {manifest.manifestNumber}
+          </h1>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            {format(new Date(manifest.createdAt), "yyyy/MM/dd", { locale: ar })}
+            {manifest.status === "closed" ? (
+              <span className="inline-flex items-center gap-1 mr-2 text-red-400">
+                <Lock className="w-3 h-3" /> مُغلق
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 mr-2 text-emerald-400">
+                <LockOpen className="w-3 h-3" /> مفتوح
               </span>
             )}
+          </p>
+        </div>
+      </div>
+
+      {/* ─── حاوية "إجمالي عدد الشحنات" القابلة للطي ─── */}
+      <div className="rounded-2xl border border-border bg-gradient-to-br from-violet-500/10 via-violet-500/[0.03] to-transparent overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setStatusBreakdownOpen((v) => !v)}
+          className="w-full flex items-center justify-between gap-3 p-4"
+        >
+          <div className="flex items-center gap-2">
+            <Package className="w-4 h-4 text-violet-400" />
+            <span className="text-sm font-black text-violet-300">إجمالي عدد الشحنات</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xl font-black text-violet-300">{items.length}</span>
+            <ChevronDown
+              className={`w-4 h-4 text-muted-foreground transition-transform duration-300 ${statusBreakdownOpen ? "rotate-180" : ""}`}
+            />
+          </div>
+        </button>
+        <div
+          className="grid transition-all duration-300 ease-in-out"
+          style={{ gridTemplateRows: statusBreakdownOpen ? "1fr" : "0fr" }}
+        >
+          <div className={`overflow-hidden transition-opacity duration-300 ${statusBreakdownOpen ? "opacity-100" : "opacity-0"}`}>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 px-4 pb-4">
+              <StatusCountCard icon={CheckCircle2} value={groupedDeliveredCount} label="استلم" tone="emerald" />
+              <StatusCountCard icon={CheckCircle2} value={groupedPartialCountDisplay} label="استلم جزئي" tone="sky" />
+              <StatusCountCard icon={AlertCircle} value={groupedPostponedCount} label="مؤجل" tone="orange" />
+              <StatusCountCard icon={Clock} value={groupedPendingCount} label="قيد الانتظار" tone="muted" />
+              <StatusCountCard icon={RotateCcw} value={groupedReturnedCount} label="مرتجع" tone="red" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ─── بروجرس بار نسبة التسليم ─── */}
+      <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-muted/25 to-transparent p-4 shadow-md shadow-black/10">
+        <div className="flex items-center justify-between text-xs mb-2">
+          <span className="text-muted-foreground font-bold">نسبة التسليم</span>
+          <span className="font-black text-emerald-400 text-lg drop-shadow-[0_0_8px_rgba(52,211,153,0.35)]">{groupedDeliveryRate}%</span>
+        </div>
+        <div className="h-2.5 rounded-full bg-muted overflow-hidden">
+          <div
+            className="h-full bg-gradient-to-l from-emerald-400 to-emerald-600 rounded-full transition-all shadow-[0_0_10px_rgba(52,211,153,0.5)]"
+            style={{ width: `${groupedDeliveryRate}%` }}
+          />
+        </div>
+        <div className="flex justify-between mt-2 text-xs">
+          <span className="text-emerald-500 font-bold">مُسلَّم: {groupedCompletedCount}</span>
+          <span className="text-red-500 font-bold">مؤجل: {groupedPostponedCount}</span>
+          <span className="text-red-500 font-bold">مرتجع: {groupedReturnedCount}</span>
+        </div>
+      </div>
+
+      {/* ─── بحث ─── */}
+      <div className="relative">
+        <Search className="w-4 h-4 text-muted-foreground absolute right-3 top-1/2 -translate-y-1/2" />
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="ابحث باسم العميل أو رقم الشحنة أو الهاتف..."
+          className="w-full h-11 rounded-xl bg-muted/25 border border-border pr-10 pl-3 text-sm outline-none focus:border-primary/50 focus:bg-muted/35 transition-all"
+          dir="rtl"
+        />
+      </div>
+
+      {/* ─── جدول الشحنات ─── */}
+      <div className="rounded-2xl border border-border bg-muted/10 overflow-hidden shadow-lg shadow-black/10">
+        <div className="px-4 py-3.5 border-b border-border flex items-center justify-between bg-gradient-to-l from-muted/30 to-transparent">
+          <p className="text-sm font-black flex items-center gap-2">
+            <Package className="w-4 h-4 text-primary" />
+            الشحنات في البيان
+          </p>
+          <span className="text-[11px] text-muted-foreground font-bold px-2.5 py-1 rounded-full bg-muted/40 border border-border/60">
+            {displayGroups.length} شحنة
           </span>
         </div>
-        {item.deliveryStatus === "delayed" && item.deliveryNote && (
-          <p className="text-[10px] text-orange-400">⏸ {item.deliveryNote}</p>
+
+        {displayGroups.length === 0 ? (
+          <div className="text-center py-10 text-sm text-muted-foreground">لا توجد نتائج مطابقة</div>
+        ) : (
+          <div className="divide-y divide-border/60">
+            {displayGroups.map((group, idx) => {
+              const rep = group[0];
+              const status = groupStatus(group) as ManifestItem["deliveryStatus"];
+              const meta = STATUS_META[status] ?? STATUS_META.pending;
+              const total = group.reduce((sum, item) => sum + getCollectedAmount(item), 0);
+              const shipping = group.reduce((sum, item) => sum + getChargeableShipping(item), 0);
+              return (
+                <div key={idx} className={`px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 border-r-2 ${meta.bg}`}>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-bold text-xs truncate">{rep.customerName}</span>
+                      {rep.phone && <span className="text-[10px] text-muted-foreground">{rep.phone}</span>}
+                    </div>
+                    <p className="text-[10px] text-muted-foreground mt-0.5 truncate">{rep.address}</p>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0 text-xs">
+                    <span className="font-bold">{formatCurrency(total)}</span>
+                    <span className="text-muted-foreground">شحن {formatCurrency(shipping)}</span>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${meta.color} ${meta.bg}`}>
+                      {meta.label}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
-    </>
-  );
-}
 
-// ─────────────────────────────────────────────────────────────────────────
-// ── PrintDocument — قالب طباعة رسمي منفصل تمامًا عن عرض الشاشة.
-// أبيض/أسود، بدون ألوان أو ظلال أو gradients، مُخصص للورق A4 مع ترويسة
-// وتذييل وتوقيعات — يظهر فقط أثناء الطباعة (hidden print:block) ---
-// ─────────────────────────────────────────────────────────────────────────
-function PrintDocument({ manifest, items, sc, deliveryPct, totalCod, totalShippingCost, isOpen }: {
-  manifest: ManifestDetail;
-  items: ManifestItem[];
-  sc: ManifestDetail["stats"];
-  deliveryPct: number;
-  totalCod: number;
-  totalShippingCost: number;
-  isOpen: boolean;
-}) {
-  const PRINT_STATUS_LABEL: Record<string, string> = {
-    pending: "قيد الانتظار",
-    delivered: "مسلَّم",
-    partial_delivered: "مسلَّم جزئي",
-    delayed: "مؤجل",
-    returned: "مرتجع",
-  };
-
-  return (
-    <div className="hidden print:block" dir="rtl">
-      <div className="print-doc">
-        {/* ── ترويسة رسمية ── */}
-        <div className="print-header">
-          <div className="print-header-brand">
-            <div className="print-logo">STARK</div>
-            <div className="print-brand-text">
-              <p className="print-brand-name">Stark Shipping &amp; Logistics</p>
-              <p className="print-brand-sub">نظام إدارة الشحن والبيانات</p>
-            </div>
+      {/* ─── بضاعة لسه عند شركة الشحن ─── */}
+      {pendingReturnItems.length > 0 && (
+        <div
+          className="rounded-xl border-2 border-red-500/70 bg-red-950/30 p-4"
+          style={{ boxShadow: "0 0 30px 6px rgba(239,68,68,0.4), 0 0 60px 10px rgba(239,68,68,0.15), inset 0 0 20px 2px rgba(239,68,68,0.05)" }}
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-base">🚚</span>
+            <h2 className="font-bold text-sm text-red-400">
+              بضاعة لسه عند شركة الشحن ({pendingReturnItems.length})
+            </h2>
+            <span className="text-[10px] text-red-400/60">— اضغط "تم الاستلام" لما توصلك من الشركة</span>
           </div>
-          <div className="print-header-meta">
-            <p className="print-doc-title">بيان شحن</p>
-            <p className="print-doc-number">{manifest.manifestNumber}</p>
-          </div>
-        </div>
-
-        <div className="print-divider" />
-
-        {/* ── معلومات البيان ── */}
-        <div className="print-info-grid">
-          <div className="print-info-item">
-            <span className="print-info-label">تاريخ الإنشاء</span>
-            <span className="print-info-value">{format(new Date(manifest.createdAt), "d MMMM yyyy", { locale: ar })}</span>
-          </div>
-          <div className="print-info-item">
-            <span className="print-info-label">الحالة</span>
-            <span className="print-info-value">{isOpen ? "مفتوح" : "مغلق"}</span>
-          </div>
-          {manifest.closedAt && (
-            <div className="print-info-item">
-              <span className="print-info-label">تاريخ الإغلاق</span>
-              <span className="print-info-value">{format(new Date(manifest.closedAt), "d MMMM yyyy", { locale: ar })}</span>
-            </div>
-          )}
-          <div className="print-info-item">
-            <span className="print-info-label">إجمالي الشحنات</span>
-            <span className="print-info-value">{sc.total}</span>
+          <div className="flex flex-col gap-2">
+            {pendingReturnItems.map((item) => {
+              const isPartial = item.deliveryStatus === "partial_received" || item.deliveryStatus === "partial_delivered";
+              const deliveredQty = item.partialQuantity ?? 0;
+              const remainingQty = isPartial ? (item.quantity - deliveredQty) : item.quantity;
+              return (
+                <div
+                  key={item.id}
+                  className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 rounded-lg border border-red-800/30 bg-red-950/30 px-3 py-2.5"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-medium text-xs truncate text-foreground">{item.customerName}</span>
+                      {item.phone && <span className="text-[10px] text-muted-foreground">{item.phone}</span>}
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${isPartial ? "bg-teal-900/40 text-teal-400" : "bg-red-900/40 text-red-400"}`}>
+                        {isPartial ? "جزئي" : "مرتجع"}
+                      </span>
+                    </div>
+                    <p className="text-[10px] font-semibold text-red-400 mt-0.5">
+                      {isPartial
+                        ? `كمية باقية عند الشحن: ${remainingQty} من ${item.quantity}`
+                        : `كمية مرتجعة: ${item.quantity}`}
+                    </p>
+                  </div>
+                  <div className="flex gap-1.5 w-full sm:w-auto sm:shrink-0">
+                    <ClientConfirmReturnButton manifestId={id} item={item} onSaved={refetch} />
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
+      )}
 
-        {/* ── ملخص إحصائي ── */}
-        <table className="print-summary-table">
-          <tbody>
-            <tr>
-              <td className="print-summary-label">مسلَّم</td>
-              <td className="print-summary-value">{sc.delivered}</td>
-              <td className="print-summary-label">قيد الانتظار</td>
-              <td className="print-summary-value">{sc.pending}</td>
-              <td className="print-summary-label">مؤجل</td>
-              <td className="print-summary-value">{sc.delayed}</td>
-              <td className="print-summary-label">مرتجع</td>
-              <td className="print-summary-value">{sc.returned}</td>
-              <td className="print-summary-label">نسبة التسليم</td>
-              <td className="print-summary-value">{deliveryPct}%</td>
-            </tr>
-          </tbody>
-        </table>
-
-        {/* ── جدول الشحنات ── */}
-        <table className="print-items-table">
-          <thead>
-            <tr>
-              <th style={{ width: "22px" }}>#</th>
-              <th style={{ width: "15%" }}>اسم العميل</th>
-              <th style={{ width: "13%" }}>الهاتف</th>
-              <th style={{ width: "26%" }}>العنوان</th>
-              <th style={{ width: "13%" }}>رقم الشحنة</th>
-              <th style={{ width: "36px" }}>القطع</th>
-              <th style={{ width: "65px" }}>الإجمالي</th>
-              <th style={{ width: "60px" }}>الحالة</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item, idx) => (
-              <tr key={item.id}>
-                <td className="print-cell-center">{idx + 1}</td>
-                <td>{item.customerName}</td>
-                <td className="print-cell-ltr">{item.phone}</td>
-                <td>{item.city}{item.address ? ` — ${item.address}` : ""}</td>
-                <td className="print-cell-mono">{item.invoiceNumber}</td>
-                <td className="print-cell-center">
-                  {item.deliveryStatus === "partial_delivered" && item.partialQuantity != null
-                    ? `${item.partialQuantity}/${item.quantity}`
-                    : item.quantity}
-                </td>
-                <td className="print-cell-center">{formatCurrency(item.totalPrice)}</td>
-                <td className="print-cell-center">{PRINT_STATUS_LABEL[item.deliveryStatus] ?? item.deliveryStatus}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        {/* ── الملخص المالي النهائي ── */}
-        <table className="print-financial-table">
-          <tbody>
-            <tr>
-              <td className="print-financial-label">إجمالي قيمة الشحنات</td>
-              <td className="print-financial-value">{formatCurrency(totalCod)}</td>
-            </tr>
-            <tr>
-              <td className="print-financial-label">إجمالي سعر المنطقة</td>
-              <td className="print-financial-value">{formatCurrency(totalShippingCost)}</td>
-            </tr>
-            <tr>
-              <td className="print-financial-label">الإجمالي الكلي</td>
-              <td className="print-financial-value">{formatCurrency(totalCod + totalShippingCost)}</td>
-            </tr>
-          </tbody>
-        </table>
-
-        {/* ── التوقيعات ── */}
-        <div className="print-signatures">
-          <div className="print-signature-block">
-            <p className="print-signature-label">توقيع المندوب</p>
-            <div className="print-signature-line" />
-          </div>
-          <div className="print-signature-block">
-            <p className="print-signature-label">توقيع العميل</p>
-            <div className="print-signature-line" />
-          </div>
+      {/* ─── كروت المجاميع المالية ─── */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="relative overflow-hidden rounded-2xl border border-emerald-500/25 bg-gradient-to-br from-emerald-500/10 via-emerald-500/[0.03] to-transparent p-4 shadow-lg shadow-black/10">
+          <p className="text-xs text-emerald-400 mb-1">إجمالي الإيرادات</p>
+          <p className="text-lg font-black text-emerald-400">{formatCurrency(netAmount)}</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">{dueOrdersCount} شحنة</p>
         </div>
-
-        {/* ── تذييل ── */}
-        <div className="print-footer">
-          <span>تم إنشاء هذا المستند إلكترونيًا بواسطة نظام Stark لإدارة الشحن</span>
-          <span>{format(new Date(), "d MMMM yyyy — HH:mm", { locale: ar })}</span>
+        <div className="relative overflow-hidden rounded-2xl border border-amber-500/25 bg-gradient-to-br from-amber-500/10 via-amber-500/[0.03] to-transparent p-4 shadow-lg shadow-black/10">
+          <p className="text-xs text-amber-400 mb-1">إجمالي تكلفة الشحن</p>
+          <p className="text-lg font-black text-amber-400">{formatCurrency(displayedShippingCost)}</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">
+            {items.length} شحنة
+            {repExtraCostTotal > 0 ? ` · إضافات أنواع: ${formatCurrency(repExtraCostTotal)}` : ""}
+          </p>
+        </div>
+        <div className="relative overflow-hidden rounded-2xl border border-sky-500/25 bg-gradient-to-br from-sky-500/10 via-sky-500/[0.03] to-transparent p-4 shadow-lg shadow-black/10">
+          <p className="text-xs text-sky-400 mb-1">الرصيد المستحق</p>
+          <p className="text-lg font-black text-sky-400">{formatCurrency(totalDueFromClient)}</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">{dueOrdersCount} شحنة</p>
         </div>
       </div>
-
-      {/* ── أنماط الطباعة ── */}
-      <style>{`
-        @media print {
-          @page {
-            size: A4;
-            margin: 14mm 12mm;
-          }
-          html, body {
-            background: #ffffff !important;
-          }
-        }
-
-        .print-doc {
-          font-family: "Segoe UI", Tahoma, Arial, sans-serif;
-          color: #111111;
-          background: #ffffff;
-          width: 100%;
-        }
-
-        .print-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding-bottom: 10px;
-          page-break-inside: avoid;
-          break-inside: avoid;
-        }
-        .print-header-brand {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-        }
-        .print-logo {
-          width: 44px;
-          height: 44px;
-          border: 2px solid #111111;
-          border-radius: 8px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-weight: 900;
-          font-size: 12px;
-          letter-spacing: 0.5px;
-        }
-        .print-brand-name {
-          font-weight: 900;
-          font-size: 15px;
-          margin: 0;
-        }
-        .print-brand-sub {
-          font-size: 10px;
-          color: #555555;
-          margin: 2px 0 0;
-        }
-        .print-header-meta {
-          text-align: left;
-        }
-        .print-doc-title {
-          font-size: 11px;
-          color: #555555;
-          margin: 0;
-          font-weight: 700;
-        }
-        .print-doc-number {
-          font-size: 18px;
-          font-weight: 900;
-          margin: 2px 0 0;
-        }
-
-        .print-divider {
-          border-bottom: 2px solid #111111;
-          margin-bottom: 12px;
-        }
-
-        .print-info-grid {
-          display: grid;
-          grid-template-columns: repeat(4, 1fr);
-          gap: 8px;
-          margin-bottom: 14px;
-          padding: 10px 12px;
-          border: 1px solid #cccccc;
-          border-radius: 6px;
-          page-break-inside: avoid;
-          break-inside: avoid;
-        }
-        .print-info-item {
-          display: flex;
-          flex-direction: column;
-          gap: 2px;
-        }
-        .print-info-label {
-          font-size: 9px;
-          color: #666666;
-          font-weight: 700;
-        }
-        .print-info-value {
-          font-size: 12px;
-          font-weight: 900;
-        }
-
-        .print-summary-table {
-          width: 100%;
-          border-collapse: collapse;
-          margin-bottom: 14px;
-          font-size: 10px;
-        }
-        .print-summary-table td {
-          border: 1px solid #cccccc;
-          padding: 6px 4px;
-          text-align: center;
-        }
-        .print-summary-label {
-          background: #f2f2f2;
-          font-weight: 700;
-          color: #333333;
-        }
-        .print-summary-value {
-          font-weight: 900;
-          font-size: 12px;
-        }
-
-        .print-items-table {
-          width: 100%;
-          table-layout: fixed;
-          border-collapse: collapse;
-          margin-bottom: 14px;
-          font-size: 10px;
-        }
-        .print-items-table th {
-          background: #111111 !important;
-          -webkit-print-color-adjust: exact;
-          print-color-adjust: exact;
-          color: #ffffff;
-          padding: 6px 5px;
-          font-size: 9.5px;
-          font-weight: 700;
-          text-align: right;
-          border: 1px solid #111111;
-          word-break: break-word;
-          overflow-wrap: break-word;
-        }
-        .print-items-table td {
-          border: 1px solid #999999;
-          padding: 5px;
-          text-align: right;
-          word-break: break-word;
-          overflow-wrap: break-word;
-          vertical-align: top;
-          line-height: 1.4;
-        }
-        .print-items-table tr {
-          page-break-inside: avoid;
-          break-inside: avoid;
-        }
-        .print-items-table tr:nth-child(even) {
-          background: #f7f7f7 !important;
-          -webkit-print-color-adjust: exact;
-          print-color-adjust: exact;
-        }
-        .print-cell-center { text-align: center; }
-        .print-cell-ltr { direction: ltr; text-align: right; }
-        .print-cell-mono { font-family: "Courier New", monospace; font-size: 9.5px; }
-
-        .print-financial-table {
-          width: 50%;
-          margin-inline-start: auto;
-          border-collapse: collapse;
-          margin-bottom: 24px;
-          font-size: 11px;
-        }
-        .print-financial-table td {
-          border: 1px solid #111111;
-          padding: 7px 10px;
-        }
-        .print-financial-label {
-          background: #f2f2f2;
-          font-weight: 700;
-        }
-        .print-financial-value {
-          font-weight: 900;
-          text-align: left;
-        }
-
-        .print-signatures {
-          display: flex;
-          justify-content: space-between;
-          gap: 40px;
-          margin-top: 30px;
-          margin-bottom: 20px;
-        }
-        .print-signature-block {
-          flex: 1;
-        }
-        .print-signature-label {
-          font-size: 10px;
-          font-weight: 700;
-          color: #333333;
-          margin: 0 0 26px;
-        }
-        .print-signature-line {
-          border-top: 1px solid #111111;
-        }
-
-        .print-footer {
-          display: flex;
-          justify-content: space-between;
-          border-top: 1px solid #cccccc;
-          padding-top: 8px;
-          font-size: 8.5px;
-          color: #777777;
-        }
-
-        table { page-break-inside: auto; }
-        tr { page-break-inside: avoid; page-break-after: auto; }
-        thead { display: table-header-group; }
-        tfoot { display: table-footer-group; }
-
-        .print-financial-table,
-        .print-signatures,
-        .print-footer {
-          page-break-inside: avoid;
-          break-inside: avoid;
-        }
-      `}</style>
     </div>
   );
 }
