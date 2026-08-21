@@ -879,9 +879,70 @@ router.get("/client-portal/shipments", async (req, res): Promise<void> => {
         .where(inArray(usersTable.id, repUserIds));
       repNameMap = Object.fromEntries(repUsers.map(u => [u.id, u.displayName]));
     }
+
+    // إثراء الصفحة الحالية بنفس بيانات جدول شحنات الأدمن (اسم المخزن، اسم شركة الشحن/المندوب،
+    // ملاحظة التأجيل، القيمة الفعلية المستلمة) — نفس منطق /shipments بتاع الأدمن، لكن مقصور
+    // على IDs الصفحة الحالية بس عشان الأداء.
+    const pageIds = paged.map(s => s.id);
+    const warehouseIds = [...new Set(paged.map(s => s.warehouseId).filter((v): v is number => !!v))];
+    const shippingCoIds = [...new Set(paged.map(s => s.shippingCompanyId).filter((v): v is number => !!v))];
+
+    let warehouseNameMap: Record<number, string> = {};
+    if (warehouseIds.length) {
+      const whs = await db.select({ id: warehousesTable.id, name: warehousesTable.name })
+        .from(warehousesTable).where(inArray(warehousesTable.id, warehouseIds));
+      warehouseNameMap = Object.fromEntries(whs.map(w => [w.id, w.name]));
+    }
+    let shippingCoNameMap: Record<number, string> = {};
+    if (shippingCoIds.length) {
+      const cos = await db.select({ id: shippingCompaniesTable.id, name: shippingCompaniesTable.name })
+        .from(shippingCompaniesTable).where(inArray(shippingCompaniesTable.id, shippingCoIds));
+      shippingCoNameMap = Object.fromEntries(cos.map(c => [c.id, c.name]));
+    }
+
+    // أحدث بند بيان شحن (لسبب التأجيل + القيمة المستلمة) لكل شحنة في الصفحة الحالية —
+    // بنستخدم MAX(id) لكل shipmentId عشان ناخد أحدث سجل بس (نفس فكرة latestManifestItemIdSql في /shipments)
+    let manifestItemMap: Record<number, { deliveryNote: string | null; deliveredValueReceived: string | null }> = {};
+    let clientAccountItemMap: Record<number, { deliveredValueReceived: string | null }> = {};
+    if (pageIds.length) {
+      const latestManifestRows = await db
+        .select({
+          shipmentId: shipmentManifestItemsTable.shipmentId,
+          deliveryNote: shipmentManifestItemsTable.deliveryNote,
+          deliveredValueReceived: shipmentManifestItemsTable.deliveredValueReceived,
+          id: shipmentManifestItemsTable.id,
+        })
+        .from(shipmentManifestItemsTable)
+        .where(inArray(shipmentManifestItemsTable.shipmentId, pageIds))
+        .orderBy(shipmentManifestItemsTable.id);
+      // بما إن الصفوف مرتبة تصاعديًا بالـ id، آخر مرة نكتب فيها لكل shipmentId هي الأحدث فعليًا
+      for (const row of latestManifestRows) {
+        if (row.shipmentId == null) continue;
+        manifestItemMap[row.shipmentId] = { deliveryNote: row.deliveryNote, deliveredValueReceived: row.deliveredValueReceived };
+      }
+      const latestClientAccountRows = await db
+        .select({
+          shipmentId: clientAccountManifestItemsTable.shipmentId,
+          deliveredValueReceived: clientAccountManifestItemsTable.deliveredValueReceived,
+          id: clientAccountManifestItemsTable.id,
+        })
+        .from(clientAccountManifestItemsTable)
+        .where(inArray(clientAccountManifestItemsTable.shipmentId, pageIds))
+        .orderBy(clientAccountManifestItemsTable.id);
+      for (const row of latestClientAccountRows) {
+        if (row.shipmentId == null) continue;
+        clientAccountItemMap[row.shipmentId] = { deliveredValueReceived: row.deliveredValueReceived };
+      }
+    }
+
     const pagedWithRep = paged.map(s => ({
       ...s,
       assignedUserName: s.assignedUserId ? (repNameMap[s.assignedUserId] ?? null) : null,
+      warehouseName: s.warehouseId ? (warehouseNameMap[s.warehouseId] ?? null) : null,
+      shippingCompanyName: s.shippingCompanyId ? (shippingCoNameMap[s.shippingCompanyId] ?? null) : null,
+      delayNote: manifestItemMap[s.id]?.deliveryNote ?? null,
+      deliveredValueReceived: manifestItemMap[s.id]?.deliveredValueReceived ?? null,
+      clientAccountDeliveredValueReceived: clientAccountItemMap[s.id]?.deliveredValueReceived ?? null,
     }));
 
     res.json({ data: pagedWithRep, total, page, pageSize });

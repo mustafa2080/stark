@@ -3,15 +3,18 @@ import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import {
-  Package, Search, ChevronRight, RefreshCcw, Plus, Upload, MessageCircle, ChevronUp, ChevronDown, X, Filter, CalendarDays,
+  Package, Search, ChevronRight, RefreshCcw, Plus, Upload, MessageCircle, ChevronUp, ChevronDown, X, Filter, CalendarDays, RotateCcw, MapPin,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { returnReasonLabel } from "@/lib/order-constants";
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 const fn = (n: number) => new Intl.NumberFormat("ar-EG").format(n);
+const formatCurrency = (n: number) =>
+  new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(n);
 
 // توحيد صيغ الحروف العربية المتشابهة عشان البحث يلاقي النتيجة حتى لو الكتابة مختلفة شكليًا
 // (أ/إ/آ → ا) و (ة → ه) و (ى → ي) — أكتر سبب شائع لفشل البحث بالاسم العربي
@@ -33,8 +36,20 @@ interface ShipmentRow {
   receiverCity: string | null;
   status: string;
   codAmount: string | null;
+  totalAmount: string | null;
   shippingFee: string | null;
   assignedUserName: string | null;
+  warehouseId: number | null;
+  warehouseName: string | null;
+  shippingCompanyId: number | null;
+  shippingCompanyName: string | null;
+  delayNote: string | null;
+  deliveredValueReceived: string | null;
+  clientAccountDeliveredValueReceived: string | null;
+  returnReason: string | null;
+  returnNote: string | null;
+  returnReceived: 0 | 1 | boolean | null;
+  partialQuantity: number | null;
   createdAt: string;
 }
 
@@ -295,7 +310,7 @@ export default function ClientShipmentsPage() {
       case "receiver": return s.receiverName ?? "";
       case "phone":    return s.receiverPhone ?? "";
       case "city":     return s.receiverCity ?? "";
-      case "cod":      return String(Math.round(Number(s.codAmount || 0)));
+      case "cod":      return String(Math.round(Number(s.codAmount || 0) > 0 ? Number(s.codAmount) : Number(s.totalAmount || 0)));
       case "agent":    return s.assignedUserName ?? "";
       case "status":   return statusMeta(s.status).label;
       default:         return "";
@@ -582,7 +597,9 @@ export default function ClientShipmentsPage() {
                   </div>
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-sm font-bold text-foreground/85 truncate">{s.receiverName}</span>
-                    <span className="text-sm font-black text-foreground shrink-0">{fn(Number(s.codAmount ?? 0))}</span>
+                    <span className="text-sm font-black text-foreground shrink-0">
+                      {Number(s.codAmount ?? 0) > 0 ? formatCurrency(Number(s.codAmount)) : s.totalAmount != null ? formatCurrency(Number(s.totalAmount)) : "—"}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
                     <span className="truncate">{s.receiverCity || "—"}</span>
@@ -619,11 +636,13 @@ export default function ClientShipmentsPage() {
                   <th className="text-right font-bold text-muted-foreground px-4 py-3">
                     <div className="flex items-center gap-1">سعر الشحنة{showColFilters && <ColFilterBtn col="cod" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
                   </th>
+                  <th className="text-right font-bold text-muted-foreground px-4 py-3">القيمة المستلمة</th>
+                  <th className="text-right font-bold text-muted-foreground px-4 py-3">سعر الشحن</th>
                   <th className="text-right font-bold text-muted-foreground px-4 py-3">
                     <div className="flex items-center gap-1">المندوب{showColFilters && <ColFilterBtn col="agent" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
                   </th>
-                  <th className="text-right font-bold text-muted-foreground px-4 py-3">
-                    <div className="flex items-center gap-1">الحالة{showColFilters && <ColFilterBtn col="status" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
+                  <th className="text-center font-bold text-muted-foreground px-4 py-3 w-36">
+                    <div className="flex items-center justify-center gap-1">الحالة{showColFilters && <ColFilterBtn col="status" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
                   </th>
                   <th className="text-center font-bold text-muted-foreground px-4 py-3 w-10"></th>
                   <th className="text-right font-bold text-muted-foreground px-4 py-3 w-8"></th>
@@ -631,10 +650,10 @@ export default function ClientShipmentsPage() {
               </thead>
               <tbody>
                 {isLoading ? (
-                  <tr><td colSpan={11} className="text-center py-10 text-muted-foreground">جارٍ التحميل...</td></tr>
+                  <tr><td colSpan={13} className="text-center py-10 text-muted-foreground">جارٍ التحميل...</td></tr>
                 ) : shipments.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="text-center py-14 text-muted-foreground">
+                    <td colSpan={13} className="text-center py-14 text-muted-foreground">
                       <div className="flex flex-col items-center gap-2">
                         <Package size={40} className="opacity-30" />
                         <p className="text-sm">لا توجد شحنات مطابقة</p>
@@ -654,12 +673,94 @@ export default function ClientShipmentsPage() {
                       <td className="px-4 py-3 text-foreground/80">{s.receiverName}</td>
                       <td className="px-4 py-3 text-foreground/60">{s.receiverPhone || "—"}</td>
                       <td className="px-4 py-3 text-foreground/60">{s.receiverCity || "—"}</td>
-                      <td className="px-4 py-3 text-foreground/80 font-bold">{fn(Number(s.codAmount ?? 0))}</td>
+                      <td className="px-4 py-3 text-foreground/80 font-bold">
+                        {Number(s.codAmount ?? 0) > 0 ? formatCurrency(Number(s.codAmount)) : s.totalAmount != null ? formatCurrency(Number(s.totalAmount)) : "—"}
+                      </td>
+                      <td className="px-4 py-3 text-emerald-500 font-bold">
+                        {(() => {
+                          if (s.status === "partial_received" && s.partialQuantity != null) {
+                            return formatCurrency(Number(s.partialQuantity));
+                          }
+                          if (s.status === "delivered") {
+                            const dvr = s.deliveredValueReceived ?? s.clientAccountDeliveredValueReceived;
+                            const base = dvr != null
+                              ? Number(dvr)
+                              : (Number(s.codAmount ?? 0) > 0 ? Number(s.codAmount) : Number(s.totalAmount ?? 0));
+                            return formatCurrency(base);
+                          }
+                          return formatCurrency(0);
+                        })()}
+                      </td>
+                      <td className="px-4 py-3 text-foreground/60">
+                        {s.shippingFee != null ? formatCurrency(Number(s.shippingFee)) : "—"}
+                      </td>
                       <td className="px-4 py-3 text-foreground/60">{s.assignedUserName || "—"}</td>
-                      <td className="px-4 py-3">
-                        <span className="px-2.5 py-1 rounded-full text-[11px] font-bold" style={{ background: meta.bg, color: meta.color }}>
-                          {meta.label}
-                        </span>
+                      <td className="px-4 py-3 text-center">
+                        <div className="flex flex-col items-center gap-0.5">
+                          <span className="px-2.5 py-1 rounded-full text-[11px] font-bold" style={{ background: meta.bg, color: meta.color }}>
+                            {meta.label}
+                          </span>
+                          {s.status === "warehouse_ready" && (
+                            <div className="flex flex-col items-center gap-0.5 mt-1">
+                              <span className="text-[9px] font-bold text-amber-500 dark:text-amber-400 leading-none">🏠 ما زال في المخزن</span>
+                              {s.warehouseName && (
+                                <span className="text-[9px] font-semibold text-teal-500 dark:text-teal-400 leading-none">📦 {s.warehouseName}</span>
+                              )}
+                            </div>
+                          )}
+                          {(s.status === "in_shipping" || s.status === "in_transit") && (
+                            <div className="flex flex-col items-center gap-0.5 mt-1">
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-500 dark:text-blue-300 bg-blue-500/10 border border-blue-500/30 rounded-full px-2 py-0.5 leading-none">
+                                🚚 {s.assignedUserName ? `مع ${s.assignedUserName}` : s.shippingCompanyName ? `مع ${s.shippingCompanyName}` : "عند المندوب"}
+                              </span>
+                            </div>
+                          )}
+                          {s.status === "delayed" && (s.delayNote || s.shippingCompanyName) && (
+                            <div className="flex flex-col items-center gap-0.5 mt-1">
+                              {s.delayNote && (
+                                <span className="text-[9px] font-bold text-violet-400 dark:text-violet-300 leading-none">⏸ {s.delayNote}</span>
+                              )}
+                              {s.shippingCompanyName && (
+                                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-blue-500 dark:text-blue-300 leading-none">
+                                  🚚 مع {s.shippingCompanyName}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                          {s.status === "returned" && (() => {
+                            const reason = s.returnReason ? (s.returnReason === "other" && s.returnNote ? s.returnNote : returnReasonLabel(s.returnReason)) : null;
+                            const isReceived = s.returnReceived === 1 || s.returnReceived === true;
+                            return (
+                              <div className="flex flex-col items-center gap-0.5 mt-1">
+                                {reason && (
+                                  <div className="flex items-center justify-center gap-0.5">
+                                    <RotateCcw className="w-2.5 h-2.5 text-red-500 shrink-0" />
+                                    <span className="text-[9px] text-red-600 dark:text-red-400 leading-none">{reason}</span>
+                                  </div>
+                                )}
+                                {isReceived ? (
+                                  <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-600 dark:text-emerald-400 leading-none">
+                                    ↪ في مخزن {s.warehouseName || "—"}
+                                  </span>
+                                ) : s.shippingCompanyName ? (
+                                  <span className="inline-flex items-center gap-1 text-[9px] font-bold text-blue-500 dark:text-blue-300 leading-none">
+                                    🚚 مع {s.shippingCompanyName}
+                                  </span>
+                                ) : null}
+                              </div>
+                            );
+                          })()}
+                          {s.status === "partial_received" && (
+                            <div className="flex flex-col items-center gap-0 mt-1 text-[9px] font-bold leading-tight">
+                              {s.partialQuantity != null && (
+                                <span className="text-teal-600 dark:text-teal-400">✓ استُلم {formatCurrency(Number(s.partialQuantity))} من {formatCurrency(Number(s.totalAmount ?? 0))}</span>
+                              )}
+                              {(s.returnReceived === 1)
+                                ? <span className="text-emerald-600 dark:text-emerald-400">↪ الباقي في مخزن {s.warehouseName || "—"}</span>
+                                : <span className="text-orange-500 dark:text-orange-400">🚚 الباقي ما زال عند مندوب الشحن</span>}
+                            </div>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-center" onClick={e => e.stopPropagation()}>
                         {s.receiverPhone && (
