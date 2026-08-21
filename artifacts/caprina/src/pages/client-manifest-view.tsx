@@ -1,5 +1,5 @@
 import { useParams, Link } from "wouter";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import { useState, type ElementType } from "react";
 import {
@@ -9,8 +9,6 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { ar } from "date-fns/locale";
-import { useToast } from "@/hooks/use-toast";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -148,43 +146,6 @@ function StatusCountCard({
   );
 }
 
-// ─── زرار "تم الاستلام" للعميل — نسخة محدودة من ReturnReceivedButton بتاع الأدمن، بتسمح بس بالتأكيد (returnReceived=1) ───
-function ClientConfirmReturnButton({
-  manifestId,
-  item,
-  onSaved,
-}: {
-  manifestId: number;
-  item: ManifestItem;
-  onSaved: () => void;
-}) {
-  const { toast } = useToast();
-  const mutation = useMutation({
-    mutationFn: async () => {
-      return apiFetch(`/client-portal/manifests/${manifestId}/items/${item.id}/confirm-return`, {
-        method: "POST",
-      });
-    },
-    onSuccess: () => {
-      toast({ title: "تم التأكيد", description: "تم تسجيل استلام البضاعة" });
-      onSaved();
-    },
-    onError: () => {
-      toast({ title: "خطأ", description: "حصل خطأ أثناء الحفظ، حاول تاني", variant: "destructive" });
-    },
-  });
-
-  return (
-    <button
-      type="button"
-      onClick={() => mutation.mutate()}
-      disabled={mutation.isPending}
-      className="flex-1 sm:flex-none h-8 px-3 rounded-lg border border-emerald-700 bg-emerald-900/20 text-emerald-400 text-xs font-bold hover:bg-emerald-900/40 transition-colors disabled:opacity-50"
-    >
-      {mutation.isPending ? "جارٍ الحفظ..." : "تم الاستلام"}
-    </button>
-  );
-}
 
 // ─── تصدير Excel لبيان العميل — نفس تصميم شيت "الطلبيات" في الأدمن، بدون أي بيانات تكلفة داخلية ───
 async function exportClientManifestExcel(manifest: ManifestDetail, groups: ManifestItem[][]) {
@@ -451,7 +412,7 @@ export default function ClientManifestViewPage() {
   const dueOrdersCount = deliveredItems.length + partialItems.length + returnedDueItems.length;
 
   return (
-    <div className="flex flex-col gap-4 max-w-3xl mx-auto p-4" dir="rtl">
+    <div className="flex flex-col gap-4 max-w-5xl mx-auto p-4" dir="rtl">
       <div className="flex items-center gap-2 flex-wrap print:hidden">
         <Link href="/client-manifests" className="p-2 rounded-lg hover:bg-muted/40 transition-colors">
           <ArrowRight className="w-4 h-4" />
@@ -716,7 +677,6 @@ export default function ClientManifestViewPage() {
             <h2 className="font-bold text-sm text-red-400">
               بضاعة لسه عند شركة الشحن ({pendingReturnItems.length})
             </h2>
-            <span className="text-[10px] text-red-400/60">— اضغط "تم الاستلام" لما توصلك من الشركة</span>
           </div>
           <div className="flex flex-col gap-2">
             {pendingReturnItems.map((item) => {
@@ -741,9 +701,6 @@ export default function ClientManifestViewPage() {
                         ? `كمية باقية عند الشحن: ${remainingQty} من ${item.quantity}`
                         : `كمية مرتجعة: ${item.quantity}`}
                     </p>
-                  </div>
-                  <div className="flex gap-1.5 w-full sm:w-auto sm:shrink-0">
-                    <ClientConfirmReturnButton manifestId={id} item={item} onSaved={refetch} />
                   </div>
                 </div>
               );
