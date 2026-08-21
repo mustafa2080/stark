@@ -10,6 +10,7 @@ import {
 import { format } from "date-fns";
 import { ar } from "date-fns/locale";
 import { cn, formatCurrency } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 
 interface ClientPortalManifestListItem {
   id: number;
@@ -130,6 +131,7 @@ export default function ClientManifestsPage() {
 // البيان المفتوح — كارت كبير مع ساعة رملية متحركة وتاريخ الإغلاق التلقائي
 // ═══════════════════════════════════════════════════════════════════════
 function OpenManifestCard({ manifest }: { manifest: ClientPortalManifestListItem }) {
+  const { toast } = useToast();
   const sc = manifest.statusCounts;
   const total = manifest.shipmentCount;
   const completed = (sc.delivered ?? 0) + (sc.partial ?? 0);
@@ -140,9 +142,19 @@ function OpenManifestCard({ manifest }: { manifest: ClientPortalManifestListItem
     ? format(new Date(manifest.scheduledCloseAt), "EEEE", { locale: ar })
     : null;
 
+  const handleClick = () => {
+    toast({
+      title: "البيان لم يغلق بعد",
+      description: "فى بيانتى البيان لم يغلق بعد من طرف المدير يرجى انتظار اغلاقه",
+      variant: "destructive",
+    });
+  };
+
   return (
-    <Link href={`/client-manifests/${manifest.id}`}>
-      <div className="group cursor-pointer relative overflow-hidden rounded-2xl border border-emerald-700/40 bg-gradient-to-br from-emerald-950/20 via-muted/20 to-transparent hover:border-emerald-600/60 transition-all p-4 sm:p-5">
+    <div
+      onClick={handleClick}
+      className="group cursor-not-allowed relative overflow-hidden rounded-2xl border border-emerald-700/40 bg-gradient-to-br from-emerald-950/20 via-muted/20 to-transparent opacity-70 transition-all p-4 sm:p-5"
+    >
         <div className="absolute -top-10 -left-10 w-40 h-40 rounded-full blur-3xl opacity-30 bg-emerald-500/30" />
 
         <div className="relative flex items-center justify-between flex-wrap gap-2 mb-3">
@@ -154,7 +166,7 @@ function OpenManifestCard({ manifest }: { manifest: ClientPortalManifestListItem
                 : `البيان حالياً قيد العمل — سيتم الإغلاق يوم ${closingDayLabel} القادم`}
             </span>
           </div>
-          <ChevronLeft className="w-4 h-4 text-muted-foreground/50 group-hover:text-primary transition-colors" />
+          <ChevronLeft className="w-4 h-4 text-muted-foreground/30" />
         </div>
 
         <div className="relative flex items-center gap-3 mb-4">
@@ -195,7 +207,6 @@ function OpenManifestCard({ manifest }: { manifest: ClientPortalManifestListItem
           </div>
         )}
       </div>
-    </Link>
   );
 }
 
