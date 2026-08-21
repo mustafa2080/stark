@@ -1134,11 +1134,18 @@ router.get("/client-portal/profile-full", async (req, res): Promise<void> => {
 
     const shipments = await getClientShipments(user.tenantId ?? null, client.normalizedPhone, user.id, client.id);
 
-    // ── تقسيم الشحنات: مستلمة (delivered/partial_received) و غير مستلمة (الباقي عدا الملغية/المرتجعة) ──
-    const receivedStatuses = new Set(["delivered", "partial_received"]);
-    const closedStatuses   = new Set(["delivered", "partial_received", "cancelled", "returned"]);
-    const received    = shipments.filter(s => receivedStatuses.has(s.status));
-    const notReceived  = shipments.filter(s => !closedStatuses.has(s.status));
+    // ── تقسيم الشحنات: "تم استلامها" يعني تم استلام الشحنة داخليًا في الشركة
+    // (وصلت المخزن على الأقل)، مش تسليمها للعميل النهائي. فبالتالي كل حالة من
+    // "قيد الشحن في المخزن" وما بعدها (بما فيها التسليم والمرتجع والملغي) تُحسب
+    // "تم استلامها". الحالة الوحيدة اللي تُحسب "لسه لم يتم استلامها" هي "قيد
+    // الانتظار" (pending/waiting) — يعني الشحنة لسه ما وصلتش المخزن أصلًا.
+    const notReceivedStatuses = new Set(["pending", "waiting"]);
+    const received    = shipments.filter(s => !notReceivedStatuses.has(s.status));
+    const notReceived  = shipments.filter(s => notReceivedStatuses.has(s.status));
+    // ملحوظة: ده مختلف عن معنى "تم استلامها" فوق — هنا معناه الشحنة "استلمها
+    // العميل النهائي فعليًا" (تسليم كامل أو جزئي)، مش مجرد وصولها للمخزن، فبنسيبه
+    // بمنطقه الأصلي المنفصل خصيصًا لحساب أداء المندوب.
+    const deliveredToCustomerStatuses = new Set(["delivered", "partial_received"]);
 
     // ── تحديد المندوب الأكثر تعاملاً مع العميل (assignedUserId على شحناته) ──
     const repCounts: Record<number, number> = {};
@@ -1164,7 +1171,7 @@ router.get("/client-portal/profile-full", async (req, res): Promise<void> => {
           id: rep.id, name: rep.displayName, phone: rep.phone, avatar: rep.avatar,
           companyName, companyPhone,
           shipmentsCount: repCounts[Number(topRepId)],
-          deliveredCount: shipments.filter(s => s.assignedUserId === Number(topRepId) && receivedStatuses.has(s.status)).length,
+          deliveredCount: shipments.filter(s => s.assignedUserId === Number(topRepId) && deliveredToCustomerStatuses.has(s.status)).length,
         };
       }
     } else if (shipments[0]?.shippingCompanyId) {

@@ -692,6 +692,7 @@ export default function ClientManifestViewPage() {
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="font-medium text-xs truncate text-foreground">{item.customerName}</span>
                       {item.phone && <span className="text-[10px] text-muted-foreground">{item.phone}</span>}
+                      <span className="text-[10px] text-muted-foreground font-mono">#{item.shipmentId}</span>
                       <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${isPartial ? "bg-teal-900/40 text-teal-400" : "bg-red-900/40 text-red-400"}`}>
                         {isPartial ? "جزئي" : "مرتجع"}
                       </span>
@@ -701,6 +702,16 @@ export default function ClientManifestViewPage() {
                         ? `كمية باقية عند الشحن: ${remainingQty} من ${item.quantity}`
                         : `كمية مرتجعة: ${item.quantity}`}
                     </p>
+                    <div className="flex items-center gap-2.5 flex-wrap mt-0.5">
+                      <p className="text-[10px] text-muted-foreground">
+                        سعر الشحنة: <span className="font-bold text-foreground">{formatCurrency(Number(item.shippingCost ?? 0) + Number(item.repExtraCost ?? 0))}</span>
+                      </p>
+                      {!isPartial && item.returnReason && (
+                        <p className="text-[10px] text-muted-foreground">
+                          السبب: <span className="font-bold text-red-300">{returnReasonLabel(item.returnReason)}</span>
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
               );

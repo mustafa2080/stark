@@ -252,8 +252,6 @@ export default function ClientAccountPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", city: "", address: "" });
   const [avatarDraft, setAvatarDraft] = useState<string | null | undefined>(undefined);
-  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
-  const [deletePassword, setDeletePassword] = useState("");
   const [cancelTarget, setCancelTarget] = useState<any | null>(null);
 
   const { data, isLoading } = useQuery<any>({
@@ -331,15 +329,6 @@ export default function ClientAccountPage() {
     if (Object.keys(payload).length === 0) { setIsEditing(false); return; }
     saveMutation.mutate(payload);
   }
-
-  const deleteMutation = useMutation({
-    mutationFn: (password: string) => apiFetch("/client-portal/account", { method: "DELETE", body: JSON.stringify({ password }) }),
-    onSuccess: () => {
-      toast({ title: "تم حذف حسابك", description: "نتمنى لك التوفيق" });
-      logout();
-    },
-    onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
-  });
 
   const cancelShipmentMutation = useMutation({
     mutationFn: (id: number) => apiFetch(`/client-portal/shipments/${id}/cancel`, { method: "PATCH" }),
@@ -531,16 +520,6 @@ export default function ClientAccountPage() {
               )}
             </div>
 
-            {/* Danger zone */}
-            <div className="rounded-2xl p-5 bg-red-500/5 border border-red-500/20">
-              <p className="text-xs text-red-500 font-bold mb-3 flex items-center gap-1.5">
-                <AlertTriangle size={13} /> منطقة الخطر
-              </p>
-              <button onClick={() => setIsDeleteOpen(true)}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-red-500 border border-red-500/30 hover:bg-red-500/10 transition-colors">
-                <Trash2 size={14} /> حذف حسابي نهائياً
-              </button>
-            </div>
           </div>
 
           {/* ── Right column: shipments ── */}
@@ -631,38 +610,6 @@ export default function ClientAccountPage() {
           </div>
         </div>
       </div>
-
-      {/* ── Delete Account Dialog ── */}
-      <Dialog open={isDeleteOpen} onOpenChange={(o) => { setIsDeleteOpen(o); if (!o) setDeletePassword(""); }}>
-        <DialogContent className="max-w-sm" dir="rtl">
-          <DialogHeader>
-            <DialogTitle className="text-right text-red-500 flex items-center gap-2">
-              <AlertTriangle size={18} /> حذف الحساب نهائياً
-            </DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            هذا الإجراء سيقوم بتعطيل حسابك بالكامل ولن تتمكن من الدخول مرة أخرى. أدخل كلمة المرور للتأكيد.
-          </p>
-          <input
-            type="password"
-            value={deletePassword}
-            onChange={(e) => setDeletePassword(e.target.value)}
-            placeholder="كلمة المرور"
-            className="w-full px-3 py-2.5 rounded-xl text-sm bg-muted/40 border border-border outline-none focus:border-red-500/50 transition-colors"
-          />
-          <div className="flex items-center gap-2 pt-2">
-            <button onClick={() => setIsDeleteOpen(false)} disabled={deleteMutation.isPending}
-              className="flex-1 px-4 py-2.5 rounded-xl text-sm font-bold text-foreground/70 bg-muted/50 disabled:opacity-50">
-              إلغاء
-            </button>
-            <button onClick={() => deleteMutation.mutate(deletePassword)} disabled={deleteMutation.isPending || !deletePassword}
-              className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold bg-red-600 text-white disabled:opacity-50">
-              {deleteMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-              حذف نهائي
-            </button>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* ── Cancel Shipment Dialog ── */}
       <Dialog open={!!cancelTarget} onOpenChange={(o) => { if (!o) setCancelTarget(null); }}>
