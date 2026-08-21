@@ -638,9 +638,6 @@ export default function ClientShipmentsPage() {
                   </th>
                   <th className="text-right font-bold text-muted-foreground px-4 py-3">القيمة المستلمة</th>
                   <th className="text-right font-bold text-muted-foreground px-4 py-3">سعر الشحن</th>
-                  <th className="text-right font-bold text-muted-foreground px-4 py-3">
-                    <div className="flex items-center gap-1">المندوب{showColFilters && <ColFilterBtn col="agent" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
-                  </th>
                   <th className="text-center font-bold text-muted-foreground px-4 py-3 w-36">
                     <div className="flex items-center justify-center gap-1">الحالة{showColFilters && <ColFilterBtn col="status" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
                   </th>
@@ -650,10 +647,10 @@ export default function ClientShipmentsPage() {
               </thead>
               <tbody>
                 {isLoading ? (
-                  <tr><td colSpan={13} className="text-center py-10 text-muted-foreground">جارٍ التحميل...</td></tr>
+                  <tr><td colSpan={12} className="text-center py-10 text-muted-foreground">جارٍ التحميل...</td></tr>
                 ) : shipments.length === 0 ? (
                   <tr>
-                    <td colSpan={13} className="text-center py-14 text-muted-foreground">
+                    <td colSpan={12} className="text-center py-14 text-muted-foreground">
                       <div className="flex flex-col items-center gap-2">
                         <Package size={40} className="opacity-30" />
                         <p className="text-sm">لا توجد شحنات مطابقة</p>
@@ -694,7 +691,6 @@ export default function ClientShipmentsPage() {
                       <td className="px-4 py-3 text-foreground/60">
                         {s.shippingFee != null ? formatCurrency(Number(s.shippingFee)) : "—"}
                       </td>
-                      <td className="px-4 py-3 text-foreground/60">{s.assignedUserName || "—"}</td>
                       <td className="px-4 py-3 text-center">
                         <div className="flex flex-col items-center gap-0.5">
                           <span className="px-2.5 py-1 rounded-full text-[11px] font-bold" style={{ background: meta.bg, color: meta.color }}>
