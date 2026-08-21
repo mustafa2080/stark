@@ -704,7 +704,7 @@ export default function ClientManifestViewPage() {
                     </p>
                     <div className="flex items-center gap-2.5 flex-wrap mt-0.5">
                       <p className="text-[10px] text-muted-foreground">
-                        سعر الشحنة: <span className="font-bold text-foreground">{formatCurrency(Number(item.shippingCost ?? 0) + Number(item.repExtraCost ?? 0))}</span>
+                        إجمالي الشحنة: <span className="font-bold text-foreground">{formatCurrency(item.totalPrice)}</span>
                       </p>
                       {!isPartial && item.returnReason && (
                         <p className="text-[10px] text-muted-foreground">
