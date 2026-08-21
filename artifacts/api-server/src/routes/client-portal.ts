@@ -1603,6 +1603,31 @@ router.get("/client-portal/manifests/:id", async (req, res): Promise<void> => {
     const shipmentMap: Record<number, any> = {};
     allShipments.forEach(s => { shipmentMap[s.id] = s; });
 
+    // ── returnValueReceived للمرتجع بالأسباب المالية (رفض بعد المعاينة / تهرب) ──
+    // القيمة دي بتتسجل في جدول بيان الشحن (shipment_manifest_items) مش في جدول
+    // بيان حساب العميل نفسه، فبنجيبها هنا كـ fallback — نفس منطق الأدمن بالظبط
+    // (client-account-manifests.ts) عشان الرقم في صفحة العميل يطابق الأدمن.
+    let shipmentReturnValueMap: Record<number, number> = {};
+    if (shipmentIds.length) {
+      const smItems = await db
+        .select({
+          shipmentId: shipmentManifestItemsTable.shipmentId,
+          returnValueReceived: shipmentManifestItemsTable.returnValueReceived,
+          addedAt: shipmentManifestItemsTable.addedAt,
+        })
+        .from(shipmentManifestItemsTable)
+        .where(and(
+          inArray(shipmentManifestItemsTable.shipmentId, shipmentIds),
+          eq(shipmentManifestItemsTable.deliveryStatus, "returned"),
+        ));
+      smItems
+        .filter(r => r.returnValueReceived != null)
+        .sort((a, b) => new Date(a.addedAt).getTime() - new Date(b.addedAt).getTime())
+        .forEach(row => {
+          shipmentReturnValueMap[row.shipmentId] = Number(row.returnValueReceived);
+        });
+    }
+
     // ── سعر المنطقة (zone pricing) حسب تصنيف العميل — نفس منطق الأدمن بالظبط ──
     // مش تكلفة المندوب (courierCost)، ده سعر التوصيل بتاع منطقة الشحنة، ونفس
     // مصدر الحقيقة اللي بتستخدمه /client-account-manifests/:id (getZoneShipping).
@@ -1691,7 +1716,11 @@ router.get("/client-portal/manifests/:id", async (req, res): Promise<void> => {
         ...item,
         returnReason: effectiveReturnReason,
         partialQuantity: item.partialQuantity != null ? item.partialQuantity : (sh?.partialQuantity ?? null),
-        returnValueReceived: isReturnedWithValue ? (item as any).returnValueReceived ?? null : null,
+        returnValueReceived: isReturnedWithValue
+          ? ((item as any).returnValueReceived != null
+              ? (item as any).returnValueReceived
+              : (shipmentReturnValueMap[item.shipmentId] ?? null))
+          : null,
         shipment: sh,
         status:        sh?.status ?? null,
         customerName:  sh?.receiverName  ?? "",
