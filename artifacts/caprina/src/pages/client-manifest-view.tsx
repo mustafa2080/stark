@@ -544,24 +544,24 @@ export default function ClientManifestViewPage() {
         ) : (
           <div className="overflow-x-auto">
             {/* رأس الجدول */}
-            <div dir="rtl" className="grid grid-cols-[minmax(140px,1fr)_100px_90px_90px_80px_140px] md:grid-cols-[110px_minmax(120px,1fr)_95px_90px_minmax(130px,1.2fr)_85px_85px_80px_130px] gap-0 border-b-2 border-border bg-muted/20 text-[10px] font-bold text-muted-foreground tracking-wide [&>*:not(:last-child)]:border-l [&>*]:border-border/30">
+            <div dir="rtl" className="grid grid-cols-[minmax(70px,1fr)_58px_52px_58px_50px_74px] md:grid-cols-[110px_minmax(120px,1fr)_95px_90px_minmax(130px,1.2fr)_85px_85px_80px_130px] gap-0 border-b-2 border-border bg-muted/20 text-[10px] font-bold text-muted-foreground tracking-wide [&>*:not(:last-child)]:border-l [&>*]:border-border/30">
               <div className="hidden md:flex items-center gap-1.5 px-3 h-9">
                 <Truck className="w-2.5 h-2.5 opacity-50 shrink-0" />
                 اسم الراسل
               </div>
-              <div className="flex items-center px-3 h-9 font-bold">اسم العميل</div>
-              <div className="flex items-center gap-1.5 px-3 h-9">رقم تليفون العميل</div>
-              <div className="flex items-center gap-1.5 px-3 h-9">
-                <MapPin className="w-2.5 h-2.5 opacity-50 shrink-0" />
+              <div className="flex items-center px-1 md:px-3 h-9 font-bold">اسم العميل</div>
+              <div className="flex items-center gap-1.5 px-1 md:px-3 h-9">تليفون العميل</div>
+              <div className="flex items-center gap-1.5 px-1 md:px-3 h-9">
+                <MapPin className="w-2.5 h-2.5 opacity-50 shrink-0 hidden md:block" />
                 المحافظة
               </div>
               <div className="hidden md:flex items-center gap-1.5 px-3 h-9">العنوان</div>
-              <div className="flex items-center px-3 h-9 font-bold">اجمالى سعر الشحنة</div>
+              <div className="flex items-center px-1 md:px-3 h-9 font-bold">سعر الشحنة</div>
               <div className="hidden md:flex items-center justify-center gap-1 px-2 h-9">القيمة المستلمة</div>
-              <div className="flex items-center justify-center gap-1 px-2 h-9 text-amber-500">قيمة الشحن</div>
-              <div className="flex items-center gap-1 px-2 h-9">
-                <CheckCircle2 className="w-2.5 h-2.5 opacity-50" />
-                حالة الاوردر
+              <div className="flex items-center justify-center gap-1 px-1 md:px-2 h-9 text-amber-500">الشحن</div>
+              <div className="flex items-center gap-1 px-1 md:px-2 h-9">
+                <CheckCircle2 className="w-2.5 h-2.5 opacity-50 hidden md:block" />
+                الحالة
               </div>
             </div>
 
@@ -579,7 +579,7 @@ export default function ClientManifestViewPage() {
                   <div
                     key={idx}
                     dir="rtl"
-                    className="grid grid-cols-[minmax(140px,1fr)_100px_90px_90px_80px_140px] md:grid-cols-[110px_minmax(120px,1fr)_95px_90px_minmax(130px,1.2fr)_85px_85px_80px_130px] gap-0 items-center py-2.5 text-xs hover:bg-muted/10 transition-colors"
+                    className="grid grid-cols-[minmax(70px,1fr)_58px_52px_58px_50px_74px] md:grid-cols-[110px_minmax(120px,1fr)_95px_90px_minmax(130px,1.2fr)_85px_85px_80px_130px] gap-0 items-center py-2.5 text-xs hover:bg-muted/10 transition-colors"
                   >
                     <div className="hidden md:flex min-w-0 px-3 items-center">
                       {rep.senderName ? (
@@ -588,7 +588,7 @@ export default function ClientManifestViewPage() {
                         <p className="text-muted-foreground/40 text-[10px]">—</p>
                       )}
                     </div>
-                    <div className="min-w-0 px-3 flex items-start">
+                    <div className="min-w-0 px-1 md:px-3 flex items-start">
                       <div className="min-w-0">
                         <p className="font-semibold truncate">{rep.customerName}</p>
                         {rep.invoiceNumber && (
@@ -598,14 +598,14 @@ export default function ClientManifestViewPage() {
                         )}
                       </div>
                     </div>
-                    <div className="min-w-0 px-3 flex items-center">
+                    <div className="min-w-0 px-1 md:px-3 flex items-center">
                       {rep.phone ? (
                         <p className="text-[10px] text-muted-foreground truncate">{rep.phone}</p>
                       ) : (
                         <p className="text-muted-foreground/40 text-[10px]">—</p>
                       )}
                     </div>
-                    <div className="min-w-0 px-3 flex items-center">
+                    <div className="min-w-0 px-1 md:px-3 flex items-center">
                       {rep.city ? (
                         <p className="font-semibold text-[10px] truncate">{rep.city}</p>
                       ) : (
@@ -619,20 +619,20 @@ export default function ClientManifestViewPage() {
                         <p className="text-muted-foreground/40 text-[10px]">—</p>
                       )}
                     </div>
-                    <div className="text-left font-bold px-3 flex items-center">
-                      <span className="text-emerald-500">{formatCurrency(total)}</span>
+                    <div className="text-left font-bold px-1 md:px-3 flex items-center">
+                      <span className="text-emerald-500 text-[10px] md:text-xs">{formatCurrency(total)}</span>
                     </div>
                     <div className="hidden md:flex text-center px-2 items-center justify-center">
                       <span className="text-emerald-500 font-semibold">{formatCurrency(received)}</span>
                     </div>
-                    <div className="text-center px-2 flex items-center justify-center">
+                    <div className="text-center px-1 md:px-2 flex items-center justify-center">
                       {shipping > 0 ? (
-                        <span className="text-amber-500 font-semibold">{formatCurrency(shipping)}</span>
+                        <span className="text-amber-500 font-semibold text-[10px] md:text-xs">{formatCurrency(shipping)}</span>
                       ) : (
                         <span className="text-muted-foreground/40">—</span>
                       )}
                     </div>
-                    <div className="px-3 flex flex-col gap-1">
+                    <div className="px-1 md:px-3 flex flex-col gap-1">
                       {statuses.length > 1 ? (
                         <Badge variant="outline" className="text-[9px] font-bold border border-border text-muted-foreground w-fit">
                           حالات متعددة
