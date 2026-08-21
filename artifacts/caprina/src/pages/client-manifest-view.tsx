@@ -253,6 +253,199 @@ async function exportClientManifestExcel(manifest: ManifestDetail, groups: Manif
   URL.revokeObjectURL(url);
 }
 
+// ─── طباعة احترافية لبيان العميل — نافذة منفصلة بتصميم A4 بصفحة واحدة (نفس أسلوب client-return-manifest-detail) ───
+function buildClientManifestPrintHtml(manifest: ManifestDetail, groups: ManifestItem[][]) {
+  const manifestDate = format(new Date(manifest.createdAt), "yyyy/MM/dd", { locale: ar });
+  const printDate = format(new Date(), "yyyy/MM/dd HH:mm");
+
+  const deliveredCount = groups.filter((g) => {
+    const statuses = [...new Set(g.map((i) => i.deliveryStatus))];
+    return statuses.length === 1 && statuses[0] === "delivered";
+  }).length;
+  const returnedCount = groups.filter((g) => {
+    const statuses = [...new Set(g.map((i) => i.deliveryStatus))];
+    return statuses.length === 1 && statuses[0] === "returned";
+  }).length;
+
+  const netAmount = groups.reduce((s, g) => s + g.reduce((sum, i) => sum + getCollectedAmount(i), 0), 0);
+  const shippingTotal = groups.reduce((s, g) => s + g.reduce((sum, i) => sum + getChargeableShipping(i), 0), 0);
+  const dueAmount = netAmount - shippingTotal;
+
+  const rowsHtml = groups
+    .map((group, idx) => {
+      const rep = group[0];
+      const statuses = [...new Set(group.map((i) => i.deliveryStatus))];
+      const status = statuses.length === 1 ? statuses[0] : "pending";
+      const meta = STATUS_META[status] ?? STATUS_META.pending;
+      const total = group.reduce((sum, item) => sum + item.totalPrice + getChargeableShipping(item), 0);
+      const received = group.reduce((sum, item) => sum + getCollectedAmount(item), 0);
+      const shipping = group.reduce((sum, item) => sum + getChargeableShipping(item), 0);
+      let noteHtml = "";
+      if (statuses.length === 1) {
+        if ((status === "delayed" || status === "postponed") && rep.deliveryNote) {
+          noteHtml = `<div class="mp-sub">⏸ ${rep.deliveryNote}</div>`;
+        } else if (status === "returned" && rep.returnReason) {
+          noteHtml = `<div class="mp-sub">↳ ${returnReasonLabel(rep.returnReason)}</div>`;
+        } else if (status === "partial_received" || status === "partial_delivered") {
+          noteHtml = `<div class="mp-sub">◑ ${rep.partialQuantity ?? 0}/${group.reduce((s, i) => s + i.quantity, 0)}</div>`;
+        }
+      }
+      return `
+      <tr class="${idx % 2 === 1 ? "mp-row-alt" : ""}">
+        <td class="mp-td-center mp-td-muted">${idx + 1}</td>
+        <td>${rep.senderName ?? "-"}</td>
+        <td class="mp-td-bold">${rep.customerName}</td>
+        <td class="mp-td-ltr mp-td-center">${rep.phone ?? "-"}</td>
+        <td class="mp-td-center">${rep.city ?? "-"}</td>
+        <td class="mp-td-center mp-td-bold mp-td-primary">${formatCurrency(total)}</td>
+        <td class="mp-td-center">${received > 0 ? formatCurrency(received) : "-"}</td>
+        <td class="mp-td-center">${shipping > 0 ? formatCurrency(shipping) : "-"}</td>
+        <td class="mp-td-center">
+          <span class="mp-badge mp-badge-${status}">${statuses.length > 1 ? "حالات متعددة" : meta.label}</span>
+          ${noteHtml}
+        </td>
+      </tr>`;
+    })
+    .join("");
+
+  return `<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+  <meta charset="UTF-8"/>
+  <title>بيان ${manifest.manifestNumber}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    @page { size: A4 landscape; margin: 8mm 10mm; }
+    body { font-family:'Cairo','Segoe UI',Arial,sans-serif; font-size:9.5pt; color:#111; background:#fff; direction:rtl; padding:0 2mm; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    .mp-header { display:flex; justify-content:space-between; align-items:flex-start; border-bottom:3px solid #1e3a5f; padding-bottom:3mm; margin-bottom:4mm; }
+    .mp-title { font-size:17pt; font-weight:900; color:#1e3a5f; }
+    .mp-meta { font-size:9pt; color:#555; margin-top:1.5mm; line-height:1.8; }
+    .mp-meta b { color:#1e293b; font-weight:700; }
+    .mp-company-name { font-size:15pt; font-weight:900; color:#1e3a5f; text-align:left; letter-spacing:0.5px; }
+    .mp-status { display:inline-block; font-size:8pt; font-weight:700; padding:1mm 3.5mm; border-radius:3mm; margin-top:2mm; }
+    .mp-status-open { background:#dcfce7; color:#15803d; }
+    .mp-status-closed { background:#e2e8f0; color:#475569; }
+    .mp-summary { display:flex; gap:3mm; margin-bottom:4mm; }
+    .mp-sum-card { flex:1; border:1.5px solid #cbd5e1; border-radius:2mm; padding:2.5mm 3mm; text-align:center; background:#f8fafc; }
+    .mp-sum-card.mp-sum-total { border-color:#15803d; background:#f0fdf4; }
+    .mp-sum-card.mp-sum-cost { border-color:#d97706; background:#fffbeb; }
+    .mp-sum-card.mp-sum-due { border-color:#0284c7; background:#f0f9ff; }
+    .mp-sum-lbl { font-size:7.5pt; color:#64748b; margin-bottom:1mm; font-weight:700; }
+    .mp-sum-val { font-size:12pt; font-weight:900; color:#1e3a5f; }
+    .mp-sum-total .mp-sum-val { color:#15803d; }
+    .mp-sum-cost .mp-sum-val { color:#d97706; }
+    .mp-sum-due .mp-sum-val { color:#0284c7; }
+    .mp-table { width:100%; border-collapse:collapse; margin-bottom:4mm; font-size:8.3pt; border:2px solid #1e3a5f; }
+    .mp-table thead tr { background:#1e3a5f; }
+    .mp-table th { color:#fff; font-size:8pt; font-weight:700; padding:2.2mm 2mm; text-align:center; border:1px solid rgba(255,255,255,0.4); white-space:nowrap; }
+    .mp-table td { padding:2mm 2mm; border:1px solid #cbd5e1; vertical-align:middle; line-height:1.4; }
+    .mp-row-alt td { background:#f4f7fa; }
+    .mp-td-center { text-align:center; } .mp-td-bold { font-weight:700; }
+    .mp-td-ltr { direction:ltr; }
+    .mp-td-muted { color:#94a3b8; font-size:7.8pt; }
+    .mp-td-primary { color:#15803d; }
+    .mp-sub { font-size:7pt; color:#b45309; margin-top:0.5mm; }
+    .mp-badge { display:inline-block; font-size:7.3pt; font-weight:700; border-radius:2mm; padding:0.3mm 2mm; background:#f1f5f9; color:#475569; }
+    .mp-badge-delivered { color:#15803d; background:#dcfce7; }
+    .mp-badge-partial_delivered, .mp-badge-partial_received { color:#0f766e; background:#ccfbf1; }
+    .mp-badge-delayed, .mp-badge-postponed { color:#b45309; background:#fef3c7; }
+    .mp-badge-returned { color:#b91c1c; background:#fee2e2; }
+    .mp-footer { border-top:1.5px solid #e2e8f0; padding-top:4mm; margin-top:6mm; display:flex; justify-content:space-between; align-items:flex-end; }
+    .mp-sig { min-width:50mm; text-align:center; }
+    .mp-sig-title { font-size:9pt; color:#64748b; margin-bottom:8mm; font-weight:700; }
+    .mp-sig-line { border-top:1.5px solid #333; width:80%; margin:0 auto; }
+    .mp-sig-name { font-size:8pt; color:#555; margin-top:2mm; }
+    .mp-print-footer { text-align:center; font-size:7.5pt; color:#94a3b8; margin-top:6mm; border-top:1px solid #e2e8f0; padding-top:2mm; }
+  </style>
+</head>
+<body>
+  <div class="mp-header">
+    <div>
+      <div class="mp-title">بيان شحن</div>
+      <div class="mp-meta">
+        رقم البيان: <b>${manifest.manifestNumber}</b><br/>
+        تاريخ البيان: <b>${manifestDate}</b><br/>
+        تاريخ الطباعة: <b>${printDate}</b>
+      </div>
+      <span class="mp-status ${manifest.status === "open" ? "mp-status-open" : "mp-status-closed"}">
+        ${manifest.status === "open" ? "بيان مفتوح" : "بيان مغلق"}
+      </span>
+    </div>
+    <div class="mp-company-name">STARK</div>
+  </div>
+
+  <div class="mp-summary">
+    <div class="mp-sum-card">
+      <div class="mp-sum-lbl">عدد الشحنات</div>
+      <div class="mp-sum-val">${groups.length}</div>
+    </div>
+    <div class="mp-sum-card">
+      <div class="mp-sum-lbl">مُسلَّم</div>
+      <div class="mp-sum-val">${deliveredCount}</div>
+    </div>
+    <div class="mp-sum-card">
+      <div class="mp-sum-lbl">مرتجع</div>
+      <div class="mp-sum-val">${returnedCount}</div>
+    </div>
+    <div class="mp-sum-card mp-sum-total">
+      <div class="mp-sum-lbl">إجمالي الإيرادات</div>
+      <div class="mp-sum-val">${formatCurrency(netAmount)}</div>
+    </div>
+    <div class="mp-sum-card mp-sum-cost">
+      <div class="mp-sum-lbl">إجمالي تكلفة الشحن</div>
+      <div class="mp-sum-val">${formatCurrency(shippingTotal)}</div>
+    </div>
+    <div class="mp-sum-card mp-sum-due">
+      <div class="mp-sum-lbl">الرصيد المستحق</div>
+      <div class="mp-sum-val">${formatCurrency(dueAmount)}</div>
+    </div>
+  </div>
+
+  <table class="mp-table">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>الشركة الراسلة</th>
+        <th>اسم العميل</th>
+        <th>الهاتف</th>
+        <th>المحافظة</th>
+        <th>سعر الشحنة</th>
+        <th>القيمة المستلمة</th>
+        <th>سعر الشحن</th>
+        <th>الحالة</th>
+      </tr>
+    </thead>
+    <tbody>${rowsHtml}</tbody>
+  </table>
+
+  <div class="mp-footer">
+    <div class="mp-sig">
+      <div class="mp-sig-title">توقيع المندوب</div>
+      <div class="mp-sig-line"></div>
+    </div>
+    <div class="mp-sig">
+      <div class="mp-sig-title">توقيع العميل</div>
+      <div class="mp-sig-line"></div>
+    </div>
+  </div>
+
+  <div class="mp-print-footer">تم إنشاء هذا البيان بواسطة نظام STARK — ${printDate}</div>
+</body>
+</html>`;
+}
+
+function printClientManifest(manifest: ManifestDetail, groups: ManifestItem[][]) {
+  const html = buildClientManifestPrintHtml(manifest, groups);
+  const win = window.open("", "_blank", "width=1000,height=750");
+  if (!win) { window.print(); return; }
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(() => { win.print(); win.close(); }, 500);
+}
+
 // ─── نافذة اختيار طريقة التصدير: Excel / PDF (طباعة) ───
 function ExportDialog({
   open,
@@ -440,7 +633,7 @@ export default function ClientManifestViewPage() {
             variant="outline"
             size="sm"
             className="h-8 text-xs gap-1 border-border"
-            onClick={() => window.print()}
+            onClick={() => printClientManifest(manifest, groupedItems)}
           >
             <Printer className="w-3 h-3" />طباعة
           </Button>
@@ -459,7 +652,7 @@ export default function ClientManifestViewPage() {
         open={showExportDialog}
         onClose={() => setShowExportDialog(false)}
         onExportExcel={() => exportClientManifestExcel(manifest, groupedItems)}
-        onExportPDF={() => window.print()}
+        onExportPDF={() => printClientManifest(manifest, groupedItems)}
       />
 
       {/* ─── حاوية "إجمالي عدد الشحنات" القابلة للطي ─── */}
@@ -741,16 +934,6 @@ export default function ClientManifestViewPage() {
           <p className="text-[10px] text-muted-foreground mt-0.5">{dueOrdersCount} شحنة</p>
         </div>
       </div>
-
-      {/* ─── إعدادات الطباعة: نطبع الجدول بس ونخفي باقي الصفحة ─── */}
-      <style>{`
-        @media print {
-          body * { visibility: hidden; }
-          .manifest-print, .manifest-print * { visibility: visible; }
-          .manifest-print { position: absolute; top: 0; left: 0; width: 100%; }
-          .print\\:hidden { display: none !important; }
-        }
-      `}</style>
     </div>
   );
 }
