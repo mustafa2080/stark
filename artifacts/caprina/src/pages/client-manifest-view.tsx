@@ -5,12 +5,15 @@ import { useState, type ElementType } from "react";
 import {
   ArrowRight, FileText, Lock, LockOpen, Package, CheckCircle2,
   Clock, RotateCcw, AlertCircle, Printer, Search, Truck, MapPin, Phone,
-  ChevronDown,
+  ChevronDown, Download, FileSpreadsheet, X,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ar } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { RETURN_REASONS, returnReasonLabel } from "@/lib/order-constants";
 
 const formatCurrency = (n: number | string | null | undefined) =>
@@ -183,11 +186,172 @@ function ClientConfirmReturnButton({
   );
 }
 
+// ─── تصدير Excel لبيان العميل — نفس تصميم شيت "الطلبيات" في الأدمن، بدون أي بيانات تكلفة داخلية ───
+async function exportClientManifestExcel(manifest: ManifestDetail, groups: ManifestItem[][]) {
+  const ExcelJS = await import("exceljs");
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "CAPRINA";
+  workbook.created = new Date();
+
+  const manifestDate = format(new Date(manifest.createdAt), "yyyy/MM/dd");
+  const printDate = format(new Date(), "yyyy/MM/dd HH:mm");
+
+  const C = {
+    bg: "FF0F172A", panel: "FF1E293B", gold: "FFF59E0B", white: "FFFFFFFF",
+    offWhite: "FFF8FAFC", darkText: "FF0F172A", green: "FF15803D", greenBg: "FFD1FAE5",
+    red: "FFDC2626", redBg: "FFFEE2E2", amber: "FFD97706", amberBg: "FFFEF3C7",
+    teal: "FF0F766E", tealBg: "FFCCFBF1", gray: "FF64748B", grayBg: "FFF1F5F9", blue: "FF1D4ED8",
+  };
+  const makeFill = (argb: string) => ({ type: "pattern" as const, pattern: "solid" as const, fgColor: { argb } });
+  const makeBorder = (argb = "FFCBD5E1") => {
+    const side = { style: "thin" as const, color: { argb } };
+    return { top: side, bottom: side, left: side, right: side };
+  };
+  const setCell = (cell: any, value: unknown, options?: { fill?: string; font?: Record<string, any>; align?: Record<string, any>; border?: string; numFmt?: string }) => {
+    cell.value = value as any;
+    if (options?.fill) cell.fill = makeFill(options.fill);
+    if (options?.font) cell.font = { name: "Tahoma", size: 10, ...options.font };
+    if (options?.align) cell.alignment = options.align;
+    if (options?.border) cell.border = makeBorder(options.border);
+    if (options?.numFmt) cell.numFmt = options.numFmt;
+  };
+
+  const ws = workbook.addWorksheet("الطلبيات", { views: [{ state: "frozen", ySplit: 5, rightToLeft: true }] });
+  ws.pageSetup = { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0, paperSize: 9 };
+  ws.columns = [
+    { key: "idx", width: 6 }, { key: "sender", width: 16 }, { key: "customer", width: 20 },
+    { key: "phone", width: 14 }, { key: "gov", width: 14 }, { key: "address", width: 30 },
+    { key: "cod", width: 14 }, { key: "received", width: 14 }, { key: "fee", width: 12 },
+    { key: "status", width: 14 }, { key: "note", width: 24 },
+  ];
+
+  ws.mergeCells("A1:K1");
+  setCell(ws.getCell("A1"), "CAPRINA", { fill: C.bg, font: { bold: true, size: 16, color: { argb: C.gold } }, align: { horizontal: "center", vertical: "middle" }, border: C.bg });
+  ws.getRow(1).height = 28;
+  ws.mergeCells("A2:K2");
+  setCell(ws.getCell("A2"), `بيان الشحن — ${manifest.manifestNumber}   |   ${manifestDate}`, { fill: C.bg, font: { bold: true, size: 12, color: { argb: C.gold } }, align: { horizontal: "center", vertical: "middle" }, border: C.bg });
+  ws.getRow(2).height = 24;
+  ws.mergeCells("A3:K3");
+  setCell(ws.getCell("A3"), `طُبع: ${printDate}`, { fill: C.panel, font: { size: 10, color: { argb: "FF6B7280" } }, align: { horizontal: "center", vertical: "middle" }, border: "FF334155" });
+  ws.getRow(3).height = 22;
+  ws.mergeCells("A4:K4");
+  setCell(ws.getCell("A4"), "", { fill: C.bg, border: C.bg });
+  ws.getRow(4).height = 8;
+
+  const headers = ["#", "الشركة الراسلة", "اسم العميل", "الهاتف", "المحافظة", "العنوان", "إجمالي سعر الشحنة", "القيمة المستلمة", "قيمة الشحن", "حالة التسليم", "ملاحظة"];
+  const headerRow = ws.getRow(5);
+  headerRow.values = headers;
+  headerRow.height = 24;
+  headerRow.eachCell((cell) => {
+    setCell(cell, cell.value, { fill: C.panel, font: { bold: true, color: { argb: C.white }, size: 10 }, align: { horizontal: "center", vertical: "middle", wrapText: true }, border: "FF334155" });
+  });
+
+  groups.forEach((group, idx) => {
+    const rep = group[0];
+    const cod = group.reduce((sum, o) => sum + Number(o.totalPrice ?? 0), 0);
+    const fee = group.reduce((sum, o) => sum + getChargeableShipping(o), 0);
+    const shipmentTotal = cod + fee;
+    const receivedValue = group.reduce((sum, o) => sum + getCollectedAmount(o), 0);
+    const statuses = [...new Set(group.map((o) => o.deliveryStatus))];
+    const deliveryStatus = statuses.length === 1 ? statuses[0] : "pending";
+    const deliveryLabel = statuses.length === 1 ? (STATUS_META[statuses[0]]?.label ?? statuses[0]) : "حالات متعددة";
+    const notes = [...new Set(group.map((o) => o.deliveryNote).filter(Boolean))].join(" | ");
+    const baseFill = idx % 2 === 0 ? C.white : C.offWhite;
+    const baseFont = { color: { argb: C.darkText } };
+    const row = ws.getRow(idx + 6);
+    row.height = 32;
+    setCell(row.getCell(1), idx + 1, { fill: baseFill, font: { bold: true, color: { argb: C.darkText } }, align: { horizontal: "center", vertical: "middle" }, border: "FFD1D5DB" });
+    setCell(row.getCell(2), rep.senderName ?? "—", { fill: baseFill, font: { bold: true, color: { argb: C.blue } }, align: { horizontal: "center", vertical: "middle" }, border: "FFD1D5DB" });
+    setCell(row.getCell(3), rep.customerName, { fill: baseFill, font: { bold: true, color: { argb: C.darkText } }, align: { horizontal: "right", vertical: "middle" }, border: "FFD1D5DB" });
+    setCell(row.getCell(4), rep.phone ?? "—", { fill: baseFill, font: baseFont, align: { horizontal: "center", vertical: "middle" }, border: "FFD1D5DB" });
+    setCell(row.getCell(5), rep.city ?? "—", { fill: baseFill, font: baseFont, align: { horizontal: "center", vertical: "middle" }, border: "FFD1D5DB" });
+    setCell(row.getCell(6), rep.address ?? "—", { fill: baseFill, font: { size: 9, color: { argb: C.darkText } }, align: { horizontal: "right", vertical: "middle", wrapText: true }, border: "FFD1D5DB" });
+    setCell(row.getCell(7), shipmentTotal, { fill: baseFill, font: { bold: true, color: { argb: C.green } }, align: { horizontal: "center", vertical: "middle" }, border: "FFD1D5DB", numFmt: '#,##0 "ج.م"' });
+    setCell(row.getCell(8), receivedValue > 0 ? receivedValue : "—", { fill: baseFill, font: { bold: true, color: { argb: C.blue } }, align: { horizontal: "center", vertical: "middle" }, border: "FFD1D5DB", numFmt: receivedValue > 0 ? '#,##0 "ج.م"' : undefined });
+    setCell(row.getCell(9), fee > 0 ? fee : "—", { fill: baseFill, font: { color: { argb: C.amber } }, align: { horizontal: "center", vertical: "middle" }, border: "FFD1D5DB", numFmt: fee > 0 ? '#,##0 "ج.م"' : undefined });
+    setCell(row.getCell(10), deliveryLabel, {
+      fill: deliveryStatus === "delivered" ? C.greenBg : deliveryStatus === "returned" ? C.redBg : (deliveryStatus === "partial_received" || deliveryStatus === "partial_delivered") ? C.tealBg : (deliveryStatus === "postponed" || deliveryStatus === "delayed") ? C.amberBg : C.grayBg,
+      font: { bold: true, color: { argb: deliveryStatus === "delivered" ? C.green : deliveryStatus === "returned" ? C.red : (deliveryStatus === "partial_received" || deliveryStatus === "partial_delivered") ? C.teal : (deliveryStatus === "postponed" || deliveryStatus === "delayed") ? C.amber : C.gray } },
+      align: { horizontal: "center", vertical: "middle" },
+      border: "FFCBD5E1",
+    });
+    setCell(row.getCell(11), notes || "", { fill: baseFill, font: baseFont, align: { horizontal: "right", vertical: "middle", wrapText: true }, border: "FFD1D5DB" });
+  });
+
+  ws.eachRow((row) => {
+    row.eachCell((cell) => { if (!cell.alignment) cell.alignment = { horizontal: "right", vertical: "middle" }; });
+  });
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `بيان-${manifest.manifestNumber}-${format(new Date(), "yyyy-MM-dd")}.xlsx`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ─── نافذة اختيار طريقة التصدير: Excel / PDF (طباعة) ───
+function ExportDialog({
+  open,
+  onClose,
+  onExportExcel,
+  onExportPDF,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onExportExcel: () => void;
+  onExportPDF: () => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="bg-card border-border max-w-lg" dir="rtl">
+        <DialogHeader>
+          <DialogTitle className="text-right flex items-center gap-2">
+            <Download className="w-4 h-4 text-primary" />
+            تصدير
+          </DialogTitle>
+        </DialogHeader>
+        <div className="grid grid-cols-2 gap-3 mt-1">
+          <button
+            type="button"
+            onClick={() => { onExportExcel(); onClose(); }}
+            className="flex flex-col items-center gap-2 p-4 rounded-xl border border-border hover:border-emerald-700/60 hover:bg-emerald-900/10 transition-colors"
+          >
+            <div className="w-12 h-12 rounded-xl bg-emerald-900/20 border border-emerald-700/50 flex items-center justify-center">
+              <FileSpreadsheet className="w-6 h-6 text-emerald-400" />
+            </div>
+            <div className="text-center">
+              <p className="text-xs font-bold">Excel</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">جدول الطلبيات كامل</p>
+            </div>
+          </button>
+          <button
+            type="button"
+            onClick={onExportPDF}
+            className="flex flex-col items-center gap-2 p-4 rounded-xl border border-border hover:border-red-700/60 hover:bg-red-900/10 transition-colors"
+          >
+            <div className="w-12 h-12 rounded-xl bg-red-900/20 border border-red-700/50 flex items-center justify-center">
+              <FileText className="w-6 h-6 text-red-400" />
+            </div>
+            <div className="text-center">
+              <p className="text-xs font-bold">PDF / طباعة</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">نسخة قابلة للطباعة</p>
+            </div>
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function ClientManifestViewPage() {
   const params = useParams();
   const id = Number(params.id);
   const [statusBreakdownOpen, setStatusBreakdownOpen] = useState(true);
   const [search, setSearch] = useState("");
+  const [showExportDialog, setShowExportDialog] = useState(false);
 
   const { data: manifest, isLoading, refetch } = useQuery<ManifestDetail>({
     queryKey: [`/client-portal/manifests/${id}`],
@@ -288,7 +452,7 @@ export default function ClientManifestViewPage() {
 
   return (
     <div className="flex flex-col gap-4 max-w-3xl mx-auto p-4" dir="rtl">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap print:hidden">
         <Link href="/client-manifests" className="p-2 rounded-lg hover:bg-muted/40 transition-colors">
           <ArrowRight className="w-4 h-4" />
         </Link>
@@ -310,7 +474,32 @@ export default function ClientManifestViewPage() {
             )}
           </p>
         </div>
+        <div className="flex items-center gap-1.5">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs gap-1 border-border"
+            onClick={() => window.print()}
+          >
+            <Printer className="w-3 h-3" />طباعة
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs gap-1 border-primary/50 text-primary hover:bg-primary/10"
+            onClick={() => setShowExportDialog(true)}
+          >
+            <Download className="w-3 h-3" />تصدير
+          </Button>
+        </div>
       </div>
+
+      <ExportDialog
+        open={showExportDialog}
+        onClose={() => setShowExportDialog(false)}
+        onExportExcel={() => exportClientManifestExcel(manifest, groupedItems)}
+        onExportPDF={() => window.print()}
+      />
 
       {/* ─── حاوية "إجمالي عدد الشحنات" القابلة للطي ─── */}
       <div className="rounded-2xl border border-border bg-gradient-to-br from-violet-500/10 via-violet-500/[0.03] to-transparent overflow-hidden">
@@ -377,8 +566,8 @@ export default function ClientManifestViewPage() {
         />
       </div>
 
-      {/* ─── جدول الشحنات ─── */}
-      <div className="rounded-2xl border border-border bg-muted/10 overflow-hidden shadow-lg shadow-black/10">
+      {/* ─── جدول الشحنات — مطابق لتصميم الأدمن بالكامل ─── */}
+      <div className="rounded-2xl border border-border bg-muted/10 overflow-hidden shadow-lg shadow-black/10 manifest-print">
         <div className="px-4 py-3.5 border-b border-border flex items-center justify-between bg-gradient-to-l from-muted/30 to-transparent">
           <p className="text-sm font-black flex items-center gap-2">
             <Package className="w-4 h-4 text-primary" />
@@ -392,32 +581,126 @@ export default function ClientManifestViewPage() {
         {displayGroups.length === 0 ? (
           <div className="text-center py-10 text-sm text-muted-foreground">لا توجد نتائج مطابقة</div>
         ) : (
-          <div className="divide-y divide-border/60">
-            {displayGroups.map((group, idx) => {
-              const rep = group[0];
-              const status = groupStatus(group) as ManifestItem["deliveryStatus"];
-              const meta = STATUS_META[status] ?? STATUS_META.pending;
-              const total = group.reduce((sum, item) => sum + getCollectedAmount(item), 0);
-              const shipping = group.reduce((sum, item) => sum + getChargeableShipping(item), 0);
-              return (
-                <div key={idx} className={`px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 border-r-2 ${meta.bg}`}>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="font-bold text-xs truncate">{rep.customerName}</span>
-                      {rep.phone && <span className="text-[10px] text-muted-foreground">{rep.phone}</span>}
+          <div className="overflow-x-auto">
+            {/* رأس الجدول */}
+            <div dir="rtl" className="grid grid-cols-[minmax(140px,1fr)_100px_90px_90px_80px_140px] md:grid-cols-[120px_minmax(140px,1fr)_100px_100px_minmax(160px,1.5fr)_90px_90px_90px_140px] md:min-w-[1080px] gap-0 border-b-2 border-border bg-muted/20 text-[10px] font-bold text-muted-foreground tracking-wide [&>*:not(:last-child)]:border-l [&>*]:border-border/30">
+              <div className="hidden md:flex items-center gap-1.5 px-3 h-9">
+                <Truck className="w-2.5 h-2.5 opacity-50 shrink-0" />
+                اسم الراسل
+              </div>
+              <div className="flex items-center px-3 h-9 font-bold">اسم العميل</div>
+              <div className="flex items-center gap-1.5 px-3 h-9">رقم تليفون العميل</div>
+              <div className="flex items-center gap-1.5 px-3 h-9">
+                <MapPin className="w-2.5 h-2.5 opacity-50 shrink-0" />
+                المحافظة
+              </div>
+              <div className="hidden md:flex items-center gap-1.5 px-3 h-9">العنوان</div>
+              <div className="flex items-center px-3 h-9 font-bold">اجمالى سعر الشحنة</div>
+              <div className="hidden md:flex items-center justify-center gap-1 px-2 h-9">القيمة المستلمة</div>
+              <div className="flex items-center justify-center gap-1 px-2 h-9 text-amber-500">قيمة الشحن</div>
+              <div className="flex items-center gap-1 px-2 h-9">
+                <CheckCircle2 className="w-2.5 h-2.5 opacity-50" />
+                حالة الاوردر
+              </div>
+            </div>
+
+            {/* صفوف الجدول */}
+            <div className="divide-y divide-border/50">
+              {displayGroups.map((group, idx) => {
+                const rep = group[0];
+                const status = groupStatus(group) as ManifestItem["deliveryStatus"];
+                const statuses = [...new Set(group.map((i) => i.deliveryStatus))];
+                const meta = STATUS_META[status] ?? STATUS_META.pending;
+                const total = group.reduce((sum, item) => sum + item.totalPrice + getChargeableShipping(item), 0);
+                const received = group.reduce((sum, item) => sum + getCollectedAmount(item), 0);
+                const shipping = group.reduce((sum, item) => sum + getChargeableShipping(item), 0);
+                return (
+                  <div
+                    key={idx}
+                    dir="rtl"
+                    className="grid grid-cols-[minmax(140px,1fr)_100px_90px_90px_80px_140px] md:grid-cols-[120px_minmax(140px,1fr)_100px_100px_minmax(160px,1.5fr)_90px_90px_90px_140px] md:min-w-[1080px] gap-0 items-center py-2.5 text-xs hover:bg-muted/10 transition-colors"
+                  >
+                    <div className="hidden md:flex min-w-0 px-3 items-center">
+                      {rep.senderName ? (
+                        <p className="text-[10px] font-semibold text-primary/80 truncate">{rep.senderName}</p>
+                      ) : (
+                        <p className="text-muted-foreground/40 text-[10px]">—</p>
+                      )}
                     </div>
-                    <p className="text-[10px] text-muted-foreground mt-0.5 truncate">{rep.address}</p>
+                    <div className="min-w-0 px-3 flex items-start">
+                      <div className="min-w-0">
+                        <p className="font-semibold truncate">{rep.customerName}</p>
+                        {rep.invoiceNumber && (
+                          <span className="text-[9px] bg-primary/10 text-primary px-1 rounded font-mono">
+                            {rep.invoiceNumber}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="min-w-0 px-3 flex items-center">
+                      {rep.phone ? (
+                        <p className="text-[10px] text-muted-foreground truncate">{rep.phone}</p>
+                      ) : (
+                        <p className="text-muted-foreground/40 text-[10px]">—</p>
+                      )}
+                    </div>
+                    <div className="min-w-0 px-3 flex items-center">
+                      {rep.city ? (
+                        <p className="font-semibold text-[10px] truncate">{rep.city}</p>
+                      ) : (
+                        <p className="text-muted-foreground/40 text-[10px]">—</p>
+                      )}
+                    </div>
+                    <div className="hidden md:flex min-w-0 px-3 items-start">
+                      {rep.address ? (
+                        <p className="text-[10px] leading-relaxed text-foreground/80 whitespace-normal break-words">{rep.address}</p>
+                      ) : (
+                        <p className="text-muted-foreground/40 text-[10px]">—</p>
+                      )}
+                    </div>
+                    <div className="text-left font-bold px-3 flex items-center">
+                      <span className="text-emerald-500">{formatCurrency(total)}</span>
+                    </div>
+                    <div className="hidden md:flex text-center px-2 items-center justify-center">
+                      <span className="text-emerald-500 font-semibold">{formatCurrency(received)}</span>
+                    </div>
+                    <div className="text-center px-2 flex items-center justify-center">
+                      {shipping > 0 ? (
+                        <span className="text-amber-500 font-semibold">{formatCurrency(shipping)}</span>
+                      ) : (
+                        <span className="text-muted-foreground/40">—</span>
+                      )}
+                    </div>
+                    <div className="px-3 flex flex-col gap-1">
+                      {statuses.length > 1 ? (
+                        <Badge variant="outline" className="text-[9px] font-bold border border-border text-muted-foreground w-fit">
+                          حالات متعددة
+                        </Badge>
+                      ) : (
+                        <div className="flex flex-col gap-0.5">
+                          <Badge variant="outline" className={`text-[9px] font-bold border w-fit ${meta.bg} ${meta.color}`}>
+                            {meta.label}
+                          </Badge>
+                          {(status === "delayed" || status === "postponed") && rep.deliveryNote && (
+                            <p className="text-[10px] text-orange-400 font-semibold">⏸ {rep.deliveryNote}</p>
+                          )}
+                          {status === "returned" && (
+                            <p className="text-[10px] text-red-400 flex items-center gap-0.5">
+                              ↳ {rep.returnReason ? returnReasonLabel(rep.returnReason) : "لم يحدد السبب"}
+                            </p>
+                          )}
+                          {(status === "partial_received" || status === "partial_delivered") && (
+                            <p className="text-[9px] text-teal-600 dark:text-teal-400">
+                              ◑ {rep.partialQuantity ?? 0}/{group.reduce((s, i) => s + i.quantity, 0)}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3 shrink-0 text-xs">
-                    <span className="font-bold">{formatCurrency(total)}</span>
-                    <span className="text-muted-foreground">شحن {formatCurrency(shipping)}</span>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${meta.color} ${meta.bg}`}>
-                      {meta.label}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         )}
       </div>
@@ -490,6 +773,16 @@ export default function ClientManifestViewPage() {
           <p className="text-[10px] text-muted-foreground mt-0.5">{dueOrdersCount} شحنة</p>
         </div>
       </div>
+
+      {/* ─── إعدادات الطباعة: نطبع الجدول بس ونخفي باقي الصفحة ─── */}
+      <style>{`
+        @media print {
+          body * { visibility: hidden; }
+          .manifest-print, .manifest-print * { visibility: visible; }
+          .manifest-print { position: absolute; top: 0; left: 0; width: 100%; }
+          .print\\:hidden { display: none !important; }
+        }
+      `}</style>
     </div>
   );
 }
