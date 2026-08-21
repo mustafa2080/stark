@@ -1568,6 +1568,14 @@ router.get("/client-portal/manifests/:id", async (req, res): Promise<void> => {
     if (!manifest) { res.status(404).json({ error: "البيان غير موجود" }); return; }
     if (manifest.clientId !== user.clientId) { res.status(403).json({ error: "غير مصرح لك بعرض هذا البيان" }); return; }
 
+    // ── تصنيف العميل (لتحديد أي عمود سعر نستخدمه من جدول مناطق الشحن) ──────
+    // نفس منطق /client-account-manifests/:id في الأدمن بالظبط.
+    const [clientRow] = await db
+      .select({ clientType: clientsTable.clientType })
+      .from(clientsTable)
+      .where(eq(clientsTable.id, manifest.clientId));
+    const clientType = clientRow?.clientType ?? "normal";
+
     // ── الحالات اللي لسه معتبرة "لم تستلمها الشركة فعليًا" — بيان العميل ──────
     // متعرضش شحنات لسه بحالة قيد الانتظار (pending/waiting) أو مؤكدة بس لسه
     // مش داخلة المخزن (confirmed). البيان يبدأ من "قيد الشحن في المخزن" فصاعدًا.
@@ -1594,6 +1602,25 @@ router.get("/client-portal/manifests/:id", async (req, res): Promise<void> => {
     const shipmentIds = items.map(i => i.shipmentId);
     const shipmentMap: Record<number, any> = {};
     allShipments.forEach(s => { shipmentMap[s.id] = s; });
+
+    // ── سعر المنطقة (zone pricing) حسب تصنيف العميل — نفس منطق الأدمن بالظبط ──
+    // مش تكلفة المندوب (courierCost)، ده سعر التوصيل بتاع منطقة الشحنة، ونفس
+    // مصدر الحقيقة اللي بتستخدمه /client-account-manifests/:id (getZoneShipping).
+    const zoneIds = [...new Set(items.map(i => shipmentMap[i.shipmentId]?.zoneId).filter((v): v is number => !!v))];
+    let zonePriceMap: Record<number, number> = {};
+    if (zoneIds.length) {
+      const zoneRows = await db.select().from(shipmentZonesTable).where(inArray(shipmentZonesTable.id, zoneIds));
+      zonePriceMap = Object.fromEntries(zoneRows.map(z => {
+        const priceByType =
+          clientType === "vip"        ? z.priceVip :
+          clientType === "commercial" ? z.priceCommercial :
+          z.priceNormal;
+        const resolved = (priceByType != null && Number(priceByType) > 0) ? priceByType : z.price;
+        return [z.id, Number(resolved) || 0];
+      }));
+    }
+    const getZoneShipping = (shipment: any) =>
+      shipment?.zoneId ? (zonePriceMap[shipment.zoneId] ?? Number(shipment.shippingFee ?? 0)) : Number(shipment?.shippingFee ?? 0);
 
     const repUserIds = [...new Set(items.map(i => shipmentMap[i.shipmentId]?.assignedUserId).filter((v): v is number => !!v))];
     let repNameMap: Record<number, string> = {};
@@ -1654,11 +1681,11 @@ router.get("/client-portal/manifests/:id", async (req, res): Promise<void> => {
       const effectiveReturnReason = (item as any).returnReason ?? sh?.returnReason ?? null;
       const isReturnedWithValue = item.deliveryStatus === "returned"
         && RETURN_REASONS_WITH_VALUE.has(String(effectiveReturnReason ?? ""));
-      // نفس مصدر الأدمن بالظبط (client-account-sheet.ts): shippingFee المسجل فعليًا
-      // على الشحنة وقت إضافتها، مش سعر المنطقة الحالي في جدول shippingZones —
-      // عشان لو الأسعار اتغيرت بعدين الرقم يفضل ثابت ومطابق لصفحة الأدمن.
-      const actualShippingForItem = (item.deliveryStatus !== "returned" || isReturnedWithValue)
-        ? Number(sh?.shippingFee ?? 0)
+      // نفس مصدر الحقيقة الموحّد بتاع الأدمن بالظبط (client-account-manifests.ts:
+      // getZoneShipping) — سعر المنطقة الحالي (zone pricing) حسب تصنيف العميل، وإلا
+      // shippingFee الخام كـ fallback. لازم يفضل نفس المصدر عشان الرقمين ميختلفوش.
+      const zoneShippingForItem = (item.deliveryStatus !== "returned" || isReturnedWithValue)
+        ? getZoneShipping(sh)
         : 0;
       return {
         ...item,
@@ -1673,12 +1700,16 @@ router.get("/client-portal/manifests/:id", async (req, res): Promise<void> => {
         address:       sh?.receiverAddress ?? "",
         senderName:    sh?.senderName    ?? "",
         quantity:      sh?.pieces        ?? 1,
+        // نفس مصدر الحقيقة اللي بيعرضه الأدمن فعليًا (client-account-manifest-detail.tsx
+        // adapter): totalPrice = sh.totalAmount الثابت المسجل على الشحنة نفسها، مش
+        // codAmount + zoneShipping المُعاد حسابه لايف — الاتنين ممكن يختلفوا لو اتغيرت
+        // أسعار المناطق بعد تسجيل الشحنة، والأدمن بيعرض القيمة الثابتة دايمًا.
         totalPrice:    Number(sh?.totalAmount ?? sh?.codAmount ?? 0),
         unitPrice:     Number(sh?.totalAmount ?? sh?.codAmount ?? 0),
-        shippingCost:  actualShippingForItem,
+        shippingCost:  zoneShippingForItem,
         // بيان العميل بيعرض سعر العميل (basePrice) — مش تكلفة المندوب الداخلية
-        repExtraCost:  (actualShippingForItem > 0 && sh?.parcelType) ? (parcelPricingMap[sh.parcelType]?.basePrice ?? 0) : 0,
-        repExtraReason: (actualShippingForItem > 0 && sh?.parcelType && (parcelPricingMap[sh.parcelType]?.basePrice ?? 0) > 0)
+        repExtraCost:  (zoneShippingForItem > 0 && sh?.parcelType) ? (parcelPricingMap[sh.parcelType]?.basePrice ?? 0) : 0,
+        repExtraReason: (zoneShippingForItem > 0 && sh?.parcelType && (parcelPricingMap[sh.parcelType]?.basePrice ?? 0) > 0)
           ? (parcelPricingMap[sh.parcelType]?.label ?? sh.parcelType)
           : null,
         invoiceNumber: sh?.shipmentNumber ?? "",
