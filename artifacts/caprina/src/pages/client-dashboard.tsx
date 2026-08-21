@@ -713,8 +713,8 @@ export default function ClientDashboardPage() {
         </div>
 
 
-        {/* ── Shipments Table ── */}
-        <div className="rounded-2xl overflow-hidden bg-muted/25 border border-border">
+        {/* ── Shipments Table (removed per request) ── */}
+        <div className="hidden">
           <div className="p-3 border-b border-border bg-muted/10 flex flex-col gap-2">
             <p className="text-sm font-black text-foreground px-1">
               {totalShipments > 0 ? `${fn(totalShipments)} شحنة` : "شحناتي"}
