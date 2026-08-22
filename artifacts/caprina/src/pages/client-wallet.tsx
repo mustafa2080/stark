@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import {
-  Wallet, CheckCircle2, AlertCircle, TrendingUp, FileText,
+  CheckCircle2, AlertCircle, TrendingUp, FileText,
   RefreshCcw, ArrowDownCircle, ArrowUpCircle, Receipt, Clock, RotateCcw,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -102,11 +102,10 @@ function SummaryCard({ icon: Icon, label, value, color, sub }: { icon: any; labe
 }
 
 // ── Financial hero banner ──────────────────────────────────────────────────
-function FinanceHero({ outstanding, totalCollected, totalInvoiced, creditLimit }: { outstanding: number; totalCollected: number; totalInvoiced: number; creditLimit: number }) {
+function FinanceHero({ outstanding, totalCollected, totalInvoiced }: { outstanding: number; totalCollected: number; totalInvoiced: number }) {
   const isOwing = outstanding > 0;
   const isOverpaid = outstanding < 0; // العميل اتصرفله أكتر من المستحق (رصيد زيادة له)
   const heroColor = isOwing ? "#f59e0b" : "#22c55e";
-  const usagePct = creditLimit > 0 ? Math.min(100, Math.round((Math.max(0, outstanding) / creditLimit) * 100)) : 0;
 
   return (
     <div className="relative rounded-3xl p-6 overflow-hidden"
@@ -132,23 +131,6 @@ function FinanceHero({ outstanding, totalCollected, totalInvoiced, creditLimit }
           </p>
         </div>
 
-        {creditLimit > 0 && (
-          <div className="w-full md:w-64 shrink-0">
-            <div className="flex items-center justify-between text-[11px] mb-1.5">
-              <span className="text-muted-foreground">استخدام الحد الائتماني</span>
-              <span className="font-bold" style={{ color: heroColor }}>{usagePct}%</span>
-            </div>
-            <div className="h-2.5 rounded-full overflow-hidden bg-muted/50 border border-border/50">
-              <div className="h-full rounded-full transition-all duration-700"
-                style={{
-                  width: `${usagePct}%`,
-                  background: `linear-gradient(90deg, ${heroColor}, ${heroColor}cc)`,
-                  boxShadow: `0 0 12px ${heroColor}80`,
-                }} />
-            </div>
-            <p className="text-[10px] text-muted-foreground/60 mt-1.5">الحد الكلي: {fc(creditLimit)}</p>
-          </div>
-        )}
       </div>
     </div>
   );
@@ -223,7 +205,6 @@ export default function ClientWalletPage() {
           outstanding={outstanding}
           totalCollected={totalCollected}
           totalInvoiced={totalInvoiced}
-          creditLimit={Number(data?.creditLimit ?? 0)}
         />
 
         {/* ── تفاصيل حركة حساب الشحن (بيانات مغلقة + سدادات) ── */}
@@ -250,7 +231,6 @@ export default function ClientWalletPage() {
           <SummaryCard icon={CheckCircle2} label="إجمالي المصروف لك" value={fc(totalCollected)} color="#22c55e" />
           <SummaryCard icon={Receipt} label="إجمالي المستحقات" value={fc(totalInvoiced)} color="#3b82f6" />
           <SummaryCard icon={AlertCircle} label="المستحق لك" value={fc(outstanding)} color="#f59e0b" />
-          <SummaryCard icon={Wallet} label="الحد الائتماني" value={fc(data?.creditLimit ?? 0)} color="#a855f7" />
         </div>
 
         {/* ── Tabs ── */}

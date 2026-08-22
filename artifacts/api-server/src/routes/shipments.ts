@@ -997,6 +997,22 @@ router.put("/shipments/:id", async (req, res): Promise<void> => {
 
     await db.update(shipmentsTable).set(updateData).where(cond);
 
+    // مزامنة حالة الشحنة مع أي بيان (حساب عميل / شركة شحن) مرتبطة بيها — لازم
+    // تتنفذ هنا في PUT بالظبط زي PATCH، وإلا أي تحديث حالة (زي "مرتجع") جاي من
+    // صفحة الشحنات (اللي بتستخدم PUT) هيفضل مش منعكس على كارت البيان.
+    if (updateData.status !== undefined) {
+      await syncShipmentStatusToManifests(id, updateData.status, {
+        returnReason: updateData.returnReason,
+        deliveredValueReceived: d.collectedAmount !== undefined ? d.collectedAmount : undefined,
+        partialQuantity: d.collectedAmount !== undefined && d.collectedAmount !== null
+          ? Math.round(d.collectedAmount)
+          : d.collectedAmount,
+        returnValueReceived: d.collectedAmount !== undefined ? d.collectedAmount : undefined,
+      });
+      invalidateSmartCache(tenantId);
+      invalidateChartsCache(tenantId);
+    }
+
     // إضافة تلقائية لبيان حساب العميل عند دخول الشحنة "قيد الشحن في المخزن"
     // ملحوظة: بتتنفذ طالما الحالة النهائية warehouse_ready، سواء كانت متغيرة دلوقتي
     // أو كانت أصلاً كذلك (مثلاً لو اتمسح البيان بتاعها قبل كده) — الدالة idempotent
