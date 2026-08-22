@@ -1261,15 +1261,12 @@ router.get("/client-portal/profile-full", async (req, res): Promise<void> => {
     ];
     const pendingPickups = await db.select({ id: pickupRequestsTable.id }).from(pickupRequestsTable).where(and(...pickupConds));
 
-    // ── المستحق للسداد (مجموع الفواتير غير المسددة بالكامل) ──
-    const invConds: any[] = [eq(clientInvoicesTable.normalizedPhone, client.normalizedPhone)];
-    if (user.tenantId !== null && user.tenantId !== undefined) invConds.push(eq(clientInvoicesTable.tenantId, user.tenantId));
-    const unpaidInvoices = await db.select({
-      totalAmount: clientInvoicesTable.totalAmount, paidAmount: clientInvoicesTable.paidAmount,
-    }).from(clientInvoicesTable).where(and(...invConds));
-    const outstandingBalance = unpaidInvoices.reduce(
-      (sum, inv) => sum + (Number(inv.totalAmount) - Number(inv.paidAmount)), 0
-    );
+    // ── المستحق للسداد — نفس رقم "إجمالي رصيد العميل" في لوحة الأدمن (العملاء
+    // التجاريون → بيان العميل): مجموع قيمة البيانات المقفولة ناقص السدادات
+    // المسجّلة (clientAccountPaymentsTable — بما فيها مصروفات "سداد حساب عميل").
+    // نفس مصدر الحقيقة الموحّد (computeClosedManifestsForClient)، عشان الرقم
+    // في بروفايل العميل يطابق تمامًا الرقم في الأدمن ويتحرك تلقائيًا مع أي سداد.
+    const { balance: outstandingBalance } = await computeClosedManifestsForClient(client.id);
 
     // ── الفرع (المخزن) التابع للعميل ──
     let branch: any = null;
