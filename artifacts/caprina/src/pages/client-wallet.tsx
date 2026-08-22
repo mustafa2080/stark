@@ -104,8 +104,9 @@ function SummaryCard({ icon: Icon, label, value, color, sub }: { icon: any; labe
 // ── Financial hero banner ──────────────────────────────────────────────────
 function FinanceHero({ outstanding, totalCollected, totalInvoiced, creditLimit }: { outstanding: number; totalCollected: number; totalInvoiced: number; creditLimit: number }) {
   const isOwing = outstanding > 0;
+  const isOverpaid = outstanding < 0; // العميل اتصرفله أكتر من المستحق (رصيد زيادة له)
   const heroColor = isOwing ? "#f59e0b" : "#22c55e";
-  const usagePct = creditLimit > 0 ? Math.min(100, Math.round((outstanding / creditLimit) * 100)) : 0;
+  const usagePct = creditLimit > 0 ? Math.min(100, Math.round((Math.max(0, outstanding) / creditLimit) * 100)) : 0;
 
   return (
     <div className="relative rounded-3xl p-6 overflow-hidden"
@@ -121,10 +122,10 @@ function FinanceHero({ outstanding, totalCollected, totalInvoiced, creditLimit }
       <div className="relative flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div>
           <p className="text-xs font-bold text-muted-foreground mb-1.5">
-            {isOwing ? "المستحق لك حالياً" : "حسابك متوازن تماماً"}
+            {isOwing ? "المستحق لك حالياً" : isOverpaid ? "رصيد زيادة لك (مصروف أكتر من المستحق)" : "حسابك متوازن تماماً"}
           </p>
           <p className="text-4xl font-black tracking-tight" style={{ color: heroColor }}>
-            {fc(outstanding)}
+            {fc(Math.abs(outstanding))}
           </p>
           <p className="text-[11px] text-muted-foreground/70 mt-2">
             من إجمالي مستحقات {fc(totalInvoiced)} — تم صرف {fc(totalCollected)} لك بالفعل
@@ -186,9 +187,14 @@ export default function ClientWalletPage() {
   const manifestTxns = data?.manifestTransactions ?? [];
 
   const totalCollected = payments.reduce((s, p) => s + Number(p.amount || 0), 0);
-  const totalInvoiced = invoices.reduce((s, i) => s + Number(i.totalAmount || 0), 0);
-  const totalPaidOnInvoices = invoices.reduce((s, i) => s + Number(i.paidAmount || 0), 0);
-  const outstanding = Math.max(0, totalInvoiced - totalPaidOnInvoices);
+  // ── المستحق/رصيد العميل: نفس مصدر الحقيقة الموحّد (بيانات حساب العميل
+  // المقفولة ناقص السدادات — computeClosedManifestsForClient بالباك إند)، مش
+  // نظام الفواتير القديم (clientInvoicesTable) اللي غالبًا فاضي للعملاء اللي
+  // بيشتغلوا بنظام "بيان حساب العميل" — كان بيخلي الصفحة تقول "متوازن تمامًا"
+  // برغم إن عليه مبلغ فعلي ظاهر صح في لوحة الأدمن.
+  const totalInvoiced = data?.manifestTransactionsSummary?.totalManifestsValue ?? 0;
+  const totalPaidOnInvoices = data?.manifestTransactionsSummary?.totalManifestsPaid ?? 0;
+  const outstanding = data?.clientBalance ?? 0;
 
   return (
     <div className="min-h-screen -m-4 md:-m-6 p-4 md:p-6 bg-background" dir="rtl">
@@ -219,15 +225,6 @@ export default function ClientWalletPage() {
           totalInvoiced={totalInvoiced}
           creditLimit={Number(data?.creditLimit ?? 0)}
         />
-
-        {/* ── رصيدك الحالي (من البيانات المقفولة) ── */}
-        <div className="rounded-2xl p-4 flex items-center justify-between bg-emerald-500/10 border border-emerald-500/30">
-          <div>
-            <p className="text-xs font-bold text-emerald-400 mb-1">رصيدك الحالي</p>
-            <p className="text-2xl font-black text-emerald-400">{fc(data?.clientBalance ?? 0)}</p>
-          </div>
-          <Wallet size={32} className="text-emerald-400 opacity-30" />
-        </div>
 
         {/* ── تفاصيل حركة حساب الشحن (بيانات مغلقة + سدادات) ── */}
         {manifestTxns.length > 0 && (
