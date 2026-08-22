@@ -186,13 +186,12 @@ function OpenManifestCard({ manifest }: { manifest: ClientPortalManifestListItem
           </div>
         </div>
 
-        <div className="relative grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
-          <MiniStat icon={Package} value={total} label="إجمالي الأوردرات" />
-          <MiniStat icon={CheckCircle2} value={sc.delivered ?? 0} label="مُسلَّم" tone="emerald" loading />
-          <MiniStat icon={Clock} value={sc.delayed ?? 0} label="مؤجل" tone="orange" loading />
-          <MiniStat icon={RotateCcw} value={sc.returned ?? 0} label="مرتجع" tone="red" loading />
-          <MiniStat icon={PackageCheck} value={sc.partial ?? 0} label="استلم جزء" tone="teal" loading />
-          <MiniStat icon={PackageX} value={sc.returned ?? 0} label="مرتجع لم يصل" tone="rose" loading />
+        <div className="relative grid grid-cols-2 sm:grid-cols-5 gap-2">
+          <MiniStat icon={Package} value={total} label="إجمالي" />
+          <MiniStat icon={CheckCircle2} value={sc.delivered ?? 0} label="مسلَّم" tone="emerald" />
+          <MiniStat icon={Clock} value={sc.pending ?? 0} label="قيد الانتظار" tone="muted" />
+          <MiniStat icon={AlertCircle} value={sc.delayed ?? 0} label="مؤجل" tone="orange" />
+          <MiniStat icon={RotateCcw} value={sc.returned ?? 0} label="مرتجع" tone="red" />
         </div>
 
         {total > 0 && (
