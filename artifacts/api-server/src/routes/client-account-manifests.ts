@@ -53,98 +53,25 @@ async function generateManifestNumber(clientId: number): Promise<string> {
 }
 
 // ─── إضافة تلقائية للبيان عند دخول الشحنة "قيد الشحن في المخزن" ──────────────
-// لو فيه بيان مفتوح لنفس العميل: تتضاف له الشحنة (لو مش مضافة بالفعل).
-// لو مفيش بيان مفتوح: يتفتح بيان جديد تلقائيًا وتتضاف له الشحنة.
-// آمنة للاستدعاء المتكرر (idempotent) — بتتجاهل لو الشحنة مضافة بالفعل لأي بيان مفتوح.
+// ⚠️ تغيير مهم: الشحنة الجديدة متتضافش لأي بيان مفتوح تلقائيًا أبدًا. تفضل
+// "معلّقة" (من غير manifestId) عشان مينفعش تدخل بيان قيد العمل بعد ما اتقفّل
+// شغله. بتتضاف لبيان بس في لحظتين: (1) الأدمن يضيفها يدويًا لبيان مفتوح
+// موجود عبر POST /add-shipments، أو (2) لما بيان مفتوح يتقفل — عندها كل
+// الشحنات المعلّقة بتتجمع تلقائيًا مع شحنات البيان القديم اللي لسه "قيد
+// الانتظار/مؤجلة/مرتجعة-لم-تُستلم" في بيان جديد واحد (rolloverPendingItemsToNewManifest).
+// الدالة اتسابت بنفس التوقيع والاستدعاءات القديمة (idempotent) عشان الكود
+// اللي بينادي عليها من أماكن تانية (shipments.ts, import.ts, client-portal.ts)
+// يفضل شغال من غير تعديل — هي بس بقت no-op فعليًا (بتتأكد بس إن الشحنة معلّقة).
 export async function autoAddShipmentToClientAccountManifest(
   shipmentId: number,
   clientId: number | null | undefined,
   tenantId: number | null,
 ): Promise<void> {
-  if (!clientId) return;
-
-  try {
-    // ⚠️ حماية مركزية: أي شحنة لسه "قيد الانتظار" (waiting/pending) متتضافش لبيان
-    // أبدًا، بغض النظر عن مين اللي بينادي الدالة دي (إنشاء شحنة، استيراد، مزامنة
-    // sync-warehouse-ready...). البيان بيتضاف بس لما الشحنة توصل "قيد الشحن في
-    // المخزن" (warehouse_ready) أو أبعد. بنجيب الحالة الحالية من الداتابيز هنا
-    // نفسها عشان الحماية تكون واحدة مركزية مش متفرقة على كل نقطة نداء.
-    const [shipmentRow] = await db
-      .select({ status: shipmentsTable.status })
-      .from(shipmentsTable)
-      .where(eq(shipmentsTable.id, shipmentId))
-      .limit(1);
-    if (shipmentRow && ["waiting", "pending"].includes(shipmentRow.status)) return;
-
-    // لو الشحنة دي مضافة بالفعل لبيان "مفتوح" لسه موجود فعليًا — متضافش تاني.
-    // لو مضافة لبيان "مقفول" أو "ملغى" (اتقفل/اتلغى بعد كده)، لازم تتحرك لبيان جديد
-    // بمجرد ما تدخل تاني "قيد الشحن في المخزن" — عشان كده بنشترط status = "open" هنا.
-    const [existingOpenItem] = await db
-      .select({ id: clientAccountManifestItemsTable.id })
-      .from(clientAccountManifestItemsTable)
-      .innerJoin(clientAccountManifestsTable, eq(clientAccountManifestItemsTable.manifestId, clientAccountManifestsTable.id))
-      .where(and(
-        eq(clientAccountManifestItemsTable.shipmentId, shipmentId),
-        eq(clientAccountManifestsTable.status, "open"),
-      ))
-      .limit(1);
-    if (existingOpenItem) return;
-
-    // ملحوظة: manifestId عليها onDelete: "cascade"، يعني لو البيان اتحذف (إلغاء)
-    // الـ items بتاعته بتتمسح تلقائيًا مع الشحنة على مستوى الداتابيز، فمفيش سيناريو
-    // "صف يتيم" هنا. وبما إن shipmentId مالهاش unique constraint، الشحنة تقدر تتضاف
-    // لأكتر من بيان بمرور الوقت (بيان قديم مقفول + بيان جديد مفتوح) من غير أي تعارض،
-    // فمفيش داعي نمسح سجل البيان المقفول القديم — بيفضل محفوظ للتاريخ كما هو.
-    const tenantCondition = tenantId !== null
-      ? or(eq(clientAccountManifestsTable.tenantId, tenantId), isNull(clientAccountManifestsTable.tenantId))
-      : undefined;
-
-    // دور على بيان مفتوح لنفس العميل
-    const [openManifest] = await db
-      .select({ id: clientAccountManifestsTable.id })
-      .from(clientAccountManifestsTable)
-      .where(and(
-        eq(clientAccountManifestsTable.clientId, clientId),
-        eq(clientAccountManifestsTable.status, "open"),
-        tenantCondition,
-      ))
-      .limit(1);
-
-    const now = new Date();
-
-    if (openManifest) {
-      await db.insert(clientAccountManifestItemsTable).values({
-        manifestId:     openManifest.id,
-        shipmentId,
-        deliveryStatus: "pending",
-        addedAt:        now,
-      });
-      return;
-    }
-
-    // مفيش بيان مفتوح → افتح بيان جديد تلقائيًا
-    const manifestNumber = await generateManifestNumber(clientId);
-    const [result] = await db.insert(clientAccountManifestsTable).values({
-      tenantId: tenantId ?? null,
-      manifestNumber,
-      clientId,
-      status:   "open",
-      notes:    null,
-      createdAt: now,
-      scheduledCloseAt: computeNextClosingDate(now),
-    });
-    const manifestId = (result as any).insertId as number;
-
-    await db.insert(clientAccountManifestItemsTable).values({
-      manifestId,
-      shipmentId,
-      deliveryStatus: "pending",
-      addedAt:        now,
-    });
-  } catch (e) {
-    // ما نكسرش تحديث حالة الشحنة لو فشلت الإضافة التلقائية للبيان — بس نسجل الخطأ
-    console.error("[autoAddShipmentToClientAccountManifest]", e);
-  }
+  // بالتصميم: مفيش أي إضافة تلقائية لبيان مفتوح بعد النهارده. الشحنة تفضل
+  // معلّقة لحد ما تتضاف يدويًا أو يحصل rollover عند إغلاق بيان. الدالة اتسابت
+  // فاضية (no-op) بدل ما تتشال خالص عشان الاستدعاءات الحالية تفضل شغالة من
+  // غير أي تعديل في الملفات التانية.
+  return;
 }
 
 // ─── GET /client-account-manifests?clientId=X ────────────────────────────────
@@ -975,14 +902,19 @@ router.delete("/client-account-manifests/:id/items/:shipmentId", async (req, res
 });
 
 // ─── ترحيل الشحنات المعلقة تلقائيًا عند إغلاق بيان ────────────────────────────
-// لما بيان حساب عميل يتقفل وفيه شحنات لسه "قيد الانتظار" (pending) أو "مؤجلة"
-// (delayed) أو "مرتجعة ولسه محدّش استلمها" (returned + returnReceived != 1)،
-// بيتفتح بيان جديد تلقائيًا لنفس العميل وتترحّل له الشحنات دي كبنود جديدة
-// (deliveryStatus = "pending" نظيفة، من غير أي قيم مالية قديمة) — البيان القديم
-// المقفول بيفضل زي ما هو كسجل تاريخي بكل القيم اللي كانت وقت الإغلاق.
-// آمنة idempotent: بتتنفذ فقط جوه لحظة الإغلاق نفسها، ومفيش سيناريو تكرار لأن
-// الشحنة بتتشال من مصدرها (نفس فكرة autoAddShipmentToClientAccountManifest اللي
-// بتشترط status = "open" قبل ما تضيف لبيان قديم تاني).
+// لما بيان حساب عميل يتقفل، بيتفتح بيان جديد تلقائيًا لنفس العميل ويتجمع فيه:
+//   (أ) الشحنات "المعلّقة" اللي لسه من غير أي بيان خالص — دخلت warehouse_ready
+//       أو أبعد وقت ما كان البيان القديم مفتوح، لكن متضافتش له تلقائيًا (بعد
+//       إيقاف autoAddShipmentToClientAccountManifest)، فضلت مستنية لحد الإغلاق.
+//   (ب) شحنات البيان القديم اللي لسه "قيد الانتظار" (pending) أو "مؤجلة"
+//       (delayed) أو "مرتجعة ولسه محدّش استلمها" (returned + returnReceived != 1)
+//       — دي بتترحّل كـ"نسخة" (نفس الشحنة بتتضاف كبند جديد deliveryStatus="pending"
+//       في البيان الجديد)، والبيان القديم المقفول بيفضل زي ما هو بنفس القيم
+//       القديمة كسجل تاريخي/أرشيف — من غير أي تعديل عليه.
+// آمنة idempotent: بتتنفذ فقط جوه لحظة الإغلاق نفسها. الشحنات المعلّقة بيتم
+// التقاطها بشرط واحد: مفيهاش أي صف في clientAccountManifestItemsTable خالص
+// (بغض النظر عن حالة أي بيان قديم)، فمفيش خطر تكرار أو التقاط شحنة اتضافت
+// لبيان جديد بالفعل.
 async function rolloverPendingItemsToNewManifest(
   closedManifestId: number,
   clientId: number,
@@ -999,7 +931,34 @@ async function rolloverPendingItemsToNewManifest(
     return false;
   });
 
-  if (!pendingItems.length) return { rolledOver: 0, newManifestId: null };
+  // ─── الشحنات "المعلّقة" بتاعة نفس العميل: وصلت warehouse_ready أو أبعد
+  // (بمعنى تانى: مش لسه waiting/pending)، ومفيهاش أي صف خالص في جدول بنود
+  // بيانات حساب العميل (بغض النظر عن أي بيان، مفتوح أو مقفول). ─────────────
+  const tenantCondition = tenantId !== null
+    ? or(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.tenantId))
+    : undefined;
+  const clientShipments = await db
+    .select({ id: shipmentsTable.id, status: shipmentsTable.status })
+    .from(shipmentsTable)
+    .where(and(
+      eq(shipmentsTable.clientId, clientId),
+      tenantCondition,
+    ));
+  const eligibleShipmentIds = clientShipments
+    .filter(s => !["waiting", "pending"].includes(s.status))
+    .map(s => s.id);
+
+  let orphanShipmentIds: number[] = [];
+  if (eligibleShipmentIds.length) {
+    const existingItemRows = await db
+      .select({ shipmentId: clientAccountManifestItemsTable.shipmentId })
+      .from(clientAccountManifestItemsTable)
+      .where(inArray(clientAccountManifestItemsTable.shipmentId, eligibleShipmentIds));
+    const alreadyInManifest = new Set(existingItemRows.map(r => r.shipmentId));
+    orphanShipmentIds = eligibleShipmentIds.filter(sid => !alreadyInManifest.has(sid));
+  }
+
+  if (!pendingItems.length && !orphanShipmentIds.length) return { rolledOver: 0, newManifestId: null };
 
   const now = new Date();
   const manifestNumber = await generateManifestNumber(clientId);
@@ -1014,16 +973,24 @@ async function rolloverPendingItemsToNewManifest(
   });
   const newManifestId = (result as any).insertId as number;
 
-  await db.insert(clientAccountManifestItemsTable).values(
-    pendingItems.map(item => ({
+  const newItems = [
+    ...pendingItems.map(item => ({
       manifestId:     newManifestId,
       shipmentId:     item.shipmentId,
-      deliveryStatus: "pending",
+      deliveryStatus: "pending" as const,
       addedAt:        now,
-    }))
-  );
+    })),
+    ...orphanShipmentIds.map(sid => ({
+      manifestId:     newManifestId,
+      shipmentId:     sid,
+      deliveryStatus: "pending" as const,
+      addedAt:        now,
+    })),
+  ];
 
-  return { rolledOver: pendingItems.length, newManifestId };
+  await db.insert(clientAccountManifestItemsTable).values(newItems);
+
+  return { rolledOver: newItems.length, newManifestId };
 }
 
 // ─── PATCH /client-account-manifests/:id  (قفل/فتح البيان) ──────────────────
