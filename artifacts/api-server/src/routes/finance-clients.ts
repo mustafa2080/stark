@@ -520,6 +520,16 @@ router.get("/finance/clients/:id", async (req, res): Promise<void> => {
     const DELIVERED_STATUSES = ["delivered", "partial_received"];
     const deliveredShipments = clientShipmentsForStats.filter(s => DELIVERED_STATUSES.includes(s.status));
 
+    // ⚠️ الأوردرات "الفعلية" اللي بتتحسب للعميل التجاري (تحقيق الهدف، النمو
+    // الشهري، إجمالي الأوردرات) لازم تكون بس الشحنات اللي دخلت المخزن فعليًا
+    // (picked_up/warehouse_ready) أو أبعد — مش لسه "قيد الانتظار" (waiting)
+    // أو "مؤكدة" (confirmed) لسه عند العميل ومتسلمتش. الشحنة المعلقة دي
+    // بتفضل معلقة في كارت "الأوردرات الجديدة" لحد ما تدخل المخزن فعلاً.
+    const NOT_YET_RECEIVED_STATUSES = ["waiting", "confirmed"];
+    const countedShipmentsForStats = clientShipmentsForStats.filter(
+      s => !NOT_YET_RECEIVED_STATUSES.includes(s.status)
+    );
+
     // ✅ إجمالي مبيعات/تحصيل الشحنات — من قيمة الشحنات المُسلَّمة فعليًا
     const shipmentsSales     = deliveredShipments.reduce((s, sh) => s + parseFloat(sh.codAmount ?? "0"), 0);
     const shipmentsCollected = deliveredShipments.reduce((s, sh) => {
@@ -539,8 +549,9 @@ router.get("/finance/clients/:id", async (req, res): Promise<void> => {
 
     const totalSales = salesOrdersTotal + shipmentsSales;
     const totalPaid  = salesOrdersPaid + shipmentsCollected;
-    // إجمالي الفواتير = أوامر البيع + الشحنات (كل شحنة بتُعتبر "فاتورة")
-    const totalOrders     = orders.length + clientShipmentsForStats.length;
+    // إجمالي الفواتير = أوامر البيع + الشحنات اللي دخلت المخزن فعليًا (مش لسه
+    // قيد الانتظار عند العميل). كل شحنة محسوبة بتُعتبر "فاتورة".
+    const totalOrders     = orders.length + countedShipmentsForStats.length;
     const deliveredOrders = orders.filter(o => o.status === "delivered").length + deliveredShipments.length;
     const deliveryRate    = totalOrders > 0 ? Math.round((deliveredOrders / totalOrders) * 100) : 0;
 
@@ -1088,31 +1099,34 @@ router.get("/finance/clients-dashboard", async (req, res): Promise<void> => {
       if (cid == null) continue;
 
       const stat = statsByClientId.get(cid) ?? emptyStat();
-      stat.shipmentsCount++;
       const total = Number(s.totalAmount ?? 0);
       const collected = Number(s.collectedAmount ?? 0);
-      stat.totalAmount += total;
-      stat.collectedAmount += collected;
-      if (!stat.lastOrderAt || new Date(s.createdAt) > new Date(stat.lastOrderAt)) stat.lastOrderAt = String(s.createdAt);
-
-      // "قيد الشحن في المخزن" = لسه واقفة قبل ما تتحرك (انتظار/مؤكدة) وفيها مخزن مرتبط
-      const isInWarehouse = (s.status === "waiting" || s.status === "confirmed") && s.warehouseId != null;
 
       if (s.warehouseId != null) {
         const whName = warehouseNameById.get(s.warehouseId);
         if (whName) stat.warehouseNames.add(whName);
       }
 
-      if (s.status === "delivered")            { stat.delivered++; totals.delivered++; }
-      else if (s.status === "delayed")         { stat.delayed++;  totals.delayed++; }
-      else if (s.status === "returned")        { stat.returned++; totals.returned++; }
-      else if (s.status === "cancelled")       { stat.cancelled++; }
-      else if (isInWarehouse)                  { stat.inWarehouse++; totals.inWarehouse++; }
-      else if (s.status === "waiting")         { stat.waiting++; totals.waiting++; }
+      if (s.status === "waiting" || s.status === "confirmed") {
+        // لسه قيد الانتظار عند العميل — بتتحسب في العداد المنفصل بس، ومش بتدخل shipmentsCount/الأوردرات الفعلية
+        stat.waiting++; totals.waiting++;
+      } else {
+        // من "قيد الشحن بالمخزن" (picked_up = warehouse_ready) فأعلى — ده اللي يتحسب أوردر فعلي
+        stat.shipmentsCount++;
+        stat.totalAmount += total;
+        stat.collectedAmount += collected;
+        if (!stat.lastOrderAt || new Date(s.createdAt) > new Date(stat.lastOrderAt)) stat.lastOrderAt = String(s.createdAt);
 
-      totals.shipments++;
-      totals.revenue += total;
-      totals.collected += collected;
+        totals.shipments++;
+        totals.revenue += total;
+        totals.collected += collected;
+
+        if (s.status === "delivered")       { stat.delivered++; totals.delivered++; }
+        else if (s.status === "delayed")    { stat.delayed++;  totals.delayed++; }
+        else if (s.status === "returned")   { stat.returned++; totals.returned++; }
+        else if (s.status === "cancelled")  { stat.cancelled++; }
+        else                                { stat.inWarehouse++; totals.inWarehouse++; } // picked_up/in_transit/out_for_delivery/partial_received
+      }
 
       statsByClientId.set(cid, stat);
     }
