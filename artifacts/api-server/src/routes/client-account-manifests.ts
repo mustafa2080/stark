@@ -1321,4 +1321,61 @@ router.post("/client-account-manifests/sync-orphan-shipments", async (req, res):
   }
 });
 
+// ─── POST /client-account-manifests/backfill-delivery-status ────────────────
+// إصلاح لمرة واحدة: قبل إضافة المزامنة لـ PUT /shipments/:id، أي تحديث لحالة
+// الشحنة (زي "مرتجع") من صفحة الشحنات مكانش بينعكس على deliveryStatus بتاع
+// البند في بيان حساب العميل — فضل قديمًا "pending" حتى لو الشحنة اتسجلت
+// مرتجع/مسلَّم فعليًا. الراوت ده بيمشي على كل بنود البيانات ويصحّح deliveryStatus
+// ليطابق الحالة الحقيقية بتاعة shipmentsTable.status دلوقتي. آمن نعيد تشغيله
+// أكتر من مرة (idempotent).
+router.post("/client-account-manifests/backfill-delivery-status", async (req, res): Promise<void> => {
+  try {
+    const items = await db
+      .select({
+        id: clientAccountManifestItemsTable.id,
+        shipmentId: clientAccountManifestItemsTable.shipmentId,
+        deliveryStatus: clientAccountManifestItemsTable.deliveryStatus,
+      })
+      .from(clientAccountManifestItemsTable);
+
+    const shipmentIds = [...new Set(items.map(i => i.shipmentId))];
+    const shipments = shipmentIds.length
+      ? await db.select({
+          id: shipmentsTable.id,
+          status: shipmentsTable.status,
+          returnReason: shipmentsTable.returnReason,
+          partialQuantity: shipmentsTable.partialQuantity,
+        }).from(shipmentsTable).where(inArray(shipmentsTable.id, shipmentIds))
+      : [];
+    const shipmentMap: Record<number, typeof shipments[number]> = {};
+    shipments.forEach(s => { shipmentMap[s.id] = s; });
+
+    let updated = 0;
+    const changes: { itemId: number; shipmentId: number; from: string; to: string }[] = [];
+
+    for (const item of items) {
+      const sh = shipmentMap[item.shipmentId];
+      if (!sh) continue;
+      const mapped = SHIPMENT_STATUS_TO_DELIVERY[sh.status];
+      if (!mapped) continue;
+      if (mapped === item.deliveryStatus) continue;
+
+      await db.update(clientAccountManifestItemsTable)
+        .set({
+          deliveryStatus: mapped,
+          ...(mapped === "returned" ? { returnReason: sh.returnReason ?? undefined } : {}),
+        })
+        .where(eq(clientAccountManifestItemsTable.id, item.id));
+
+      changes.push({ itemId: item.id, shipmentId: item.shipmentId, from: item.deliveryStatus, to: mapped });
+      updated++;
+    }
+
+    res.json({ success: true, scanned: items.length, updated, changes });
+  } catch (e: any) {
+    console.error("[POST /client-account-manifests/backfill-delivery-status]", e);
+    res.status(500).json({ error: "خطأ في إصلاح حالات التسليم القديمة" });
+  }
+});
+
 export default router;
