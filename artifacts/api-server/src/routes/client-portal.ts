@@ -1591,8 +1591,11 @@ router.get("/client-portal/manifests", async (req, res): Promise<void> => {
     let statusCountMap: Record<number, { pending: number; shipping: number; delayed: number; returned: number; delivered: number; partial: number }> = {};
     let countMap: Record<number, number> = {};
     if (ids.length) {
-      // ⚠️ الشحنات "قيد الانتظار" (deliveryStatus = pending) مستبعدة بالكامل من
-      // عدادات بيان العميل — نفس منطق /client-account-manifests (راوت الأدمن).
+      // ⚠️ كل الشحنات اللي جوة البيان بتتحسب هنا (بما فيها "قيد الانتظار" =
+      // pending)، عشان shipmentCount + مجموع statusCounts يطابقوا بالظبط عدد
+      // الشحنات الفعلي جوة البيان — نفس فيكس /client-account-manifests
+      // (راوت الأدمن). قديمًا كان pending بيتشال بالكامل من هنا فكان الإجمالي
+      // ("إجمالي الأوردرات") بيفرق عن عدد الشحنات الحقيقي في البيان.
       const counts = await db
         .select({
           manifestId: clientAccountManifestItemsTable.manifestId,
@@ -1600,10 +1603,7 @@ router.get("/client-portal/manifests", async (req, res): Promise<void> => {
           cnt: count(),
         })
         .from(clientAccountManifestItemsTable)
-        .where(and(
-          inArray(clientAccountManifestItemsTable.manifestId, ids),
-          ne(clientAccountManifestItemsTable.deliveryStatus, "pending"),
-        ))
+        .where(inArray(clientAccountManifestItemsTable.manifestId, ids))
         .groupBy(clientAccountManifestItemsTable.manifestId, clientAccountManifestItemsTable.deliveryStatus);
 
       counts.forEach(r => {
@@ -1617,6 +1617,9 @@ router.get("/client-portal/manifests", async (req, res): Promise<void> => {
         else if (st === "returned") statusCountMap[mid].returned += n;
         else if (st === "delivered") statusCountMap[mid].delivered += n;
         else if (st === "partial_delivered") statusCountMap[mid].partial += n;
+        // pending + أي حالة تانية غير متوقعة بتتحسب "قيد العمل"، عشان مجموع
+        // كل الحقول يطابق shipmentCount دايمًا (نفس منطق راوت الأدمن).
+        else statusCountMap[mid].pending += n;
       });
     }
 
