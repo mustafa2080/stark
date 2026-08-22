@@ -1378,4 +1378,20 @@ router.post("/client-account-manifests/backfill-delivery-status", async (req, re
   }
 });
 
+// ─── إصلاح طارئ مؤقت: تراجع عن تغيير واحد من backfill-delivery-status ───────
+// هيتشال بعد الاستخدام مباشرة.
+router.post("/client-account-manifests/rollback-item-status", async (req, res): Promise<void> => {
+  try {
+    const { itemId, deliveryStatus } = req.body as { itemId: number; deliveryStatus: string };
+    if (!itemId || !deliveryStatus) { res.status(400).json({ error: "itemId و deliveryStatus مطلوبين" }); return; }
+    await db.update(clientAccountManifestItemsTable)
+      .set({ deliveryStatus: deliveryStatus as any })
+      .where(eq(clientAccountManifestItemsTable.id, itemId));
+    res.json({ success: true, itemId, deliveryStatus });
+  } catch (e: any) {
+    console.error("[POST /client-account-manifests/rollback-item-status]", e);
+    res.status(500).json({ error: "خطأ في التراجع" });
+  }
+});
+
 export default router;
