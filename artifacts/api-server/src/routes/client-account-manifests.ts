@@ -974,12 +974,75 @@ router.delete("/client-account-manifests/:id/items/:shipmentId", async (req, res
   }
 });
 
+// ─── ترحيل الشحنات المعلقة تلقائيًا عند إغلاق بيان ────────────────────────────
+// لما بيان حساب عميل يتقفل وفيه شحنات لسه "قيد الانتظار" (pending) أو "مؤجلة"
+// (delayed) أو "مرتجعة ولسه محدّش استلمها" (returned + returnReceived != 1)،
+// بيتفتح بيان جديد تلقائيًا لنفس العميل وتترحّل له الشحنات دي كبنود جديدة
+// (deliveryStatus = "pending" نظيفة، من غير أي قيم مالية قديمة) — البيان القديم
+// المقفول بيفضل زي ما هو كسجل تاريخي بكل القيم اللي كانت وقت الإغلاق.
+// آمنة idempotent: بتتنفذ فقط جوه لحظة الإغلاق نفسها، ومفيش سيناريو تكرار لأن
+// الشحنة بتتشال من مصدرها (نفس فكرة autoAddShipmentToClientAccountManifest اللي
+// بتشترط status = "open" قبل ما تضيف لبيان قديم تاني).
+async function rolloverPendingItemsToNewManifest(
+  closedManifestId: number,
+  clientId: number,
+  tenantId: number | null,
+): Promise<{ rolledOver: number; newManifestId: number | null }> {
+  const items = await db
+    .select()
+    .from(clientAccountManifestItemsTable)
+    .where(eq(clientAccountManifestItemsTable.manifestId, closedManifestId));
+
+  const pendingItems = items.filter(item => {
+    if (item.deliveryStatus === "pending" || item.deliveryStatus === "delayed") return true;
+    if (item.deliveryStatus === "returned" && item.returnReceived !== 1) return true;
+    return false;
+  });
+
+  if (!pendingItems.length) return { rolledOver: 0, newManifestId: null };
+
+  const now = new Date();
+  const manifestNumber = await generateManifestNumber(clientId);
+  const [result] = await db.insert(clientAccountManifestsTable).values({
+    tenantId: tenantId ?? null,
+    manifestNumber,
+    clientId,
+    status:   "open",
+    notes:    null,
+    createdAt: now,
+    scheduledCloseAt: computeNextClosingDate(now),
+  });
+  const newManifestId = (result as any).insertId as number;
+
+  await db.insert(clientAccountManifestItemsTable).values(
+    pendingItems.map(item => ({
+      manifestId:     newManifestId,
+      shipmentId:     item.shipmentId,
+      deliveryStatus: "pending",
+      addedAt:        now,
+    }))
+  );
+
+  return { rolledOver: pendingItems.length, newManifestId };
+}
+
 // ─── PATCH /client-account-manifests/:id  (قفل/فتح البيان) ──────────────────
 router.patch("/client-account-manifests/:id", async (req, res): Promise<void> => {
   try {
     const id = Number(req.params.id);
     const body = req.body as { status?: "open" | "closed"; notes?: string; invoicePrice?: number | null; manualShippingCost?: number | null };
     const now = new Date();
+
+    // نجيب البيان قبل التحديث عشان نعرف حالته الحالية (لمنع تكرار الترحيل لو
+    // اتبعت طلب إغلاق تاني على بيان مقفول بالفعل) وclientId/tenantId بتاعينه.
+    const [currentManifest] = await db
+      .select({ status: clientAccountManifestsTable.status, clientId: clientAccountManifestsTable.clientId, tenantId: clientAccountManifestsTable.tenantId })
+      .from(clientAccountManifestsTable)
+      .where(eq(clientAccountManifestsTable.id, id))
+      .limit(1);
+    if (!currentManifest) { res.status(404).json({ error: "البيان غير موجود" }); return; }
+
+    const isClosingNow = body.status === "closed" && currentManifest.status !== "closed";
 
     await db.update(clientAccountManifestsTable)
       .set({
@@ -992,7 +1055,18 @@ router.patch("/client-account-manifests/:id", async (req, res): Promise<void> =>
       })
       .where(eq(clientAccountManifestsTable.id, id));
 
-    res.json({ success: true });
+    let rollover: { rolledOver: number; newManifestId: number | null } = { rolledOver: 0, newManifestId: null };
+    if (isClosingNow) {
+      try {
+        rollover = await rolloverPendingItemsToNewManifest(id, currentManifest.clientId, currentManifest.tenantId ?? null);
+      } catch (rolloverErr) {
+        // ما نكسرش عملية الإغلاق نفسها لو الترحيل التلقائي فشل — بس نسجل الخطأ،
+        // زي نفس فلسفة autoAddShipmentToClientAccountManifest.
+        console.error("[rolloverPendingItemsToNewManifest]", rolloverErr);
+      }
+    }
+
+    res.json({ success: true, rolledOverCount: rollover.rolledOver, newManifestId: rollover.newManifestId });
   } catch (e) {
     console.error("[PATCH /client-account-manifests/:id]", e);
     res.status(500).json({ error: "خطأ في تحديث البيان" });

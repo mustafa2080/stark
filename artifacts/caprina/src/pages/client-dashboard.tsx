@@ -347,13 +347,6 @@ function RecentActivityPanel({ shipments, finance, isLoading, onNavigate }: {
         )}
       </AnimatePresence>
 
-      {finance && (
-        <div className="pt-4 mt-1 border-t border-border/60 grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-          <FinanceStatCard icon={ReceiptText} label="المستحق للسداد" value={fc(finance.outstanding)} color="#f5a623" delay={0.05} />
-          <FinanceStatCard icon={Banknote} label="إجمالي المحصّل" value={fc(finance.totalCollected)} color="#22c55e" delay={0.1} />
-          <FinanceStatCard icon={CircleDollarSign} label="إجمالي رسوم الشحن" value={fc(finance.totalShippingFee)} color="#4a7cf5" delay={0.15} />
-        </div>
-      )}
     </div>
   );
 }
