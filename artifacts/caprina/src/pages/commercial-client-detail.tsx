@@ -3003,6 +3003,15 @@ function AdminOpenManifestCard({ manifest, clientId, qc }: {
           </div>
         </div>
       )}
+
+      {!!manifest.pendingShipmentsCount && manifest.pendingShipmentsCount > 0 && (
+        <div className="relative mt-3 flex items-center gap-2 rounded-lg border border-amber-700/40 bg-amber-950/20 px-3 py-2">
+          <PackageX className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+          <span className="text-[11px] font-bold text-amber-300">
+            يوجد {manifest.pendingShipmentsCount} شحنة معلّقة لدى العميل ستُضاف تلقائيًا للبيان القادم عند إغلاق هذا البيان
+          </span>
+        </div>
+      )}
     </div>
   );
 }

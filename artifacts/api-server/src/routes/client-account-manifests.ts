@@ -137,6 +137,34 @@ router.get("/client-account-manifests", async (req, res): Promise<void> => {
     const clientMap: Record<number, { name: string; avatar: string | null }> = {};
     clientsRows.forEach(c => { clientMap[c.id] = { name: c.name, avatar: c.avatar }; });
 
+    // ─── الشحنات "المعلّقة" لكل عميل ظاهر في القائمة: نفس المنطق بالظبط
+    // المستخدم في rolloverPendingItemsToNewManifest وفي /client-portal/manifests
+    // (شحنة وصلت warehouse_ready أو أبعد، ومفيهاش أي صف خالص في جدول بنود
+    // بيانات حساب العميل). بيتحسب لكل عميل على حدة عشان يتوزع صح على البيانات
+    // المفتوحة الخاصة بكل عميل في القائمة (سواء الطلب لعميل واحد أو كل العملاء).
+    const pendingCountByClient: Record<number, number> = {};
+    if (clientIds.length) {
+      const clientShipmentRows = await db
+        .select({ id: shipmentsTable.id, clientId: shipmentsTable.clientId, status: shipmentsTable.status })
+        .from(shipmentsTable)
+        .where(inArray(shipmentsTable.clientId, clientIds));
+      const eligible = clientShipmentRows.filter(s => !["waiting", "pending"].includes(s.status));
+      const eligibleIds = eligible.map(s => s.id);
+      let alreadyInManifest = new Set<number>();
+      if (eligibleIds.length) {
+        const existingItemRows = await db
+          .select({ shipmentId: clientAccountManifestItemsTable.shipmentId })
+          .from(clientAccountManifestItemsTable)
+          .where(inArray(clientAccountManifestItemsTable.shipmentId, eligibleIds));
+        alreadyInManifest = new Set(existingItemRows.map(r => r.shipmentId));
+      }
+      eligible.forEach(s => {
+        if (!alreadyInManifest.has(s.id)) {
+          pendingCountByClient[s.clientId] = (pendingCountByClient[s.clientId] ?? 0) + 1;
+        }
+      });
+    }
+
     // ⚠️ ملحوظة: البيان المفتوح والمغلق بيتحسبوا بنفس المنطق بالظبط — من
     // client_account_manifest_items مباشرة (مش من جدول shipments). قديمًا كان
     // البيان المفتوح بيحسب "كل شحنات العميل" من shipments، وده كان بيخلي أي
@@ -150,6 +178,9 @@ router.get("/client-account-manifests", async (req, res): Promise<void> => {
       statusCounts: statusCountMap[m.id] ?? { pending: 0, delayed: 0, returned: 0, delivered: 0, partial: 0 },
       clientName: clientMap[m.clientId]?.name ?? "",
       clientAvatar: clientMap[m.clientId]?.avatar ?? null,
+      // بيتضاف بس للبيان المفتوح (زي شاشة بورتال العميل بالظبط)، لأنه هو
+      // الوحيد اللي هياخد الرول أوفر عند الإغلاق.
+      pendingShipmentsCount: m.status === "open" ? (pendingCountByClient[m.clientId] ?? 0) : 0,
     }));
 
     res.json(result);

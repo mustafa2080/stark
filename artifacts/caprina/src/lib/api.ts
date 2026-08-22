@@ -2525,6 +2525,7 @@ export interface ClientAccountManifestListItem {
   statusCounts: { pending: number; delayed: number; returned: number; delivered: number; partial: number };
   createdAt: string;
   closedAt: string | null;
+  pendingShipmentsCount?: number;
 }
 
 export interface ClientAccountManifestDetail {
