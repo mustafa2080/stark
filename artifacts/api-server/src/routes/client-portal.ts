@@ -1619,7 +1619,7 @@ router.get("/client-portal/manifests", async (req, res): Promise<void> => {
         const shRows = await db
           .select({ id: shipmentsTable.id, status: shipmentsTable.status })
           .from(shipmentsTable)
-          .where(inArray(shipmentsTable.id, itemShipmentIds));
+          .where(and(inArray(shipmentsTable.id, itemShipmentIds), isNull(shipmentsTable.deletedAt)));
         shRows.forEach(s => { shipmentStatusById[s.id] = s.status; });
       }
       // نفس statusMap بتاع الفرونت بالظبط — بس الحالات النهائية بتعمل override
@@ -1633,6 +1633,10 @@ router.get("/client-portal/manifests", async (req, res): Promise<void> => {
       };
 
       itemRows.forEach(r => {
+        // لو الشحنة محذوفة (soft-deleted) مش موجودة في shipmentStatusById —
+        // نتخطّاها بالكامل عشان ماتظهرش في العدّ ولا في statusCounts، ويفضل
+        // مجموع الحالات = shipmentCount مظبوط.
+        if (!(r.shipmentId in shipmentStatusById)) return;
         const mid = r.manifestId;
         countMap[mid] = (countMap[mid] ?? 0) + 1;
         if (!statusCountMap[mid]) statusCountMap[mid] = { pending: 0, shipping: 0, delayed: 0, returned: 0, delivered: 0, partial: 0 };
@@ -1662,7 +1666,7 @@ router.get("/client-portal/manifests", async (req, res): Promise<void> => {
     const clientShipmentRows = await db
       .select({ id: shipmentsTable.id, status: shipmentsTable.status })
       .from(shipmentsTable)
-      .where(eq(shipmentsTable.clientId, user.clientId));
+      .where(and(eq(shipmentsTable.clientId, user.clientId), isNull(shipmentsTable.deletedAt)));
     const eligibleShipmentIds = clientShipmentRows
       .filter(s => s.status !== "cancelled")
       .map(s => s.id);
@@ -1728,7 +1732,9 @@ router.get("/client-portal/manifests/:id", async (req, res): Promise<void> => {
     const allShipmentIds = allItems.map(i => i.shipmentId);
     let allShipments: any[] = [];
     if (allShipmentIds.length) {
-      allShipments = await db.select().from(shipmentsTable).where(inArray(shipmentsTable.id, allShipmentIds));
+      // نستبعد الشحنات المحذوفة (soft-deleted) — فلتر items تحت بيتطلب st != null
+      // فأي شحنة اتمسحت مش هتظهر في الجدول ولا في الحسابات المالية.
+      allShipments = await db.select().from(shipmentsTable).where(and(inArray(shipmentsTable.id, allShipmentIds), isNull(shipmentsTable.deletedAt)));
     }
     const shipmentStatusMap: Record<number, string> = {};
     allShipments.forEach(s => { shipmentStatusMap[s.id] = s.status; });

@@ -45,7 +45,7 @@ export async function computeClosedManifestsForClient(clientId: number): Promise
 
     const shipmentIds = items.map(i => i.shipmentId);
     const shipments = shipmentIds.length
-      ? await db.select().from(shipmentsTable).where(inArray(shipmentsTable.id, shipmentIds))
+      ? await db.select().from(shipmentsTable).where(and(inArray(shipmentsTable.id, shipmentIds), isNull(shipmentsTable.deletedAt)))
       : [];
     const shipmentMap: Record<number, any> = {};
     shipments.forEach(s => { shipmentMap[s.id] = s; });
@@ -225,7 +225,7 @@ export async function computeClientBalancesForAllClients(
 
     const shipmentIds = items.map(i => i.shipmentId);
     const shipments = shipmentIds.length
-      ? await db.select().from(shipmentsTable).where(inArray(shipmentsTable.id, shipmentIds))
+      ? await db.select().from(shipmentsTable).where(and(inArray(shipmentsTable.id, shipmentIds), isNull(shipmentsTable.deletedAt)))
       : [];
     const shipmentMap: Record<number, any> = {};
     shipments.forEach(s => { shipmentMap[s.id] = s; });
@@ -408,7 +408,7 @@ export async function computeNetRevenueDueForAllClients(
   if (!items.length) return result;
 
   const shipmentIds = items.map(i => i.shipmentId);
-  const shipments = await db.select().from(shipmentsTable).where(inArray(shipmentsTable.id, shipmentIds));
+  const shipments = await db.select().from(shipmentsTable).where(and(inArray(shipmentsTable.id, shipmentIds), isNull(shipmentsTable.deletedAt)));
   const shipmentMap: Record<number, any> = {};
   shipments.forEach(s => { shipmentMap[s.id] = s; });
 
@@ -553,6 +553,7 @@ async function computeRecentDeliveryRateForTenant(tenantId: number | null): Prom
   const conds: any[] = [
     inArray(shipmentsTable.status, ["received", "returned"]),
     gte(shipmentsTable.updatedAt, sevenDaysAgo),
+    isNull(shipmentsTable.deletedAt),
   ];
   if (tenantId !== null) conds.push(eq(shipmentsTable.tenantId, tenantId));
   const rows = await db
@@ -572,7 +573,7 @@ async function computeRecentDeliveryRateForTenant(tenantId: number | null): Prom
 export async function computeExpectedRevenueTotalForTenant(
   tenantId: number | null,
 ): Promise<number> {
-  const shipmentConds: any[] = [inArray(shipmentsTable.status, ["warehouse_ready", "in_shipping"])];
+  const shipmentConds: any[] = [inArray(shipmentsTable.status, ["warehouse_ready", "in_shipping"]), isNull(shipmentsTable.deletedAt)];
   if (tenantId !== null) shipmentConds.push(eq(shipmentsTable.tenantId, tenantId));
   const [shipments, deliveryRate] = await Promise.all([
     db.select().from(shipmentsTable).where(and(...shipmentConds)),

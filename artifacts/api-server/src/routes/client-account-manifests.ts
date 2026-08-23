@@ -122,10 +122,12 @@ router.get("/client-account-manifests", async (req, res): Promise<void> => {
       const itemShipmentIds = [...new Set(itemRows.map(r => r.shipmentId))];
       const shipmentStatusById: Record<number, string> = {};
       if (itemShipmentIds.length) {
+        // نستبعد الشحنات المحذوفة (soft delete) — بندها في البيان بيتخطّى تمامًا في
+        // العدّ تحت (زي ما بتختفي من جدول الشحنات جوه تفاصيل البيان).
         const shRows = await db
           .select({ id: shipmentsTable.id, status: shipmentsTable.status })
           .from(shipmentsTable)
-          .where(inArray(shipmentsTable.id, itemShipmentIds));
+          .where(and(inArray(shipmentsTable.id, itemShipmentIds), isNull(shipmentsTable.deletedAt)));
         shRows.forEach(s => { shipmentStatusById[s.id] = s.status; });
       }
       // نفس statusMap بتاع الفرونت بالظبط — بس الحالات النهائية بتعمل override
@@ -139,6 +141,10 @@ router.get("/client-account-manifests", async (req, res): Promise<void> => {
       };
 
       itemRows.forEach(r => {
+        // شحنة محذوفة (deletedAt) أو مش موجودة → مش في shipmentStatusById →
+        // تتخطّى من العدّ بالكامل عشان shipmentCount + مجموع statusCounts يفضلوا
+        // مطابقين لعدد الشحنات الظاهرة فعليًا في تفاصيل البيان.
+        if (!(r.shipmentId in shipmentStatusById)) return;
         const mid = r.manifestId;
         countMap[mid] = (countMap[mid] ?? 0) + 1;
         if (!statusCountMap[mid]) statusCountMap[mid] = { pending: 0, delayed: 0, returned: 0, delivered: 0, partial: 0 };
@@ -178,7 +184,7 @@ router.get("/client-account-manifests", async (req, res): Promise<void> => {
       const clientShipmentRows = await db
         .select({ id: shipmentsTable.id, clientId: shipmentsTable.clientId, status: shipmentsTable.status })
         .from(shipmentsTable)
-        .where(inArray(shipmentsTable.clientId, clientIds));
+        .where(and(inArray(shipmentsTable.clientId, clientIds), isNull(shipmentsTable.deletedAt)));
       const eligible = clientShipmentRows.filter(s => s.status !== "cancelled");
       const eligibleIds = eligible.map(s => s.id);
       let alreadyInManifest = new Set<number>();
@@ -255,7 +261,7 @@ router.get("/client-account-manifests/clients-with-balance", async (req, res): P
       : [];
     const shipmentIds = Array.from(new Set(itemsByManifest.map(i => i.shipmentId)));
     const shipments = shipmentIds.length
-      ? await db.select().from(shipmentsTable).where(inArray(shipmentsTable.id, shipmentIds))
+      ? await db.select().from(shipmentsTable).where(and(inArray(shipmentsTable.id, shipmentIds), isNull(shipmentsTable.deletedAt)))
       : [];
     const shipmentMap: Record<number, any> = {};
     shipments.forEach(s => { shipmentMap[s.id] = s; });
@@ -359,7 +365,11 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
     const shipmentIds = items.map(i => i.shipmentId);
     let shipments: any[] = [];
     if (shipmentIds.length) {
-      shipments = await db.select().from(shipmentsTable).where(inArray(shipmentsTable.id, shipmentIds));
+      // 🔑 نستبعد الشحنات المحذوفة (soft delete: deletedAt != null) — الشحنة اللي
+      // اتمسحت من قسم الشحنات مالهاش تظهر في البيان. صف البند نفسه بيفضل موجود في
+      // client_account_manifest_items (عشان لو الشحنة اترجعت بـ /restore تظهر تاني
+      // تلقائيًا)، بس بيتفلتر بره العرض وكل الحسابات عبر visibleItems تحت.
+      shipments = await db.select().from(shipmentsTable).where(and(inArray(shipmentsTable.id, shipmentIds), isNull(shipmentsTable.deletedAt)));
     }
     const shipmentMap: Record<number, any> = {};
     shipments.forEach(s => { shipmentMap[s.id] = s; });
@@ -377,7 +387,10 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
     const EXCLUDED_SHIPMENT_STATUSES = new Set(["waiting", "pending"]);
     const visibleItems = items.filter(item => {
       const sh = shipmentMap[item.shipmentId];
-      if (sh && EXCLUDED_SHIPMENT_STATUSES.has(sh.status)) return false;
+      // الشحنة اتحذفت (deletedAt) أو مش موجودة خالص (اتشالت من shipmentMap فوق)
+      // → البند بيختفي من عرض البيان وكل الحسابات المالية المبنية على visibleItems.
+      if (!sh) return false;
+      if (EXCLUDED_SHIPMENT_STATUSES.has(sh.status)) return false;
       return true;
     });
 
@@ -997,6 +1010,20 @@ async function rolloverPendingItemsToNewManifest(
     return false;
   });
 
+  // نستبعد أي بند شحنته اتحذفت (soft delete) من الترحيل — الشحنة المحذوفة مالهاش
+  // تترحّل لبيان جديد. بنتحقق من الحذف مباشرةً من جدول الشحنات (مش عبر عضوية
+  // clientShipments) عشان منستبعدش بالغلط بند شحنته سليمة وموجودة.
+  const pendingShipmentIds = pendingItems.map(i => i.shipmentId);
+  let nonDeletedPendingSet = new Set<number>();
+  if (pendingShipmentIds.length) {
+    const nd = await db
+      .select({ id: shipmentsTable.id })
+      .from(shipmentsTable)
+      .where(and(inArray(shipmentsTable.id, pendingShipmentIds), isNull(shipmentsTable.deletedAt)));
+    nonDeletedPendingSet = new Set(nd.map(r => r.id));
+  }
+  const pendingItemsToRoll = pendingItems.filter(i => nonDeletedPendingSet.has(i.shipmentId));
+
   // ─── الشحنات "المعلّقة" بتاعة نفس العميل: وصلت warehouse_ready أو أبعد
   // (بمعنى تانى: مش لسه waiting/pending)، ومفيهاش أي صف خالص في جدول بنود
   // بيانات حساب العميل (بغض النظر عن أي بيان، مفتوح أو مقفول). ─────────────
@@ -1008,6 +1035,7 @@ async function rolloverPendingItemsToNewManifest(
     .from(shipmentsTable)
     .where(and(
       eq(shipmentsTable.clientId, clientId),
+      isNull(shipmentsTable.deletedAt), // الشحنة المحذوفة مالهاش تترحّل كـ orphan
       tenantCondition,
     ));
   const eligibleShipmentIds = clientShipments
@@ -1024,7 +1052,7 @@ async function rolloverPendingItemsToNewManifest(
     orphanShipmentIds = eligibleShipmentIds.filter(sid => !alreadyInManifest.has(sid));
   }
 
-  if (!pendingItems.length && !orphanShipmentIds.length) return { rolledOver: 0, newManifestId: null };
+  if (!pendingItemsToRoll.length && !orphanShipmentIds.length) return { rolledOver: 0, newManifestId: null };
 
   const now = new Date();
   const manifestNumber = await generateManifestNumber(clientId);
@@ -1040,7 +1068,7 @@ async function rolloverPendingItemsToNewManifest(
   const newManifestId = (result as any).insertId as number;
 
   const newItems = [
-    ...pendingItems.map(item => ({
+    ...pendingItemsToRoll.map(item => ({
       manifestId:     newManifestId,
       shipmentId:     item.shipmentId,
       deliveryStatus: "pending" as const,
@@ -1136,10 +1164,18 @@ router.post("/client-account-manifests/:id/add-shipments", async (req, res): Pro
     // نجيب الحالة الحالية الفعلية لكل شحنة من جدول shipments بدل ما نحطها
     // "pending" ثابتة — عشان بند البيان يتولد متسق مع حالة الشحنة وقت الإضافة
     // (بيصلح مشكلة إن شحنات مرتجعة/مسلمة اتضافت متأخر وفضلت شكلها "قيد الانتظار").
+    // بنستبعد الشحنات المحذوفة (soft-deleted) فمش هتترجّع هنا وبالتالي مش هتتضاف.
     const shipmentRows = await db.select({ id: shipmentsTable.id, status: shipmentsTable.status })
       .from(shipmentsTable)
-      .where(inArray(shipmentsTable.id, newIds));
+      .where(and(inArray(shipmentsTable.id, newIds), isNull(shipmentsTable.deletedAt)));
     const statusById = new Map(shipmentRows.map(r => [r.id, r.status]));
+    // نضيف بس الشحنات الموجودة فعليًا وغير المحذوفة (اللي رجعت في statusById).
+    const insertableIds = newIds.filter(id => statusById.has(id));
+
+    if (insertableIds.length === 0) {
+      res.json({ added: 0, manifestNumber: manifest.manifestNumber });
+      return;
+    }
 
     // خريطة SHIPMENT_STATUS_TO_DELIVERY بتستخدم "postponed"/"partial_delivered"
     // بينما بند بيان حساب العميل التجاري بيستخدم "postponed" فعلاً لكن
@@ -1153,7 +1189,7 @@ router.post("/client-account-manifests/:id/add-shipments", async (req, res): Pro
     };
 
     await db.insert(clientAccountManifestItemsTable).values(
-      newIds.map(sid => ({
+      insertableIds.map(sid => ({
         manifestId,
         shipmentId:     sid,
         deliveryStatus: toClientAccountStatus(statusById.get(sid)),
@@ -1161,7 +1197,7 @@ router.post("/client-account-manifests/:id/add-shipments", async (req, res): Pro
       }))
     );
 
-    res.json({ added: newIds.length, manifestNumber: manifest.manifestNumber });
+    res.json({ added: insertableIds.length, manifestNumber: manifest.manifestNumber });
   } catch (e) {
     console.error("[POST /client-account-manifests/:id/add-shipments]", e);
     res.status(500).json({ error: "خطأ في إضافة الشحنات" });
@@ -1262,8 +1298,8 @@ router.post("/client-account-manifests/sync-warehouse-ready", async (req, res): 
     const tenantId = getTenantId(req);
 
     const cond = tenantId !== null
-      ? and(eq(shipmentsTable.status, "warehouse_ready"), eq(shipmentsTable.tenantId, tenantId))
-      : eq(shipmentsTable.status, "warehouse_ready");
+      ? and(eq(shipmentsTable.status, "warehouse_ready"), isNull(shipmentsTable.deletedAt), eq(shipmentsTable.tenantId, tenantId))
+      : and(eq(shipmentsTable.status, "warehouse_ready"), isNull(shipmentsTable.deletedAt));
 
     const candidates = await db
       .select({ id: shipmentsTable.id, clientId: shipmentsTable.clientId, shipmentNumber: shipmentsTable.shipmentNumber })
