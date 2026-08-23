@@ -2054,12 +2054,15 @@ router.get("/client-portal/returns", async (req, res): Promise<void> => {
     const shipmentIds = items.map(i => i.shipmentId);
     let shipments: any[] = [];
     if (shipmentIds.length) {
-      shipments = await db.select().from(shipmentsTable).where(inArray(shipmentsTable.id, shipmentIds));
+      shipments = await db.select().from(shipmentsTable).where(and(inArray(shipmentsTable.id, shipmentIds), isNull(shipmentsTable.deletedAt)));
     }
     const shipmentMap: Record<number, any> = {};
     shipments.forEach(s => { shipmentMap[s.id] = s; });
 
     const result = items
+      // الشحنات المحذوفة (soft-deleted) مش موجودة في shipmentMap — نستبعد بنودها
+      // عشان ما تظهرش في قائمة المرتجعات/المشاكل بالبورتال.
+      .filter(i => shipmentMap[i.shipmentId])
       // partial_delivered لسه في الشحن فقط (اللي اتسلمت بالكامل بالفعل مستبعدة)
       .filter(i => i.deliveryStatus !== "partial_delivered" || i.returnReceived !== 1)
       .map(item => {
@@ -2108,6 +2111,16 @@ router.get("/client-portal/returns/analysis", async (req, res): Promise<void> =>
     if (myManifestIds.length) {
       myItems = await db.select().from(clientAccountManifestItemsTable)
         .where(inArray(clientAccountManifestItemsTable.manifestId, myManifestIds));
+    }
+    // نستبعد بنود الشحنات المحذوفة (soft-deleted) من إحصائية المرتجعات عشان
+    // ماتأثرش على نسبة المرتجعات (myTotal/myReturned) ولا توزيع المدن.
+    if (myItems.length) {
+      const myItemShipmentIds = [...new Set(myItems.map(i => i.shipmentId))];
+      const liveRows = await db.select({ id: shipmentsTable.id })
+        .from(shipmentsTable)
+        .where(and(inArray(shipmentsTable.id, myItemShipmentIds), isNull(shipmentsTable.deletedAt)));
+      const liveSet = new Set(liveRows.map(r => r.id));
+      myItems = myItems.filter(i => liveSet.has(i.shipmentId));
     }
     const myTotal = myItems.length;
     const myReturned = myItems.filter(i => i.deliveryStatus === "returned").length;

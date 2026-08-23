@@ -1832,7 +1832,7 @@ function ReturnsTabContent({ shipments, clientId }: { shipments: ClientShipment[
           <div className="flex items-center gap-2 mb-3">
             <span className="text-base">🚚</span>
             <h2 className="font-bold text-sm text-red-400">
-              بضاعة لسه عند شركة الشحن ({pendingReturns.length})
+              بضاعة لسه عند مندوب الشحن ({pendingReturns.length})
             </h2>
             <span className="text-[10px] text-red-400/60">— اضغط "تم الاستلام" لما توصلك من الشركة</span>
           </div>

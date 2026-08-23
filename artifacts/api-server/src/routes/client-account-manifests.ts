@@ -1237,6 +1237,16 @@ router.get("/clients/:id/account-manifest-stats", async (req, res): Promise<void
       items = await db.select().from(clientAccountManifestItemsTable)
         .where(inArray(clientAccountManifestItemsTable.manifestId, manifestIds));
     }
+    // نستبعد بنود الشحنات المحذوفة (soft-deleted) من إحصائيات كارت العميل عشان
+    // ما تتحسبش في الإجمالي/نسبة التسليم بعد ما الشحنة اتمسحت.
+    if (items.length) {
+      const itemShipmentIds = [...new Set(items.map(i => i.shipmentId))];
+      const liveRows = await db.select({ id: shipmentsTable.id })
+        .from(shipmentsTable)
+        .where(and(inArray(shipmentsTable.id, itemShipmentIds), isNull(shipmentsTable.deletedAt)));
+      const liveSet = new Set(liveRows.map(r => r.id));
+      items = items.filter(i => liveSet.has(i.shipmentId));
+    }
 
     const delivered = items.filter(i => i.deliveryStatus === "delivered").length;
     const returned  = items.filter(i => i.deliveryStatus === "returned").length;

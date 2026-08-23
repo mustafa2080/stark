@@ -868,7 +868,7 @@ export default function ClientManifestViewPage() {
           <div className="flex items-center gap-2 mb-3">
             <span className="text-base">🚚</span>
             <h2 className="font-bold text-sm text-red-400">
-              بضاعة لسه عند شركة الشحن ({pendingReturnItems.length})
+              بضاعة لسه عند مندوب الشحن ({pendingReturnItems.length})
             </h2>
           </div>
           <div className="flex flex-col gap-2">

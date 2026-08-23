@@ -4296,7 +4296,7 @@ export default function ShippingManifestPage() {
             </p>
           )}
           <p className="text-[9px] text-muted-foreground/60 mt-1 leading-tight">
-            ⓘ العدد لا يشمل البضاعة لسه عند شركة الشحن، ولا المرتجع اللي اتأكد استلامه (بيتحسبوا لوحدهم تحت)
+            ⓘ العدد لا يشمل البضاعة لسه عند مندوب الشحن، ولا المرتجع اللي اتأكد استلامه (بيتحسبوا لوحدهم تحت)
           </p>
         </Card>
         <Card className="border-emerald-900/50 bg-emerald-900/10 p-4">
@@ -4688,7 +4688,7 @@ export default function ShippingManifestPage() {
             <div className="flex items-center gap-2 mb-3">
               <span className="text-base">🚚</span>
               <h2 className="font-bold text-sm text-red-400">
-                بضاعة لسه عند شركة الشحن ({pendingReturnOrders.length})
+                بضاعة لسه عند مندوب الشحن ({pendingReturnOrders.length})
               </h2>
               <span className="text-[10px] text-red-400/60">— اضغط "تم الاستلام" لما توصلك من الشركة</span>
             </div>
