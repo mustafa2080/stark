@@ -1093,6 +1093,10 @@ function InvoiceGroupDeliveryRow({
   // السعر الكامل للفاتورة (للعرض والمرجع)
   const totalFullPrice = group.reduce((s, o) => s + Number(o.totalPrice), 0);
   const totalShippingFee = group.reduce((s, o) => s + Number((o as any).shippingCost ?? 0), 0);
+  // تكلفة المندوب الفعلية (zone_costs.deliveryCost / سعر شركة الشحن الثابت) — بتستخدم
+  // بدل سعر شحن العميل العادي في الحالتين الماليتين تحديدًا (رفض بعد المعاينة ولم يدفع،
+  // أو تهرب من الاستلام "quality")، عشان العميل مايتحاسبش على سعر شحن مايستحقوش هو دفعه.
+  const totalRepCost = group.reduce((s, o) => s + Number((o as any).zoneCost ?? 0), 0);
   const totalShipmentWithShipping = totalFullPrice + totalShippingFee;
   const totalReceivedFromCustomer = group.reduce((sum, o) => {
     if (o.deliveryStatus === "delivered") {
@@ -1421,11 +1425,13 @@ function InvoiceGroupDeliveryRow({
               // بدل الاعتماد على returnReason في الفرونت إند بس، عشان لو السبب ضاع لأي
               // سبب (فراغ، اختلاف مصدر...) القيمة الصحيحة من الباك اند تفضل هي المرجع.
               const showShipping = (groupStatus !== "returned" || financialReasons.includes(String(rr ?? ""))) || totalShippingFee > 0;
-              if (rr === "refused_unpaid" || rr === "refused_paid") {
-                console.log("[SHIPPING-DEBUG]", { shipmentId: (rep as any).id, rr, groupStatus, totalShippingFee, rawShippingCosts: group.map(o => (o as any).shippingCost), showShipping });
-              }
+              // في حالتين تحديدًا (رفض بعد المعاينة ولم يدفع، أو تهرب من الاستلام) العميل
+              // مش هيتحمّل سعر الشحن العادي بتاعه — بنعرض بدلها تكلفة المندوب الفعلية
+              // (نفس رقم عمود "شحن" في بيان المندوب) عشان الخسارة الحقيقية تبان صح.
+              const useRepCost = groupStatus === "returned" && (rr === "refused_unpaid" || rr === "quality");
+              const displayShippingValue = useRepCost ? totalRepCost : totalShippingFee;
               return showShipping ? (
-                <span className="text-amber-500 font-semibold">{formatCurrency(totalShippingFee)}</span>
+                <span className="text-amber-500 font-semibold">{formatCurrency(displayShippingValue)}</span>
               ) : (
                 <span className="text-muted-foreground/40">—</span>
               );
@@ -2737,9 +2743,17 @@ function CloseConfirmDialog({
                 };
                 const orders = manifest.orders ?? [];
                 const netAmount = orders.reduce((sum, o) => sum + getCollectedAmountLocal(o), 0);
+                // في حالتين تحديدًا (رفض بعد المعاينة ولم يدفع، أو تهرب من الاستلام) نستخدم
+                // تكلفة المندوب الفعلية (zoneCost) بدل سعر شحن العميل — نفس منطق الجدول
+                // التفصيلي وكارت "إجمالي تكلفة الشحن" بالظبط، عشان الرقم هنا يفضل متطابق.
+                const getShippingValueLocal = (o: any) => {
+                  const rr = String((o as any)?.returnReason ?? "");
+                  const useRepCost = o.deliveryStatus === "returned" && (rr === "refused_unpaid" || rr === "quality");
+                  return useRepCost ? Number((o as any)?.zoneCost ?? 0) : Number((o as any).shippingCost ?? 0);
+                };
                 const displayedShippingCost = orders.reduce((sum, o) => {
                   if (isShippingZeroedRowLocal(o)) return sum;
-                  return sum + Number((o as any).shippingCost ?? 0) + Number((o as any).repExtraCost ?? 0);
+                  return sum + getShippingValueLocal(o) + Number((o as any).repExtraCost ?? 0);
                 }, 0);
                 const due = netAmount - displayedShippingCost;
                 return (
@@ -2891,11 +2905,22 @@ function ExportDialog({
     }, 0);
   const totalCollected = deliveredGross + partialGross;
   // رسوم الشحن الفعلية: بتُحسب على الطلبات اللي فعلاً دخلت ضمن totalCollected (مُسلَّم + جزئي — الجزء المُباع اتحصّل فورًا وقت التسليم بغض النظر عن رجوع الباقي المرتجع لمخزن الشحن)
+  // + المرتجع بأحد الأسباب المالية الثلاثة المعتمدة (رفض بعد المعاينة مدفوع/غير مدفوع، أو
+  // تهرب من الاستلام) — نفس شرط isShippingZeroedRow المستخدم في باقي الصفحة بالظبط.
+  const RETURN_REASONS_WITH_SHIPPING_EXCEL = ["refused_paid", "refused_unpaid", "quality"];
   const collectedOrdersForShipping = safeOrders.filter(o =>
     o.deliveryStatus === "delivered" ||
-    o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered"
+    o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered" ||
+    (o.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING_EXCEL.includes(String((o as any).returnReason ?? "")))
   );
-  const effectiveShipping = collectedOrdersForShipping.reduce((sum, o) => sum + Number((o as any).shippingCost ?? 0), 0);
+  // في حالتين تحديدًا (رفض بعد المعاينة ولم يدفع، أو تهرب من الاستلام) نستخدم تكلفة
+  // المندوب الفعلية (zoneCost) بدل سعر شحن العميل — نفس منطق باقي الصفحة بالظبط.
+  const getShippingValueForExcel = (o: any) => {
+    const rr = String(o?.returnReason ?? "");
+    const useRepCost = o.deliveryStatus === "returned" && (rr === "refused_unpaid" || rr === "quality");
+    return useRepCost ? Number(o?.zoneCost ?? 0) : Number(o?.shippingCost ?? 0);
+  };
+  const effectiveShipping = collectedOrdersForShipping.reduce((sum, o) => sum + getShippingValueForExcel(o), 0);
   const netDue = totalCollected - effectiveShipping;
 
   // ── Excel Export — styled workbook with RTL layout ────────────────────────
@@ -3048,7 +3073,13 @@ function ExportDialog({
       const rep = group[0];
       const invoiceNum = (rep as any).invoiceNumber?.trim() || `S-${rep.id}`;
       const cod = group.reduce((sum, order) => sum + order.totalPrice, 0);
-      const fee = group.reduce((sum, order) => sum + Number((order as any).shippingCost ?? 0), 0);
+      // في حالتين تحديدًا (رفض بعد المعاينة ولم يدفع، أو تهرب من الاستلام) نستخدم تكلفة
+      // المندوب الفعلية (zoneCost) بدل سعر شحن العميل — نفس منطق باقي الصفحة بالظبط.
+      const fee = group.reduce((sum, order) => {
+        const rr = String((order as any)?.returnReason ?? "");
+        const useRepCost = order.deliveryStatus === "returned" && (rr === "refused_unpaid" || rr === "quality");
+        return sum + (useRepCost ? Number((order as any)?.zoneCost ?? 0) : Number((order as any).shippingCost ?? 0));
+      }, 0);
       const shipmentTotal = cod + fee;
       const receivedValue = group.reduce((sum, order) => {
         if (order.deliveryStatus === "delivered") {
@@ -4640,7 +4671,13 @@ export default function ShippingManifestPage() {
             const { label, cls } = statusLabel(singleStatus);
             const totalQty = group.reduce((sum, o) => sum + (o.quantity ?? 0), 0);
             const cod = group.reduce((sum, o) => sum + Number(o.totalPrice ?? 0), 0);
-            const fee = group.reduce((sum, o) => sum + Number((o as any).shippingCost ?? 0), 0);
+            // في حالتين تحديدًا (رفض بعد المعاينة ولم يدفع، أو تهرب من الاستلام) نستخدم
+            // تكلفة المندوب الفعلية (zoneCost) بدل سعر شحن العميل — نفس منطق باقي الصفحة.
+            const fee = group.reduce((sum, o) => {
+              const rr = String((o as any)?.returnReason ?? "");
+              const useRepCost = o.deliveryStatus === "returned" && (rr === "refused_unpaid" || rr === "quality");
+              return sum + (useRepCost ? Number((o as any)?.zoneCost ?? 0) : Number((o as any).shippingCost ?? 0));
+            }, 0);
             const extraFee = group.reduce((sum, o) => sum + Number((o as any).repExtraCost ?? 0), 0);
             const extraReasons = [...new Set(group.map((o) => (o as any).repExtraReason).filter(Boolean))].join(" + ");
             const receivedValue = group.reduce((sum, o) => {
@@ -4754,7 +4791,13 @@ export default function ShippingManifestPage() {
               const isSingleStatus = statuses.length === 1;
               const singleStatus = isSingleStatus ? (statuses[0] as DeliveryStatus) : "pending";
               const cod = group.reduce((sum, o) => sum + Number(o.totalPrice ?? 0), 0);
-              const fee = group.reduce((sum, o) => sum + Number((o as any).shippingCost ?? 0), 0);
+              // في حالتين تحديدًا (رفض بعد المعاينة ولم يدفع، أو تهرب من الاستلام) نستخدم
+              // تكلفة المندوب الفعلية (zoneCost) بدل سعر شحن العميل — نفس منطق باقي الصفحة.
+              const fee = group.reduce((sum, o) => {
+                const rr = String((o as any)?.returnReason ?? "");
+                const useRepCost = o.deliveryStatus === "returned" && (rr === "refused_unpaid" || rr === "quality");
+                return sum + (useRepCost ? Number((o as any)?.zoneCost ?? 0) : Number((o as any).shippingCost ?? 0));
+              }, 0);
               const extraFee = group.reduce((sum, o) => sum + Number((o as any).repExtraCost ?? 0), 0);
               const extraReasons = [...new Set(group.map((o) => (o as any).repExtraReason).filter(Boolean))].join(" + ");
               const receivedValue = group.reduce((sum, o) => {
@@ -5370,7 +5413,13 @@ export default function ShippingManifestPage() {
                 const isSingleStatus = statuses.length === 1;
                 const singleStatus = isSingleStatus ? (statuses[0] as DeliveryStatus) : "pending";
                 const cod = group.reduce((sum, o) => sum + Number(o.totalPrice ?? 0), 0);
-                const fee = group.reduce((sum, o) => sum + Number((o as any).shippingCost ?? 0), 0);
+                const fee = group.reduce((sum, o) => {
+                  const rr = String((o as any)?.returnReason ?? "");
+                  const useRepCost = o.deliveryStatus === "returned" && (rr === "refused_unpaid" || rr === "quality");
+                  const zoneCost = (o as any).zoneCost;
+                  const val = useRepCost && zoneCost != null ? Number(zoneCost) : Number((o as any).shippingCost ?? 0);
+                  return sum + val;
+                }, 0);
                 const extraFee = group.reduce((sum, o) => sum + Number((o as any).repExtraCost ?? 0), 0);
                 const extraReasons = [...new Set(group.map((o) => (o as any).repExtraReason).filter(Boolean))].join(" + ");
                 const receivedValue = group.reduce((sum, o) => {
@@ -5845,7 +5894,15 @@ export default function ShippingManifestPage() {
         // ملحوظة: shippingCost هنا سعر الشحن الأساسي فقط (بدون إضافات نوع الشحنة)
         // لأن إضافات الأنواع بتتحسب لوحدها في repExtraCostTotal تحت وتتضاف بعدين —
         // استخدام getChargeableShipping هنا كان بيحسب الإضافة مرتين.
-        const shippingCost    = ordersForPnl.reduce((s, o) => s + (isShippingZeroedRowLocal(o) ? 0 : Number((o as any).shippingCost ?? 0)), 0);
+        // في حالتين تحديدًا (رفض بعد المعاينة ولم يدفع "refused_unpaid"، أو تهرب من
+        // الاستلام "quality") العميل مش هيتحمّل سعر الشحن العادي — بنستخدم بدلها تكلفة
+        // المندوب الفعلية (zoneCost) لكل أوردر، عشان الكارت يطابق عمود الجدول بالظبط.
+        const getShippingValueForPnl = (o: any) => {
+          const rr = String(o?.returnReason ?? "");
+          const useRepCost = o.deliveryStatus === "returned" && (rr === "refused_unpaid" || rr === "quality");
+          return useRepCost ? Number(o?.zoneCost ?? 0) : Number(o?.shippingCost ?? 0);
+        };
+        const shippingCost    = ordersForPnl.reduce((s, o) => s + (isShippingZeroedRowLocal(o) ? 0 : getShippingValueForPnl(o)), 0);
         const collectedCOD    = deliveredCOD + partialCOD;
         // إضافات أنواع الشحنات (basePrice لكل نوع) على سعر العميل — نفس منطق كارت
         // المندوب لكن بمصدر سعر العميل بدل سعر المندوب. بنفس شرط التصفير فوق حتى
