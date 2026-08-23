@@ -3016,7 +3016,7 @@ function AdminOpenManifestCard({ manifest, clientId, qc }: {
             <span className="text-lg font-black text-amber-300">{manifest.pendingShipmentsCount}</span>
           </div>
           <p className="text-[11px] font-bold text-amber-300 mt-2">
-            يوجد {manifest.pendingShipmentsCount} شحنة معلّقة لدى العميل ستُضاف تلقائيًا للبيان القادم عند إغلاق هذا البيان
+            الأوردرات الجديدة سوف تُضاف تلقائيًا للبيان القادم عند إغلاق هذا البيان
           </p>
         </div>
       )}
