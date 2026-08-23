@@ -165,6 +165,31 @@ router.get("/client-account-manifests", async (req, res): Promise<void> => {
       });
     }
 
+    // ─── بنود البيان المفتوح نفسه اللي هتترحّل للبيان القادم عند الإغلاق: نفس
+    // شروط rolloverPendingItemsToNewManifest بالظبط — deliveryStatus = pending
+    // أو delayed، أو returned لسه متستلمتش (returnReceived !== 1). دي بتتجمع مع
+    // الشحنات المعلّقة (orphan) عشان رقم كارت "الأوردرات الجديدة" يطابق العدد
+    // الفعلي اللي هيترحّل عند الإغلاق (مش بس الشحنات اللي بره أي بيان).
+    const openManifestIds = manifests.filter(m => m.status === "open").map(m => m.id);
+    const rolloverItemsByManifest: Record<number, number> = {};
+    if (openManifestIds.length) {
+      const openItems = await db
+        .select({
+          manifestId: clientAccountManifestItemsTable.manifestId,
+          deliveryStatus: clientAccountManifestItemsTable.deliveryStatus,
+          returnReceived: clientAccountManifestItemsTable.returnReceived,
+        })
+        .from(clientAccountManifestItemsTable)
+        .where(inArray(clientAccountManifestItemsTable.manifestId, openManifestIds));
+      openItems.forEach(it => {
+        const willRoll =
+          it.deliveryStatus === "pending" ||
+          it.deliveryStatus === "delayed" ||
+          (it.deliveryStatus === "returned" && it.returnReceived !== 1);
+        if (willRoll) rolloverItemsByManifest[it.manifestId] = (rolloverItemsByManifest[it.manifestId] ?? 0) + 1;
+      });
+    }
+
     // ⚠️ ملحوظة: البيان المفتوح والمغلق بيتحسبوا بنفس المنطق بالظبط — من
     // client_account_manifest_items مباشرة (مش من جدول shipments). قديمًا كان
     // البيان المفتوح بيحسب "كل شحنات العميل" من shipments، وده كان بيخلي أي
@@ -179,8 +204,11 @@ router.get("/client-account-manifests", async (req, res): Promise<void> => {
       clientName: clientMap[m.clientId]?.name ?? "",
       clientAvatar: clientMap[m.clientId]?.avatar ?? null,
       // بيتضاف بس للبيان المفتوح (زي شاشة بورتال العميل بالظبط)، لأنه هو
-      // الوحيد اللي هياخد الرول أوفر عند الإغلاق.
-      pendingShipmentsCount: m.status === "open" ? (pendingCountByClient[m.clientId] ?? 0) : 0,
+      // الوحيد اللي هياخد الرول أوفر عند الإغلاق. = بنود البيان المفتوح اللي
+      // هتترحّل + الشحنات المعلّقة (orphan) اللي بره أي بيان.
+      pendingShipmentsCount: m.status === "open"
+        ? (rolloverItemsByManifest[m.id] ?? 0) + (pendingCountByClient[m.clientId] ?? 0)
+        : 0,
     }));
 
     res.json(result);

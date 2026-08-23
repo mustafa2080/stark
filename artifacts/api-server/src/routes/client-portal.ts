@@ -1645,13 +1645,41 @@ router.get("/client-portal/manifests", async (req, res): Promise<void> => {
       pendingShipmentsCount = eligibleShipmentIds.filter(sid => !alreadyInManifest.has(sid)).length;
     }
 
+    // ─── بنود البيان المفتوح نفسه اللي هتترحّل للبيان القادم عند الإغلاق: نفس
+    // شروط rolloverPendingItemsToNewManifest بالظبط — deliveryStatus = pending
+    // أو delayed، أو returned لسه متستلمتش (returnReceived !== 1). بتتجمع مع
+    // الشحنات المعلّقة (orphan) فوق عشان الرقم المعروض للعميل يطابق العدد الفعلي
+    // اللي هيترحّل عند الإغلاق (مش بس اللي بره أي بيان).
+    const openManifestIds = manifests.filter(m => m.status === "open").map(m => m.id);
+    const rolloverItemsByManifest: Record<number, number> = {};
+    if (openManifestIds.length) {
+      const openItems = await db
+        .select({
+          manifestId: clientAccountManifestItemsTable.manifestId,
+          deliveryStatus: clientAccountManifestItemsTable.deliveryStatus,
+          returnReceived: clientAccountManifestItemsTable.returnReceived,
+        })
+        .from(clientAccountManifestItemsTable)
+        .where(inArray(clientAccountManifestItemsTable.manifestId, openManifestIds));
+      openItems.forEach(it => {
+        const willRoll =
+          it.deliveryStatus === "pending" ||
+          it.deliveryStatus === "delayed" ||
+          (it.deliveryStatus === "returned" && it.returnReceived !== 1);
+        if (willRoll) rolloverItemsByManifest[it.manifestId] = (rolloverItemsByManifest[it.manifestId] ?? 0) + 1;
+      });
+    }
+
     const result = manifests.map(m => ({
       ...m,
       shipmentCount: countMap[m.id] ?? 0,
       statusCounts: statusCountMap[m.id] ?? { pending: 0, shipping: 0, delayed: 0, returned: 0, delivered: 0, partial: 0 },
       // بيتضاف بس لبيان الـ "open" الحالي، لأنه هو الوحيد المعروض فوق للعميل
-      // مع شريط نسبة التسليم. البيانات المغلقة/الأرشيف ما تحتاجش الرقم ده.
-      pendingShipmentsCount: m.status === "open" ? pendingShipmentsCount : 0,
+      // مع شريط نسبة التسليم. = بنود البيان المفتوح اللي هتترحّل + الشحنات
+      // المعلّقة (orphan) اللي بره أي بيان. البيانات المغلقة ما تحتاجش الرقم ده.
+      pendingShipmentsCount: m.status === "open"
+        ? (rolloverItemsByManifest[m.id] ?? 0) + pendingShipmentsCount
+        : 0,
     }));
 
     res.json(result);
