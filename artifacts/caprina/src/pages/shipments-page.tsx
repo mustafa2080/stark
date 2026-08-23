@@ -1090,7 +1090,7 @@ export default function Orders() {
   // ملاحظة: فلترة اسم العميل (customerSearch) بقت بتحصل على مستوى السيرفر (customerName param)
   // عشان تدور على كل الشحنات مش بس الصفحة المحمّلة حاليًا — شوف الـ query فوق
   const filtered = (Array.isArray(orders) ? orders : []).filter((o: any) => {
-    if (totalSearch && !String(Math.round(Number(o.totalAmount || 0))).includes(totalSearch)) return false;
+    if (totalSearch && !String(Math.round((Number(o.codAmount ?? 0) > 0 ? Number(o.codAmount) : Number(o.totalAmount || 0)) + Number(o.shippingFee || 0))).includes(totalSearch)) return false;
     return true;
   });
 
@@ -1102,7 +1102,7 @@ export default function Orders() {
       case "customer": return o.senderName ?? "";
       case "phone":    return o.senderPhone ?? o.receiverPhone ?? "";
       case "product":  return o.receiverName ?? "";
-      case "total":    return String(Math.round(Number(o.totalAmount || 0)));
+      case "total":    return String(Math.round((Number(o.codAmount ?? 0) > 0 ? Number(o.codAmount) : Number(o.totalAmount || 0)) + Number(o.shippingFee || 0)));
       case "creator":  return (o as any).createdByName ?? "";
       case "status":   return statusLabels[o.status] ?? o.status ?? "";
       default:         return "";
@@ -2189,7 +2189,11 @@ export default function Orders() {
                         )}
                         {canFinancials && (
                         <TableCell className="text-xs font-bold text-primary">
-                          {Number(o.codAmount ?? 0) > 0 ? formatCurrency(Number(o.codAmount)) : o.totalAmount != null ? formatCurrency(Number(o.totalAmount)) : "—"}
+                          {(() => {
+                            const baseAmt = Number(o.codAmount ?? 0) > 0 ? Number(o.codAmount) : Number(o.totalAmount ?? 0);
+                            const shipAmt = Number(o.shippingFee ?? 0);
+                            return formatCurrency(baseAmt + shipAmt);
+                          })()}
                         </TableCell>
                         )}
                         {canFinancials && (
