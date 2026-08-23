@@ -206,15 +206,19 @@ export default function NewShipmentPage() {
   // وفيه سعر مخصص له في المنطقة (priceCommercial/priceVip) نستخدمه بدل السعر
   // العادي، وإلا نرجع للسعر العادي (price) كـ fallback.
   const clientTypeForZone = selectedClient?.clientType ?? "normal";
-  const zonePrice = (() => {
-    if (!selectedZone) return 0;
+  // دالة موحّدة لحساب سعر أي منطقة حسب تصنيف العميل الحالي — تُستخدم هنا وفي
+  // القايمة المنسدلة لاختيار المحافظة (عشان السعر الظاهر جنب كل محافظة في
+  // القايمة يطابق السعر الفعلي اللي هيتحسب لما يتم اختيارها، بدل ما يفضل
+  // يعرض السعر العادي دايمًا حتى لو العميل تجاري/VIP).
+  const getZonePriceForClient = (zone: ShipmentZone) => {
     const byType =
-      clientTypeForZone === "vip"        ? selectedZone.priceVip :
-      clientTypeForZone === "commercial" ? selectedZone.priceCommercial :
-      selectedZone.priceNormal;
-    const resolved = (byType != null && Number(byType) > 0) ? byType : selectedZone.price;
+      clientTypeForZone === "vip"        ? zone.priceVip :
+      clientTypeForZone === "commercial" ? zone.priceCommercial :
+      zone.priceNormal;
+    const resolved = (byType != null && Number(byType) > 0) ? byType : zone.price;
     return Number(resolved) || 0;
-  })();
+  };
+  const zonePrice = selectedZone ? getZonePriceForClient(selectedZone) : 0;
   const parcelPrice     = Number(selectedPricing?.basePrice) || 0;
   const shippingFee     = zonePrice + parcelPrice;
   // المستخدم بيدخل "سعر الشحنة" (الإجمالي)، ومبلغ COD الفعلي = الإجمالي ناقص رسوم الشحن
@@ -437,7 +441,7 @@ export default function NewShipmentPage() {
                               <Check className={`w-3.5 h-3.5 shrink-0 ${form.zoneId === String(zone.id) ? "opacity-100 text-primary" : "opacity-0"}`} />
                               {label}
                             </span>
-                            <span className="text-xs text-muted-foreground font-bold">{fc(zone.price)}</span>
+                            <span className="text-xs text-muted-foreground font-bold">{fc(getZonePriceForClient(zone))}</span>
                           </CommandItem>
                         ))}
                       </CommandGroup>
@@ -445,7 +449,7 @@ export default function NewShipmentPage() {
                   </Command>
                 </PopoverContent>
               </Popover>
-              {selectedZone && <p className="text-[10px] text-primary mt-1">سعر التوصيل: {fc(selectedZone.price)}</p>}
+              {selectedZone && <p className="text-[10px] text-primary mt-1">سعر التوصيل: {fc(zonePrice)}</p>}
             </div>
             <div className="sm:col-span-2"><Label className="text-xs font-bold mb-1.5 block">العنوان التفصيلي</Label><Input className="text-sm" placeholder="الشارع، المبنى، الشقة..." value={form.receiverAddress} onChange={e => set("receiverAddress", e.target.value)} /></div>
           </div>
