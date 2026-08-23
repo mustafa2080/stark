@@ -4573,8 +4573,16 @@ export default function ShippingManifestPage() {
     }
     return false;
   };
-  const getChargeableShipping = (o: ManifestOrder) =>
-    isShippingZeroedRowTop(o) ? 0 : Number((o as any).shippingCost ?? 0) + Number((o as any).repExtraCost ?? 0);
+  const getChargeableShipping = (o: ManifestOrder) => {
+    if (isShippingZeroedRowTop(o)) return 0;
+    // في حالتين تحديدًا (رفض بعد المعاينة ولم يدفع، أو تهرب من الاستلام) العميل مش
+    // هيتحمّل سعر الشحن العادي بتاعه — بنعرض بدلها تكلفة المندوب الفعلية (zoneCost)
+    // — نفس منطق useRepCost المستخدم في باقي الصفحة (الملخصات/الطباعة/الإكسل).
+    const rr = String((o as any)?.returnReason ?? "");
+    const useRepCost = o.deliveryStatus === "returned" && (rr === "refused_unpaid" || rr === "quality");
+    const shipping = useRepCost ? Number((o as any)?.zoneCost ?? 0) : Number((o as any).shippingCost ?? 0);
+    return shipping + Number((o as any).repExtraCost ?? 0);
+  };
 
   const totalCollected = (manifest.orders ?? []).reduce((sum, o) => sum + getCollectedAmount(o), 0);
   const effectiveShipping = (manifest.orders ?? []).reduce((sum, o) => sum + getChargeableShipping(o), 0);
