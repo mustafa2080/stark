@@ -1652,18 +1652,19 @@ router.get("/client-portal/manifests", async (req, res): Promise<void> => {
       });
     }
 
-    // ─── الشحنات "المعلّقة" الخاصة بالعميل: وصلت warehouse_ready أو أبعد
-    // (مش لسه waiting/pending)، ومفيهاش أي صف خالص في جدول بنود بيانات حساب
-    // العميل (بغض النظر عن أي بيان مفتوح أو مغلق). نفس منطق الالتقاط بالظبط
-    // المستخدم في rolloverPendingItemsToNewManifest (client-account-manifests.ts)
-    // عشان الرقم المعروض للعميل يطابق تمامًا اللي هيترحّل فعليًا عند الإغلاق.
+    // ─── الأوردرات الجديدة الخاصة بالعميل = أي شحنة للعميل لسه مفيهاش أي صف
+    // خالص في جدول بنود بيانات حساب العميل (مش في أي بيان، مفتوح أو مقفول)،
+    // وحالتها مش "ملغية". بتشمل الأوردرات الجديدة اللي لسه "قيد الانتظار"
+    // (waiting/pending) — لأن الأوردر أول ما يتعمل بيبقى قيد الانتظار، والعميل
+    // عايز يشوفه فورًا في كارت "الأوردرات الجديدة" لحد ما يتضاف للبيان. (ده
+    // أوسع من مجموعة الترحيل عند الإغلاق اللي بتنقل بس warehouse_ready أو أبعد.)
     let pendingShipmentsCount = 0;
     const clientShipmentRows = await db
       .select({ id: shipmentsTable.id, status: shipmentsTable.status })
       .from(shipmentsTable)
       .where(eq(shipmentsTable.clientId, user.clientId));
     const eligibleShipmentIds = clientShipmentRows
-      .filter(s => !["waiting", "pending"].includes(s.status))
+      .filter(s => s.status !== "cancelled")
       .map(s => s.id);
     if (eligibleShipmentIds.length) {
       const existingItemRows = await db
@@ -1674,16 +1675,16 @@ router.get("/client-portal/manifests", async (req, res): Promise<void> => {
       pendingShipmentsCount = eligibleShipmentIds.filter(sid => !alreadyInManifest.has(sid)).length;
     }
 
-    // "الأوردرات الجديدة" = الشحنات الجديدة المعلّقة (orphan) بس — يعني شحنات
-    // العميل اللي اتعملت جديد ووصلت warehouse_ready أو أبعد ولسه مش مضافة لأي
-    // بيان، فبتستنى في الحاوية دي لحد ما البيان الحالي يتقفل وتترحّل للبيان
-    // القادم. البند اللي جوة البيان نفسه (حتى لو هيترحّل) مش بيتحسب هنا.
+    // "الأوردرات الجديدة" = الأوردرات المعلّقة (orphan) اللي بره أي بيان — أي
+    // شحنة للعميل لسه مش مضافة لأي بيان (بما فيها اللي لسه "قيد الانتظار")،
+    // فبتستنى في الحاوية دي لحد ما تتضاف للبيان. البند اللي جوة البيان نفسه
+    // مش بيتحسب هنا.
     const result = manifests.map(m => ({
       ...m,
       shipmentCount: countMap[m.id] ?? 0,
       statusCounts: statusCountMap[m.id] ?? { pending: 0, shipping: 0, delayed: 0, returned: 0, delivered: 0, partial: 0 },
-      // بيتضاف بس لبيان الـ "open" الحالي، لأنه هو الوحيد المعروض فوق للعميل
-      // مع شريط نسبة التسليم. = الشحنات المعلّقة (orphan) اللي بره أي بيان فقط.
+      // بيتعرض بس لبيان الـ "open" الحالي، لأنه هو الوحيد المعروض فوق للعميل
+      // مع شريط نسبة التسليم. = الأوردرات المعلّقة (orphan) اللي بره أي بيان.
       // البيانات المغلقة ما تحتاجش الرقم ده.
       pendingShipmentsCount: m.status === "open" ? pendingShipmentsCount : 0,
     }));

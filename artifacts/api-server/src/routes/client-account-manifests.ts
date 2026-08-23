@@ -165,18 +165,21 @@ router.get("/client-account-manifests", async (req, res): Promise<void> => {
     const clientMap: Record<number, { name: string; avatar: string | null }> = {};
     clientsRows.forEach(c => { clientMap[c.id] = { name: c.name, avatar: c.avatar }; });
 
-    // ─── الشحنات "المعلّقة" لكل عميل ظاهر في القائمة: نفس المنطق بالظبط
-    // المستخدم في rolloverPendingItemsToNewManifest وفي /client-portal/manifests
-    // (شحنة وصلت warehouse_ready أو أبعد، ومفيهاش أي صف خالص في جدول بنود
-    // بيانات حساب العميل). بيتحسب لكل عميل على حدة عشان يتوزع صح على البيانات
-    // المفتوحة الخاصة بكل عميل في القائمة (سواء الطلب لعميل واحد أو كل العملاء).
+    // ─── الأوردرات الجديدة لكل عميل ظاهر في القائمة = أي شحنة للعميل لسه
+    // مفيهاش أي صف خالص في جدول بنود بيانات حساب العميل (مش في أي بيان، مفتوح
+    // أو مقفول)، وحالتها مش "ملغية". دي بتشمل الأوردرات الجديدة اللي لسه "قيد
+    // الانتظار" (waiting/pending) — لأن الأوردر أول ما يتعمل بيبقى قيد الانتظار،
+    // والعميل عايز يشوفه فورًا في كارت "الأوردرات الجديدة" لحد ما يتضاف للبيان.
+    // ملاحظة: ده أوسع من مجموعة الترحيل في rolloverPendingItemsToNewManifest
+    // (اللي بتنقل بس اللي وصل warehouse_ready أو أبعد عند الإغلاق) — بس ده
+    // المطلوب: الكارت بيعرض كل الأوردرات الجديدة المستنية بره البيان.
     const pendingCountByClient: Record<number, number> = {};
     if (clientIds.length) {
       const clientShipmentRows = await db
         .select({ id: shipmentsTable.id, clientId: shipmentsTable.clientId, status: shipmentsTable.status })
         .from(shipmentsTable)
         .where(inArray(shipmentsTable.clientId, clientIds));
-      const eligible = clientShipmentRows.filter(s => !["waiting", "pending"].includes(s.status));
+      const eligible = clientShipmentRows.filter(s => s.status !== "cancelled");
       const eligibleIds = eligible.map(s => s.id);
       let alreadyInManifest = new Set<number>();
       if (eligibleIds.length) {
@@ -206,11 +209,10 @@ router.get("/client-account-manifests", async (req, res): Promise<void> => {
       statusCounts: statusCountMap[m.id] ?? { pending: 0, delayed: 0, returned: 0, delivered: 0, partial: 0 },
       clientName: clientMap[m.clientId]?.name ?? "",
       clientAvatar: clientMap[m.clientId]?.avatar ?? null,
-      // "الأوردرات الجديدة" = الشحنات الجديدة المعلّقة اللي بره أي بيان (orphan)
-      // بس — يعني شحنات العميل اللي اتعملت جديد ووصلت warehouse_ready أو أبعد
-      // ولسه مش مضافة لأي بيان، فبتستنى في الحاوية دي لحد ما البيان الحالي يتقفل
-      // وتترحّل للبيان القادم. البند اللي جوة البيان نفسه (حتى لو هيترحّل) مش
-      // بيتحسب هنا — الكارت ده مخصوص للأوردرات الجديدة الجاية بره البيان فقط.
+      // "الأوردرات الجديدة" = الأوردرات المعلّقة اللي بره أي بيان (orphan) — أي
+      // شحنة للعميل لسه مش مضافة لأي بيان (بما فيها اللي لسه "قيد الانتظار")،
+      // فبتستنى في الحاوية دي لحد ما تتضاف للبيان. البند اللي جوة البيان نفسه
+      // مش بيتحسب هنا — الكارت ده مخصوص للأوردرات الجديدة الجاية بره البيان فقط.
       pendingShipmentsCount: m.status === "open"
         ? (pendingCountByClient[m.clientId] ?? 0)
         : 0,
