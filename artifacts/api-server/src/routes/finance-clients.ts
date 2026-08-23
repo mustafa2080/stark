@@ -251,10 +251,18 @@ router.get("/finance/clients", async (req, res): Promise<void> => {
       .where(and(...shipConds));
 
     // تجميع الأرقام لكل عميل حسب clientId — لا حاجة لمطابقة أسماء نصية
-    // (totalOrders/totalSales/totalPaid بتفضل من بيانات الشحنات الخام زي ما هي)
+    // ⚠️ الأوردرات "الفعلية" اللي بتتحسب للعميل (totalOrders = المستخدم في عمود
+    // "تحقيق الهدف" بقائمة العملاء) لازم تكون بس الشحنات اللي دخلت المخزن فعليًا
+    // (picked_up = قيد الشحن بالمخزن) أو أبعد — مش لسه "قيد الانتظار" (waiting)
+    // أو "مؤكدة" (confirmed) عند العميل ومتسلمتش. ده نفس منطق استبعاد
+    // NOT_YET_RECEIVED_STATUSES في GET /finance/clients/:id و /finance/clients-dashboard
+    // بالظبط — عشان الرقم في "تحقيق الهدف" يطابق "الأوردرات الفعلية" في داشبورد
+    // العميل، ومايحصلش إن القائمة تقول 6 والداشبورد يقول 5.
+    const NOT_YET_RECEIVED_STATUSES = ["waiting", "confirmed"];
     const statsMap: Record<number, { totalOrders: number; totalSales: number; totalPaid: number }> = {};
     for (const s of allShipments) {
       if (s.clientId == null) continue;
+      if (NOT_YET_RECEIVED_STATUSES.includes(s.status)) continue; // لسه عند العميل — مايتحسبش أوردر فعلي
       if (!statsMap[s.clientId]) statsMap[s.clientId] = { totalOrders: 0, totalSales: 0, totalPaid: 0 };
       const t = parseFloat(s.totalAmount ?? "0");
       const p = parseFloat(s.collectedAmount ?? "0");
