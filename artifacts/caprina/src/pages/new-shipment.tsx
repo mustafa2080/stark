@@ -15,9 +15,9 @@ import { apiFetch, warehousesApi, usersApi, shipmentsApi } from "@/lib/api";
 type PaymentMethod = "cod" | "prepaid" | "deferred";
 type ParcelType    = "document" | "normal" | "fragile" | "heavy" | "electronics" | "clothing" | "food" | "other";
 
-interface ShipmentZone        { id: number; name: string; fromGovernorate?: string; toGovernorate?: string; price: number; isActive?: boolean }
+interface ShipmentZone        { id: number; name: string; fromGovernorate?: string; toGovernorate?: string; price: number; priceNormal?: number | string | null; priceCommercial?: number | string | null; priceVip?: number | string | null; isActive?: boolean }
 interface ParcelTypePricing   { id: number; parcelType: string; label?: string; basePrice: number; repExtraCost?: number; isActive?: boolean }
-interface ShipmentClient      { id: number; name: string; phone?: string; phone2?: string; city?: string; region?: string; governorate?: string; address?: string; warehouseId?: number | null; avatar?: string | null; defaultAdSource?: string | null }
+interface ShipmentClient      { id: number; name: string; phone?: string; phone2?: string; city?: string; region?: string; governorate?: string; address?: string; warehouseId?: number | null; avatar?: string | null; defaultAdSource?: string | null; clientType?: string | null }
 
 const PARCEL_LABELS: Record<string, string> = {
   document: "مستندات", normal: "عادي", fragile: "قابل للكسر",
@@ -199,8 +199,22 @@ export default function NewShipmentPage() {
   }, [zones, form.senderCity]);
 
   const selectedZone    = zones.find(z => String(z.id) === form.zoneId);
+  const selectedClient  = clients.find(c => String(c.id) === form.clientId);
   const selectedPricing = parcelPricing.find(p => p.parcelType === form.parcelType);
-  const zonePrice       = Number(selectedZone?.price) || 0;
+  // سعر المنطقة حسب تصنيف العميل المختار (normal/commercial/vip) — نفس منطق
+  // بوابة العميل (client-portal.ts) بالظبط: لو تصنيف العميل "تجاري" أو "VIP"
+  // وفيه سعر مخصص له في المنطقة (priceCommercial/priceVip) نستخدمه بدل السعر
+  // العادي، وإلا نرجع للسعر العادي (price) كـ fallback.
+  const clientTypeForZone = selectedClient?.clientType ?? "normal";
+  const zonePrice = (() => {
+    if (!selectedZone) return 0;
+    const byType =
+      clientTypeForZone === "vip"        ? selectedZone.priceVip :
+      clientTypeForZone === "commercial" ? selectedZone.priceCommercial :
+      selectedZone.priceNormal;
+    const resolved = (byType != null && Number(byType) > 0) ? byType : selectedZone.price;
+    return Number(resolved) || 0;
+  })();
   const parcelPrice     = Number(selectedPricing?.basePrice) || 0;
   const shippingFee     = zonePrice + parcelPrice;
   // المستخدم بيدخل "سعر الشحنة" (الإجمالي)، ومبلغ COD الفعلي = الإجمالي ناقص رسوم الشحن

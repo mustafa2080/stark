@@ -101,6 +101,10 @@ router.get("/finance/clients/for-shipment", async (req, res): Promise<void> => {
         warehouseId: clientsTable.warehouseId,
         avatar:      clientsTable.avatar,
         defaultAdSource: clientsTable.defaultAdSource,
+        // تصنيف العميل (normal | commercial | vip) — لازم يوصل للفرونت إند عشان
+        // فورم إنشاء الشحنة يختار سعر المنطقة الصح حسب نوع العميل (priceNormal/
+        // priceCommercial/priceVip) بدل ما يستخدم السعر العادي لكل العملاء دايمًا.
+        clientType: clientsTable.clientType,
       })
       .from(clientsTable)
       .where(
