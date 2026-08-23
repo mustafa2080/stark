@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, desc, isNull, sql, or, inArray, count, ne } from "drizzle-orm";
+import { eq, and, desc, isNull, sql, or, inArray, ne } from "drizzle-orm";
 import rateLimit from "express-rate-limit";
 import {
   db,
@@ -1596,30 +1596,59 @@ router.get("/client-portal/manifests", async (req, res): Promise<void> => {
       // الشحنات الفعلي جوة البيان — نفس فيكس /client-account-manifests
       // (راوت الأدمن). قديمًا كان pending بيتشال بالكامل من هنا فكان الإجمالي
       // ("إجمالي الأوردرات") بيفرق عن عدد الشحنات الحقيقي في البيان.
-      const counts = await db
+      //
+      // 🔑 بنحسب "الحالة الفعلية" (effective status) بنفس اشتقاق صفحة تفاصيل
+      // البيان (client-account-manifest-detail.tsx سطر ~3982): لو البند لسه
+      // deliveryStatus="pending" بس الشحنة نفسها اتغيّرت لحالة نهائية
+      // (returned/delivered/received/partial_received) → بنحسبها بحالة الشحنة
+      // مش pending. من غير ده الشحنة المرتجعة اللي اتسجّلت على مستوى الشحنة بس
+      // (مش على بند بيان حساب العميل) بتتحسب غلط "قيد العمل" في كروت الملخّص
+      // بدل "مرتجع" — نفس فيكس راوت الأدمن بالظبط.
+      const itemRows = await db
         .select({
           manifestId: clientAccountManifestItemsTable.manifestId,
+          shipmentId: clientAccountManifestItemsTable.shipmentId,
           deliveryStatus: clientAccountManifestItemsTable.deliveryStatus,
-          cnt: count(),
         })
         .from(clientAccountManifestItemsTable)
-        .where(inArray(clientAccountManifestItemsTable.manifestId, ids))
-        .groupBy(clientAccountManifestItemsTable.manifestId, clientAccountManifestItemsTable.deliveryStatus);
+        .where(inArray(clientAccountManifestItemsTable.manifestId, ids));
 
-      counts.forEach(r => {
+      const itemShipmentIds = [...new Set(itemRows.map(r => r.shipmentId))];
+      const shipmentStatusById: Record<number, string> = {};
+      if (itemShipmentIds.length) {
+        const shRows = await db
+          .select({ id: shipmentsTable.id, status: shipmentsTable.status })
+          .from(shipmentsTable)
+          .where(inArray(shipmentsTable.id, itemShipmentIds));
+        shRows.forEach(s => { shipmentStatusById[s.id] = s.status; });
+      }
+      // نفس statusMap بتاع الفرونت بالظبط — بس الحالات النهائية بتعمل override
+      // على البند اللي لسه pending. أي حالة شحنة تانية (in_shipping/warehouse_ready
+      // /confirmed...) بتفضل "قيد العمل".
+      const SHIPMENT_TO_DELIVERY: Record<string, string> = {
+        returned: "returned",
+        partial_received: "partial_delivered",
+        delivered: "delivered",
+        received: "delivered",
+      };
+
+      itemRows.forEach(r => {
         const mid = r.manifestId;
-        countMap[mid] = (countMap[mid] ?? 0) + Number(r.cnt);
+        countMap[mid] = (countMap[mid] ?? 0) + 1;
         if (!statusCountMap[mid]) statusCountMap[mid] = { pending: 0, shipping: 0, delayed: 0, returned: 0, delivered: 0, partial: 0 };
-        const st = r.deliveryStatus ?? "pending";
-        const n = Number(r.cnt);
-        if (st === "shipping") statusCountMap[mid].shipping += n;
-        else if (st === "delayed") statusCountMap[mid].delayed += n;
-        else if (st === "returned") statusCountMap[mid].returned += n;
-        else if (st === "delivered") statusCountMap[mid].delivered += n;
-        else if (st === "partial_delivered") statusCountMap[mid].partial += n;
+        let st = r.deliveryStatus ?? "pending";
+        if (st === "pending") {
+          const shStatus = shipmentStatusById[r.shipmentId];
+          if (shStatus && SHIPMENT_TO_DELIVERY[shStatus]) st = SHIPMENT_TO_DELIVERY[shStatus];
+        }
+        if (st === "shipping") statusCountMap[mid].shipping += 1;
+        else if (st === "delayed") statusCountMap[mid].delayed += 1;
+        else if (st === "returned") statusCountMap[mid].returned += 1;
+        else if (st === "delivered") statusCountMap[mid].delivered += 1;
+        else if (st === "partial_delivered") statusCountMap[mid].partial += 1;
         // pending + أي حالة تانية غير متوقعة بتتحسب "قيد العمل"، عشان مجموع
         // كل الحقول يطابق shipmentCount دايمًا (نفس منطق راوت الأدمن).
-        else statusCountMap[mid].pending += n;
+        else statusCountMap[mid].pending += 1;
       });
     }
 
@@ -1645,41 +1674,18 @@ router.get("/client-portal/manifests", async (req, res): Promise<void> => {
       pendingShipmentsCount = eligibleShipmentIds.filter(sid => !alreadyInManifest.has(sid)).length;
     }
 
-    // ─── بنود البيان المفتوح نفسه اللي هتترحّل للبيان القادم عند الإغلاق: نفس
-    // شروط rolloverPendingItemsToNewManifest بالظبط — deliveryStatus = pending
-    // أو delayed، أو returned لسه متستلمتش (returnReceived !== 1). بتتجمع مع
-    // الشحنات المعلّقة (orphan) فوق عشان الرقم المعروض للعميل يطابق العدد الفعلي
-    // اللي هيترحّل عند الإغلاق (مش بس اللي بره أي بيان).
-    const openManifestIds = manifests.filter(m => m.status === "open").map(m => m.id);
-    const rolloverItemsByManifest: Record<number, number> = {};
-    if (openManifestIds.length) {
-      const openItems = await db
-        .select({
-          manifestId: clientAccountManifestItemsTable.manifestId,
-          deliveryStatus: clientAccountManifestItemsTable.deliveryStatus,
-          returnReceived: clientAccountManifestItemsTable.returnReceived,
-        })
-        .from(clientAccountManifestItemsTable)
-        .where(inArray(clientAccountManifestItemsTable.manifestId, openManifestIds));
-      openItems.forEach(it => {
-        const willRoll =
-          it.deliveryStatus === "pending" ||
-          it.deliveryStatus === "delayed" ||
-          (it.deliveryStatus === "returned" && it.returnReceived !== 1);
-        if (willRoll) rolloverItemsByManifest[it.manifestId] = (rolloverItemsByManifest[it.manifestId] ?? 0) + 1;
-      });
-    }
-
+    // "الأوردرات الجديدة" = الشحنات الجديدة المعلّقة (orphan) بس — يعني شحنات
+    // العميل اللي اتعملت جديد ووصلت warehouse_ready أو أبعد ولسه مش مضافة لأي
+    // بيان، فبتستنى في الحاوية دي لحد ما البيان الحالي يتقفل وتترحّل للبيان
+    // القادم. البند اللي جوة البيان نفسه (حتى لو هيترحّل) مش بيتحسب هنا.
     const result = manifests.map(m => ({
       ...m,
       shipmentCount: countMap[m.id] ?? 0,
       statusCounts: statusCountMap[m.id] ?? { pending: 0, shipping: 0, delayed: 0, returned: 0, delivered: 0, partial: 0 },
       // بيتضاف بس لبيان الـ "open" الحالي، لأنه هو الوحيد المعروض فوق للعميل
-      // مع شريط نسبة التسليم. = بنود البيان المفتوح اللي هتترحّل + الشحنات
-      // المعلّقة (orphan) اللي بره أي بيان. البيانات المغلقة ما تحتاجش الرقم ده.
-      pendingShipmentsCount: m.status === "open"
-        ? (rolloverItemsByManifest[m.id] ?? 0) + pendingShipmentsCount
-        : 0,
+      // مع شريط نسبة التسليم. = الشحنات المعلّقة (orphan) اللي بره أي بيان فقط.
+      // البيانات المغلقة ما تحتاجش الرقم ده.
+      pendingShipmentsCount: m.status === "open" ? pendingShipmentsCount : 0,
     }));
 
     res.json(result);
