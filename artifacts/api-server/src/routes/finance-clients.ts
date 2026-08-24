@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, clientsTable, saleOrdersTable, saleOrderItemsTable, shipmentsTable, warehousesTable, usersTable, clientAccountManifestItemsTable, clientAccountManifestsTable, pickupRequestsTable } from "@workspace/db";
+import { db, clientsTable, saleOrdersTable, saleOrderItemsTable, shipmentsTable, warehousesTable, usersTable, clientAccountManifestItemsTable, clientAccountManifestsTable, pickupRequestsTable, shipmentZonesTable } from "@workspace/db";
 import { eq, desc, and, sql, or, like, isNull, inArray, notInArray, ne } from "drizzle-orm";
 import { getTenantId } from "../middlewares/requireTenant.js";
 import { hashPassword } from "../lib/auth.js";
@@ -83,6 +83,73 @@ async function syncClientStats(clientName: string, tenantId: number | null) {
     totalPaid:   String(totalPaid),
     updatedAt:   new Date(),
   }).where(and(...clientConds));
+}
+
+// ── تحديث تلقائي لأسعار شحنات العميل عند تغيير تصنيفه (عادي/تجاري/VIP) ──────
+// النطاق: شحنات العميل داخل بيانات حساب مفتوحة فقط (client_account_manifests
+// status='open') — البيانات المقفولة أو المسواة مالياً تفضل زي ما هي.
+// المعادلة نفسها المستخدمة وقت إنشاء الشحنة (new-shipment):
+//   shippingFee = zonePrice(حسب التصنيف) + parcelTypePrice
+//   ولو الدفع عند الاستلام: codAmount = totalAmount - shippingFee → بنعدّل
+//   الـ codAmount بفرق رسوم الشحن عشان الإجمالي يفضل ثابت زي ما العميل دخّله.
+async function syncOpenManifestShipmentPrices(clientId: number, newType: string): Promise<number> {
+  // 1. شحنات العميل الموجودة في بيانات مفتوحة فقط
+  const itemRows = await db
+    .selectDistinct({ shipmentId: clientAccountManifestItemsTable.shipmentId })
+    .from(clientAccountManifestItemsTable)
+    .innerJoin(clientAccountManifestsTable, eq(clientAccountManifestItemsTable.manifestId, clientAccountManifestsTable.id))
+    .where(and(
+      eq(clientAccountManifestsTable.clientId, clientId),
+      eq(clientAccountManifestsTable.status, "open"),
+    ));
+  const shipmentIds = [...new Set(itemRows.map(r => r.shipmentId))];
+  if (!shipmentIds.length) return 0;
+
+  const shConds: any[] = [inArray(shipmentsTable.id, shipmentIds), isNull(shipmentsTable.deletedAt)];
+  const shs = await db.select().from(shipmentsTable).where(and(...shConds));
+  if (!shs.length) return 0;
+
+  // 2. سعر كل منطقة حسب التصنيف الجديد (نفس منطق client-account-manifests و new-shipment:
+  //    لو سعر التصنيف الجديد فاضي أو صفر نرجع للسعر العادي price كـ fallback)
+  const zoneIds = [...new Set(shs.map(s => s.zoneId).filter((v): v is number => !!v))];
+  let zoneMap: Record<number, number> = {};
+  if (zoneIds.length) {
+    const zones = await db.select().from(shipmentZonesTable).where(inArray(shipmentZonesTable.id, zoneIds));
+    zoneMap = Object.fromEntries(zones.map(z => {
+      const byType =
+        newType === "vip"        ? z.priceVip :
+        newType === "commercial" ? z.priceCommercial :
+        z.priceNormal;
+      const resolved = byType != null && Number(byType) > 0 ? byType : z.price;
+      return [z.id as number, Number(resolved) || 0];
+    }));
+  }
+
+  let updatedCount = 0;
+  for (const sh of shs) {
+    if (!sh.zoneId || zoneMap[sh.zoneId] === undefined) continue;
+    const newZonePrice = zoneMap[sh.zoneId];
+    const parcelExtra  = Number(sh.parcelTypePrice ?? 0);
+    const oldFee       = Number(sh.shippingFee ?? 0);
+    const oldZonePrice = Number(sh.zonePrice ?? 0);
+    const newFee       = newZonePrice + parcelExtra;
+    const delta        = Math.round((newFee - oldFee) * 100) / 100;
+    if (delta === 0 && oldZonePrice === newZonePrice) continue;
+
+    const isCod = sh.paymentMethod === "cod";
+    const newCod = isCod
+      ? Math.round((Number(sh.codAmount ?? 0) - delta) * 100) / 100
+      : Number(sh.codAmount ?? 0);
+
+    await db.update(shipmentsTable).set({
+      zonePrice: String(newZonePrice),
+      shippingFee: String(Math.round(newFee * 100) / 100),
+      ...(isCod ? { codAmount: String(newCod) } : {}),
+      updatedAt: new Date(),
+    }).where(eq(shipmentsTable.id, sh.id));
+    updatedCount++;
+  }
+  return updatedCount;
 }
 
 // ── GET /finance/clients/for-shipment ── للاستخدام في نموذج إنشاء الشحنة فقط ──
@@ -793,6 +860,10 @@ router.patch("/finance/clients/:id", async (req, res): Promise<void> => {
     // لو الأدمن غيّر رقم الهاتف، حدّث normalized_phone معاه عشان بوابة العميل تفضل شغالة صح
     if (parsed.data.phone !== undefined) updates.normalizedPhone = normalizePhone(parsed.data.phone);
 
+    // التصنيف القديم قبل التحديث — محتاجينه عشان نعرف لو الأدمن غيّر تصنيف العميل فعلاً
+    const [[prevClientRow]] = await db.execute(sql`SELECT client_type FROM clients WHERE id = ${id}`) as any;
+    const prevClientType: string | null = prevClientRow?.client_type ?? null;
+
     // warehouseId و region و defaultAdSource و whatsappGroupLink و zoneCostId/zoneCostDeliveryPrice و username/password يحتاجان معالجة خاصة — بره التحديث المباشر لجدول clients
     const { warehouseId, region, defaultAdSource, whatsappGroupLink, zoneCostId, zoneCostDeliveryPrice, username, password, ...rest } = updates;
     await db.update(clientsTable).set(rest).where(eq(clientsTable.id, id));
@@ -817,6 +888,17 @@ router.patch("/finance/clients/:id", async (req, res): Promise<void> => {
 
     const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, id));
     if (!client) { res.status(404).json({ error: "العميل غير موجود" }); return; }
+
+    // ── لو التصنيف اتغيّر (عادي ↔ تجاري ↔ VIP) → حدّث أسعار شحناته في البيانات المفتوحة تلقائياً ──
+    let updatedShipments = 0;
+    const newClientType = parsed.data.clientType ?? null;
+    if (newClientType && prevClientType && newClientType !== prevClientType) {
+      try {
+        updatedShipments = await syncOpenManifestShipmentPrices(id, newClientType);
+      } catch (syncErr: any) {
+        console.error("[finance-clients] syncOpenManifestShipmentPrices failed:", syncErr);
+      }
+    }
 
     // ── لو الأدمن بعت username/password أثناء التعديل، وكان العميل ده لسه من غير حساب دخول → أنشئ الحساب دلوقتي ──
     let createdAccount = false;
@@ -866,7 +948,7 @@ router.patch("/finance/clients/:id", async (req, res): Promise<void> => {
 
     // جلب warehouse_id و default_ad_source و whatsapp_group_link و zone_cost_id/zone_cost_delivery_price بـ raw SQL عشان نضمن رجوعهم في الـ response مهما كانت حالة الـ compiled schema
     const [[whRow]] = await db.execute(sql`SELECT warehouse_id, default_ad_source, whatsapp_group_link, zone_cost_id, zone_cost_delivery_price FROM clients WHERE id = ${id}`) as any;
-    res.json({ ...client, warehouseId: whRow?.warehouse_id ?? null, defaultAdSource: whRow?.default_ad_source ?? null, whatsappGroupLink: whRow?.whatsapp_group_link ?? null, zoneCostId: whRow?.zone_cost_id ?? null, zoneCostDeliveryPrice: whRow?.zone_cost_delivery_price ?? null, createdAccount });
+    res.json({ ...client, warehouseId: whRow?.warehouse_id ?? null, defaultAdSource: whRow?.default_ad_source ?? null, whatsappGroupLink: whRow?.whatsapp_group_link ?? null, zoneCostId: whRow?.zone_cost_id ?? null, zoneCostDeliveryPrice: whRow?.zone_cost_delivery_price ?? null, createdAccount, updatedShipments });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

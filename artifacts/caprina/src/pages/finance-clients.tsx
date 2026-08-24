@@ -287,9 +287,12 @@ function ClientForm({ open, onClose, editClient, onSuccess }: {
       return apiFetch<any>("/finance/clients", { method: "POST", body: JSON.stringify(body) });
     },
     onSuccess: (data: any) => {
+      const descriptions: string[] = [];
+      if (data?.createdAccount) descriptions.push("تم إنشاء حساب الدخول للعميل بنجاح");
+      if (data?.updatedShipments > 0) descriptions.push(`تم تحديث أسعار ${data.updatedShipments} شحنة في البيانات المفتوحة حسب التصنيف الجديد`);
       toast({
         title: isEdit ? "تم تحديث العميل" : "تمت إضافة العميل",
-        description: data?.createdAccount ? "تم إنشاء حساب الدخول للعميل بنجاح" : undefined,
+        description: descriptions.length ? descriptions.join(" — ") : undefined,
       });
       onSuccess(); onClose();
     },
