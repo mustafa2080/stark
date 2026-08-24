@@ -2729,8 +2729,7 @@ function CloseConfirmDialog({
                   }
                   if (
                     o.deliveryStatus === "returned" &&
-                    RETURN_REASONS_FINANCIAL_LOCAL.includes(String(o.returnReason ?? "")) &&
-                    o.returnReceived === 1
+                    RETURN_REASONS_FINANCIAL_LOCAL.includes(String(o.returnReason ?? ""))
                   ) {
                     const rvr = o.returnValueReceived;
                     return rvr != null ? Number(rvr) : 0;
@@ -2742,9 +2741,9 @@ function CloseConfirmDialog({
                   if (st === "postponed" || st === "delayed" || st === "pending") return true;
                   if (st === "returned") {
                     if (!RETURN_REASONS_FINANCIAL_LOCAL.includes(String(o?.returnReason ?? ""))) return true;
-                    // الاستلام الفعلي فقط (returnReceived === 1) بيفعّل المساهمة المالية —
-                    // returnValueReceived لوحده (تحصيل جزئي قبل تأكيد الاستلام) مش كافي.
-                    const hasSettlement = o?.returnReceived === 1;
+                    // مجرد وجود تحصيل فعلي (returnValueReceived) بيفعّل المساهمة
+                    // المالية، بغض النظر عن تأكيد استلام البضاعة (returnReceived).
+                    const hasSettlement = o?.returnValueReceived != null;
                     if (!hasSettlement) return true;
                   }
                   return false;
@@ -4584,12 +4583,10 @@ export default function ShippingManifestPage() {
     }
     if (
       o.deliveryStatus === "returned" &&
-      RETURN_REASONS_FINANCIAL.includes(String((o as any).returnReason ?? "")) &&
-      (o as any).returnReceived === 1
+      RETURN_REASONS_FINANCIAL.includes(String((o as any).returnReason ?? ""))
     ) {
-      // الاستلام الفعلي فقط بيفعّل المساهمة المالية — لو لسه عند المندوب
-      // (returnReceived فاضي) مفيش أي إيراد يتحسب حتى لو فيه returnValueReceived
-      // مسجّل (تحصيل جزئي قبل تأكيد الاستلام)، عشان يفضل متوافق مع سعر الشحن.
+      // القيمة المستلمة بتظهر لمجرد إن المندوب دخّل تحصيل فعلي (returnValueReceived)،
+      // بغض النظر عن تأكيد استلام البضاعة نفسها في المخزن (returnReceived).
       const rvr = (o as any).returnValueReceived;
       return rvr != null ? Number(rvr) : 0;
     }
@@ -4607,13 +4604,13 @@ export default function ShippingManifestPage() {
     if (st === "postponed" || st === "delayed" || st === "pending") return true;
     if (st === "returned") {
       if (!RETURN_REASONS_FINANCIAL.includes(String((o as any).returnReason ?? ""))) return true;
-      // لسه عند مندوب الشحن (مش مؤكد استلامه) ومفيش أي تسوية مالية اتسجلت له لحد
-      // دلوقتي (returnValueReceived لسه فاضي) = مفيش أي مساهمة مالية خالص. ده بيمنع
-      // تكرار حساب سعر الشحن على نفس الشحنة لما تترحّل لبيان جديد (rollover) وهي
-      // لسه واقفة عند المندوب من غير ما يحصل فيها حاجة جديدة. الاستلام الفعلي فقط
-      // (returnReceived === 1) بيفعّل المساهمة المالية — returnValueReceived لوحده
-      // (تحصيل جزئي قبل تأكيد الاستلام) مش كافي ومايوقفش التصفير.
-      const hasSettlement = (o as any).returnReceived === 1;
+      // لسه عند مندوب الشحن ومفيش أي تحصيل فعلي اتسجّل له لحد دلوقتي
+      // (returnValueReceived لسه فاضي) = مفيش أي مساهمة مالية خالص. ده بيمنع تكرار
+      // حساب سعر الشحن على نفس الشحنة لما تترحّل لبيان جديد (rollover) وهي لسه
+      // واقفة عند المندوب من غير ما يحصل فيها حاجة جديدة. لكن لو المندوب دخّل
+      // تحصيل فعلي (returnValueReceived اتسجّل) فسعر الشحن بيتحسب زي الإيراد
+      // بالظبط، بغض النظر عن تأكيد استلام البضاعة نفسها (returnReceived).
+      const hasSettlement = (o as any).returnValueReceived != null;
       if (!hasSettlement) return true;
     }
     return false;
@@ -5217,8 +5214,9 @@ export default function ShippingManifestPage() {
               if (st === "returned") {
                 if (!RETURN_REASONS_FINANCIAL.includes(String((order as any).returnReason ?? ""))) return true;
                 // الاستلام الفعلي فقط (returnReceived === 1) بيفعّل المساهمة المالية —
-                // returnValueReceived لوحده (تحصيل جزئي قبل تأكيد الاستلام) مش كافي.
-                const hasSettlement = (order as any).returnReceived === 1;
+                // مجرد وجود تحصيل فعلي (returnValueReceived) بيفعّل المساهمة المالية،
+                // بغض النظر عن تأكيد استلام البضاعة (returnReceived).
+                const hasSettlement = (order as any).returnValueReceived != null;
                 if (!hasSettlement) return true;
               }
               return false;
@@ -5953,9 +5951,9 @@ export default function ShippingManifestPage() {
             // لحد دلوقتي (returnValueReceived لسه فاضي) = مفيش أي مساهمة مالية خالص —
             // عشان مايتكررش حساب سعر الشحن على نفس الشحنة بعد ما تترحّل لبيان جديد
             // (rollover) وهي لسه واقفة عند المندوب من غير ما يحصل فيها حاجة جديدة.
-            // الاستلام الفعلي فقط (returnReceived === 1) بيفعّل المساهمة المالية —
-            // returnValueReceived لوحده (تحصيل جزئي قبل تأكيد الاستلام) مش كافي.
-            const hasSettlement = order?.returnReceived === 1;
+            // مجرد وجود تحصيل فعلي (returnValueReceived) بيفعّل المساهمة المالية،
+            // بغض النظر عن تأكيد استلام البضاعة (returnReceived).
+            const hasSettlement = order?.returnValueReceived != null;
             if (!hasSettlement) return true;
           }
           return false;
