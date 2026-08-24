@@ -20,7 +20,7 @@ async function parseFileToRaw(buffer: Buffer, originalname: string): Promise<{ h
     const stream = Readable.from(buffer.toString("utf-8"));
     await workbook.csv.read(stream);
   } else {
-    await workbook.xlsx.load(buffer);
+    await workbook.xlsx.load(buffer as any);
   }
 
   const worksheet = workbook.worksheets[0];
@@ -143,14 +143,16 @@ router.post("/products/import/execute", async (req, res): Promise<void> => {
 
     let [product] = await db.select().from(productsTable).where(ilike(productsTable.name, name)).limit(1);
     if (!product) {
-      const [created] = await db.insert(productsTable).values({
+      // MySQL مش بيدعم .returning() — بنستخدم $returningId وبعدها نجيب الصف كامل
+      const [createdId] = await db.insert(productsTable).values({
         name,
         sku,
         unitPrice,
         costPrice,
         totalQuantity: (!color && !size) ? totalQuantity : 0,
         lowStockThreshold,
-      }).returning();
+      } as any).$returningId();
+      const [created] = await db.select().from(productsTable).where(eq(productsTable.id, (createdId as any).id));
       product = created;
       importedProducts++;
     } else {

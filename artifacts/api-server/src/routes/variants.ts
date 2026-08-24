@@ -105,7 +105,7 @@ router.get("/variants", async (req, res): Promise<void> => {
 
 // List variants for a specific product
 router.get("/products/:productId/variants", async (req, res): Promise<void> => {
-  const productId = parseInt(req.params.productId);
+  const productId = parseInt(String(req.params.productId));
   if (isNaN(productId)) { res.status(400).json({ error: "Invalid product ID" }); return; }
 
   const variants = await db
@@ -118,7 +118,7 @@ router.get("/products/:productId/variants", async (req, res): Promise<void> => {
 
 // Create variant
 router.post("/products/:productId/variants", requireRole("admin", "warehouse"), async (req, res): Promise<void> => {
-  const productId = parseInt(req.params.productId);
+  const productId = parseInt(String(req.params.productId));
   if (isNaN(productId)) { res.status(400).json({ error: "Invalid product ID" }); return; }
 
   const parsed = CreateVariantSchema.safeParse(req.body);
@@ -171,7 +171,7 @@ router.post("/products/:productId/variants", requireRole("admin", "warehouse"), 
 
 // Update variant
 router.patch("/products/:productId/variants/:variantId", requireRole("admin", "warehouse"), async (req, res): Promise<void> => {
-  const variantId = parseInt(req.params.variantId);
+  const variantId = parseInt(String(req.params.variantId));
   if (isNaN(variantId)) { res.status(400).json({ error: "Invalid variant ID" }); return; }
 
   const parsed = UpdateVariantSchema.safeParse(req.body);
@@ -196,18 +196,18 @@ router.patch("/products/:productId/variants/:variantId", requireRole("admin", "w
 
 // Delete variant
 router.delete("/products/:productId/variants/:variantId", requireRole("admin"), async (req, res): Promise<void> => {
-  const variantId = parseInt(req.params.variantId);
+  const variantId = parseInt(String(req.params.variantId));
   if (isNaN(variantId)) { res.status(400).json({ error: "Invalid variant ID" }); return; }
 
   const [toDelete] = await db.select().from(productVariantsTable)
-    .where(and(eq(productVariantsTable.id, variantId), eq(productVariantsTable.productId, parseInt(req.params.productId))));
+    .where(and(eq(productVariantsTable.id, variantId), eq(productVariantsTable.productId, parseInt(String(req.params.productId)))));
   if (!toDelete) { res.status(404).json({ error: "Variant not found" }); return; }
 
   await db.delete(warehouseStockTable)
     .where(eq(warehouseStockTable.variantId, variantId));
 
   await db.delete(productVariantsTable)
-    .where(and(eq(productVariantsTable.id, variantId), eq(productVariantsTable.productId, parseInt(req.params.productId))));
+    .where(and(eq(productVariantsTable.id, variantId), eq(productVariantsTable.productId, parseInt(String(req.params.productId)))));
 
   const remainingVariants = await db
     .select({
@@ -237,7 +237,7 @@ router.delete("/products/:productId/variants/:variantId", requireRole("admin"), 
 // ─── Add Stock ────────────────────────────────────────────────────────────────
 
 router.post("/products/:productId/variants/:variantId/add-stock", async (req, res): Promise<void> => {
-  const productId = parseInt(req.params.productId);
+  const productId = parseInt(String(req.params.productId));
   const variantId = parseInt(req.params.variantId);
   if (isNaN(productId) || isNaN(variantId)) { res.status(400).json({ error: "Invalid ID" }); return; }
 

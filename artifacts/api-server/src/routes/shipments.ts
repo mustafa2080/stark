@@ -697,7 +697,7 @@ router.get("/shipments/:id", async (req, res): Promise<void> => {
       : eq(shipmentsTable.id, id);
     const rows = await db
       .select({
-        ...shipmentsTable,
+        ...getTableColumns(shipmentsTable),
         assignedUserName: usersTable.displayName,
         shippingCompanyName: sql<string>`COALESCE(${shippingCompaniesTable.name}, ${manifestShippingCompanyTable.name})`,
         // ── تكلفة شركة الشحن الفعلية: من الشحنة مباشرة، أو من المندوب المرتبط ببيان الشحن (fallback) ──

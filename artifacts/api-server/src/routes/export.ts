@@ -84,7 +84,7 @@ function styleDataRow(row: ExcelJS.Row, isEven: boolean) {
 }
 
 function addSummarySheet(wb: ExcelJS.Workbook, rows: { label: string; value: string | number; color?: string }[]) {
-  const ws = wb.addWorksheet("ملخص", { tabColor: { argb: BRAND.accent } });
+  const ws = wb.addWorksheet("ملخص", { properties: { tabColor: { argb: BRAND.accent } } });
   ws.columns = [
     { key: "label", width: 30 },
     { key: "value", width: 25 },
@@ -141,14 +141,14 @@ function setArabicSheetLayout(sheet: ExcelJS.Worksheet, frozenRows = 1) {
     fitToPage: true,
     fitToWidth: 1,
     fitToHeight: 0,
-  };
-  sheet.pageMargins = {
-    left: 0.25,
-    right: 0.25,
-    top: 0.45,
-    bottom: 0.4,
-    header: 0.2,
-    footer: 0.2,
+    margins: {
+      left: 0.25,
+      right: 0.25,
+      top: 0.45,
+      bottom: 0.4,
+      header: 0.2,
+      footer: 0.2,
+    },
   };
   sheet.getColumn(1).alignment = { horizontal: "right" };
 }
@@ -369,7 +369,7 @@ router.get("/export/orders", requireAuth, async (req, res): Promise<void> => {
     wb.creator = "Caprina OS";
     wb.created = new Date();
 
-    const ws = wb.addWorksheet("الطلبات", { tabColor: { argb: BRAND.accent } });
+    const ws = wb.addWorksheet("الطلبات", { properties: { tabColor: { argb: BRAND.accent } } });
 
     const cols = [
       { header: "#",               key: "id",          width: 8  },
@@ -494,7 +494,7 @@ router.get("/export/products", requireAuth, async (req, res): Promise<void> => {
     wb.creator = "Caprina OS";
 
     // ── Sheet 1: المنتجات ────────────────────────────────────────────────────
-    const ws1 = wb.addWorksheet("المنتجات", { tabColor: { argb: BRAND.primary } });
+    const ws1 = wb.addWorksheet("المنتجات", { properties: { tabColor: { argb: BRAND.primary } } });
     applyHeader(ws1, [
       { header: "#",            key: "id",        width: 8  },
       { header: "اسم المنتج",  key: "name",      width: 28 },
@@ -546,7 +546,7 @@ router.get("/export/products", requireAuth, async (req, res): Promise<void> => {
     autoFilter(ws1); freezeHeader(ws1);
 
     // ── Sheet 2: SKUs ────────────────────────────────────────────────────────
-    const ws2 = wb.addWorksheet("SKUs (ألوان ومقاسات)", { tabColor: { argb: BRAND.accent } });
+    const ws2 = wb.addWorksheet("SKUs (ألوان ومقاسات)", { properties: { tabColor: { argb: BRAND.accent } } });
     const productMap = new Map(products.map(p => [p.id, p]));
     applyHeader(ws2, [
       { header: "#",            key: "id",        width: 8  },
@@ -595,7 +595,7 @@ router.get("/export/products", requireAuth, async (req, res): Promise<void> => {
     autoFilter(ws2); freezeHeader(ws2);
 
     // ── Sheet 3: توزيع المخازن ───────────────────────────────────────────────
-    const ws3 = wb.addWorksheet("توزيع المخازن", { tabColor: { argb: "FF2563eb" } });
+    const ws3 = wb.addWorksheet("توزيع المخازن", { properties: { tabColor: { argb: "FF2563eb" } } });
     applyHeader(ws3, [
       { header: "المخزن",      key: "wh",       width: 24 },
       { header: "المنتج",      key: "product",  width: 26 },
@@ -648,7 +648,7 @@ router.get("/export/movements", requireAuth, async (req, res): Promise<void> => 
       .orderBy(desc(inventoryMovementsTable.createdAt));
 
     const wb = new ExcelJS.Workbook();
-    const ws = wb.addWorksheet("حركات المخزون", { tabColor: { argb: "FF7c3aed" } });
+    const ws = wb.addWorksheet("حركات المخزون", { properties: { tabColor: { argb: "FF7c3aed" } } });
 
     applyHeader(ws, [
       { header: "#",            key: "id",       width: 8  },
@@ -711,7 +711,7 @@ router.get("/export/shipping", requireAuth, async (req, res): Promise<void> => {
     wb.created = new Date();
     wb.modified = new Date();
 
-    const ws = wb.addWorksheet("شركات الشحن", { tabColor: { argb: BRAND.primary } });
+    const ws = wb.addWorksheet("شركات الشحن", { properties: { tabColor: { argb: BRAND.primary } } });
     setArabicSheetLayout(ws, 7);
     ws.columns = [
       { key: "idx", width: 6  },
@@ -873,7 +873,7 @@ router.get("/export/users", requireAuth, requireAdmin, async (req, res): Promise
     }).from(usersTable);
 
     const wb = new ExcelJS.Workbook();
-    const ws = wb.addWorksheet("المستخدمين", { tabColor: { argb: BRAND.primary } });
+    const ws = wb.addWorksheet("المستخدمين", { properties: { tabColor: { argb: BRAND.primary } } });
 
     applyHeader(ws, [
       { header: "#",             key: "id",          width: 8  },
@@ -932,7 +932,7 @@ router.get("/export/backup", requireAuth, requireAdmin, async (req, res): Promis
     const variantMap = new Map(variants.map(v => [v.id, v]));
 
     // ── الطلبات ───────────────────────────────────────────────────────────────
-    const wsO = wb.addWorksheet("الطلبات", { tabColor: { argb: BRAND.accent } });
+    const wsO = wb.addWorksheet("الطلبات", { properties: { tabColor: { argb: BRAND.accent } } });
     applyHeader(wsO, [
       {header:"#",key:"id",width:8},{header:"العميل",key:"name",width:22},{header:"الهاتف",key:"phone",width:16},
       {header:"العنوان",key:"addr",width:28},{header:"المنتج",key:"product",width:24},
@@ -969,7 +969,7 @@ router.get("/export/backup", requireAuth, requireAdmin, async (req, res): Promis
     autoFilter(wsO); freezeHeader(wsO);
 
     // ── المنتجات ──────────────────────────────────────────────────────────────
-    const wsP = wb.addWorksheet("المنتجات", { tabColor: { argb: BRAND.primary } });
+    const wsP = wb.addWorksheet("المنتجات", { properties: { tabColor: { argb: BRAND.primary } } });
     applyHeader(wsP, [
       {header:"#",key:"id",width:8},{header:"الاسم",key:"name",width:28},{header:"SKU",key:"sku",width:16},
       {header:"سعر البيع",key:"unitPrice",width:14},{header:"سعر التكلفة",key:"costPrice",width:14},
@@ -996,7 +996,7 @@ router.get("/export/backup", requireAuth, requireAdmin, async (req, res): Promis
     autoFilter(wsP); freezeHeader(wsP);
 
     // ── SKUs ──────────────────────────────────────────────────────────────────
-    const wsV = wb.addWorksheet("SKUs", { tabColor: { argb: "FF7c3aed" } });
+    const wsV = wb.addWorksheet("SKUs", { properties: { tabColor: { argb: "FF7c3aed" } } });
     applyHeader(wsV, [
       {header:"#",key:"id",width:8},{header:"المنتج",key:"product",width:26},{header:"اللون",key:"color",width:14},
       {header:"المقاس",key:"size",width:12},{header:"SKU",key:"sku",width:16},
@@ -1021,7 +1021,7 @@ router.get("/export/backup", requireAuth, requireAdmin, async (req, res): Promis
     autoFilter(wsV); freezeHeader(wsV);
 
     // ── حركات المخزون ─────────────────────────────────────────────────────────
-    const wsM = wb.addWorksheet("حركات المخزون", { tabColor: { argb: "FF0891b2" } });
+    const wsM = wb.addWorksheet("حركات المخزون", { properties: { tabColor: { argb: "FF0891b2" } } });
     applyHeader(wsM, [
       {header:"#",key:"id",width:8},{header:"المنتج",key:"product",width:26},
       {header:"اللون",key:"color",width:14},{header:"المقاس",key:"size",width:12},
@@ -1044,7 +1044,7 @@ router.get("/export/backup", requireAuth, requireAdmin, async (req, res): Promis
     autoFilter(wsM); freezeHeader(wsM);
 
     // ── المخازن ───────────────────────────────────────────────────────────────
-    const wsW = wb.addWorksheet("المخازن", { tabColor: { argb: "FF0d9488" } });
+    const wsW = wb.addWorksheet("المخازن", { properties: { tabColor: { argb: "FF0d9488" } } });
     applyHeader(wsW, [
       {header:"#",key:"id",width:8},{header:"المخزن",key:"name",width:26},
       {header:"العنوان",key:"addr",width:28},{header:"افتراضي",key:"isDefault",width:12},
@@ -1069,7 +1069,7 @@ router.get("/export/backup", requireAuth, requireAdmin, async (req, res): Promis
     autoFilter(wsW); freezeHeader(wsW);
 
     // ── شركات الشحن ───────────────────────────────────────────────────────────
-    const wsS = wb.addWorksheet("شركات الشحن", { tabColor: { argb: "FFf59e0b" } });
+    const wsS = wb.addWorksheet("شركات الشحن", { properties: { tabColor: { argb: "FFf59e0b" } } });
     applyHeader(wsS, [
       {header:"#",key:"id",width:8},{header:"الاسم",key:"name",width:26},
       {header:"الهاتف",key:"phone",width:18},{header:"الموقع",key:"website",width:28},
@@ -1089,7 +1089,7 @@ router.get("/export/backup", requireAuth, requireAdmin, async (req, res): Promis
     autoFilter(wsS); freezeHeader(wsS);
 
     // ── المستخدمين ────────────────────────────────────────────────────────────
-    const wsU = wb.addWorksheet("المستخدمين", { tabColor: { argb: BRAND.primary } });
+    const wsU = wb.addWorksheet("المستخدمين", { properties: { tabColor: { argb: BRAND.primary } } });
     applyHeader(wsU, [
       {header:"#",key:"id",width:8},{header:"اسم المستخدم",key:"username",width:22},
       {header:"الاسم الكامل",key:"displayName",width:24},

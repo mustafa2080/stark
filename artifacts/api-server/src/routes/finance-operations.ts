@@ -177,12 +177,13 @@ router.post("/finance/expenses", async (req, res): Promise<void> => {
 
   const result = await db.insert(expensesTable).values({
     ...data,
+    amount: String(data.amount),
     cashRegisterId: resolvedRegisterId,
     expenseDate: new Date(data.expenseDate),
     createdByUserId: user?.id,
     createdByName: user?.displayName,
     createdAt: now,
-  });
+  } as any);
   const expenseId = (result as any)[0]?.insertId;
 
   if (reg && resolvedRegisterId) {

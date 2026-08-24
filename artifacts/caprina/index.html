@@ -2,12 +2,13 @@
 <html lang="ar" dir="rtl">
   <head>
     <meta charset="UTF-8" />
-    <script>
-      (function(){
-        var t = localStorage.getItem('caprina-theme') || 'dark';
-        document.documentElement.classList.add(t);
-      })();
-    </script>
+    <!-- ─── Content Security Policy ─────────────────────────────────────────────
+         حماية التوكن المخزّن في localStorage من أي ثغرة XSS: المنع الكامل لأي
+         سكريبت inline أو من مصدر خارجي. السكريبتات المسموحة = ملفات نفس الدومين فقط.
+         style-src بيسمح بـ 'unsafe-inline' لأن مكتبة shadcn/tailwind بتستخدم
+         أنماط runtime، وده خطره أقل بكثير من سكريبت inline. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self' ws: wss:; object-src 'none'; base-uri 'self'; form-action 'self'" />
+    <script src="/theme-init.js"></script>
 
     <!-- Viewport + PWA display -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
@@ -85,36 +86,7 @@
     >
       <source src="/video/background1.mp4" type="video/mp4" />
     </video>
-    <script>
-      (function(){
-        function isLoginPath(){
-          var p = window.location.pathname;
-          return p === '/login' || p === '/login/';
-        }
-        function checkRoute(){
-          var v = document.getElementById('login-bg-video');
-          var html = document.documentElement;
-          if(!v) return;
-          if(isLoginPath()){
-            v.style.display = 'block';
-            html.classList.add('login-active');
-            if(v.readyState === 0){ v.load(); }
-            if(v.paused){ v.play().catch(function(){}); }
-          } else {
-            v.style.display = 'none';
-            html.classList.remove('login-active');
-            v.pause();
-          }
-        }
-        checkRoute();
-        var _push = history.pushState;
-        history.pushState = function(){ _push.apply(history, arguments); setTimeout(checkRoute, 50); };
-        var _replace = history.replaceState;
-        history.replaceState = function(){ _replace.apply(history, arguments); setTimeout(checkRoute, 50); };
-        window.addEventListener('popstate', checkRoute);
-        window.addEventListener('load', function(){ setTimeout(checkRoute, 300); });
-      })();
-    </script>
+    <script src="/login-video.js"></script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

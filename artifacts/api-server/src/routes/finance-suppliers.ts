@@ -298,15 +298,19 @@ router.post("/finance/purchases", async (req, res): Promise<void> => {
     + (orderData.shippingCost??0) + (orderData.taxAmount??0) - (orderData.discountAmount??0);
   const poNumber = `PO-${Date.now()}`;
   const result = await db.insert(purchaseOrdersTable).values({
-    ...orderData, poNumber, totalAmount:String(totalAmount),
+    ...orderData,
+    ...(orderData.shippingCost   !== undefined ? { shippingCost:   String(orderData.shippingCost) } : {}),
+    ...(orderData.taxAmount      !== undefined ? { taxAmount:      String(orderData.taxAmount) } : {}),
+    ...(orderData.discountAmount !== undefined ? { discountAmount: String(orderData.discountAmount) } : {}),
+    poNumber, totalAmount:String(totalAmount),
     paidAmount:"0", paymentStatus:"unpaid", createdAt:now, updatedAt:now,
     ...(tenantId !== null ? { tenantId } : {}),
-  });
+  } as any);
   const poId = (result as any)[0]?.insertId;
   for (const item of items) {
     await db.insert(purchaseOrderItemsTable).values({
-      purchaseOrderId:poId, ...item, receivedQuantity:0, totalCost:String(item.quantity*item.unitCost),
-    });
+      purchaseOrderId:poId, ...item, unitCost:String(item.unitCost), receivedQuantity:0, totalCost:String(item.quantity*item.unitCost),
+    } as any);
   }
   const [order] = await db.select().from(purchaseOrdersTable).where(eq(purchaseOrdersTable.id, poId));
   const newItems = await db.select().from(purchaseOrderItemsTable).where(eq(purchaseOrderItemsTable.purchaseOrderId, poId));

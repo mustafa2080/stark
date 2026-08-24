@@ -204,9 +204,6 @@ router.get("/analytics/profit", requirePermission("orders.financials"), async (r
   const productsConditions: any[] = [];
   if (tenantId !== null) productsConditions.push(eq(productsTable.tenantId, tenantId));
 
-  const variantsConditions: any[] = [];
-  if (tenantId !== null) variantsConditions.push(eq(productVariantsTable.tenantId, tenantId));
-
   const manifestsConditions: any[] = [];
   if (tenantId !== null) manifestsConditions.push(sql.raw(`shipping_manifests.tenant_id = ${tenantId}`));
 
@@ -1141,8 +1138,9 @@ router.get("/analytics/alerts", async (req, res): Promise<void> => {
   const stockByProductId = new Map<number, number>();
   const stockByVariantId = new Map<number, number>();
   for (const row of variantStockRows) {
-    stockByVariantId.set(row.variantId, (stockByVariantId.get(row.variantId) ?? 0) + Math.max(0, row.quantity));
-    stockByProductId.set(row.productId, (stockByProductId.get(row.productId) ?? 0) + Math.max(0, row.quantity));
+    if (row.variantId == null || row.productId == null) continue;
+    stockByVariantId.set(row.variantId, (stockByVariantId.get(row.variantId) ?? 0) + Math.max(0, row.quantity ?? 0));
+    stockByProductId.set(row.productId, (stockByProductId.get(row.productId) ?? 0) + Math.max(0, row.quantity ?? 0));
   }
   for (const row of productStockRows) {
     if (productsWithVariants.has(row.productId)) continue;

@@ -210,18 +210,10 @@ router.post("/finance/sale-orders", async (req, res): Promise<void> => {
       );
     }
 
-    // لو الحالة confirmed → احجز من المخزن
-    if (status === "confirmed" && warehouseId && items.length > 0) {
-      for (const item of items as any[]) {
-        if (!item.variantId) continue;
-        await db.update(warehouseStockTable)
-          .set({ reservedQuantity: sql`reserved_quantity + ${item.quantity}` })
-          .where(and(
-            eq(warehouseStockTable.warehouseId, parseInt(warehouseId)),
-            eq(warehouseStockTable.variantId, parseInt(item.variantId)),
-          ));
-      }
-    }
+    // ⚠️ حجز المخزن (reservedQuantity) اتشال — عمود reserved_quantity غير موجود
+    // في جدول warehouse_stock أصلًا (شوف lib/db/src/schema/warehouse_stock.ts)،
+    // فالكود القديم كان هيسقط بـ SQL error أول ما يتنادى. الخصم الفعلي بيحصل
+    // تحت في بلوك "خصم فوري من المخزن".
 
     // لو الفاتورة اتعملت مباشرة بـ delivered أو paymentStatus = paid → خصم فوري من المخزن
     if (
@@ -376,6 +368,7 @@ router.patch("/finance/sale-orders/:id", async (req, res): Promise<void> => {
         sku:         i.sku         ?? null,
         quantity:    Number(i.quantity),
         unitPrice:   String(i.unitPrice),
+        totalPrice:  String(Number(i.quantity) * Number(i.unitPrice)),
         subtotal:    String(Number(i.quantity) * Number(i.unitPrice)),
       }));
       await db.insert(saleOrderItemsTable).values(newItems);
@@ -429,23 +422,8 @@ router.patch("/finance/sale-orders/:id", async (req, res): Promise<void> => {
       }
     }
 
-    // لو الحالة تغيرت إلى confirmed → احجز المخزن
-    if (status === "confirmed" && current.status !== "confirmed") {
-      const items = await db.select().from(saleOrderItemsTable)
-        .where(eq(saleOrderItemsTable.saleOrderId, id));
-      const wid = warehouseId ? parseInt(warehouseId) : current.warehouseId;
-      if (wid) {
-        for (const item of items) {
-          if (!item.variantId) continue;
-          await db.update(warehouseStockTable)
-            .set({ reservedQuantity: sql`reserved_quantity + ${item.quantity}` })
-            .where(and(
-              eq(warehouseStockTable.warehouseId, wid),
-              eq(warehouseStockTable.variantId, item.variantId),
-            ));
-        }
-      }
-    }
+    // ⚠️ حجز المخزن (reservedQuantity) اتشال — نفس سبب بلوك الإنشاء فوق:
+    // العمود غير موجود في warehouse_stock والكود كان هيكسر الـ PATCH.
 
     // لو الحالة تغيرت إلى delivered → خصم فعلي من المخزن
     if (status === "delivered" && current.status !== "delivered") {

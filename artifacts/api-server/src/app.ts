@@ -6,6 +6,7 @@ import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
 import { startSubscriptionCron } from "./lib/subscriptionCron.js";
+import { startReconciliationCron } from "./lib/reconcileCron.js";
 import { db, usersTable, shipmentsTable } from "@workspace/db";
 import { hashPassword } from "./lib/auth.js";
 import { eq, sql, or, and, isNull, desc, like } from "drizzle-orm";
@@ -83,9 +84,19 @@ app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
 // ─── Public tracking endpoint — NO auth, registered before router ────────────
-app.get("/api/shipments/track/:number", async (req: Request, res: Response): Promise<void> => {
+// Rate limit صارم مخصص للتتبع العام (بدون تسجيل دخول) — عشان محدش يقدر يستخدمه
+// في حصاد بيانات (scraping) أو تخمين أرقام شحنات بالقوة الغاشمة.
+const publicTrackLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "طلبات كثيرة جداً، يرجى المحاولة بعد دقيقة" },
+});
+app.get("/api/shipments/track/:number", publicTrackLimiter, async (req: Request, res: Response): Promise<void> => {
   try {
     const { number } = req.params;
+    const trackNumber = Array.isArray(number) ? number[0] : number;
     const rows = await db
       .select()
       .from(shipmentsTable)
@@ -93,8 +104,8 @@ app.get("/api/shipments/track/:number", async (req: Request, res: Response): Pro
         and(
           isNull(shipmentsTable.deletedAt),
           or(
-            eq(shipmentsTable.trackingNumber, number),
-            eq(shipmentsTable.shipmentNumber,  number),
+            eq(shipmentsTable.trackingNumber, trackNumber),
+            eq(shipmentsTable.shipmentNumber,  trackNumber),
           )
         )
       )
@@ -112,7 +123,7 @@ app.get("/api/shipments/track/:number", async (req: Request, res: Response): Pro
 app.use("/api", router);
 
 // ─── Public track-by-client endpoint ─────────────────────────────────────────
-app.get("/api/shipments/track-by-client", async (req: Request, res: Response): Promise<void> => {
+app.get("/api/shipments/track-by-client", publicTrackLimiter, async (req: Request, res: Response): Promise<void> => {
   try {
     const name  = (req.query.name  as string | undefined)?.trim();
     const phone = (req.query.phone as string | undefined)?.trim();
@@ -213,6 +224,17 @@ async function backfillEmployeeProfileIds() {
 seedDefaultAdmin();
 backfillEmployeeProfileIds();
 startSubscriptionCron(); // ← Cron الاشتراكات
+startReconciliationCron(); // ← Cron تسوية حالات الشحنات مع البيانات (كل 10 دقايق)
+
+// ─── Process-level error guards ──────────────────────────────────────────────
+// من غيرهم أي استثناء غير متوقع بيسقط العملية كلها والسيرفر يقع لحد ما حد يعمله.
+// بنسجل الخطأ ونكمل شغال — الأفضلية للتوافر، والأخطاء بتتراقب في اللوج.
+process.on("uncaughtException", (err) => {
+  logger.error({ err }, "UNCAUGHT_EXCEPTION — استثناء غير متوقع خارج الـ request handler");
+});
+process.on("unhandledRejection", (reason) => {
+  logger.error({ err: reason }, "UNHANDLED_REJECTION — Promise مرفوض بدون catch");
+});
 
 // ─── Ensure app_settings table exists (safe for VPS without migrations) ──────
 async function ensureAppSettingsTable() {

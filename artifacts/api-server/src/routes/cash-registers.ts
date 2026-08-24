@@ -19,7 +19,7 @@ const TX_LABELS_AR: Record<string, string> = {
 
 
 // ─── GET /api/cash-registers ─────────────────────────────────────────────────
-cashRegistersRouter.get("/", async (req, res) => {
+cashRegistersRouter.get("/", async (req, res): Promise<any> => {
   try {
     const tenantId = getTenantId(req);
     const tReg = tenantId !== null ? and(eq(cashRegistersTable.isActive, true), eq(cashRegistersTable.tenantId, tenantId)) : eq(cashRegistersTable.isActive, true);
@@ -46,7 +46,7 @@ cashRegistersRouter.get("/", async (req, res) => {
 });
 
 // ─── POST /api/cash-registers ────────────────────────────────────────────────
-cashRegistersRouter.post("/", async (req, res) => {
+cashRegistersRouter.post("/", async (req, res): Promise<any> => {
   try {
     const { name, type = "branch", description, initialBalance = 0, isDefault = false } = req.body as any;
     const safeBalance = parseFloat(initialBalance) || 0;
@@ -88,7 +88,7 @@ cashRegistersRouter.post("/", async (req, res) => {
 });
 
 // ─── GET smart-alerts, analytics, alerts ─────────────────────────────────────
-cashRegistersRouter.get("/smart-alerts", async (req, res) => {
+cashRegistersRouter.get("/smart-alerts", async (req, res): Promise<any> => {
   try {
     const tenantId = getTenantId(req);
     const tReg = tenantId !== null ? and(eq(cashRegistersTable.isActive, true), eq(cashRegistersTable.tenantId, tenantId)) : eq(cashRegistersTable.isActive, true);
@@ -112,7 +112,7 @@ cashRegistersRouter.get("/smart-alerts", async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: "فشل جلب التنبيهات الذكية" }); }
 });
 
-cashRegistersRouter.get("/analytics", async (req, res) => {
+cashRegistersRouter.get("/analytics", async (req, res): Promise<any> => {
   try {
     const tenantId = getTenantId(req);
     const tReg = tenantId !== null ? and(eq(cashRegistersTable.isActive, true), eq(cashRegistersTable.tenantId, tenantId)) : eq(cashRegistersTable.isActive, true);
@@ -155,7 +155,7 @@ cashRegistersRouter.get("/analytics", async (req, res) => {
   } catch(err) { console.error(err); res.status(500).json({ error:"فشل جلب التحليلات" }); }
 });
 
-cashRegistersRouter.get("/alerts", async (req, res) => {
+cashRegistersRouter.get("/alerts", async (req, res): Promise<any> => {
   try {
     const tenantId = getTenantId(req);
     const tReg = tenantId !== null ? and(eq(cashRegistersTable.isActive, true), eq(cashRegistersTable.tenantId, tenantId)) : eq(cashRegistersTable.isActive, true);
@@ -166,7 +166,7 @@ cashRegistersRouter.get("/alerts", async (req, res) => {
 });
 
 // ─── POST transaction ─────────────────────────────────────────────────────────
-cashRegistersRouter.post("/:id/transaction", async (req, res) => {
+cashRegistersRouter.post("/:id/transaction", async (req, res): Promise<any> => {
   try {
     const registerId=parseInt(req.params.id); const{type,amount,description,referenceNumber,transactionDate,orderId}=req.body as any; const amt=parseFloat(amount); const now=new Date();
     const[register]=await db.select().from(cashRegistersTable).where(eq(cashRegistersTable.id,registerId));
@@ -183,7 +183,7 @@ cashRegistersRouter.post("/:id/transaction", async (req, res) => {
 });
 
 // ─── POST transfer ────────────────────────────────────────────────────────────
-cashRegistersRouter.post("/transfer", async (req, res) => {
+cashRegistersRouter.post("/transfer", async (req, res): Promise<any> => {
   try {
     const{fromId,toId,amount,description}=req.body as any; const amt=parseFloat(amount); const now=new Date();
     const[from]=await db.select().from(cashRegistersTable).where(eq(cashRegistersTable.id,fromId));
@@ -205,7 +205,7 @@ cashRegistersRouter.post("/transfer", async (req, res) => {
 });
 
 // ─── GET transactions (with direction filter) ─────────────────────────────────
-cashRegistersRouter.get("/:id/transactions", async (req, res) => {
+cashRegistersRouter.get("/:id/transactions", async (req, res): Promise<any> => {
   try {
     const registerId=parseInt(req.params.id); const{from,to,type,direction,page="1",limit="50"}=req.query as any;
     const pageNum=Math.max(1,parseInt(page)); const limitNum=Math.min(200,Math.max(1,parseInt(limit))); const offset=(pageNum-1)*limitNum;
@@ -222,7 +222,7 @@ cashRegistersRouter.get("/:id/transactions", async (req, res) => {
 });
 
 // ─── GET export CSV ───────────────────────────────────────────────────────────
-cashRegistersRouter.get("/:id/export", async (req, res) => {
+cashRegistersRouter.get("/:id/export", async (req, res): Promise<any> => {
   try {
     const registerId=parseInt(req.params.id); const{from,to,type,direction}=req.query as any;
     const[register]=await db.select().from(cashRegistersTable).where(eq(cashRegistersTable.id,registerId));
@@ -247,7 +247,7 @@ cashRegistersRouter.get("/:id/export", async (req, res) => {
 });
 
 // ─── GET export Excel (exceljs) ───────────────────────────────────────────────
-cashRegistersRouter.get("/:id/export-excel", async (req, res) => {
+cashRegistersRouter.get("/:id/export-excel", async (req, res): Promise<any> => {
   try {
     const registerId=parseInt(req.params.id); const{from,to,type,direction}=req.query as any;
     const[register]=await db.select().from(cashRegistersTable).where(eq(cashRegistersTable.id,registerId));
@@ -289,7 +289,7 @@ cashRegistersRouter.get("/:id/export-excel", async (req, res) => {
 });
 
 // ─── GET flow, PATCH, DELETE ──────────────────────────────────────────────────
-cashRegistersRouter.get("/:id/flow", async (req, res) => {
+cashRegistersRouter.get("/:id/flow", async (req, res): Promise<any> => {
   try {
     const registerId=parseInt(req.params.id); const{days="30"}=req.query as any; const daysNum=Math.min(90,parseInt(days)); const since=new Date(); since.setDate(since.getDate()-daysNum);
     const rows=await db.select({day:sql<string>`DATE(transaction_date)`,totalIn:sql<number>`COALESCE(SUM(CASE WHEN type IN (${creditSql}) THEN CAST(amount AS DECIMAL(14,2)) ELSE 0 END),0)`,totalOut:sql<number>`COALESCE(SUM(CASE WHEN type IN (${debitSql}) THEN CAST(amount AS DECIMAL(14,2)) ELSE 0 END),0)`}).from(cashTransactionsTable).where(and(eq(cashTransactionsTable.registerId,registerId),gte(cashTransactionsTable.transactionDate,since))).groupBy(sql`DATE(transaction_date)`).orderBy(sql`DATE(transaction_date)`);
@@ -297,7 +297,7 @@ cashRegistersRouter.get("/:id/flow", async (req, res) => {
   } catch(err){res.status(500).json({error:"فشل جلب التدفق"});}
 });
 
-cashRegistersRouter.patch("/:id", async (req, res) => {
+cashRegistersRouter.patch("/:id", async (req, res): Promise<any> => {
   try {
     const id = parseInt(req.params.id);
     const { name, description, isDefault } = req.body as any;
@@ -320,7 +320,7 @@ cashRegistersRouter.patch("/:id", async (req, res) => {
   } catch(err){ res.status(500).json({ error: "فشل التعديل" }); }
 });
 
-cashRegistersRouter.patch("/:id/threshold", async (req, res) => {
+cashRegistersRouter.patch("/:id/threshold", async (req, res): Promise<any> => {
   try {
     const{lowBalanceThreshold}=req.body as any;
     await db.update(cashRegistersTable).set({lowBalanceThreshold:lowBalanceThreshold?String(lowBalanceThreshold):null,updatedAt:new Date()}).where(eq(cashRegistersTable.id,parseInt(req.params.id)));
@@ -328,7 +328,7 @@ cashRegistersRouter.patch("/:id/threshold", async (req, res) => {
   } catch(err){res.status(500).json({error:"فشل ضبط الحد"});}
 });
 
-cashRegistersRouter.delete("/:id", async (req, res) => {
+cashRegistersRouter.delete("/:id", async (req, res): Promise<any> => {
   try {
     const id = parseInt(req.params.id);
     const [reg] = await db.select().from(cashRegistersTable).where(eq(cashRegistersTable.id, id));
@@ -345,7 +345,7 @@ cashRegistersRouter.delete("/:id", async (req, res) => {
 });
 
 // ─── GET /archived — جلب الخزن المؤرشفة ──────────────────────────────────────
-cashRegistersRouter.get("/archived", async (req, res) => {
+cashRegistersRouter.get("/archived", async (req, res): Promise<any> => {
   try {
     const tenantId = getTenantId(req);
     const tArchived = tenantId !== null
@@ -359,7 +359,7 @@ cashRegistersRouter.get("/archived", async (req, res) => {
 });
 
 // ─── PATCH /:id/restore — استعادة خزنة من الأرشيف ────────────────────────────
-cashRegistersRouter.patch("/:id/restore", async (req, res) => {
+cashRegistersRouter.patch("/:id/restore", async (req, res): Promise<any> => {
   try {
     const id = parseInt(req.params.id);
     const [reg] = await db.select().from(cashRegistersTable).where(eq(cashRegistersTable.id, id));
@@ -375,7 +375,7 @@ cashRegistersRouter.patch("/:id/restore", async (req, res) => {
 });
 
 // ─── DELETE /:id/permanent — حذف نهائي من الأرشيف ────────────────────────────
-cashRegistersRouter.delete("/:id/permanent", async (req, res) => {
+cashRegistersRouter.delete("/:id/permanent", async (req, res): Promise<any> => {
   try {
     const id = parseInt(req.params.id);
     const [reg] = await db.select().from(cashRegistersTable).where(eq(cashRegistersTable.id, id));
@@ -390,7 +390,7 @@ cashRegistersRouter.delete("/:id/permanent", async (req, res) => {
 });
 
 // ─── PATCH /api/cash-registers/transactions/:id — تعديل حركة ─────────────────
-cashRegistersRouter.patch("/transactions/:id", async (req, res) => {
+cashRegistersRouter.patch("/transactions/:id", async (req, res): Promise<any> => {
   try {
     const txId = parseInt(req.params.id);
     const { type, amount, description, referenceNumber, transactionDate } = req.body as any;
@@ -413,7 +413,7 @@ cashRegistersRouter.patch("/transactions/:id", async (req, res) => {
 });
 
 // ─── DELETE /api/cash-registers/transactions/:id — حذف حركة ──────────────────
-cashRegistersRouter.delete("/transactions/:id", async (req, res) => {
+cashRegistersRouter.delete("/transactions/:id", async (req, res): Promise<any> => {
   try {
     const txId = parseInt(req.params.id);
     const [tx] = await db.select().from(cashTransactionsTable).where(eq(cashTransactionsTable.id, txId));

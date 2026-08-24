@@ -196,6 +196,7 @@ router.get("/client-account-manifests", async (req, res): Promise<void> => {
         alreadyInManifest = new Set(existingItemRows.map(r => r.shipmentId));
       }
       eligible.forEach(s => {
+        if (s.clientId == null) return;
         if (!alreadyInManifest.has(s.id)) {
           pendingCountByClient[s.clientId] = (pendingCountByClient[s.clientId] ?? 0) + 1;
         }
@@ -900,8 +901,8 @@ router.patch("/client-account-manifests/:id/items/:shipmentId", async (req, res)
         // اللي اتسجلت وقت تسجيل المرتجع تفضل زي ما هي ومتتصفرش بمجرد "تم الاستلام".
         ...(body.returnReason !== undefined ? { returnReason: body.returnReason ?? null } : {}),
         returnReceived:  body.returnReceived == null ? null : body.returnReceived ? 1 : 0,
-        ...(body.returnValueReceived !== undefined ? { returnValueReceived: body.returnValueReceived ?? null } : {}),
-        ...(body.deliveredValueReceived !== undefined ? { deliveredValueReceived: body.deliveredValueReceived ?? null } : {}),
+        ...(body.returnValueReceived !== undefined ? { returnValueReceived: body.returnValueReceived == null ? null : String(body.returnValueReceived) } : {}),
+        ...(body.deliveredValueReceived !== undefined ? { deliveredValueReceived: body.deliveredValueReceived == null ? null : String(body.deliveredValueReceived) } : {}),
         deliveredAt:     (body.deliveryStatus === "delivered" || body.deliveryStatus === "partial_delivered") ? now : undefined,
       })
       .where(and(

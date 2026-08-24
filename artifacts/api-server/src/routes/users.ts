@@ -118,7 +118,7 @@ router.post("/", requireAdmin, async (req, res): Promise<void> => {
 
 // PATCH /users/:id
 router.patch("/:id", requireAdmin, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   const { displayName, role, permissions, isActive, password, avatar, jobTitle, department, showProfileLink, defaultAdSource } = req.body as {
     displayName?: string; role?: string; permissions?: string[];
     isActive?: boolean; password?: string; avatar?: string | null;
@@ -193,7 +193,7 @@ router.patch("/:id", requireAdmin, async (req, res): Promise<void> => {
 
 // DELETE /users/:id
 router.delete("/:id", requireAdmin, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (id === req.user!.id) {
     res.status(400).json({ error: "لا يمكنك حذف حسابك الخاص" });
     return;

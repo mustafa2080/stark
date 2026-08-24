@@ -87,7 +87,7 @@ router.post("/client-return-manifests/:clientId/confirm-delivery/:shipmentId", a
     await db.insert(clientReturnManifestItemsTable).values({
       manifestId,
       shipmentId,
-      shipmentNumber: shipment.shipmentNumber,
+      shipmentNumber: shipment.shipmentNumber ?? "",
       receiverName:   shipment.receiverName ?? null,
       receiverPhone:  shipment.receiverPhone ?? null,
       receiverCity:   shipment.receiverCity ?? null,

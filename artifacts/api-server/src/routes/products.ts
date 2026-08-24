@@ -76,7 +76,7 @@ router.get("/products/:id", async (req, res): Promise<void> => {
 });
 
 router.patch("/products/:id", requireRole("admin", "warehouse", "super_admin"), async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
 
   const parsed = UpdateProductSchema.safeParse(req.body);
@@ -132,7 +132,7 @@ router.patch("/products/:id", requireRole("admin", "warehouse", "super_admin"), 
 });
 
 router.delete("/products/:id", requireRole("admin"), async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
 
   const [existing] = await db.select().from(productsTable).where(eq(productsTable.id, id));
@@ -154,7 +154,7 @@ router.delete("/products/:id", requireRole("admin"), async (req, res): Promise<v
 // ─── Add Stock ────────────────────────────────────────────────────────────────
 
 router.post("/products/:id/add-stock", requireRole("admin", "warehouse", "super_admin"), async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
 
   const parsed = AddStockSchema.safeParse(req.body);

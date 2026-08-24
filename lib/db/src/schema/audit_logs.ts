@@ -1,6 +1,6 @@
 import { mysqlTable, text, int, datetime, json, varchar } from "drizzle-orm/mysql-core";
 
-export const AUDIT_ACTIONS = ["create", "update", "delete", "status_change", "add_stock", "login"] as const;
+export const AUDIT_ACTIONS = ["create", "update", "delete", "status_change", "add_stock", "login", "register", "restore", "archive"] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 
 export const auditLogsTable = mysqlTable("audit_logs", {

@@ -541,7 +541,7 @@ router.get("/shipping-manifests/:id", async (req, res): Promise<void> => {
 
 router.patch("/shipping-manifests/:id", requireAdmin, async (req, res): Promise<void> => {
   try {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const Schema = z.object({ status: z.enum(["open", "closed"]).optional(), notes: z.string().nullish(), invoicePrice: z.number().nonnegative().nullish(), invoiceNotes: z.string().nullish(), manualShippingCost: z.number().nonnegative().nullish() });
   const parsed = Schema.safeParse(req.body);
@@ -771,7 +771,7 @@ router.patch("/shipping-manifests/:id", requireAdmin, async (req, res): Promise<
 
 router.delete("/shipping-manifests/:id", requireAdmin, async (req, res): Promise<void> => {
   try {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [manifest] = await db.select().from(shippingManifestsTable).where(eq(shippingManifestsTable.id, id));
   if (!manifest) { res.status(404).json({ error: "البيان غير موجود" }); return; }
@@ -1177,7 +1177,7 @@ router.patch("/shipping-manifests/:id/orders/:orderId", async (req, res): Promis
       .innerJoin(ordersTable, eq(shippingManifestOrdersTable.orderId, ordersTable.id))
       .where(and(
         eq(shippingManifestOrdersTable.manifestId, manifestId),
-        eq(ordersTable.invoiceNumber, existingOrder.invoiceNumber.trim())
+        eq(ordersTable.invoiceNumber, existingOrder.invoiceNumber!.trim())
       ));
 
     for (const sib of siblings) {
@@ -1216,7 +1216,9 @@ router.patch("/shipping-manifests/:id/orders/:orderId", async (req, res): Promis
             sibReason = "sale"; sibNotes = "تم الاستلام — بيع";
           } else if (deliveryStatus === "partial_received") {
             sibReason = "partial_sale";
-            const sibSafeQty = (sib.mo.partialQuantity != null && sib.mo.partialQuantity > 0) ? sib.mo.partialQuantity : (partialQuantity != null && partialQuantity > 0 ? partialQuantity : null);
+            const nSibQty = Number(sib.mo.partialQuantity ?? 0);
+            const nPartial = Number(partialQuantity ?? 0);
+            const sibSafeQty = nSibQty > 0 ? nSibQty : (nPartial > 0 ? nPartial : null);
             sibNotes = sibSafeQty != null ? `استلام جزئي — ${sibSafeQty} قطعة` : "استلام جزئي";
           } else if (deliveryStatus === "returned") {
             sibReason = "to_shipping";

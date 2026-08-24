@@ -33,10 +33,10 @@ router.get("/clients-showcase", async (req, res) => {
 });
 
 // POST /clients-showcase
-router.post("/clients-showcase", requireAuth, async (req, res) => {
+router.post("/clients-showcase", requireAuth, async (req, res): Promise<void> => {
   try {
     const { name, avatar, sort_order = 0 } = req.body;
-    if (!name) return res.status(400).json({ error: "name required" });
+    if (!name) { res.status(400).json({ error: "name required" }); return; }
     const [result]: any = await db.execute(sql`
       INSERT INTO clients_showcase (name, avatar, sort_order) VALUES (${name}, ${avatar ?? null}, ${sort_order})
     `);

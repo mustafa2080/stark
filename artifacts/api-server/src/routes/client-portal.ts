@@ -2279,7 +2279,7 @@ async function parseExcelToRaw(buffer: Buffer, originalname: string): Promise<{ 
     const stream = Readable.from(buffer.toString("utf-8"));
     await workbook.csv.read(stream);
   } else {
-    await workbook.xlsx.load(buffer);
+    await workbook.xlsx.load(buffer as any);
   }
 
   const worksheet = workbook.worksheets[0];

@@ -361,7 +361,7 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
 
     // ─── حسابات بيان التسوية الجديدة ───────────────────────────────────────
     const [company] = await db.select().from(shippingCompaniesTable)
-      .where(eq(shippingCompaniesTable.id, manifest.shippingCompanyId));
+      .where(eq(shippingCompaniesTable.id, manifest.shippingCompanyId!));
 
     // تكلفة المندوب تُحسب تلقائيًا من تكلفة الشحن المسجّلة على شركة الشحن نفسها
     // (company.shippingCost) × عدد الشحنات اللي اتصرف عليها تكلفة شحن فعليًا، بدل
@@ -873,7 +873,7 @@ async function createTreasuryEntryOnClose(
 
   // جيب شركة الشحن (لاسمها في وصف حركة الخزنة)
   const [company] = await db.select().from(shippingCompaniesTable)
-    .where(eq(shippingCompaniesTable.id, manifest.shippingCompanyId));
+    .where(eq(shippingCompaniesTable.id, manifest.shippingCompanyId!));
 
   // جيب الشحنات لخصم أجرة الشحن على حساب كل عميل (مصروف منفصل لكل عميل)
   const shipmentIds = items.map(i => i.shipmentId);
@@ -907,7 +907,7 @@ async function createTreasuryEntryOnClose(
 
         await db.insert(clientAccountAdjustmentsTable).values({
           tenantId: manifest.tenantId ?? null,
-          clientPhone: client.phone,
+          clientPhone: client.phone ?? "",
           normalizedPhone: client.normalizedPhone,
           type: "shipping_fee",
           direction: "debit",
@@ -995,13 +995,13 @@ async function getOrCreateOpenManifest(
     .select()
     .from(shipmentManifestsTable)
     .where(and(
-      eq(shipmentManifestsTable.shippingCompanyId, closedManifest.shippingCompanyId),
+      eq(shipmentManifestsTable.shippingCompanyId, closedManifest.shippingCompanyId!),
       eq(shipmentManifestsTable.status, "open"),
     ));
 
   if (openManifest) return { id: openManifest.id, manifestNumber: openManifest.manifestNumber };
 
-  const manifestNumber = await generateManifestNumber(closedManifest.shippingCompanyId);
+  const manifestNumber = await generateManifestNumber(closedManifest.shippingCompanyId!);
   const [result] = await db.insert(shipmentManifestsTable).values({
     tenantId:          closedManifest.tenantId,
     manifestNumber,

@@ -211,7 +211,7 @@ router.post("/attendance", async (req, res): Promise<void> => {
 
 // ─── DELETE attendance record ─────────────────────────────────────────────────
 router.delete("/attendance/:id", requireAdmin, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   await db.delete(attendanceTable).where(eq(attendanceTable.id, id));
   res.status(204).send();
@@ -325,7 +325,7 @@ router.post("/attendance/adjustments", async (req, res): Promise<void> => {
 
 // ─── DELETE payroll adjustment ────────────────────────────────────────────────
 router.delete("/attendance/adjustments/:id", requireAdmin, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   await db.delete(payrollAdjustmentsTable).where(eq(payrollAdjustmentsTable.id, id));
   res.status(204).send();
