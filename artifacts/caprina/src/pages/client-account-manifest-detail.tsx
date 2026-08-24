@@ -2737,6 +2737,7 @@ function CloseConfirmDialog({
                   const st = o.deliveryStatus;
                   if (st === "postponed" || st === "delayed" || st === "pending") return true;
                   if (st === "returned") {
+                    if (o?.returnReceived !== 1) return true;
                     if (!RETURN_REASONS_FINANCIAL_LOCAL.includes(String(o?.returnReason ?? ""))) return true;
                   }
                   return false;
@@ -4591,6 +4592,11 @@ export default function ShippingManifestPage() {
     const st = o.deliveryStatus;
     if (st === "postponed" || st === "delayed" || st === "pending") return true;
     if (st === "returned") {
+      // لسه عند مندوب الشحن (مش مؤكد استلامه في المخزن) = مفيش أي مساهمة مالية
+      // لحد ما يتأكد استلامه. ده بيمنع تكرار حساب سعر الشحن على نفس الشحنة لما
+      // تترحّل لبيان جديد (rollover) وهي لسه واقفة عند المندوب — عشان الإيراد
+      // (اللي بيتصفّر مع الترحيل) وسعر الشحن يفضلوا متوافقين مع بعض.
+      if ((o as any).returnReceived !== 1) return true;
       if (!RETURN_REASONS_FINANCIAL.includes(String((o as any).returnReason ?? ""))) return true;
     }
     return false;
@@ -5177,6 +5183,7 @@ export default function ShippingManifestPage() {
               const st = order.deliveryStatus;
               if (st === "postponed" || st === "delayed" || st === "pending") return true;
               if (st === "returned") {
+                if ((order as any).returnReceived !== 1) return true;
                 if (!RETURN_REASONS_FINANCIAL.includes(String((order as any).returnReason ?? ""))) return true;
                 if (getCollectedAmount(order) === 0) return true;
               }
@@ -5184,10 +5191,13 @@ export default function ShippingManifestPage() {
             };
             // شرط تصفير "سعر الشحن" منفصل - الشحن مستحق طالما مسلَّم/جزئي أو مرتجع بسبب مالي،
             // بغض النظر عن قيمة المستلم الفعلية (ممكن تكون صفر والشحن برضو مستحق - refused_unpaid مثلًا)
+            // لكن لو لسه عند مندوب الشحن (مش مؤكد استلامه) فمفيش أي مساهمة مالية لحد
+            // ما يتأكد استلامه — نفس السبب اللي بيمنع تكرار الحساب بعد الترحيل.
             const isShippingZeroedRow = (order: ManifestOrder) => {
               const st = order.deliveryStatus;
               if (st === "postponed" || st === "delayed" || st === "pending") return true;
               if (st === "returned") {
+                if ((order as any).returnReceived !== 1) return true;
                 if (!RETURN_REASONS_FINANCIAL.includes(String((order as any).returnReason ?? ""))) return true;
               }
               return false;
@@ -5917,6 +5927,10 @@ export default function ShippingManifestPage() {
           const st = order.deliveryStatus;
           if (st === "postponed" || st === "delayed" || st === "pending") return true;
           if (st === "returned") {
+            // لسه عند مندوب الشحن (مش مؤكد استلامه في المخزن) = مفيش أي مساهمة مالية
+            // لحد ما يتأكد استلامه — عشان مايتكررش حساب سعر الشحن على نفس الشحنة
+            // بعد ما تترحّل لبيان جديد (rollover) وهي لسه واقفة عند المندوب.
+            if (order?.returnReceived !== 1) return true;
             if (!RETURN_REASONS_FINANCIAL.includes(String(order?.returnReason ?? ""))) return true;
           }
           return false;
