@@ -4062,31 +4062,35 @@ export default function ShippingManifestPage() {
   // ─── Search filter — real-time, no popover ────────────────────────────────
   const filteredManifestOrders = useMemo(() => {
     const orders = manifest?.orders ?? [];
-    // ─── استبعاد المرتجع/الجزئي اللي لسه عند شركة الشحن من جدول الطلبيات ───────
-    // دول بيظهروا فقط في حاوية "بضاعة لسه عند شركة الشحن" تحت، مش في الجدول
-    // الشحنات المسلَّمة (delivered) تظل ظاهرة في الجدول بحالة "مسلَّم"
+    // ─── منطق ظهور المرتجع/الجزئي في جدول "الشحنات في البيان" ─────────────────
+    // البيان مفتوح: المرتجع/الجزئي (لسه عند المندوب) يفضل ظاهر في الجدول عادي.
+    // البيان مقفول: يختفي من الجدول ويظهر في الحاوية الحمرا تحت بس (ويترحّل).
+    // المسلَّم (delivered) يفضل ظاهر في الجدول بحالة "مسلَّم" في الحالتين.
     const ordersWithoutPendingReturns = orders.filter(o => {
       const rr = (o as any).returnReceived;
       const isConfirmed = rr === 1 || rr === true;
       const dStatus = o.deliveryStatus;
       const shipmentStatus = (o as any).status;
-      // ─── المرتجع والاستلام الجزئي بيتشالوا من جدول "الشحنات في البيان" خالص ───
-      // أي بند حالة تسليمه (deliveryStatus) مرتجع أو جزئي بيخرج من الجدول:
-      //   • لسه عند مندوب الشحن (returnReceived !== 1) → بيتعرض في الحاوية الحمرا
-      //     تحت "بضاعة لسه عند مندوب الشحن" بس (نفس فلتر pendingReturnOrders).
-      //   • اتأكد استلامه (returnReceived === 1) → اتقفل خالص وبيختفي من الاتنين.
-      // كده الجدول يفضل فيه بس: قيد الانتظار، مؤجل، ومسلَّم — من غير أي تكرار مع
-      // الحاوية الحمرا. المسلَّم (delivered) يفضل ظاهر عادي بحالة "مسلَّم".
-      // ملحوظة: الكروت المالية والعدّادات فوق بتقرا من manifest.orders مباشرةً
-      // (مش من الجدول)، فاستبعاد الصفوف من هنا مابيأثرش على أي حساب مالي.
+      // حالة البيان: مقفول ولا مفتوح — بنحسبها محليًا هنا لأن متغير isLocked
+      // معرَّف بعدين في الملف (بعد هذا الـ useMemo) فمينفعش نستخدمه هنا (TDZ).
+      const isClosed = manifest?.status === "closed";
       const isReturnedOrPartialByDelivery =
         dStatus === "returned" || dStatus === "partial_received" || dStatus === "partial_delivered";
-      if (isReturnedOrPartialByDelivery) return false;
-      // حماية إضافية: لو حالة الشحنة نفسها (shipment.status) مرتجع/جزئي واتأكد
-      // استلامها بالفعل — تتشال برضو حتى لو deliveryStatus البيان لسه ماتحدّثش.
       const isReturnedOrPartialByShipment =
         shipmentStatus === "returned" || shipmentStatus === "partial_received";
-      if (isReturnedOrPartialByShipment && isConfirmed) return false;
+      // ─── (1) المرتجع/الجزئي اللي اتأكد استلامه (returnReceived === 1) ─────────
+      // راح المخزن خلاص → يتشال من جدول "الشحنات في البيان" دايمًا (مفتوح أو مقفول)
+      // ومش بيظهر في الحاوية الحمرا (فلترها returnReceived !== 1).
+      if ((isReturnedOrPartialByDelivery || isReturnedOrPartialByShipment) && isConfirmed) return false;
+      // ─── (2) المرتجع/الجزئي اللي لسه عند مندوب الشحن (returnReceived !== 1) ────
+      // القاعدة المطلوبة: ما يختفيش من الجدول إلا بعد إغلاق البيان — مش على طول.
+      //   • البيان مفتوح  → يفضل ظاهر في الجدول عادي (+ بيظهر تحت في الحاوية الحمرا
+      //     للأكشن "تم الاستلام"، والزرار شغّال لأن البيان لسه مفتوح).
+      //   • البيان مقفول (isClosed) → يتشال من الجدول ويظهر في الحاوية الحمرا بس،
+      //     وبيترحّل مع البيان الجديد لحد ما يتأكد استلامه ويروح المخزن.
+      // ملحوظة: الكروت المالية والعدّادات فوق بتقرا من manifest.orders مباشرةً
+      // (مش من الجدول)، فالتغيير هنا في العرض بس ومابيأثرش على أي حساب مالي.
+      if (isReturnedOrPartialByDelivery && !isConfirmed && isClosed) return false;
       // ─── استبعاد الشحنات اللي حالتها الفعلية لسه "قيد الانتظار" ─────────────
       // (لسه محدش استلمها في المخزن) — البيان يعرض بس اللي وصلت لمرحلة
       // "قيد الشحن في المخزن" فيما فوق. المعيار الصح هو shipmentStatus (حالة
@@ -4112,7 +4116,7 @@ export default function ShippingManifestPage() {
       }
       return true;
     });
-  }, [manifest?.orders, manifestCustomerSearch, manifestProductSearch, manifestTotalSearch]);
+  }, [manifest?.orders, manifest?.status, manifestCustomerSearch, manifestProductSearch, manifestTotalSearch]);
 
   // ─── Sort — حسب الحالة فوق الـ filter ──────────────────────────────────────
   const sortedManifestOrders = useMemo(() => {
