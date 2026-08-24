@@ -4070,13 +4070,23 @@ export default function ShippingManifestPage() {
       const isConfirmed = rr === 1 || rr === true;
       const dStatus = o.deliveryStatus;
       const shipmentStatus = (o as any).status;
-      const isReturnedOrPartial =
-        dStatus === "returned" || dStatus === "partial_received" || dStatus === "partial_delivered" ||
+      // ─── المرتجع والاستلام الجزئي بيتشالوا من جدول "الشحنات في البيان" خالص ───
+      // أي بند حالة تسليمه (deliveryStatus) مرتجع أو جزئي بيخرج من الجدول:
+      //   • لسه عند مندوب الشحن (returnReceived !== 1) → بيتعرض في الحاوية الحمرا
+      //     تحت "بضاعة لسه عند مندوب الشحن" بس (نفس فلتر pendingReturnOrders).
+      //   • اتأكد استلامه (returnReceived === 1) → اتقفل خالص وبيختفي من الاتنين.
+      // كده الجدول يفضل فيه بس: قيد الانتظار، مؤجل، ومسلَّم — من غير أي تكرار مع
+      // الحاوية الحمرا. المسلَّم (delivered) يفضل ظاهر عادي بحالة "مسلَّم".
+      // ملحوظة: الكروت المالية والعدّادات فوق بتقرا من manifest.orders مباشرةً
+      // (مش من الجدول)، فاستبعاد الصفوف من هنا مابيأثرش على أي حساب مالي.
+      const isReturnedOrPartialByDelivery =
+        dStatus === "returned" || dStatus === "partial_received" || dStatus === "partial_delivered";
+      if (isReturnedOrPartialByDelivery) return false;
+      // حماية إضافية: لو حالة الشحنة نفسها (shipment.status) مرتجع/جزئي واتأكد
+      // استلامها بالفعل — تتشال برضو حتى لو deliveryStatus البيان لسه ماتحدّثش.
+      const isReturnedOrPartialByShipment =
         shipmentStatus === "returned" || shipmentStatus === "partial_received";
-      // اللي تم استلامه → يختفي من الجدول
-      const isConfirmedReturn = isReturnedOrPartial && isConfirmed;
-      // لا نخفي الأوردرات المسلَّمة — تظهر في الجدول بحالة "مسلَّم"
-      if (isConfirmedReturn) return false;
+      if (isReturnedOrPartialByShipment && isConfirmed) return false;
       // ─── استبعاد الشحنات اللي حالتها الفعلية لسه "قيد الانتظار" ─────────────
       // (لسه محدش استلمها في المخزن) — البيان يعرض بس اللي وصلت لمرحلة
       // "قيد الشحن في المخزن" فيما فوق. المعيار الصح هو shipmentStatus (حالة
