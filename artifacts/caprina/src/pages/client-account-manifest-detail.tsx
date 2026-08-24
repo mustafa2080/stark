@@ -2737,8 +2737,9 @@ function CloseConfirmDialog({
                   const st = o.deliveryStatus;
                   if (st === "postponed" || st === "delayed" || st === "pending") return true;
                   if (st === "returned") {
-                    if (o?.returnReceived !== 1) return true;
                     if (!RETURN_REASONS_FINANCIAL_LOCAL.includes(String(o?.returnReason ?? ""))) return true;
+                    const hasSettlement = o?.returnValueReceived != null || o?.returnReceived === 1;
+                    if (!hasSettlement) return true;
                   }
                   return false;
                 };
@@ -4592,12 +4593,15 @@ export default function ShippingManifestPage() {
     const st = o.deliveryStatus;
     if (st === "postponed" || st === "delayed" || st === "pending") return true;
     if (st === "returned") {
-      // لسه عند مندوب الشحن (مش مؤكد استلامه في المخزن) = مفيش أي مساهمة مالية
-      // لحد ما يتأكد استلامه. ده بيمنع تكرار حساب سعر الشحن على نفس الشحنة لما
-      // تترحّل لبيان جديد (rollover) وهي لسه واقفة عند المندوب — عشان الإيراد
-      // (اللي بيتصفّر مع الترحيل) وسعر الشحن يفضلوا متوافقين مع بعض.
-      if ((o as any).returnReceived !== 1) return true;
       if (!RETURN_REASONS_FINANCIAL.includes(String((o as any).returnReason ?? ""))) return true;
+      // لسه عند مندوب الشحن (مش مؤكد استلامه) ومفيش أي تسوية مالية اتسجلت له لحد
+      // دلوقتي (returnValueReceived لسه فاضي) = مفيش أي مساهمة مالية خالص. ده بيمنع
+      // تكرار حساب سعر الشحن على نفس الشحنة لما تترحّل لبيان جديد (rollover) وهي
+      // لسه واقفة عند المندوب من غير ما يحصل فيها حاجة جديدة. لكن لو حصلت تسوية
+      // فعلية (returnValueReceived اتسجّل، أو returnReceived اتأكد) في البيان الحالي
+      // فسعر الشحن بيتحسب زي الإيراد بالظبط — عشان الرقمين يفضلوا متوافقين.
+      const hasSettlement = (o as any).returnValueReceived != null || (o as any).returnReceived === 1;
+      if (!hasSettlement) return true;
     }
     return false;
   };
@@ -5183,7 +5187,6 @@ export default function ShippingManifestPage() {
               const st = order.deliveryStatus;
               if (st === "postponed" || st === "delayed" || st === "pending") return true;
               if (st === "returned") {
-                if ((order as any).returnReceived !== 1) return true;
                 if (!RETURN_REASONS_FINANCIAL.includes(String((order as any).returnReason ?? ""))) return true;
                 if (getCollectedAmount(order) === 0) return true;
               }
@@ -5191,14 +5194,17 @@ export default function ShippingManifestPage() {
             };
             // شرط تصفير "سعر الشحن" منفصل - الشحن مستحق طالما مسلَّم/جزئي أو مرتجع بسبب مالي،
             // بغض النظر عن قيمة المستلم الفعلية (ممكن تكون صفر والشحن برضو مستحق - refused_unpaid مثلًا)
-            // لكن لو لسه عند مندوب الشحن (مش مؤكد استلامه) فمفيش أي مساهمة مالية لحد
-            // ما يتأكد استلامه — نفس السبب اللي بيمنع تكرار الحساب بعد الترحيل.
+            // لكن لو لسه عند مندوب الشحن (مش مؤكد استلامه) ومفيش أي تسوية مالية اتسجلت
+            // له لحد دلوقتي (returnValueReceived لسه فاضي) فمفيش أي مساهمة مالية خالص —
+            // نفس السبب اللي بيمنع تكرار الحساب بعد الترحيل. لكن لو حصلت تسوية فعلية
+            // (returnValueReceived اتسجّل، أو returnReceived اتأكد) يتحسب زي الإيراد بالظبط.
             const isShippingZeroedRow = (order: ManifestOrder) => {
               const st = order.deliveryStatus;
               if (st === "postponed" || st === "delayed" || st === "pending") return true;
               if (st === "returned") {
-                if ((order as any).returnReceived !== 1) return true;
                 if (!RETURN_REASONS_FINANCIAL.includes(String((order as any).returnReason ?? ""))) return true;
+                const hasSettlement = (order as any).returnValueReceived != null || (order as any).returnReceived === 1;
+                if (!hasSettlement) return true;
               }
               return false;
             };
@@ -5927,11 +5933,15 @@ export default function ShippingManifestPage() {
           const st = order.deliveryStatus;
           if (st === "postponed" || st === "delayed" || st === "pending") return true;
           if (st === "returned") {
-            // لسه عند مندوب الشحن (مش مؤكد استلامه في المخزن) = مفيش أي مساهمة مالية
-            // لحد ما يتأكد استلامه — عشان مايتكررش حساب سعر الشحن على نفس الشحنة
-            // بعد ما تترحّل لبيان جديد (rollover) وهي لسه واقفة عند المندوب.
-            if (order?.returnReceived !== 1) return true;
             if (!RETURN_REASONS_FINANCIAL.includes(String(order?.returnReason ?? ""))) return true;
+            // لسه عند مندوب الشحن (مش مؤكد استلامه) ومفيش أي تسوية مالية اتسجلت له
+            // لحد دلوقتي (returnValueReceived لسه فاضي) = مفيش أي مساهمة مالية خالص —
+            // عشان مايتكررش حساب سعر الشحن على نفس الشحنة بعد ما تترحّل لبيان جديد
+            // (rollover) وهي لسه واقفة عند المندوب من غير ما يحصل فيها حاجة جديدة.
+            // لكن لو حصلت تسوية فعلية (returnValueReceived اتسجّل، أو returnReceived
+            // اتأكد) في البيان الحالي فسعر الشحن بيتحسب زي الإيراد بالظبط.
+            const hasSettlement = order?.returnValueReceived != null || order?.returnReceived === 1;
+            if (!hasSettlement) return true;
           }
           return false;
         };
