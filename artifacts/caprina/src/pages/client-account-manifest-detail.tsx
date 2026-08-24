@@ -6067,7 +6067,7 @@ export default function ShippingManifestPage() {
               <AlertDialogCancel onClick={() => setShowRolloverDialog(null)}>لاحقاً</AlertDialogCancel>
               <AlertDialogAction
                 className="bg-emerald-700 hover:bg-emerald-600 text-white gap-1"
-                onClick={() => { window.location.href = `/shipping/shipment-manifests/${showRolloverDialog.id}`; }}
+                onClick={() => { window.location.href = `/finance/client-account-sheet/manifest/${showRolloverDialog.id}`; }}
               >
                 <ArrowRight className="w-3.5 h-3.5" />
                 انتقل للبيان الجديد

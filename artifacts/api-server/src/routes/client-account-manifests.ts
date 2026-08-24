@@ -1022,7 +1022,19 @@ async function rolloverPendingItemsToNewManifest(
   closedManifestId: number,
   clientId: number,
   tenantId: number | null,
-): Promise<{ rolledOver: number; newManifestId: number | null }> {
+): Promise<{
+  rolledOver: number;
+  newManifestId: number | null;
+  rolledOverManifest: {
+    id: number;
+    manifestNumber: string;
+    orderCount: number;
+    postponedCount: number;
+    pendingCount: number;
+    returnedInShippingCount: number;
+    partialInShippingCount: number;
+  } | null;
+}> {
   const items = await db
     .select()
     .from(clientAccountManifestItemsTable)
@@ -1076,7 +1088,7 @@ async function rolloverPendingItemsToNewManifest(
     orphanShipmentIds = eligibleShipmentIds.filter(sid => !alreadyInManifest.has(sid));
   }
 
-  if (!pendingItemsToRoll.length && !orphanShipmentIds.length) return { rolledOver: 0, newManifestId: null };
+  if (!pendingItemsToRoll.length && !orphanShipmentIds.length) return { rolledOver: 0, newManifestId: null, rolledOverManifest: null };
 
   const now = new Date();
   const manifestNumber = await generateManifestNumber(clientId);
@@ -1130,7 +1142,24 @@ async function rolloverPendingItemsToNewManifest(
 
   await db.insert(clientAccountManifestItemsTable).values(newItems);
 
-  return { rolledOver: newItems.length, newManifestId };
+  // ─── تفصيلة البيان الجديد للفرونت إند (توست + دايالوج "تم إنشاء بيان جديد") ──
+  // الفرونت (client-account-manifest-detail / client-account-sheet) بيقرا
+  // result.rolledOverManifest بالحقول دي — لو رجعناه null أو بشكل مختلف
+  // (زي newManifestId لوحده) الدايالوج مايظهرش والمستخدم يفتكر إن مفيش بيان
+  // جديد اتعمل أصلاً. partialInShippingCount = 0 لأن الترحيل هنا مابيرحّلش
+  // الجزئي (partial_delivered مش ضمن pendingItems) — بس بنرجّعه عشان الشكل
+  // يتطابق مع نفس الكونتراكت بتاع بيانات الشحن/المندوب.
+  const rolledOverManifest = {
+    id:                      newManifestId,
+    manifestNumber,
+    orderCount:              newItems.length,
+    postponedCount:          delayedOrPendingToRoll.filter(i => i.deliveryStatus === "delayed").length,
+    pendingCount:            delayedOrPendingToRoll.filter(i => i.deliveryStatus === "pending").length + orphanShipmentIds.length,
+    returnedInShippingCount: returnedStillAtShippingToRoll.length,
+    partialInShippingCount:  0,
+  };
+
+  return { rolledOver: newItems.length, newManifestId, rolledOverManifest };
 }
 
 // ─── PATCH /client-account-manifests/:id  (قفل/فتح البيان) ──────────────────
@@ -1162,7 +1191,13 @@ router.patch("/client-account-manifests/:id", async (req, res): Promise<void> =>
       })
       .where(eq(clientAccountManifestsTable.id, id));
 
-    let rollover: { rolledOver: number; newManifestId: number | null } = { rolledOver: 0, newManifestId: null };
+    let rollover: {
+      rolledOver: number;
+      newManifestId: number | null;
+      rolledOverManifest:
+        | { id: number; manifestNumber: string; orderCount: number; postponedCount: number; pendingCount: number; returnedInShippingCount: number; partialInShippingCount: number }
+        | null;
+    } = { rolledOver: 0, newManifestId: null, rolledOverManifest: null };
     if (isClosingNow) {
       try {
         rollover = await rolloverPendingItemsToNewManifest(id, currentManifest.clientId, currentManifest.tenantId ?? null);
@@ -1173,7 +1208,15 @@ router.patch("/client-account-manifests/:id", async (req, res): Promise<void> =>
       }
     }
 
-    res.json({ success: true, rolledOverCount: rollover.rolledOver, newManifestId: rollover.newManifestId });
+    // rolledOverManifest: الفرونت بيقراه عشان يعرض دايالوج "تم إنشاء بيان جديد"
+    // وينقل ليه — لازم يترجّع بنفس اسم الحقل. newManifestId/rolledOverCount
+    // بنسيبهم كمان للتوافق مع أي مستهلك قديم.
+    res.json({
+      success: true,
+      rolledOverCount: rollover.rolledOver,
+      newManifestId: rollover.newManifestId,
+      rolledOverManifest: rollover.rolledOverManifest,
+    });
   } catch (e) {
     console.error("[PATCH /client-account-manifests/:id]", e);
     res.status(500).json({ error: "خطأ في تحديث البيان" });

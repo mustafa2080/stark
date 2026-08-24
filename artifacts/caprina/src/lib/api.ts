@@ -2590,7 +2590,20 @@ export const clientAccountManifestsApi = {
       { method: "POST", body: JSON.stringify({ shipmentIds }) }
     ),
   update: (id: number, data: { status?: "open" | "closed"; notes?: string; invoicePrice?: number | null; manualShippingCost?: number | null }) =>
-    apiFetch<{ success: boolean }>(`/client-account-manifests/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+    apiFetch<{
+      success: boolean;
+      rolledOverCount?: number;
+      newManifestId?: number | null;
+      rolledOverManifest?: {
+        id: number;
+        manifestNumber: string;
+        orderCount: number;
+        postponedCount: number;
+        pendingCount: number;
+        returnedInShippingCount: number;
+        partialInShippingCount: number;
+      } | null;
+    }>(`/client-account-manifests/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   delete: (id: number) =>
     apiFetch<{ success: boolean }>(`/client-account-manifests/${id}`, { method: "DELETE" }),
   removeShipment: (manifestId: number, shipmentId: number) =>
