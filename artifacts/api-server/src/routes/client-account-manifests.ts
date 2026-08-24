@@ -658,19 +658,29 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
         // مدفوع/غير مدفوع، أو تهرّب من الاستلام "quality") — القيمة مسجّلة أصلاً في بيان
         // الشحن (shipment_manifest_items) مش في بيان حساب العميل، فبناخدها fallback من
         // هناك. مرتجع بلا سبب خالص، أو بسبب غير الأسباب المالية الثلاثة، يفضل null.
+        // ⚠️ استثناء مهم: البند المُرحّل (rolledOver) من بيان قديم مقفول لازم يفضل
+        // صفر في البيان الجديد لحد ما يحصل فيه حدث مالي من جديد. لو item.returnValueReceived
+        // اتسجّل مباشرة على البند في البيان الحالي (حدث جديد بعد الترحيل) يتاخد عادي؛
+        // لكن لو القيمة مش موجودة على البند نفسه، بنمنع الـ fallback لبيان المندوب
+        // القديم (shipmentReturnValueMap) للبنود المُرحّلة تحديدًا — عشان القيمة القديمة
+        // بتاعة الشحنة الأصلية (قبل الترحيل) متفضلش تظهر تاني في البيان الجديد، وده
+        // بالظبط اللي rolloverPendingItemsToNewManifest بيصفّره عمدًا وقت الترحيل.
         returnValueReceived: isReturnedWithValue
           ? ((item as any).returnValueReceived != null
               ? (item as any).returnValueReceived
-              : (shipmentReturnValueMap[item.shipmentId] ?? null))
+              : (rolledOverShipmentIds.has(item.shipmentId) ? null : (shipmentReturnValueMap[item.shipmentId] ?? null)))
           : null,
         // deliveredValueReceived: نفس منطق returnValueReceived فوق — item.deliveredValueReceived
         // (جدول client_account_manifest_items) ممكن يفضل null حتى لو القيمة الحقيقية
         // مسجّلة في بيان الشحن (shipment_manifest_items)، فبنعمل fallback هنا عشان الفرونت
         // إند اللي بيقرا o.deliveredValueReceived (getCollectedAmount وغيرها) ياخد القيمة الصح
         // بدل ما يرجع للسعر الإجمالي الكامل (سبب مشكلة فاتن: 1585 بدل 1085).
+        // نفس استثناء rolledOver فوق — الـ fallback من بيان المندوب القديم ممنوع
+        // للبند المُرحّل، لكن لو item.deliveredValueReceived اتسجّل مباشرة على
+        // البند في البيان الحالي (حدث جديد بعد الترحيل) يتاخد عادي.
         deliveredValueReceived: (item as any).deliveredValueReceived != null
           ? (item as any).deliveredValueReceived
-          : (shipmentDeliveredValueMap[item.shipmentId] ?? null),
+          : (rolledOverShipmentIds.has(item.shipmentId) ? null : (shipmentDeliveredValueMap[item.shipmentId] ?? null)),
         shipment: sh,
         // حالة الشحنة الفعلية (shipment.status) — لازم تتضاف صراحةً هنا (مش بس
         // جوة shipment: sh) لأن الفرونت إند (orderStatusOpt في
