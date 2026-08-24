@@ -1068,12 +1068,34 @@ async function rolloverPendingItemsToNewManifest(
   });
   const newManifestId = (result as any).insertId as number;
 
+  // ─── التفرقة بين نوعين وقت الترحيل ────────────────────────────────────────
+  // 1) قيد الانتظار / مؤجل → بيترحّل كصف "pending" عادي في جدول "الشحنات في
+  //    البيان" (الجدول الرئيسي) — زي ما كان دايمًا.
+  // 2) مرتجع لسه عند مندوب الشحن (returnReceived !== 1) → لازم يترحّل بحالته
+  //    الأصلية "returned" (مش "pending") مع الحفاظ على returnReason/returnReceived،
+  //    عشان الفرونت إند (فلتر pendingReturnOrders في client-account-manifest-detail)
+  //    يحطه في حاوية "بضاعة لسه عند مندوب الشحن" بس — مش جدول "الشحنات في البيان".
+  //    وبما إن مفيش حد استلم فلوس عليه لسه، بنصفّر أي قيمة مالية قديمة
+  //    (returnValueReceived) عشان البيان الجديد يبدأ نضيف ماليًا زيه زي باقي
+  //    الأنواع — نفس فلسفة rolloverPartialShipments بتاعة بيانات المندوب.
+  const delayedOrPendingToRoll = pendingItemsToRoll.filter(i => i.deliveryStatus !== "returned");
+  const returnedStillAtShippingToRoll = pendingItemsToRoll.filter(i => i.deliveryStatus === "returned");
+
   const newItems = [
-    ...pendingItemsToRoll.map(item => ({
+    ...delayedOrPendingToRoll.map(item => ({
       manifestId:     newManifestId,
       shipmentId:     item.shipmentId,
       deliveryStatus: "pending" as const,
       addedAt:        now,
+    })),
+    ...returnedStillAtShippingToRoll.map(item => ({
+      manifestId:          newManifestId,
+      shipmentId:          item.shipmentId,
+      deliveryStatus:      "returned" as const,
+      returnReason:        item.returnReason,
+      returnReceived:      item.returnReceived,
+      returnValueReceived: null,
+      addedAt:             now,
     })),
     ...orphanShipmentIds.map(sid => ({
       manifestId:     newManifestId,
