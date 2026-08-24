@@ -131,7 +131,12 @@ export async function syncShipmentStatusToManifests(
  * تتنادى بعد أي تحديث على deliveryStatus بتاع بند داخل بيان حساب العميل
  * التجاري تحديدًا. بتحدّث shipmentsTable.status لنفس الشحنة عشان يفضل
  * متسق مع صفحة الشحنات.
- * (بيان شركة الشحن عنده منطق sync خاص به بالفعل داخل shipment-manifests.ts).
+ *
+ * ⚠️ بتحدّث كمان بند بيان شركة الشحن (shipmentManifestItemsTable) بنفس الحالة —
+ * من غيرها بيحصل عدم تزامن: الأوردر يبان "مُسلَّم" في بيان العميل لكن "قيد
+ * الشحن" عند المندوب. الاستثناء الوحيد: منمسحش اختيار "postponed" اللي المندوب
+ * دخّله يدويًا لو الحالة الجديدة بتترجم لـ "pending" (نفس حماية
+ * skipShipmentManifestItems اللي فوق).
  */
 export async function syncManifestItemToShipment(
   shipmentId: number,
@@ -147,6 +152,22 @@ export async function syncManifestItemToShipment(
       .where(eq(shipmentsTable.id, shipmentId));
   } catch (e) {
     console.error("[syncManifestItemToShipment] error:", e);
+  }
+
+  // مزامنة بند بيان شركة الشحن — بس لو مش هنمسح "postponed" اللي المندوب اختارها
+  const mappedDelivery = SHIPMENT_STATUS_TO_DELIVERY[mappedStatus];
+  if (mappedDelivery && mappedDelivery !== "pending") {
+    try {
+      const now = new Date();
+      await db.update(shipmentManifestItemsTable)
+        .set({
+          deliveryStatus: mappedDelivery,
+          ...((mappedDelivery === "delivered" || mappedDelivery === "partial_delivered") ? { deliveredAt: now } : {}),
+        })
+        .where(eq(shipmentManifestItemsTable.shipmentId, shipmentId));
+    } catch (e) {
+      console.error("[syncManifestItemToShipment] shipment-manifests error:", e);
+    }
   }
 }
 

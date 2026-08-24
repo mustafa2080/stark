@@ -1,4 +1,4 @@
-import { db, shipmentsTable, clientAccountManifestItemsTable } from "@workspace/db";
+import { db, shipmentsTable, clientAccountManifestItemsTable, shipmentManifestItemsTable } from "@workspace/db";
 import { and, eq, isNull, ne, sql } from "drizzle-orm";
 import { SHIPMENT_STATUS_TO_DELIVERY } from "./manifestSync.js";
 
@@ -10,73 +10,89 @@ import { SHIPMENT_STATUS_TO_DELIVERY } from "./manifestSync.js";
  * يحصل عدم تزامن صامت: الشحنة "مُسلَّمة" عند المندوب لكن بند البيان لسه "قيد الانتظار".
  *
  * الحل: الفحص الدوري ده بيعتبر shipmentsTable.status هو مصدر الحقيقة (لأن كل
- * مسارات التحديث بتمر به أولاً) ويصلّح أي انحراف في deliveryStatus الخاص
- * ببنود بيان حساب العميل.
+ * مسارات التحديث بتمر به أولاً) ويصلّح أي انحراف في deliveryStatus الخاص ببنود:
+ *   1) بيان حساب العميل (client_account_manifest_items)
+ *   2) بيان شركة الشحن / المندوب (shipment_manifest_items) — بنفس الحماية:
+ *      بنسيب أي بند حالته "postponed" (اختيار يدوي من المندوب اللي الـ mapping
+ *      العام مش بيميزه) عشان منمسحش اختيار المستخدم.
  *
  * ملاحظات مهمة:
  * - بنلمس deliveryStatus و deliveredAt فقط — مفيش أي حقول مالية (القيم المستلمة
  *   إدخالات يدوية من المندوب مش بتُشتق من الحالة).
- * - بيان شركة الشحن (shipment_manifest_items) متعمد عدم لمسه هنا لأنه عنده
- *   قيمة "postponed" خاصة بيها الـ mapping العام مش بيميزها، وأي فرض عليها
- *   هيمسح اختيار المستخدم (نفس سبب skipShipmentManifestItems في manifestSync).
  */
+
+// شرط SQL: الحالة الفعلية للشحنة ليها mapping معروف، والبند مختلف عنه،
+// والبند مش "postponed" (محجوز لاختيار المندوب اليدوي)
+function mismatchCondition(itemStatusColumn: typeof clientAccountManifestItemsTable.deliveryStatus | typeof shipmentManifestItemsTable.deliveryStatus) {
+  const colName = itemStatusColumn === clientAccountManifestItemsTable.deliveryStatus
+    ? "client_account_manifest_items.delivery_status"
+    : "shipment_manifest_items.delivery_status";
+  const caseExpr =
+    "CASE shipments.status " +
+    Object.entries(SHIPMENT_STATUS_TO_DELIVERY)
+      .map(([s, d]) => `WHEN '${s}' THEN '${d}'`)
+      .join(" ") +
+    ` ELSE ${colName} END`;
+  return and(
+    isNull(shipmentsTable.deletedAt),
+    ne(itemStatusColumn, "postponed" as any),
+    sql`${itemStatusColumn} <> ${sql.raw(caseExpr)}`,
+  );
+}
+
+async function reconcileTable(
+  table: typeof clientAccountManifestItemsTable | typeof shipmentManifestItemsTable,
+  label: string,
+): Promise<number> {
+  const statusCol = table.deliveryStatus;
+  const mismatched = await db
+    .select({
+      itemId:         table.id,
+      shipmentId:     table.shipmentId,
+      itemStatus:     statusCol,
+      shipmentStatus: shipmentsTable.status,
+    })
+    .from(table)
+    .innerJoin(shipmentsTable, eq(table.shipmentId, shipmentsTable.id))
+    .where(mismatchCondition(statusCol))
+    .limit(500);
+
+  let fixed = 0;
+  for (const row of mismatched) {
+    const expected = SHIPMENT_STATUS_TO_DELIVERY[row.shipmentStatus];
+    if (!expected || expected === row.itemStatus) continue;
+
+    const now = new Date();
+    await db
+      .update(table)
+      .set({
+        deliveryStatus: expected,
+        ...(expected === "delivered" || expected === "partial_delivered" ? { deliveredAt: now } : {}),
+      })
+      .where(eq(table.id, row.itemId));
+    fixed++;
+
+    console.warn(
+      `[ReconcileCron] 🔧 [${label}] shipment #${row.shipmentId} — البند كان "${row.itemStatus}" والحالة الفعلية "${row.shipmentStatus}" → اتظبطت لـ "${expected}"`
+    );
+  }
+  return fixed;
+}
 
 export async function runManifestReconciliation(): Promise<void> {
   const started = Date.now();
 
   try {
-    // كل بنود بيانات العملاء اللي حالتها مختلفة عن حالة شحنتها الأصلية.
-    // ne على SQL مباشر بين عمودين — بنستخدم raw condition عبر sql.
-    const mismatched = await db
-      .select({
-        itemId:         clientAccountManifestItemsTable.id,
-        shipmentId:     clientAccountManifestItemsTable.shipmentId,
-        itemStatus:     clientAccountManifestItemsTable.deliveryStatus,
-        shipmentStatus: shipmentsTable.status,
-      })
-      .from(clientAccountManifestItemsTable)
-      .innerJoin(shipmentsTable, eq(clientAccountManifestItemsTable.shipmentId, shipmentsTable.id))
-      .where(and(
-        isNull(shipmentsTable.deletedAt),
-        // البند حالته موجودة في الـ mapping وحالة الشحنة كمان معروفة — والاتنين مختلفين فعلاً
-        sql`${clientAccountManifestItemsTable.deliveryStatus} <> ${sql.raw(
-          "CASE shipments.status " +
-          Object.entries(SHIPMENT_STATUS_TO_DELIVERY)
-            .map(([s, d]) => `WHEN '${s}' THEN '${d}'`)
-            .join(" ") +
-          " ELSE client_account_manifest_items.delivery_status END"
-        )}`,
-      ))
-      .limit(500);
+    const clientFixed  = await reconcileTable(clientAccountManifestItemsTable, "بيان عميل");
+    const repFixed     = await reconcileTable(shipmentManifestItemsTable, "بيان مندوب");
 
-    if (!mismatched.length) {
+    if (clientFixed === 0 && repFixed === 0) {
       console.log(`[ReconcileCron] ✅ مفيش أي عدم تطابق (${Date.now() - started}ms)`);
-      return;
-    }
-
-    let fixed = 0;
-    for (const row of mismatched) {
-      const expected = SHIPMENT_STATUS_TO_DELIVERY[row.shipmentStatus];
-      if (!expected || expected === row.itemStatus) continue;
-
-      const now = new Date();
-      await db
-        .update(clientAccountManifestItemsTable)
-        .set({
-          deliveryStatus: expected,
-          ...(expected === "delivered" || expected === "partial_delivered" ? { deliveredAt: now } : {}),
-        })
-        .where(eq(clientAccountManifestItemsTable.id, row.itemId));
-      fixed++;
-
-      console.warn(
-        `[ReconcileCron] 🔧 اتصلّحت: shipment #${row.shipmentId} — البند كان "${row.itemStatus}" والحالة الفعلية "${row.shipmentStatus}" → اتظبطت لـ "${expected}"`
+    } else {
+      console.log(
+        `[ReconcileCron] 🕐 انتهى الفحص: ${clientFixed} بيان عميل + ${repFixed} بيان مندوب اتصلّحوا (${Date.now() - started}ms)`
       );
     }
-
-    console.log(
-      `[ReconcileCron] 🕐 انتهى الفحص: ${mismatched.length} عدم تطابق، ${fixed} اتصلّحوا (${Date.now() - started}ms)`
-    );
   } catch (err) {
     console.error("[ReconcileCron] ❌ فشل الفحص:", err);
   }
