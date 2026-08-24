@@ -31,7 +31,13 @@ function getCollectedAmount(item: ManifestItem): number {
   if (item.deliveryStatus === "partial_received") {
     return item.partialQuantity != null ? Math.round(Number(item.partialQuantity)) : 0;
   }
-  if (item.deliveryStatus === "returned" && RETURN_REASONS_FINANCIAL.includes(String(item.returnReason ?? ""))) {
+  if (
+    item.deliveryStatus === "returned" &&
+    RETURN_REASONS_FINANCIAL.includes(String(item.returnReason ?? "")) &&
+    item.returnReceived === 1
+  ) {
+    // الاستلام الفعلي فقط بيفعّل المساهمة المالية — لو لسه عند المندوب مفيش
+    // إيراد يتحسب حتى لو فيه returnValueReceived (تحصيل جزئي قبل الاستلام).
     const rvr = item.returnValueReceived;
     return rvr != null ? Number(rvr) : 0;
   }
@@ -43,6 +49,9 @@ function isShippingZeroedRow(item: ManifestItem): boolean {
   if (st === "postponed" || st === "delayed" || st === "pending") return true;
   if (st === "returned") {
     if (!RETURN_REASONS_FINANCIAL.includes(String(item.returnReason ?? ""))) return true;
+    // الاستلام الفعلي فقط (returnReceived === 1) بيفعّل المساهمة المالية —
+    // returnValueReceived لوحده (تحصيل جزئي قبل تأكيد الاستلام) مش كافي.
+    if (item.returnReceived !== 1) return true;
   }
   return false;
 }
