@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, and, inArray, count, isNull, or, ne } from "drizzle-orm";
+import { eq, desc, and, inArray, count, isNull, or, ne, lt } from "drizzle-orm";
 import {
   db,
   clientAccountManifestsTable,
@@ -591,6 +591,26 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
 
     const RETURN_REASONS_WITH_VALUE = new Set(["refused_paid", "refused_unpaid", "quality"]);
 
+    // ─── تحديد البنود "المُرحّلة" (rolledOver) ────────────────────────────────
+    // البند اللي نفس شحنته موجودة في بيان أقدم (id أصغر) يبقى نسخة "مُرحّلة"، مش
+    // البند الأصلي. الترحيل (rolloverPendingItemsToNewManifest) بيسيب الأصل في
+    // البيان القديم (المقفول) وبيعمل نسخة جديدة في بيان جديد (id أكبر) — فأي بند
+    // في البيان الحالي نفس شحنته ليها صف في بيان أقدم = نسخة مُرحّلة. الحذف من
+    // البيان (DELETE) بيمسح صف البند الأصلي، فمفيش false positive من إعادة الإضافة.
+    // الفرونت إند بيستخدم الفلاج ده عشان يحط المرتجع المُرحّل في الحاوية الحمرا
+    // «بس» — مش جدول «الشحنات في البيان» (اللي بيعرض المرتجع الأصلي والبيان مفتوح).
+    const rolledOverShipmentIds = new Set<number>();
+    if (shipmentIds.length) {
+      const olderItemRows = await db
+        .select({ shipmentId: clientAccountManifestItemsTable.shipmentId })
+        .from(clientAccountManifestItemsTable)
+        .where(and(
+          inArray(clientAccountManifestItemsTable.shipmentId, shipmentIds),
+          lt(clientAccountManifestItemsTable.manifestId, id), // بيان أقدم من الحالي
+        ));
+      olderItemRows.forEach(r => rolledOverShipmentIds.add(r.shipmentId));
+    }
+
     const enrichedItems = visibleItems.map(item => {
       const sh = shipmentMap[item.shipmentId] ?? null;
       // item.returnReason (جدول client_account_manifest_items) ممكن يفضل null حتى
@@ -686,6 +706,9 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
         invoiceNumber: sh?.shipmentNumber ?? "",
         representativeName: sh?.assignedUserId ? (repNameMap[sh.assignedUserId] ?? null) : null,
         warehouseName: sh?.warehouseId ? (warehouseNameMap[sh.warehouseId] ?? null) : null,
+        // بند مُرحّل من بيان أقدم؟ الفرونت بيستخدمها عشان المرتجع المُرحّل يظهر في
+        // الحاوية الحمرا «بس» مش جدول «الشحنات في البيان» (سطر filteredManifestOrders).
+        rolledOver: rolledOverShipmentIds.has(item.shipmentId),
       };
     });
 

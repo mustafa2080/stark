@@ -4038,6 +4038,9 @@ export default function ShippingManifestPage() {
         // الشحن المرتبطة بالشحنة) — لازم تتنقل هنا وإلا zoneCostTotal في كارت
         // "صافي الإيراد المستحق" بيرجع صفر دايمًا رغم إن الـ backend بيبعتها صح.
         zoneCost: (item as any).zoneCost ?? 0,
+        // بند مُرحّل من بيان أقدم (الباك اند بيحسبها) — المرتجع المُرحّل يظهر في
+        // الحاوية الحمرا «بس» مش جدول «الشحنات في البيان».
+        rolledOver: (item as any).rolledOver === true,
       } as any;
     });
     // ملحوظة: مبنستبعدش الشحنات اللي deliveryStatus بتاعها "pending" — القيمة دي
@@ -4074,6 +4077,9 @@ export default function ShippingManifestPage() {
       // حالة البيان: مقفول ولا مفتوح — بنحسبها محليًا هنا لأن متغير isLocked
       // معرَّف بعدين في الملف (بعد هذا الـ useMemo) فمينفعش نستخدمه هنا (TDZ).
       const isClosed = manifest?.status === "closed";
+      // بند مُرحّل من بيان أقدم (الباك اند بيحسبها بمقارنة الشحنة ببيانات أقدم) —
+      // المرتجع المُرحّل مالوش يظهر في الجدول خالص، الحاوية الحمرا «بس».
+      const isRolledOver = (o as any).rolledOver === true;
       const isReturnedOrPartialByDelivery =
         dStatus === "returned" || dStatus === "partial_received" || dStatus === "partial_delivered";
       const isReturnedOrPartialByShipment =
@@ -4083,14 +4089,16 @@ export default function ShippingManifestPage() {
       // ومش بيظهر في الحاوية الحمرا (فلترها returnReceived !== 1).
       if ((isReturnedOrPartialByDelivery || isReturnedOrPartialByShipment) && isConfirmed) return false;
       // ─── (2) المرتجع/الجزئي اللي لسه عند مندوب الشحن (returnReceived !== 1) ────
-      // القاعدة المطلوبة: ما يختفيش من الجدول إلا بعد إغلاق البيان — مش على طول.
-      //   • البيان مفتوح  → يفضل ظاهر في الجدول عادي (+ بيظهر تحت في الحاوية الحمرا
-      //     للأكشن "تم الاستلام"، والزرار شغّال لأن البيان لسه مفتوح).
-      //   • البيان مقفول (isClosed) → يتشال من الجدول ويظهر في الحاوية الحمرا بس،
-      //     وبيترحّل مع البيان الجديد لحد ما يتأكد استلامه ويروح المخزن.
+      // بيتشال من الجدول (ويفضل في الحاوية الحمرا بس) في حالتين:
+      //   • البيان مقفول (isClosed) → المرتجع الأصلي بيختفي من الجدول بعد الإغلاق
+      //     ويترحّل. طول ما البيان مفتوح المرتجع الأصلي يفضل ظاهر في الجدول عادي
+      //     (+ بيظهر تحت في الحاوية للأكشن "تم الاستلام" والزرار شغّال).
+      //   • البند مُرحّل (isRolledOver) → المرتجع اللي اترحّل لبيان جديد يظهر في
+      //     الحاوية الحمرا «بس» — مش الجدول — حتى والبيان الجديد مفتوح. ده اللي
+      //     فرّق بين المرتجع الأصلي (يفضل فوق والبيان مفتوح) والمرتجع المُرحّل.
       // ملحوظة: الكروت المالية والعدّادات فوق بتقرا من manifest.orders مباشرةً
       // (مش من الجدول)، فالتغيير هنا في العرض بس ومابيأثرش على أي حساب مالي.
-      if (isReturnedOrPartialByDelivery && !isConfirmed && isClosed) return false;
+      if (isReturnedOrPartialByDelivery && !isConfirmed && (isClosed || isRolledOver)) return false;
       // ─── استبعاد الشحنات اللي حالتها الفعلية لسه "قيد الانتظار" ─────────────
       // (لسه محدش استلمها في المخزن) — البيان يعرض بس اللي وصلت لمرحلة
       // "قيد الشحن في المخزن" فيما فوق. المعيار الصح هو shipmentStatus (حالة
