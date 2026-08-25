@@ -657,8 +657,20 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
       )).limit(1);
     const wasRolledOver = ((existingForNote?.deliveryNote ?? "") as string).startsWith("[ROLLED_OVER]");
     let nextDeliveryNote: string | null = body.deliveryNote ?? null;
-    if (wasRolledOver && !((nextDeliveryNote ?? "") as string).startsWith("[ROLLED_OVER]")) {
-      nextDeliveryNote = `[ROLLED_OVER] ${nextDeliveryNote ?? ""}`.trim();
+    if (wasRolledOver) {
+      // العلامة تفضل بس طول ما البند لسه "no-op" مالي حقيقي: مرتجع أو جزئي لسه عند
+      // الشحن — دي الحالات اللي فلوسها/تكلفتها اتحسبت وترحّلت للخزنة في البيان القديم،
+      // فزرار «تم الاستلام» (اللي بيبعت returnReceived بس من غير note) لازم يحافظ عليها.
+      // لكن لو البند اترجّع "حيّ" (pending/delayed/delivered/postponed) يبقى هيتسلّم/
+      // هيتحصّل من جديد في البيان ده — فلازم نشيل العلامة عشان تسليمه الجديد يتحسب هنا
+      // وماتقمعش الإيراد بالغلط. (ده اللي كان بيخلّي بند مُرحّل يفضل صفر حتى بعد ما يتسلّم.)
+      const staysNoOp = body.deliveryStatus === "returned" || body.deliveryStatus === "partial_delivered";
+      // لو الطلب مابعتش note نحافظ على النوت القديمة (بنصها/سببها)، وإلا ناخد الجديدة.
+      const sourceNote = (body.deliveryNote !== undefined ? (body.deliveryNote ?? "") : (existingForNote?.deliveryNote ?? "")) as string;
+      const bareNote = sourceNote.replace(/^\[ROLLED_OVER\]\s*/, "").trim();
+      nextDeliveryNote = staysNoOp
+        ? `[ROLLED_OVER] ${bareNote}`.trim()
+        : (bareNote.length > 0 ? bareNote : null);
     }
 
     await db.update(shipmentManifestItemsTable)
