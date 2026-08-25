@@ -30,6 +30,16 @@ import { invalidateSmartCache, invalidateChartsCache } from "./analytics.js";
 const router: IRouter = Router();
 router.use(requireAuth);
 
+// ─── بند مُرحَّل من بيان مقفول ────────────────────────────────────────────────
+// شحنة مُرحَّلة (معلَّمة [ROLLED_OVER] في deliveryNote وقت الترحيل): قيمتها المالية
+// وتكلفة شحنها اتصرفت واتحسبت أصلًا في البيان القديم المقفول. فبتتعامل كـ "لا شيء
+// مالي" في أي بيان جديد — لا إيراد، ولا تكلفة شحن، ولا مستحق — عشان البيان المُرحّل
+// يبدأ بأصفار مالية لحد ما يحصل تسليم فعلي جديد فيه. لازم يفضل متطابق مع استبعاد
+// الفرونت (shipmentIncursShippingCost + ordersForPnl في representative-manifest-detail.tsx).
+function isRolledOverItem(item: { deliveryNote?: string | null } | any): boolean {
+  return ((item?.deliveryNote ?? "") as string).startsWith("[ROLLED_OVER]");
+}
+
 // ─── توليد رقم البيان ────────────────────────────────────────────────────────
 async function generateManifestNumber(companyId: number): Promise<string> {
   const [row] = await db
@@ -308,6 +318,12 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
     for (const item of items) {
       const shipment = shipmentMap[item.shipmentId];
       if (!shipment) continue;
+      // بند مُرحَّل من بيان مقفول ([ROLLED_OVER]): قيمته وتكلفة شحنه اتحسبوا أصلًا في
+      // البيان القديم، فمالوش أي أثر مالي في البيان الجديد (لا إيراد ولا رسوم ولا تكلفة
+      // شحن) — عشان البيان المُرحّل يبدأ بأصفار مالية. بيفضل بره الحلقة المالية بس؛
+      // عدّاد الحالات فوق (delivered/returned/pending/partial) بيفضل بيعدّه عادي لأنه
+      // شحنة حقيقية لسه معلّقة في البيان الجديد. متطابق مع ordersForPnl بالفرونت.
+      if (isRolledOverItem(item)) continue;
       const cod      = Number(shipment.codAmount ?? shipment.totalAmount ?? 0);
       // نفس منطق fallback المستخدم في enrichedItems: لو shippingFee صفر/فارغ نرجع
       // لتكلفة المنطقة (تكاليف المناطق) بدل ما تفضل صفر وتفسد حساب "المستحق".
@@ -372,12 +388,15 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
     // لـ RETURN_REASONS_IN_PNL تحت بالظبط.
     const RETURN_REASONS_WITH_SHIPPING_COST = ["refused_paid", "refused_unpaid", "quality"];
     const returnedWithShippingCost = items.filter(i =>
+      !isRolledOverItem(i) &&
       i.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING_COST.includes((i as any).returnReason)
     ).length;
     const isItemEligibleForCourierCost = (i: any) =>
-      i.deliveryStatus === "delivered" ||
-      i.deliveryStatus === "partial_delivered" ||
-      (i.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING_COST.includes(i.returnReason));
+      !isRolledOverItem(i) && (
+        i.deliveryStatus === "delivered" ||
+        i.deliveryStatus === "partial_delivered" ||
+        (i.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING_COST.includes(i.returnReason))
+      );
     const courierCostPerShipment = Math.abs(Number(company?.shippingCost ?? 0));
     const repExtraCostBreakdown = items
       .filter(isItemEligibleForCourierCost)
@@ -1507,6 +1526,12 @@ router.get("/shipping-companies/:id/shipment-stats", async (req, res): Promise<v
       for (const item of items) {
         const shipment = shipmentMap.get(item.shipmentId);
         if (!shipment) continue;
+        // بند مُرحَّل ([ROLLED_OVER]: مرتجع/جزئي لسه عند الشحن اتنقل لبيان جديد) —
+        // نفس الشحنة موجودة أصلًا كسجل حقيقي في البيان القديم المقفول وبتتحسب هناك.
+        // فبنتخطّى الـ clone هنا عشان مايتعدّش مرتين في الإجمالي المجمّع للشركة.
+        // ملحوظة: المؤجل/قيد الانتظار المُرحّل مالوش الماركر ده (شحنة حيّة هتتسلّم في
+        // البيان الجديد)، فبيتحسب عادي وقت تسليمه — مش بيتخطّى هنا.
+        if (isRolledOverItem(item)) continue;
         const cod      = Number(shipment.codAmount ?? shipment.totalAmount ?? 0);
         const shipping = Number(shipment.shippingFee ?? 0);
         const cost     = Number(shipment.costPrice ?? 0);

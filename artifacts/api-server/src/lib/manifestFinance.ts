@@ -128,6 +128,13 @@ export async function computeManifestNetDue(
   for (const item of items) {
     const shipment = shipmentMap.get(item.shipmentId);
     if (!shipment) continue;
+    // بند مُرحَّل من بيان مقفول ([ROLLED_OVER] في deliveryNote): قيمته المالية وتكلفة
+    // شحنه اتحسبوا أصلًا في البيان القديم وقت قفله (وترحّلوا للخزنة/محفظة المندوب
+    // ساعتها). فبيتعامل كـ"لا شيء مالي" في أي بيان جديد — لا إيراد ولا تكلفة شحن —
+    // عشان البيان المُرحّل يبدأ بصفر مستحق. لازم يفضل متطابق مع استبعاد الفرونت
+    // (shipmentIncursShippingCost) وإحصائيات الراوت (isRolledOverItem في
+    // shipment-manifests.ts) — وإلا هيتحسب مرتين (مرة في القديم ومرة في الجديد).
+    if (((item as any).deliveryNote ?? "").startsWith("[ROLLED_OVER]")) continue;
     // السعر الكامل للشحنة المسلَّمة = totalAmount (codAmount + shippingFee)، مش codAmount
     // لوحده — نفس totalPrice المستخدم في deliveredCOD بالفرونت بالظبط.
     const price = Number((shipment as any).totalAmount ?? (Number((shipment as any).codAmount ?? 0) + Number(shipment.shippingFee ?? 0)));
