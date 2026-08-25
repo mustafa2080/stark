@@ -1765,36 +1765,36 @@ function TaskCard({ task }: { task: any }) {
       )}
 
       {/* Call + WhatsApp + تقفيل buttons */}
-      {task.receiverPhone && (
-        <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-1.5">
+        {task.receiverPhone && (
           <a href={`tel:${task.receiverPhone}`}
             className="flex items-center justify-center gap-1.5 flex-1 h-8 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-[11px] font-bold hover:bg-emerald-500/20 transition-colors">
             <PhoneCall className="w-3.5 h-3.5" /> {task.receiverPhone}
           </a>
-          {waHref && (
-            <a href={waHref} target="_blank" rel="noopener noreferrer"
-              title="ابعت رسالة واتساب للعميل"
-              className="flex items-center justify-center w-8 h-8 shrink-0 rounded-xl border border-green-500/30 bg-green-500/10 text-green-400 hover:bg-green-500/20 transition-colors">
-              <MessageCircle className="w-4 h-4" />
-            </a>
-          )}
-          <ShipmentStatusEditor shipment={task} onSaved={() => {
-            // تزامن مع تاب "مهامي" نفسه
-            queryClient.invalidateQueries({ queryKey: ["rep-today-tasks"] });
-            // تزامن مع تاب "البيانات" — نفس الشحنة ممكن تكون معروضة جوه بيان مفتوح
-            if (task.manifestId) {
-              queryClient.invalidateQueries({ queryKey: ["rep-manifest", task.manifestId] });
-            }
-            queryClient.invalidateQueries({ queryKey: ["rep-manifests"] });
-            // تزامن مع صفحة الشحنات وتطبيق المندوب
-            queryClient.invalidateQueries({ queryKey: ["shipments-list"] });
-            queryClient.invalidateQueries({ queryKey: ["shipments-stats"] });
-            queryClient.invalidateQueries({ queryKey: ["rep-shipments"] });
-            queryClient.invalidateQueries({ queryKey: ["rep-all-shipments"] });
-            queryClient.invalidateQueries({ queryKey: ["rep-dashboard"] });
-          }} />
-        </div>
-      )}
+        )}
+        {waHref && (
+          <a href={waHref} target="_blank" rel="noopener noreferrer"
+            title="ابعت رسالة واتساب للعميل"
+            className="flex items-center justify-center w-8 h-8 shrink-0 rounded-xl border border-green-500/30 bg-green-500/10 text-green-400 hover:bg-green-500/20 transition-colors">
+            <MessageCircle className="w-4 h-4" />
+          </a>
+        )}
+        <ShipmentStatusEditor shipment={task} onSaved={() => {
+          // تزامن مع تاب "مهامي" نفسه
+          queryClient.invalidateQueries({ queryKey: ["rep-today-tasks"] });
+          // تزامن مع تاب "البيانات" — نفس الشحنة ممكن تكون معروضة جوه بيان مفتوح
+          if (task.manifestId) {
+            queryClient.invalidateQueries({ queryKey: ["rep-manifest", task.manifestId] });
+          }
+          queryClient.invalidateQueries({ queryKey: ["rep-manifests"] });
+          // تزامن مع صفحة الشحنات وتطبيق المندوب
+          queryClient.invalidateQueries({ queryKey: ["shipments-list"] });
+          queryClient.invalidateQueries({ queryKey: ["shipments-stats"] });
+          queryClient.invalidateQueries({ queryKey: ["rep-shipments"] });
+          queryClient.invalidateQueries({ queryKey: ["rep-all-shipments"] });
+          queryClient.invalidateQueries({ queryKey: ["rep-dashboard"] });
+        }} />
+      </div>
     </div>
   );
 }
