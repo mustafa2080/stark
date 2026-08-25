@@ -2751,12 +2751,21 @@ function CloseConfirmDialog({
                 // نفس استثناء "لسه عند مندوب الشحن" (مرتجع/جزئي ومحدّش استلمها في
                 // المخزن بعد) المطبّق في كارت "الرصيد المستحق" بعد الإغلاق — عشان
                 // رقم الديالوج قبل الإغلاق يطابق بالظبط رقم الكارت بعد الإغلاق.
-                const orders = (manifest.orders ?? []).filter(o =>
-                  !(
+                // ⚠️ نفس استثناء الأسباب المالية الثلاثة المطبّق في ordersForPnl فوق
+                // (كارت "إجمالي الإيرادات"/"إجمالي تكلفة الشحن") — مرتجع بسبب مالي
+                // (refused_paid/refused_unpaid/quality) له حدث مالي فعلي حصل وقت
+                // الرفض نفسه، بغض النظر عن رجوع البضاعة فعليًا للمخزن، فلازم يفضل
+                // محسوب هنا كمان وإلا رقم الديالوج يفضل مختلف عن الكارت.
+                const orders = (manifest.orders ?? []).filter(o => {
+                  const isPendingAtShippingCompany =
                     (o.deliveryStatus === "returned" || o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") &&
-                    (o as any).returnReceived !== 1
-                  )
-                );
+                    (o as any).returnReceived !== 1;
+                  if (!isPendingAtShippingCompany) return true;
+                  if (o.deliveryStatus === "returned" && RETURN_REASONS_FINANCIAL_LOCAL.includes(String((o as any).returnReason ?? ""))) {
+                    return true;
+                  }
+                  return false;
+                });
                 const netAmount = orders.reduce((sum, o) => sum + getCollectedAmountLocal(o), 0);
                 // في حالتين تحديدًا (رفض بعد المعاينة ولم يدفع، أو تهرب من الاستلام) نستخدم
                 // تكلفة المندوب الفعلية (zoneCost) بدل سعر شحن العميل — نفس منطق الجدول
