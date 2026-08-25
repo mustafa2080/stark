@@ -88,6 +88,15 @@ const formatCurrency = (n: number | string | null | undefined) =>
     maximumFractionDigits: 0,
   }).format(Number(n) || 0);
 
+// بند مُرحَّل من بيان مقفول = لا شيء مالي (صفر إيراد + صفر تكلفة) في أي بيان جديد.
+// مصدر الحقيقة = عمود is_rolled_over من الباك إند؛ بادئة [ROLLED_OVER] النصية fallback
+// للبنود القديمة قبل الـbackfill. لازم يفضل متطابق مع نفس الـhelper في
+// representative-manifest-detail.tsx والباك (isRolledOverItem/manifestFinance).
+function isRolledOverOrder(order: any): boolean {
+  return order?.isRolledOver === 1 || order?.isRolledOver === true
+    || ((order?.deliveryNote ?? "") as string).startsWith("[ROLLED_OVER]");
+}
+
 const DELIVERY_OPTIONS: { value: DeliveryStatus; label: string; color: string; bg: string }[] = [
   { value: "pending",          label: "قيد الانتظار",   color: "text-muted-foreground",                                          bg: "border-border" },
   { value: "delivered",        label: "مسلَّم ✓",        color: "text-emerald-700 dark:text-emerald-400",                         bg: "border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/20" },
@@ -2576,6 +2585,8 @@ function ExportDialog({
   // (قبل كده كان بيساوي company.shippingCost وبس، من غير ضرب في عدد الشحنات ولا أي إضافة).
   const RETURN_REASONS_IN_PNL_XLS_TOP = ["refused_paid", "refused_unpaid", "quality"];
   const shippingCostOrdersXlsTop = (manifest.orders ?? []).filter(o => {
+    // بند مُرحَّل = صفر تكلفة شحن (اتحسبت في بيانه القديم) — نفس استبعاد كارت الشاشة.
+    if (isRolledOverOrder(o)) return false;
     if (o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_delivered" || o.deliveryStatus === "partial_received") return true;
     return o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL_XLS_TOP.includes((o as any).returnReason);
   });
@@ -2614,7 +2625,10 @@ function ExportDialog({
     (group) => groupManifestStatus(group) === "pending"
   ).length;
 
-  const safeOrders = manifest.orders ?? [];
+  // البنود المُرحَّلة مستبعدة من كل حسابات الإكسل المالية (إيراد/تكلفة/صافي) — فلوسها
+  // اتحسبت في بيانها القديم. بنستبعدها من المصدر عشان كل المجاميع تحت تفضل صفر للبيان
+  // المُرحّل، زي كارت الشاشة والباك اند بالظبط (safeOrders بيغذّي المجاميع بس، مش صفوف الجدول).
+  const safeOrders = (manifest.orders ?? []).filter(o => !isRolledOverOrder(o));
 
   const deliveredGross = safeOrders
     .filter(o => o.deliveryStatus === "delivered")
@@ -3765,7 +3779,7 @@ export default function ShippingManifestPage() {
     // partial_delivered/partial_received: نفس المنطق — الأصلي يفضل في الجدول،
     // المرحّل (ROLLED_OVER) يختفي منه ويفضل بس في الحاوية الحمرا.
     const orders = (manifest?.orders ?? []).filter((o) => {
-      const isRolledOver = ((o as any).deliveryNote ?? "").startsWith("[ROLLED_OVER]");
+      const isRolledOver = isRolledOverOrder(o);
       if (isRolledOver && (o.deliveryStatus === "returned" || o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered")) {
         return false;
       }
@@ -4186,7 +4200,9 @@ export default function ShippingManifestPage() {
 
   // ── حسابات الطباعة — منسوخة بالحرف من ExportDialog (الإكسل) عشان الاتنين
   // يطابقوا بعض 100%. أي تعديل هنا لازم يتعمل بالظبط في ExportDialog كمان.
-  const safeOrdersPrint = manifest.orders ?? [];
+  // نفس استبعاد الإكسل بالظبط (الاتنين لازم يطابقوا بعض): البنود المُرحّلة مستبعدة من
+  // كل مجاميع الطباعة المالية من المصدر — safeOrdersPrint بيغذّي المجاميع بس مش الصفوف.
+  const safeOrdersPrint = (manifest.orders ?? []).filter(o => !isRolledOverOrder(o));
   const deliveredGrossPrint = safeOrdersPrint
     .filter(o => o.deliveryStatus === "delivered")
     .reduce((sum, o) => {
@@ -4214,6 +4230,8 @@ export default function ShippingManifestPage() {
     .reduce((sum, o) => sum + Number((o as any).returnValueReceived ?? 0), 0);
   const totalCollected = deliveredGrossPrint + partialGrossPrint + returnedCollectedPrint;
   const shippingCostOrdersPrint = safeOrdersPrint.filter(o => {
+    // بند مُرحَّل = صفر تكلفة شحن (اتحسبت في بيانه القديم) — نفس استبعاد كارت الشاشة والإكسل.
+    if (isRolledOverOrder(o)) return false;
     if (o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_delivered" || o.deliveryStatus === "partial_received") return true;
     return o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL_PRINT.includes((o as any).returnReason);
   });
@@ -4981,7 +4999,7 @@ export default function ShippingManifestPage() {
             // شحنة مُرحَّلة من بيان قديم مقفول (معلَّمة [ROLLED_OVER]) — قيمتها
             // المالية اتحسبت أصلًا في البيان القديم، فمستبعدة هنا خالص حتى لو
             // المندوب سجّل returnValueReceived تانية في البيان الجديد بالغلط.
-            const isRolledOverLocal = ((o as any).deliveryNote ?? "").startsWith("[ROLLED_OVER]");
+            const isRolledOverLocal = isRolledOverOrder(o);
             if (isRolledOverLocal) return false;
             // مرتجع بسبب مالي (refused_paid/refused_unpaid/quality) لازم يدخل الحساب
             // طالما مش لسه معلّق عند شركة الشحن — نفس منطق isStillAtShipping.
@@ -4996,11 +5014,15 @@ export default function ShippingManifestPage() {
           // عن حالة الباقي المرتجع عند شركة الشحن (isStillAtShipping بتخص الباقي بس).
           // استثناء: لو معلَّم [ROLLED_OVER] فقيمته اتحسبت أصلًا في البيان القديم.
           if (o.deliveryStatus === "partial_delivered") {
-            const isRolledOverPD = ((o as any).deliveryNote ?? "").startsWith("[ROLLED_OVER]");
+            const isRolledOverPD = isRolledOverOrder(o);
             return !isRolledOverPD;
           }
-          // partial_received: إشعار "الباقي المرحّل" فقط — يدخل بس لو اتأكد استلامه فعليًا.
+          // partial_received: إشعار "الباقي المرحّل" فقط — كل partial_received أصله
+          // مُرحَّل ([ROLLED_OVER]/is_rolled_over=1)، قيمته اتحسبت في البيان القديم،
+          // فمستبعد ماليًا خالص هنا حتى بعد تأكيد الاستلام — نفس منطق الباك اند
+          // (manifestFinance) وكشف المندوب بالظبط.
           if (o.deliveryStatus === "partial_received") {
+            if (isRolledOverOrder(o)) return false;
             return !isStillAtShipping(o);
           }
           return true;
@@ -5079,6 +5101,10 @@ export default function ShippingManifestPage() {
         const allManifestGroupsForTotal = groupManifestOrders((manifest.orders ?? []) as any);
         const baseDisplayedShippingCost = allManifestGroupsForTotal.reduce((sum, group) => {
           const repRow = group[0] as any;
+          // بند مُرحَّل من بيان مقفول = صفر تكلفة شحن (اتحسبت في بيانه القديم). الجدول
+          // المعروض (filteredManifestOrders) بيخفيه أصلًا، فالكارت لازم يستبعده كمان
+          // عشان "إجمالي تكلفة الشحن" و"الرصيد المستحق" مايتضخّموش في البيان المُرحّل.
+          if (isRolledOverOrder(repRow)) return sum;
           const rowIncurred =
             repRow?.deliveryStatus === "delivered" ||
             repRow?.deliveryStatus === "partial_delivered" ||

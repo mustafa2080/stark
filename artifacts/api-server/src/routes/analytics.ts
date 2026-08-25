@@ -661,6 +661,7 @@ async function computeManifestsPnl(tenantId: number | null, fromDate: Date | nul
       returnValueReceived: shipmentManifestItemsTable.returnValueReceived,
       deliveredValueReceived: shipmentManifestItemsTable.deliveredValueReceived,
       deliveryNote: shipmentManifestItemsTable.deliveryNote,
+      isRolledOver: shipmentManifestItemsTable.isRolledOver,
       codAmount: shipmentsTable.codAmount,
       shippingFee: shipmentsTable.shippingFee,
       zoneId: shipmentsTable.zoneId,
@@ -683,9 +684,10 @@ async function computeManifestsPnl(tenantId: number | null, fromDate: Date | nul
   let returnCount = 0;
 
   for (const r of rows) {
-    // بند مُرحَّل ([ROLLED_OVER]) — اتحسب في بيانه الأصلي المقفول، فمستبعد من
-    // الإيراد والعدّ هنا (وإلا هيضخّم eligibleCount/returnCount ونسبة المرتجع).
-    if (((r as any).deliveryNote ?? "").startsWith("[ROLLED_OVER]")) continue;
+    // بند مُرحَّل — اتحسب في بيانه الأصلي المقفول، فمستبعد من الإيراد والعدّ هنا
+    // (وإلا هيضخّم eligibleCount/returnCount ونسبة المرتجع). مصدر الحقيقة = عمود
+    // is_rolled_over؛ النص fallback للبنود القديمة قبل الـbackfill.
+    if ((r as any).isRolledOver === 1 || ((r as any).deliveryNote ?? "").startsWith("[ROLLED_OVER]")) continue;
     const isEligible =
       r.deliveryStatus === "delivered" ||
       r.deliveryStatus === "partial_delivered" ||
@@ -771,10 +773,10 @@ async function computeManifestsPnl(tenantId: number | null, fromDate: Date | nul
   let deliveredShippingFeesClosed = 0;
   let courierCostClosed = 0;
   for (const r of rows) {
-    // بند مُرحَّل ([ROLLED_OVER]): الشحنة الأصلية اتحسبت في بيانها المقفول الأصلي.
-    // بنتخطّاها هنا عشان الرقم يفضل مطابق تمامًا لـ computeManifestNetDue (اللي
-    // بيستبعد المُرحّل) ومايتعدّش مرتين لما البيان المُرحّل نفسه يتقفل بعد كده.
-    if (((r as any).deliveryNote ?? "").startsWith("[ROLLED_OVER]")) continue;
+    // بند مُرحَّل: الشحنة الأصلية اتحسبت في بيانها المقفول الأصلي. بنتخطّاها هنا عشان
+    // الرقم يفضل مطابق تمامًا لـ computeManifestNetDue (اللي بيستبعد المُرحّل) ومايتعدّش
+    // مرتين لما البيان المُرحّل نفسه يتقفل بعد كده. مصدر الحقيقة = عمود is_rolled_over.
+    if ((r as any).isRolledOver === 1 || ((r as any).deliveryNote ?? "").startsWith("[ROLLED_OVER]")) continue;
     const hasShippingFee =
       r.deliveryStatus === "delivered" ||
       r.deliveryStatus === "partial_delivered" ||
@@ -4383,6 +4385,7 @@ router.get("/analytics/revenue-trend", requireAuth, async (req, res): Promise<vo
         returnValueReceived: shipmentManifestItemsTable.returnValueReceived,
         deliveredValueReceived: shipmentManifestItemsTable.deliveredValueReceived,
         deliveryNote: shipmentManifestItemsTable.deliveryNote,
+        isRolledOver: shipmentManifestItemsTable.isRolledOver,
         codAmount: shipmentsTable.codAmount,
         shippingFee: shipmentsTable.shippingFee,
         courierCostPerShipment: shippingCompaniesTable.shippingCost,
@@ -4456,11 +4459,11 @@ router.get("/analytics/revenue-trend", requireAuth, async (req, res): Promise<vo
     const bucketByDate = new Map(buckets.map(b => [b.date, b]));
 
     for (const r of rows) {
-      // بند مُرحَّل من بيان مقفول ([ROLLED_OVER]): قيمته وتكلفته اتحسبوا في البيان
-      // القديم وقت قفله (وترحّلوا للخزنة ساعتها) — بيتعامل كـ"لا شيء مالي" هنا عشان
-      // ما يتحسبش مرتين لما البيان الجديد المُرحَّل يتقفل هو كمان. نفس استبعاد
-      // computeManifestsPnl و manifestFinance.computeManifestNetDue بالظبط.
-      if (((r as any).deliveryNote ?? "").startsWith("[ROLLED_OVER]")) continue;
+      // بند مُرحَّل من بيان مقفول: قيمته وتكلفته اتحسبوا في البيان القديم وقت قفله
+      // (وترحّلوا للخزنة ساعتها) — بيتعامل كـ"لا شيء مالي" هنا عشان ما يتحسبش مرتين
+      // لما البيان الجديد المُرحَّل يتقفل هو كمان. نفس استبعاد computeManifestsPnl و
+      // manifestFinance.computeManifestNetDue بالظبط. مصدر الحقيقة = عمود is_rolled_over.
+      if ((r as any).isRolledOver === 1 || ((r as any).deliveryNote ?? "").startsWith("[ROLLED_OVER]")) continue;
       const isEligible =
         r.deliveryStatus === "delivered" ||
         r.deliveryStatus === "partial_delivered" ||

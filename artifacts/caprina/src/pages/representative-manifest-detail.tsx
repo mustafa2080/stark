@@ -119,13 +119,23 @@ const SHIPMENT_DELIVERY_OPTIONS: { value: DeliveryStatus; label: string; color: 
 // التوصيل نفسها اتصرفت فعليًا بمجرد محاولة التسليم، سواء العميل استلم أو رفض.
 const RETURN_REASONS_WITH_SHIPPING_COST = ["refused_paid", "refused_unpaid", "quality"] as const;
 
+// شحنة مُرحَّلة من بيان قديم مقفول = "لا شيء مالي" في البيان الجديد (لا إيراد ولا
+// تكلفة)، لأن قيمتها اتحسبت وترحّلت للخزنة وقت قفل البيان القديم. **مصدر الحقيقة**
+// = عمود is_rolled_over الجاي من الباك إند؛ بادئة [ROLLED_OVER] النصية بقت fallback
+// للبنود القديمة قبل الـbackfill بس. المُهم: أي تعديل على نص الملاحظة (deliveryNote)
+// مبقاش يقدر يغيّر الحالة المالية — العمود مستقل عنه تمامًا.
+function isRolledOverOrder(order: any): boolean {
+  return order?.isRolledOver === 1 || order?.isRolledOver === true
+    || ((order?.deliveryNote ?? "") as string).startsWith("[ROLLED_OVER]");
+}
+
 function shipmentIncursShippingCost(order: any): boolean {
-  // شحنة مُرحَّلة من بيان قديم مقفول (معلَّمة [ROLLED_OVER] من الباك إند وقت الترحيل):
-  // تكلفة شحنها اتصرفت واتحسبت أصلًا في البيان القديم، فمالهاش أي تكلفة شحن في
-  // البيان الجديد — نفس منطق استبعادها من الإيراد بالظبط (ordersForPnl). البيان
-  // المُرحّل لازم يبدأ بأصفار في كل الكروت المالية (إجمالي الإيرادات / تكلفة الشحن /
-  // الرصيد المستحق / صافي الربح) لحد ما يحصل تسليم فعلي جديد فيه.
-  if (((order?.deliveryNote ?? "") as string).startsWith("[ROLLED_OVER]")) return false;
+  // شحنة مُرحَّلة من بيان قديم مقفول: تكلفة شحنها اتصرفت واتحسبت أصلًا في البيان
+  // القديم، فمالهاش أي تكلفة شحن في البيان الجديد — نفس منطق استبعادها من الإيراد
+  // بالظبط (ordersForPnl). البيان المُرحّل لازم يبدأ بأصفار في كل الكروت المالية
+  // (إجمالي الإيرادات / تكلفة الشحن / الرصيد المستحق / صافي الربح) لحد ما يحصل تسليم
+  // فعلي جديد فيه.
+  if (isRolledOverOrder(order)) return false;
   const status = order?.deliveryStatus;
   if (status === "delivered" || status === "partial_delivered" || status === "partial_received") return true;
   if (status === "returned") return RETURN_REASONS_WITH_SHIPPING_COST.includes(order?.returnReason);
@@ -3958,7 +3968,7 @@ export default function ShippingManifestPage() {
     // partial_delivered/partial_received: نفس المنطق — الأصلي يفضل في الجدول،
     // المرحّل (ROLLED_OVER) يختفي منه ويفضل بس في الحاوية الحمرا.
     const orders = (manifest?.orders ?? []).filter((o) => {
-      const isRolledOver = ((o as any).deliveryNote ?? "").startsWith("[ROLLED_OVER]");
+      const isRolledOver = isRolledOverOrder(o);
       if (isRolledOver && (o.deliveryStatus === "returned" || o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered")) {
         return false;
       }
@@ -4130,7 +4140,7 @@ export default function ShippingManifestPage() {
       // مرتجع بأسباب مالية معينة) — حساب مبسّط بمرة شحن واحدة كان بيدي رقم مختلف تمامًا.
       if (manifest && variables?.status === "closed") {
         const RETURN_REASONS_IN_PNL_LOCAL = ["refused_paid", "refused_unpaid", "quality"];
-        const isRolledOver = (o: any) => ((o?.deliveryNote ?? "") as string).startsWith("[ROLLED_OVER]");
+        const isRolledOver = (o: any) => isRolledOverOrder(o);
         const isStillAtShippingLocal = (o: any) => {
           const rr = o?.returnReceived;
           const isReceivedBack = rr === 1 || rr === true || rr === "1";
@@ -4447,7 +4457,7 @@ export default function ShippingManifestPage() {
   const ordersForPnlPrint = (manifest.orders ?? []).filter(o => {
     // مُرحَّل من بيان قديم مقفول ([ROLLED_OVER]) → مستبعد ماليًا خالص من الطباعة،
     // زي كارت الرصيد المستحق بالظبط (قيمته اتحسبت في البيان القديم).
-    const isRolledOverPrint = ((o as any).deliveryNote ?? "").startsWith("[ROLLED_OVER]");
+    const isRolledOverPrint = isRolledOverOrder(o);
     if (o.deliveryStatus === "returned") {
       if (isRolledOverPrint) return false;
       const RETURN_REASONS_IN_PNL_PRINT_LOCAL = ["refused_paid", "refused_unpaid", "quality"];
@@ -5212,7 +5222,7 @@ export default function ShippingManifestPage() {
             // شحنة مُرحَّلة من بيان قديم مقفول (معلَّمة [ROLLED_OVER]) — قيمتها
             // المالية اتحسبت أصلًا في البيان القديم، فمستبعدة هنا خالص حتى لو
             // المندوب سجّل returnValueReceived تانية في البيان الجديد بالغلط.
-            const isRolledOverLocal = ((o as any).deliveryNote ?? "").startsWith("[ROLLED_OVER]");
+            const isRolledOverLocal = isRolledOverOrder(o);
             if (isRolledOverLocal) return false;
             // مرتجع بسبب مالي (refused_paid/refused_unpaid/quality) لازم يدخل الحساب
             // طالما مش لسه معلّق عند شركة الشحن — نفس منطق isStillAtShipping.
@@ -5227,7 +5237,7 @@ export default function ShippingManifestPage() {
           // عن حالة الباقي المرتجع عند شركة الشحن (isStillAtShipping بتخص الباقي بس).
           // استثناء: لو معلَّم [ROLLED_OVER] فقيمته اتحسبت أصلًا في البيان القديم.
           if (o.deliveryStatus === "partial_delivered") {
-            const isRolledOverPD = ((o as any).deliveryNote ?? "").startsWith("[ROLLED_OVER]");
+            const isRolledOverPD = isRolledOverOrder(o);
             return !isRolledOverPD;
           }
           // partial_received: إشعار "الباقي المرحّل" فقط. كل بند partial_received أصله
@@ -5237,7 +5247,7 @@ export default function ShippingManifestPage() {
           // بالظبط (deliveredGross مبيعدّش partial_received نهائيًا). بيفضل ظاهر في
           // الحاوية الحمرا كإشعار مخزون بس، من غير أي أثر مالي.
           if (o.deliveryStatus === "partial_received") {
-            if (((o as any).deliveryNote ?? "").startsWith("[ROLLED_OVER]")) return false;
+            if (isRolledOverOrder(o)) return false;
             return !isStillAtShipping(o);
           }
           return true;

@@ -35,6 +35,12 @@ export const shipmentManifestItemsTable = mysqlTable("shipment_manifest_items", 
   deliveryStatus: varchar("delivery_status", { length: 50 }).notNull().default("pending"),
   // pending | delivered | returned | partial_delivered | delayed
   deliveryNote:   text("delivery_note"),
+  // 1 = بند مُرحَّل من بيان مقفول (مرتجع/جزئي لسه عند الشحن). ده **مصدر الحقيقة**
+  // المالي: البند "لا شيء مالي" (لا إيراد ولا تكلفة شحن) في أي بيان جديد، لأن قيمته
+  // اتحسبت وترحّلت للخزنة/محفظة المندوب وقت قفل البيان القديم. عمود مستقل عن
+  // deliveryNote عشان أي تعديل على نص الملاحظة مايقدرش يفسد الحالة المالية —
+  // بيحل محل بادئة [ROLLED_OVER] النصية (اللي فضلت كـ hint للعرض وللتوافق الخلفي).
+  isRolledOver:   int("is_rolled_over").notNull().default(0),
   partialQuantity: int("partial_quantity"), // الكمية المستلمة فعليًا (لو deliveryStatus = partial_delivered)
   deliveredAt:    datetime("delivered_at"),
   returnReceived: int("return_received"), // 1=تم الاستلام، 0=مازال في شركة الشحن

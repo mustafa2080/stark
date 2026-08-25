@@ -36,8 +36,10 @@ router.use(requireAuth);
 // مالي" في أي بيان جديد — لا إيراد، ولا تكلفة شحن، ولا مستحق — عشان البيان المُرحّل
 // يبدأ بأصفار مالية لحد ما يحصل تسليم فعلي جديد فيه. لازم يفضل متطابق مع استبعاد
 // الفرونت (shipmentIncursShippingCost + ordersForPnl في representative-manifest-detail.tsx).
-function isRolledOverItem(item: { deliveryNote?: string | null } | any): boolean {
-  return ((item?.deliveryNote ?? "") as string).startsWith("[ROLLED_OVER]");
+function isRolledOverItem(item: { deliveryNote?: string | null; isRolledOver?: number | null } | any): boolean {
+  // مصدر الحقيقة = عمود is_rolled_over؛ بادئة [ROLLED_OVER] النصية fallback للبنود
+  // القديمة اللي اترحّلت قبل إضافة العمود (لحد ما الـbackfill يجري).
+  return item?.isRolledOver === 1 || ((item?.deliveryNote ?? "") as string).startsWith("[ROLLED_OVER]");
 }
 
 // ─── توليد رقم البيان ────────────────────────────────────────────────────────
@@ -649,24 +651,27 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
     // (وأحيانًا deliveryNote فاضية/undefined) — كان بيمسح العلامة (body.deliveryNote
     // ?? null) فيرجع البند يتحسب عليه فلوس/تكلفة بالغلط. هنا بنقرا الملاحظة الحالية
     // ولو كانت مُرحَّلة بنعيد لصق البادئة قبل الحفظ.
-    const [existingForNote] = await db.select({ deliveryNote: shipmentManifestItemsTable.deliveryNote })
+    const [existingForNote] = await db.select({
+      deliveryNote: shipmentManifestItemsTable.deliveryNote,
+      isRolledOver: shipmentManifestItemsTable.isRolledOver,
+    })
       .from(shipmentManifestItemsTable)
       .where(and(
         eq(shipmentManifestItemsTable.manifestId, manifestId),
         eq(shipmentManifestItemsTable.shipmentId, shipmentId),
       )).limit(1);
-    const wasRolledOver = ((existingForNote?.deliveryNote ?? "") as string).startsWith("[ROLLED_OVER]");
+    const existingNote = (existingForNote?.deliveryNote ?? "") as string;
+    const wasRolledOver = existingForNote?.isRolledOver === 1 || existingNote.startsWith("[ROLLED_OVER]");
+    // البند يفضل no-op مالي بس طول ما هو مرتجع أو جزئي لسه عند الشحن — دي الحالات اللي
+    // فلوسها/تكلفتها اتحسبت وترحّلت للخزنة في البيان القديم، فزرار «تم الاستلام» (اللي
+    // بيبعت returnReceived بس من غير note) لازم يحافظ عليها. لكن لو البند اترجّع "حيّ"
+    // (pending/delayed/delivered/postponed) يبقى هيتسلّم/هيتحصّل من جديد في البيان ده —
+    // فلازم نشيل العلامة (العمود + النص) عشان تسليمه الجديد يتحسب هنا وماتقمعش الإيراد.
+    const staysNoOp = body.deliveryStatus === "returned" || body.deliveryStatus === "partial_delivered";
     let nextDeliveryNote: string | null = body.deliveryNote ?? null;
     if (wasRolledOver) {
-      // العلامة تفضل بس طول ما البند لسه "no-op" مالي حقيقي: مرتجع أو جزئي لسه عند
-      // الشحن — دي الحالات اللي فلوسها/تكلفتها اتحسبت وترحّلت للخزنة في البيان القديم،
-      // فزرار «تم الاستلام» (اللي بيبعت returnReceived بس من غير note) لازم يحافظ عليها.
-      // لكن لو البند اترجّع "حيّ" (pending/delayed/delivered/postponed) يبقى هيتسلّم/
-      // هيتحصّل من جديد في البيان ده — فلازم نشيل العلامة عشان تسليمه الجديد يتحسب هنا
-      // وماتقمعش الإيراد بالغلط. (ده اللي كان بيخلّي بند مُرحّل يفضل صفر حتى بعد ما يتسلّم.)
-      const staysNoOp = body.deliveryStatus === "returned" || body.deliveryStatus === "partial_delivered";
       // لو الطلب مابعتش note نحافظ على النوت القديمة (بنصها/سببها)، وإلا ناخد الجديدة.
-      const sourceNote = (body.deliveryNote !== undefined ? (body.deliveryNote ?? "") : (existingForNote?.deliveryNote ?? "")) as string;
+      const sourceNote = (body.deliveryNote !== undefined ? (body.deliveryNote ?? "") : existingNote) as string;
       const bareNote = sourceNote.replace(/^\[ROLLED_OVER\]\s*/, "").trim();
       nextDeliveryNote = staysNoOp
         ? `[ROLLED_OVER] ${bareNote}`.trim()
@@ -677,6 +682,9 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
       .set({
         deliveryStatus: body.deliveryStatus,
         deliveryNote:   nextDeliveryNote,
+        // العمود هو مصدر الحقيقة المالي: يفضل 1 طول ما البند no-op مُرحّل، ويترجّع 0 لو
+        // رجع حيّ (فيتحسب تسليمه هنا). بنلمسه بس لو البند كان مُرحّلًا أصلًا.
+        ...(wasRolledOver ? { isRolledOver: staysNoOp ? 1 : 0 } : {}),
         partialQuantity: body.partialQuantity ?? null,
         // returnReason و returnValueReceived: لو الطلب مابعتهمش (undefined) — زي زرار
         // "تم الاستلام" السريع اللي بيبعت returnReceived بس — نسيب القيمة القديمة زي
@@ -1165,6 +1173,7 @@ async function rolloverPartialShipments(
       shipmentId:          item.shipmentId,
       deliveryStatus:      item.deliveryStatus,
       deliveryNote:        `[ROLLED_OVER] ${item.deliveryNote ?? ""}`.trim(),
+      isRolledOver:        1, // no-op مالي في البيان الجديد (مصدر الحقيقة، مستقل عن النص)
       partialQuantity:     null,
       returnReceived:      item.returnReceived,
       returnReason:        item.returnReason,
@@ -1189,6 +1198,7 @@ async function rolloverPartialShipments(
       shipmentId:          item.shipmentId,
       deliveryStatus:      "partial_received",
       deliveryNote:        `[ROLLED_OVER] ${item.deliveryNote ?? `استلام جزئي — الباقي مرتجع من بيان ${closedManifest.manifestNumber}`}`.trim(),
+      isRolledOver:        1, // no-op مالي في البيان الجديد (مصدر الحقيقة، مستقل عن النص)
       partialQuantity:     null,
       returnReceived:      0,
       returnReason:        item.returnReason ?? "استلام جزئي",
