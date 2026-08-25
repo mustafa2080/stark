@@ -2748,7 +2748,15 @@ function CloseConfirmDialog({
                   }
                   return false;
                 };
-                const orders = manifest.orders ?? [];
+                // نفس استثناء "لسه عند مندوب الشحن" (مرتجع/جزئي ومحدّش استلمها في
+                // المخزن بعد) المطبّق في كارت "الرصيد المستحق" بعد الإغلاق — عشان
+                // رقم الديالوج قبل الإغلاق يطابق بالظبط رقم الكارت بعد الإغلاق.
+                const orders = (manifest.orders ?? []).filter(o =>
+                  !(
+                    (o.deliveryStatus === "returned" || o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") &&
+                    (o as any).returnReceived !== 1
+                  )
+                );
                 const netAmount = orders.reduce((sum, o) => sum + getCollectedAmountLocal(o), 0);
                 // في حالتين تحديدًا (رفض بعد المعاينة ولم يدفع، أو تهرب من الاستلام) نستخدم
                 // تكلفة المندوب الفعلية (zoneCost) بدل سعر شحن العميل — نفس منطق الجدول
