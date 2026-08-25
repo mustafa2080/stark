@@ -5991,6 +5991,11 @@ export default function ShippingManifestPage() {
         const zoneCostTotal = ordersForPnl.reduce((s, o) => s + (isShippingZeroedRowLocal(o) ? 0 : Number((o as any).zoneCost ?? 0)), 0);
         // كارت "إجمالي تكلفة الشحن" العلوي لسه بيعرض شامل إضافات الأنواع (شفافية كاملة للمستخدم).
         const displayedShippingCost = shippingCost + repExtraCostTotal;
+        // عدد الشحنات اللي فعلاً بتساهم في مبلغ تكلفة الشحن أعلاه — لازم يستثني
+        // نفس الشحنات المصفّرة (isShippingZeroedRowLocal: قيد الانتظار/مؤجل/مرتجع
+        // بسبب غير مالي) عشان "X شحنة" الظاهرة تحت الكارت تتطابق فعليًا مع عدد
+        // الشحنات اللي ساهمت في الرقم، مش كل ordersForPnl.length.
+        const shippingCostOrdersCount = ordersForPnl.filter(o => !isShippingZeroedRowLocal(o)).length;
         // إجمالي المستحق = مجموع "القيمة المستلمة" (getCollectedAmount) لكل شحنات البيان
         // مباشرة، بدون طرح تكلفة الشحن.
         const netAmount       = ordersForPnl.reduce((s, o) => s + getCollectedAmount(o), 0);
@@ -6017,7 +6022,7 @@ export default function ShippingManifestPage() {
               <p className="text-xs text-amber-400 mb-1">إجمالي تكلفة الشحن</p>
               <p className="text-lg font-black text-amber-400">{formatCurrency(displayedShippingCost)}</p>
               <p className="text-[10px] text-muted-foreground mt-0.5">
-                {ordersForPnl.length} شحنة
+                {shippingCostOrdersCount} شحنة
                 {repExtraCostTotal > 0 ? ` · إضافات أنواع: ${formatCurrency(repExtraCostTotal)}` : ""}
               </p>
               {repExtraCostBreakdown.length > 0 && (
