@@ -642,10 +642,29 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
       }
     }
 
+    // ─── الحفاظ على بادئة [ROLLED_OVER] عبر أي تعديل ───────────────────────────
+    // البند المُرحَّل من بيان مقفول معلَّم بـ "[ROLLED_OVER]" في deliveryNote عشان
+    // يفضل no-op مالي (لا إيراد ولا تكلفة شحن) في البيان الجديد. أي تعديل عليه —
+    // وأهمها زرار "تم الاستلام" في الحاوية الحمرا اللي بيبعت returnReceived بس
+    // (وأحيانًا deliveryNote فاضية/undefined) — كان بيمسح العلامة (body.deliveryNote
+    // ?? null) فيرجع البند يتحسب عليه فلوس/تكلفة بالغلط. هنا بنقرا الملاحظة الحالية
+    // ولو كانت مُرحَّلة بنعيد لصق البادئة قبل الحفظ.
+    const [existingForNote] = await db.select({ deliveryNote: shipmentManifestItemsTable.deliveryNote })
+      .from(shipmentManifestItemsTable)
+      .where(and(
+        eq(shipmentManifestItemsTable.manifestId, manifestId),
+        eq(shipmentManifestItemsTable.shipmentId, shipmentId),
+      )).limit(1);
+    const wasRolledOver = ((existingForNote?.deliveryNote ?? "") as string).startsWith("[ROLLED_OVER]");
+    let nextDeliveryNote: string | null = body.deliveryNote ?? null;
+    if (wasRolledOver && !((nextDeliveryNote ?? "") as string).startsWith("[ROLLED_OVER]")) {
+      nextDeliveryNote = `[ROLLED_OVER] ${nextDeliveryNote ?? ""}`.trim();
+    }
+
     await db.update(shipmentManifestItemsTable)
       .set({
         deliveryStatus: body.deliveryStatus,
-        deliveryNote:   body.deliveryNote ?? null,
+        deliveryNote:   nextDeliveryNote,
         partialQuantity: body.partialQuantity ?? null,
         // returnReason و returnValueReceived: لو الطلب مابعتهمش (undefined) — زي زرار
         // "تم الاستلام" السريع اللي بيبعت returnReceived بس — نسيب القيمة القديمة زي
