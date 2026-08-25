@@ -2756,7 +2756,11 @@ function CloseConfirmDialog({
                 // (refused_paid/refused_unpaid/quality) له حدث مالي فعلي حصل وقت
                 // الرفض نفسه، بغض النظر عن رجوع البضاعة فعليًا للمخزن، فلازم يفضل
                 // محسوب هنا كمان وإلا رقم الديالوج يفضل مختلف عن الكارت.
+                // ⚠️⚠️ استبعاد أول: نفس استبعاد rolledOver المطبّق في ordersForPnl —
+                // البند المُرحّل من بيان قديم مقفول له حدث مالي محسوب بالفعل هناك،
+                // فمينفعش يتحسب تاني هنا وإلا الرقم يبقى مضاعف.
                 const orders = (manifest.orders ?? []).filter(o => {
+                  if ((o as any).rolledOver) return false;
                   const isPendingAtShippingCompany =
                     (o.deliveryStatus === "returned" || o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") &&
                     (o as any).returnReceived !== 1;
@@ -5937,7 +5941,14 @@ export default function ShippingManifestPage() {
         // البضاعة رجعت فعليًا للمخزن أو لسه عند شركة الشحن. استبعاده هنا كان بيخلي
         // كارت "إجمالي الإيرادات"/"إجمالي تكلفة الشحن" ناقص القيمة دي حتى لو الجدول
         // التفصيلي (اللي بيلف على manifest.orders كله من غير الفلتر ده) بيعرضها صح.
+        // ⚠️⚠️ استبعاد أول: البند المُرحّل (rolledOver) من بيان قديم مقفول لازم يفضل
+        // صفر في كل كروت البيان الجديد (الإيرادات/تكلفة الشحن/المستحق/صافي الإيراد
+        // المستحق) لحد ما يحصل فيه حدث مالي جديد فعلي في البيان الجديد نفسه. الحدث
+        // المالي بتاعه الأصلي اتحسب فعلاً في البيان القديم (المقفول) قبل الترحيل —
+        // فحسابه تاني هنا يبقى تكرار مضاعف للرقم. الحاوية الحمرا "بضاعة لسه عند
+        // مندوب الشحن" تحت هي المكان الوحيد اللي المفروض يعرضه، مش الكروت دي.
         const ordersForPnl = (manifest.orders ?? []).filter(o => {
+          if ((o as any).rolledOver) return false;
           const isPendingAtShippingCompany =
             (o.deliveryStatus === "returned" || o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") &&
             (o as any).returnReceived !== 1;
