@@ -857,6 +857,15 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
         const returnReasonEff = (item as any).returnReason ?? (shipment as any)?.returnReason ?? null;
         if (RETURN_REASONS_WITH_SHIPPING.has(String(returnReasonEff ?? ""))) {
           totalShippingCost += shipping;
+          // القيمة المستلمة فعليًا من العميل في المرتجع (returnValueReceived) لازم
+          // تتجمع مع totalRevenue/deliveredGross هنا زي بالظبط getCollectedAmount في
+          // الفرونت إند (client-manifest-view.tsx) — وإلا كارت "إجمالي الإيرادات" هنا
+          // هيفضل ناقص القيمة دي حتى لو الجدول التفصيلي وصفحة العميل بيعرضوها صح.
+          // بنستخدم نفس الـ fallback (شحنة → بيان قديم) المطبّق فوق لحالة delivered.
+          const rvr = (item as any).returnValueReceived ?? shipmentReturnValueMap[item.shipmentId];
+          const returnCollected = rvr != null ? Number(rvr) : 0;
+          totalRevenue += returnCollected;
+          deliveredGross += returnCollected;
         }
       }
     }
