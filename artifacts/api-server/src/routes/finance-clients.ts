@@ -324,16 +324,19 @@ router.get("/finance/clients", async (req, res): Promise<void> => {
     // تجميع الأرقام لكل عميل حسب clientId — لا حاجة لمطابقة أسماء نصية
     // ⚠️ الأوردرات "الفعلية" اللي بتتحسب للعميل (totalOrders = المستخدم في عمود
     // "تحقيق الهدف" بقائمة العملاء) لازم تكون بس الشحنات اللي دخلت المخزن فعليًا
-    // (picked_up = قيد الشحن بالمخزن) أو أبعد — مش لسه "قيد الانتظار" (waiting)
-    // أو "مؤكدة" (confirmed) عند العميل ومتسلمتش. ده نفس منطق استبعاد
-    // NOT_YET_RECEIVED_STATUSES في GET /finance/clients/:id و /finance/clients-dashboard
-    // بالظبط — عشان الرقم في "تحقيق الهدف" يطابق "الأوردرات الفعلية" في داشبورد
-    // العميل، ومايحصلش إن القائمة تقول 6 والداشبورد يقول 5.
-    const NOT_YET_RECEIVED_STATUSES = ["waiting", "confirmed"];
+    // (قيد الشحن في المخزن = warehouse_ready / picked_up) أو أبعد. أي شحنة لسه
+    // "قيد الانتظار" عند العميل — وحالتها الحالية pending (والقديمة waiting) أو
+    // "مؤكدة" (confirmed) — ماتتحسبش (= 0). و"ملغي" (cancelled) كمان مايتحسبش
+    // لأنه مش أوردر فعلي. ملحوظة: النظام اتنقل من مفردات قديمة (waiting) لجديدة
+    // (pending) لنفس معنى "قيد الانتظار"، فلازم الاتنين يتستبعدوا مع بعض.
+    // ده نفس منطق NOT_COUNTED_STATUSES في GET /finance/clients/:id و
+    // /finance/clients-dashboard بالظبط — عشان الرقم في "تحقيق الهدف" يطابق
+    // "الأوردرات الفعلية" في داشبورد العميل، ومايحصلش إن القائمة تقول 6 والداشبورد 5.
+    const NOT_COUNTED_STATUSES = ["pending", "waiting", "confirmed", "cancelled"];
     const statsMap: Record<number, { totalOrders: number; totalSales: number; totalPaid: number }> = {};
     for (const s of allShipments) {
       if (s.clientId == null) continue;
-      if (NOT_YET_RECEIVED_STATUSES.includes(s.status)) continue; // لسه عند العميل — مايتحسبش أوردر فعلي
+      if (NOT_COUNTED_STATUSES.includes(s.status)) continue; // قيد الانتظار/ملغي — مايتحسبش أوردر فعلي
       if (!statsMap[s.clientId]) statsMap[s.clientId] = { totalOrders: 0, totalSales: 0, totalPaid: 0 };
       const t = parseFloat(s.totalAmount ?? "0");
       const p = parseFloat(s.collectedAmount ?? "0");
@@ -601,12 +604,14 @@ router.get("/finance/clients/:id", async (req, res): Promise<void> => {
 
     // ⚠️ الأوردرات "الفعلية" اللي بتتحسب للعميل التجاري (تحقيق الهدف، النمو
     // الشهري، إجمالي الأوردرات) لازم تكون بس الشحنات اللي دخلت المخزن فعليًا
-    // (picked_up/warehouse_ready) أو أبعد — مش لسه "قيد الانتظار" (waiting)
-    // أو "مؤكدة" (confirmed) لسه عند العميل ومتسلمتش. الشحنة المعلقة دي
-    // بتفضل معلقة في كارت "الأوردرات الجديدة" لحد ما تدخل المخزن فعلاً.
-    const NOT_YET_RECEIVED_STATUSES = ["waiting", "confirmed"];
+    // (قيد الشحن في المخزن = warehouse_ready / picked_up) أو أبعد — مش لسه
+    // "قيد الانتظار" عند العميل (الحالة الحالية pending والقديمة waiting) ولا
+    // "مؤكدة" (confirmed)، ولا "ملغي" (cancelled). الشحنة المعلقة دي بتفضل
+    // معلقة في كارت "الأوردرات الجديدة" لحد ما تدخل المخزن فعلاً. لازم تفضل
+    // مطابِقة لـ GET /finance/clients (القائمة) عشان "تحقيق الهدف" يطابق الداشبورد.
+    const NOT_COUNTED_STATUSES = ["pending", "waiting", "confirmed", "cancelled"];
     const countedShipmentsForStats = clientShipmentsForStats.filter(
-      s => !NOT_YET_RECEIVED_STATUSES.includes(s.status)
+      s => !NOT_COUNTED_STATUSES.includes(s.status)
     );
 
     // ✅ إجمالي مبيعات/تحصيل الشحنات — من قيمة الشحنات المُسلَّمة فعليًا
@@ -1201,11 +1206,15 @@ router.get("/finance/clients-dashboard", async (req, res): Promise<void> => {
         if (whName) stat.warehouseNames.add(whName);
       }
 
-      if (s.status === "waiting" || s.status === "confirmed") {
-        // لسه قيد الانتظار عند العميل — بتتحسب في العداد المنفصل بس، ومش بتدخل shipmentsCount/الأوردرات الفعلية
+      if (s.status === "pending" || s.status === "waiting" || s.status === "confirmed") {
+        // لسه "قيد الانتظار" عند العميل (pending الحالية / waiting القديمة / confirmed) —
+        // بتتحسب في العداد المنفصل بس، ومش بتدخل shipmentsCount/الأوردرات الفعلية
         stat.waiting++; totals.waiting++;
+      } else if (s.status === "cancelled") {
+        // ملغي — مش أوردر فعلي؛ مايدخلش shipmentsCount ولا الإيراد، بس بيتعدّ لوحده
+        stat.cancelled++;
       } else {
-        // من "قيد الشحن بالمخزن" (picked_up = warehouse_ready) فأعلى — ده اللي يتحسب أوردر فعلي
+        // من "قيد الشحن في المخزن" (warehouse_ready = picked_up) فأعلى — ده اللي يتحسب أوردر فعلي
         stat.shipmentsCount++;
         stat.totalAmount += total;
         stat.collectedAmount += collected;
@@ -1218,8 +1227,7 @@ router.get("/finance/clients-dashboard", async (req, res): Promise<void> => {
         if (s.status === "delivered")       { stat.delivered++; totals.delivered++; }
         else if (s.status === "delayed")    { stat.delayed++;  totals.delayed++; }
         else if (s.status === "returned")   { stat.returned++; totals.returned++; }
-        else if (s.status === "cancelled")  { stat.cancelled++; }
-        else                                { stat.inWarehouse++; totals.inWarehouse++; } // picked_up/in_transit/out_for_delivery/partial_received
+        else                                { stat.inWarehouse++; totals.inWarehouse++; } // warehouse_ready/picked_up/in_transit/out_for_delivery/partial_received
       }
 
       statsByClientId.set(cid, stat);
