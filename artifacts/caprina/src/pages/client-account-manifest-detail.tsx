@@ -5910,7 +5910,16 @@ export default function ShippingManifestPage() {
 
       {/* ─── P&L Summary for shipment manifests ─── */}
       {canViewFinancials && (() => {
-        const ordersForPnl = manifest.orders ?? [];
+        // البنود اللي لسه "عند مندوب الشحن" (مرتجع/جزئي ومحدّش استلمها في المخزن
+        // بعد — returnReceived !== 1) ما لهاش حدث مالي حقيقي حصل لحد دلوقتي، فمينفعش
+        // تتحسب في كروت الإيرادات/التكلفة/المستحق. دي بالظبط نفس شروط حاوية
+        // "بضاعة لسه عند مندوب الشحن" الحمرا تحت — لازم الاتنين متطابقين.
+        const ordersForPnl = (manifest.orders ?? []).filter(o =>
+          !(
+            (o.deliveryStatus === "returned" || o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") &&
+            (o as any).returnReceived !== 1
+          )
+        );
         const deliveredOrders = ordersForPnl.filter(o => o.deliveryStatus === "delivered");
         const partialOrders = ordersForPnl.filter(o => o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered");
         const returnedOrders  = ordersForPnl.filter(o => o.deliveryStatus === "returned");
