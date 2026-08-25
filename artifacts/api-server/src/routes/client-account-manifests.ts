@@ -1210,10 +1210,16 @@ async function rolloverPendingItemsToNewManifest(
   const returnedStillAtShippingToRoll = pendingItemsToRoll.filter(i => i.deliveryStatus === "returned");
 
   const newItems = [
+    // ⚠️ deliveryStatus هنا لازم يفضل نفس حالة البند الأصلية (pending أو delayed)
+    // مش "pending" ثابتة — البند المؤجل (delayed/"مؤجل") المفروض يترحّل لبيانه
+    // الجديد وهو لسه مؤجل، مش يترجع "قيد الانتظار" وكأنه بند جديد لسه محدّش
+    // سجّل نتيجة تسليمه. تصفير الحالة كده كان بيضيع علامة "مؤجل" اللي المندوب
+    // سجّلها بالفعل، ويخلي الأوردر يبان وكأنه أول مرة يتضاف للبيان.
     ...delayedOrPendingToRoll.map(item => ({
       manifestId:     newManifestId,
       shipmentId:     item.shipmentId,
-      deliveryStatus: "pending" as const,
+      deliveryStatus: item.deliveryStatus as "pending" | "delayed",
+      deliveryNote:   item.deliveryNote ?? null,
       addedAt:        now,
     })),
     ...returnedStillAtShippingToRoll.map(item => ({
