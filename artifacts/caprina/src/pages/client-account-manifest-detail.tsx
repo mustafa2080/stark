@@ -5922,12 +5922,22 @@ export default function ShippingManifestPage() {
         // بعد — returnReceived !== 1) ما لهاش حدث مالي حقيقي حصل لحد دلوقتي، فمينفعش
         // تتحسب في كروت الإيرادات/التكلفة/المستحق. دي بالظبط نفس شروط حاوية
         // "بضاعة لسه عند مندوب الشحن" الحمرا تحت — لازم الاتنين متطابقين.
-        const ordersForPnl = (manifest.orders ?? []).filter(o =>
-          !(
+        // ⚠️ استثناء: مرتجع بأحد الأسباب المالية التلاتة (RETURN_REASONS_FINANCIAL:
+        // رفض بعد المعاينة مدفوع/غير مدفوع، أو تهرّب من الاستلام) عنده حدث مالي فعلي
+        // حصل بالفعل (returnValueReceived مسجّل + سعر شحن مستحق) وقت الرفض نفسه — سواء
+        // البضاعة رجعت فعليًا للمخزن أو لسه عند شركة الشحن. استبعاده هنا كان بيخلي
+        // كارت "إجمالي الإيرادات"/"إجمالي تكلفة الشحن" ناقص القيمة دي حتى لو الجدول
+        // التفصيلي (اللي بيلف على manifest.orders كله من غير الفلتر ده) بيعرضها صح.
+        const ordersForPnl = (manifest.orders ?? []).filter(o => {
+          const isPendingAtShippingCompany =
             (o.deliveryStatus === "returned" || o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") &&
-            (o as any).returnReceived !== 1
-          )
-        );
+            (o as any).returnReceived !== 1;
+          if (!isPendingAtShippingCompany) return true;
+          if (o.deliveryStatus === "returned" && RETURN_REASONS_FINANCIAL.includes(String((o as any).returnReason ?? ""))) {
+            return true;
+          }
+          return false;
+        });
         const deliveredOrders = ordersForPnl.filter(o => o.deliveryStatus === "delivered");
         const partialOrders = ordersForPnl.filter(o => o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered");
         const returnedOrders  = ordersForPnl.filter(o => o.deliveryStatus === "returned");
