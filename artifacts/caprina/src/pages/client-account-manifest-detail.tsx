@@ -2756,15 +2756,15 @@ function CloseConfirmDialog({
                 // (refused_paid/refused_unpaid/quality) له حدث مالي فعلي حصل وقت
                 // الرفض نفسه، بغض النظر عن رجوع البضاعة فعليًا للمخزن، فلازم يفضل
                 // محسوب هنا كمان وإلا رقم الديالوج يفضل مختلف عن الكارت.
-                // ⚠️⚠️ استبعاد أول: نفس استبعاد rolledOver المطبّق في ordersForPnl —
-                // البند المُرحّل من بيان قديم مقفول له حدث مالي محسوب بالفعل هناك،
-                // فمينفعش يتحسب تاني هنا وإلا الرقم يبقى مضاعف.
+                // ⚠️⚠️ استبعاد rolledOver: نفس شرط ordersForPnl فوق بالظبط — البند
+                // المُرحّل يتصفّر بس لو لسه معلّق عند شركة الشحن (isPendingAtShippingCompany)،
+                // مش لو حصل له حدث مالي جديد فعلي (تسليم مثلاً) داخل البيان الحالي.
                 const orders = (manifest.orders ?? []).filter(o => {
-                  if ((o as any).rolledOver) return false;
                   const isPendingAtShippingCompany =
                     (o.deliveryStatus === "returned" || o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") &&
                     (o as any).returnReceived !== 1;
                   if (!isPendingAtShippingCompany) return true;
+                  if ((o as any).rolledOver) return false;
                   if (o.deliveryStatus === "returned" && RETURN_REASONS_FINANCIAL_LOCAL.includes(String((o as any).returnReason ?? ""))) {
                     return true;
                   }
@@ -5941,18 +5941,22 @@ export default function ShippingManifestPage() {
         // البضاعة رجعت فعليًا للمخزن أو لسه عند شركة الشحن. استبعاده هنا كان بيخلي
         // كارت "إجمالي الإيرادات"/"إجمالي تكلفة الشحن" ناقص القيمة دي حتى لو الجدول
         // التفصيلي (اللي بيلف على manifest.orders كله من غير الفلتر ده) بيعرضها صح.
-        // ⚠️⚠️ استبعاد أول: البند المُرحّل (rolledOver) من بيان قديم مقفول لازم يفضل
-        // صفر في كل كروت البيان الجديد (الإيرادات/تكلفة الشحن/المستحق/صافي الإيراد
-        // المستحق) لحد ما يحصل فيه حدث مالي جديد فعلي في البيان الجديد نفسه. الحدث
-        // المالي بتاعه الأصلي اتحسب فعلاً في البيان القديم (المقفول) قبل الترحيل —
-        // فحسابه تاني هنا يبقى تكرار مضاعف للرقم. الحاوية الحمرا "بضاعة لسه عند
-        // مندوب الشحن" تحت هي المكان الوحيد اللي المفروض يعرضه، مش الكروت دي.
+        // ⚠️⚠️ استبعاد rolledOver: البند المُرحّل من بيان قديم مقفول لازم يفضل صفر
+        // في كروت البيان الجديد **بس طالما لسه معلّق عند شركة الشحن** (نفس شرط
+        // isPendingAtShippingCompany تحت) — لأن الحدث المالي الأصلي بتاعه اتحسب
+        // في البيان القديم قبل الترحيل، فحسابه تاني هنا يبقى تكرار مضاعف. لكن لو
+        // حصل حدث مالي جديد فعلي داخل البيان الجديد نفسه (تسليم، استلام مرتجع
+        // بقيمة جديدة...) — يعني الشحنة بقى ليها حالة/قيمة مُحدَّثة حقيقية في
+        // البيان الحالي — لازم تتحسب عادي بغض النظر عن flag الـ rolledOver
+        // (اللي بيفضل true دايمًا طالما فيه صف قديم لنفس الشحنة، حتى لو الشحنة
+        // اتسلّمت فعلاً في البيان الجديد). استبعادها هنا مطلقًا كان بيصفّر
+        // شحنات مُسلَّمة فعليًا بقيمة حقيقية (زي محمد 6 هنا).
         const ordersForPnl = (manifest.orders ?? []).filter(o => {
-          if ((o as any).rolledOver) return false;
           const isPendingAtShippingCompany =
             (o.deliveryStatus === "returned" || o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") &&
             (o as any).returnReceived !== 1;
           if (!isPendingAtShippingCompany) return true;
+          if ((o as any).rolledOver) return false;
           if (o.deliveryStatus === "returned" && RETURN_REASONS_FINANCIAL.includes(String((o as any).returnReason ?? ""))) {
             return true;
           }
