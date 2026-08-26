@@ -1290,6 +1290,7 @@ export default function FinanceHub() {
                 {href:"/finance/sales",          label:"أوامر البيع (B2B)", Icon:ShoppingBag, color:"#14b8a6"},
                 {href:"/finance/expenses",       label:"إضافة مصروف",       Icon:Receipt,     color:"#f43f5e"},
                 {href:"/finance/suppliers",      label:"الموردون",          Icon:Building2,   color:"#3b82f6"},
+                {href:"/finance/trip-settlement", label:"تسوية الرحلات والتحصيل", Icon:Truck, color:"#f97316"},
                 {href:"/finance/cash/analytics", label:"تحليلات الخزنة",    Icon:BarChart3,   color:"#10b981"},
               ].map(item => (
                 <Link key={item.href} href={item.href}>

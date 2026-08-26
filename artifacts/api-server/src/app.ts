@@ -423,6 +423,88 @@ async function ensureClientAccountManifestsScheduleColumns() {
 }
 ensureClientAccountManifestsScheduleColumns();
 
+// ─── Ensure trip_settlements (تسوية الرحلات والتحصيل) tables exist ──────────
+async function ensureTripSettlementTables() {
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS trip_settlements (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        tenant_id INT NULL,
+        settlement_number VARCHAR(100) NOT NULL,
+        title VARCHAR(255) NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'open',
+        notes TEXT NULL,
+        previous_settlement_id INT NULL,
+        total_reps_balance DECIMAL(14,2) NULL,
+        total_clients_balance DECIMAL(14,2) NULL,
+        net_balance DECIMAL(14,2) NULL,
+        created_by_user_id INT NULL,
+        created_by_name VARCHAR(255) NULL,
+        closed_by_user_id INT NULL,
+        closed_by_name VARCHAR(255) NULL,
+        created_at DATETIME NOT NULL,
+        closed_at DATETIME NULL,
+        INDEX idx_ts_tenant_status (tenant_id, status)
+      )
+    `);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS trip_settlement_reps (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        settlement_id INT NOT NULL,
+        user_id INT NULL,
+        rep_name VARCHAR(255) NOT NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'active',
+        balance DECIMAL(14,2) NOT NULL DEFAULT 0,
+        notes TEXT NULL,
+        sort_order INT NOT NULL DEFAULT 0,
+        created_at DATETIME NOT NULL,
+        INDEX idx_tsr_settlement (settlement_id)
+      )
+    `);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS trip_settlement_rep_payments (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        rep_row_id INT NOT NULL,
+        method VARCHAR(30) NOT NULL,
+        amount DECIMAL(14,2) NOT NULL,
+        note VARCHAR(255) NULL,
+        created_at DATETIME NOT NULL,
+        INDEX idx_tsrp_rep (rep_row_id)
+      )
+    `);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS trip_settlement_clients (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        settlement_id INT NOT NULL,
+        client_id INT NULL,
+        client_name VARCHAR(255) NOT NULL,
+        alix_amount DECIMAL(14,2) NOT NULL DEFAULT 0,
+        vcash_amount DECIMAL(14,2) NOT NULL DEFAULT 0,
+        cash_amount DECIMAL(14,2) NOT NULL DEFAULT 0,
+        balance DECIMAL(14,2) NOT NULL DEFAULT 0,
+        status VARCHAR(20) NOT NULL DEFAULT 'pending',
+        paid_amount DECIMAL(14,2) NULL,
+        paid_at DATETIME NULL,
+        expense_id INT NULL,
+        client_payment_id INT NULL,
+        notes TEXT NULL,
+        rolled_from_id INT NULL,
+        is_rolled_over TINYINT NOT NULL DEFAULT 0,
+        sort_order INT NOT NULL DEFAULT 0,
+        created_at DATETIME NOT NULL,
+        INDEX idx_tsc_settlement (settlement_id),
+        INDEX idx_tsc_client (client_id)
+      )
+    `);
+    logger.info("trip_settlements tables ensured");
+  } catch (err: any) {
+    if (err?.message && !err.message.includes("Duplicate column")) {
+      logger.error({ err }, "Failed to ensure trip_settlements tables");
+    }
+  }
+}
+ensureTripSettlementTables();
+
 // ─── Ensure client_account_manifests / client_account_manifest_items tables exist ──
 async function ensureClientAccountManifestsTables() {
   try {

@@ -38,6 +38,7 @@ import clientReturnManifestsRouter from "./client-return-manifests";
 import saleOrderManifestsRouter from "./sale-order-manifests";
 import clientAccountProRouter from "./client-account-pro";
 import clientPortalRouter from "./client-portal";
+import tripSettlementsRouter from "./trip-settlements";
 import { requireAuth } from "../middlewares/requireAuth.js";
 import { checkSubscription } from "../middlewares/checkSubscription.js";
 
@@ -88,6 +89,7 @@ router.use(clientAccountManifestsRouter);
 router.use(clientReturnManifestsRouter);
 router.use(saleOrderManifestsRouter);
 router.use(clientAccountProRouter);
+router.use(tripSettlementsRouter);
 router.use(adminTenantsRouter); // /admin/* — requireSuperAdmin is scoped per-route inside admin-tenants.ts
 router.use(notificationsProtectedRouter);
 

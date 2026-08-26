@@ -49,6 +49,9 @@ export * from "./pickup_requests";
 // ─── Notifications ────────────────────────────────────────────────────────────
 export * from "./notifications";
 
+// ─── تسوية الرحلات والتحصيل ───────────────────────────────────────────────────
+export * from "./trip_settlements";
+
 // ─── Client Account Sheet (حساب العميل) ──────────────────────────────────────
 export * from "./client_account_closures";
 export * from "./client_account_periods";

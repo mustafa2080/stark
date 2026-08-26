@@ -109,6 +109,7 @@ export const ALL_PERMISSIONS = {
     { key: "finance.cash",      label: "الخزينة والصندوق",         desc: "إدارة الصندوق النقدي" },
     { key: "finance.suppliers", label: "الموردين والمشتريات",       desc: "حسابات الموردين" },
     { key: "finance.reports",   label: "تقارير الأرباح والخسائر",   desc: "التقارير المالية الشاملة" },
+    { key: "finance.trip_settlement", label: "تسوية الرحلات والتحصيل", desc: "إدارة رحلات المناديب وتحصيل العملاء" },
   ],
   // 7. الفريق والإدارة
   team: [
@@ -156,7 +157,7 @@ const ROLE_DEFAULT_PERMISSIONS: Record<string, string[]> = {
     "inventory.view","inventory.edit","inventory.delete","inventory.cost","inventory.movements","inventory.warehouses",
     "shipping.view","shipping.edit","shipping.financials","shipping.manifests",
     "analytics.view","analytics.financial","analytics.products","analytics.ads","analytics.smart",
-    "finance.view","finance.sales","finance.expenses","finance.cash","finance.suppliers","finance.reports",
+    "finance.view","finance.sales","finance.expenses","finance.cash","finance.suppliers","finance.reports","finance.trip_settlement",
     "team.view","team.performance","team.manage","team.salaries",
     "tools.import","tools.export",
     "settings.brand","settings.users","settings.audit","settings.sessions","settings.whatsapp",
