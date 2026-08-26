@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, and, inArray, count, isNull, or, ne, lt } from "drizzle-orm";
+import { eq, desc, and, inArray, count, isNull, or, ne, lt, gt } from "drizzle-orm";
 import {
   db,
   clientAccountManifestsTable,
@@ -666,23 +666,29 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
     const RETURN_REASONS_WITH_VALUE = new Set(["refused_paid", "refused_unpaid", "quality"]);
 
     // ─── تحديد البنود "المُرحّلة" (rolledOver) ────────────────────────────────
-    // البند اللي نفس شحنته موجودة في بيان أقدم (id أصغر) يبقى نسخة "مُرحّلة"، مش
-    // البند الأصلي. الترحيل (rolloverPendingItemsToNewManifest) بيسيب الأصل في
-    // البيان القديم (المقفول) وبيعمل نسخة جديدة في بيان جديد (id أكبر) — فأي بند
-    // في البيان الحالي نفس شحنته ليها صف في بيان أقدم = نسخة مُرحّلة. الحذف من
-    // البيان (DELETE) بيمسح صف البند الأصلي، فمفيش false positive من إعادة الإضافة.
-    // الفرونت إند بيستخدم الفلاج ده عشان يحط المرتجع المُرحّل في الحاوية الحمرا
-    // «بس» — مش جدول «الشحنات في البيان» (اللي بيعرض المرتجع الأصلي والبيان مفتوح).
+    // إصلاح (كان بيستخدم lt/بيان أقدم غلط — راجع تحقيق محمد 3/محمد 5):
+    // وجود بيان **أقدم** بنفس الشحنة معناه إن السلسلة دي اتُرحّلت قبل كده تاريخيًا،
+    // مش إن البند الحالي نفسه اتجاوَزه حد. شحنة ممكن تترحّل أكتر من مرة (بيان يتقفل
+    // والشحنة لسه معلّقة → نسخة جديدة في بيان أحدث، وتتكرر)، فمعظم الشحنات المُرحّلة
+    // هيكون ليها صفوف في بيانات أقدم كتير — ده لوحده مبيقولش حاجة عن كون البند الحالي
+    // لسه فعّال ولا لأ.
+    // المعيار الصح: البند بيبقى "مُرحّل" (يعني نسخة قديمة اتجاوزتها نسخة أحدث، ولازم
+    // يختفي من جدول «الشحنات في البيان» ويظهر في الحاوية الحمرا بس) لو وبس لو فيه
+    // بيان **أحدث** (id أكبر) بنفس الشحنة. لو مفيش بيان أحدث، يبقى البند ده هو آخر
+    // حلقة في سلسلة الترحيل — النسخة النشطة الوحيدة دلوقتي — ولازم يظهر في الجدول
+    // عادي طالما البيان الحالي مفتوح، بغض النظر عن عدد مرات ترحيله قبل كده.
+    // الحذف من البيان (DELETE) بيمسح صف البند القديم، فمفيش false positive من
+    // إعادة الإضافة.
     const rolledOverShipmentIds = new Set<number>();
     if (shipmentIds.length) {
-      const olderItemRows = await db
+      const newerItemRows = await db
         .select({ shipmentId: clientAccountManifestItemsTable.shipmentId })
         .from(clientAccountManifestItemsTable)
         .where(and(
           inArray(clientAccountManifestItemsTable.shipmentId, shipmentIds),
-          lt(clientAccountManifestItemsTable.manifestId, id), // بيان أقدم من الحالي
+          gt(clientAccountManifestItemsTable.manifestId, id), // بيان أحدث من الحالي = تجاوَز البند ده
         ));
-      olderItemRows.forEach(r => rolledOverShipmentIds.add(r.shipmentId));
+      newerItemRows.forEach(r => rolledOverShipmentIds.add(r.shipmentId));
     }
 
     const enrichedItems = visibleItems.map(item => {
