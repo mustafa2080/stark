@@ -4192,7 +4192,12 @@ export default function ShippingManifestPage() {
         }, 0);
         const shippingCostLocal = shippingCostBaseLocal + repExtraCostTotalLocal;
         const due = deliveredCODLocal - shippingCostLocal;
-        setClosedSummary({ due, returned: manifest.stats?.returned ?? 0 });
+        // عدد "المرتجعات" في المودال لازم يطابق عدد الصفوف في الحاوية الحمرا
+        // "بضاعة لسه عند شركة الشحن" بالظبط (isStillAtShipping) — يشمل مرتجع
+        // كامل + جزئي لسه معاه بضاعة، مش عداد stats.returned اللي بيحسب حالة
+        // "مرتجع" بس وبيتجاهل الجزئي تمامًا.
+        const stillAtShippingCountLocal = (manifest.orders ?? []).filter((o: any) => isStillAtShippingLocal(o)).length;
+        setClosedSummary({ due, returned: stillAtShippingCountLocal });
       }
       refetch();
       setShowCloseDialog(false);
