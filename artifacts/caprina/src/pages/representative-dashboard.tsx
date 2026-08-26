@@ -1764,6 +1764,15 @@ function TaskCard({ task }: { task: any }) {
         </p>
       )}
 
+      {/* ملاحظة الحالة (مؤجل/مرتجع/استلام جزئي...) — كانت متحفظة في الداتابيز
+          صح لكن مش ظاهرة في الكارت خالص، فالمندوب مكنش شايفها تاني بعد الحفظ
+          وحاسس إنها "مش بتتحفظ". */}
+      {task.notes && (
+        <p className="text-[10px] text-amber-300/80 bg-amber-500/10 rounded-lg px-2 py-1">
+          📝 {task.notes}
+        </p>
+      )}
+
       {/* Call + WhatsApp + تقفيل buttons */}
       <div className="flex items-center gap-1.5">
         {task.receiverPhone && (
