@@ -4453,59 +4453,13 @@ export default function ShippingManifestPage() {
   };
 
   // returned: يستبعد بالكامل من حسابات الطباعة دايمًا. partial_delivered/partial_received:
-  // يفضلوا لو مش لسه عند الشحن — بنفس منطق كارت الشاشة بالضبط.
-  const ordersForPnlPrint = (manifest.orders ?? []).filter(o => {
-    // مُرحَّل من بيان قديم مقفول ([ROLLED_OVER]) → مستبعد ماليًا خالص من الطباعة،
-    // زي كارت الرصيد المستحق بالظبط (قيمته اتحسبت في البيان القديم).
-    const isRolledOverPrint = isRolledOverOrder(o);
-    if (o.deliveryStatus === "returned") {
-      if (isRolledOverPrint) return false;
-      const RETURN_REASONS_IN_PNL_PRINT_LOCAL = ["refused_paid", "refused_unpaid", "quality"];
-      if (!RETURN_REASONS_IN_PNL_PRINT_LOCAL.includes((o as any).returnReason)) return false;
-      return !isStillAtShipping(o);
-    }
-    if (o.deliveryStatus === "partial_delivered") return !isRolledOverPrint;
-    if (o.deliveryStatus === "partial_received") {
-      // partial_received أصله دايمًا مُرحَّل — مبيضيفش إيراد حتى بعد تأكيد الاستلام
-      if (isRolledOverPrint) return false;
-      return !isStillAtShipping(o);
-    }
-    return true;
-  });
-  const RETURN_REASONS_IN_PNL_PRINT = ["refused_paid", "refused_unpaid", "quality"];
-  // partial_received: يدخل الحسابات المالية (نسخة الطباعة) بس لو اتأكد استلامه فعليًا في البيان ده نفسه
-  const printDeliveredOrders = ordersForPnlPrint.filter(o => {
-    if (o.deliveryStatus === "delivered" || o.deliveryStatus === "partial_delivered") return true;
-    if (o.deliveryStatus === "partial_received") return (o as any).returnReceived === 1;
-    return false;
-  });
-  // إجمالي الإيرادات = القيمة المستلمة فعليًا (مسلَّم كامل + جزء مُسلَّم/مُستلم + مرتجع بأسباب مالية معتبرة)
-  const totalCollected = printDeliveredOrders.reduce((s, o) => {
-    if (o.deliveryStatus === "partial_delivered" && o.partialQuantity != null) {
-      return s + Number(o.partialQuantity);
-    }
-    if (o.deliveryStatus === "partial_received" && o.partialQuantity != null) {
-      const unitPrice = (o as any).unitPrice != null ? Number((o as any).unitPrice) : (o.quantity > 0 ? Number(o.totalPrice) / Number(o.quantity) : 0);
-      return s + unitPrice * Number(o.partialQuantity);
-    }
-    // مسلَّم بالكامل: القيمة الفعلية المستلمة لو المندوب دخلها (زيادة أو نقص)، وإلا الإجمالي العادي
-    const dvrPrint = (o as any).deliveredValueReceived;
-    return s + (dvrPrint != null ? Number(dvrPrint) : Number(o.totalPrice ?? 0));
-  }, 0) + ordersForPnlPrint
-    .filter(o => o.deliveryStatus === "returned" && RETURN_REASONS_IN_PNL_PRINT.includes((o as any).returnReason))
-    .reduce((s, o) => s + Number((o as any).returnValueReceived ?? 0), 0);
-  // ── تكلفة الشحن (طباعة) — نفس المصدر الموحّد (getShipmentShippingCost) المستخدم
-  // في الكارت وفي حاوية "إجمالي تكلفة الشحن"، مطبَّق على *كل* أوردرات البيان
-  // (مش ordersForPnlPrint المفلترة) عشان تطابق مجموع الصفوف 100% مع أي مندوب.
-  const companyAnyPrint = (rawManifest as any)?.company;
-  const shippingCostOrdersPrint = (manifest.orders ?? []).filter(o => shipmentIncursShippingCost(o as any));
-  const shippingCostPrint = shippingCostOrdersPrint.reduce(
-    (s, o) => s + getShipmentShippingCost(o as any, companyAnyPrint, pnlSettlementZones),
-    0
-  );
-  const repExtraCostTotalPrint = Number((manifest as any)?.stats?.repExtraCostTotal ?? 0);
-  const effectiveShipping = shippingCostPrint + repExtraCostTotalPrint;
-
+  // ⚠️ لازم يفضل مطابق تمامًا لكارت "صافي المستحق للشركة" الظاهر على الشاشة —
+  // المصدر الموحّد الوحيد هو computeManifestNetDue (manifestFinance.ts)، اللي
+  // الباك إند بيرجّعه جاهز في s.walletNetDue / s.walletGrossDue. ممنوع إعادة
+  // حساب الإيرادات/تكلفة الشحن يدويًا هنا تاني — ده كان سبب اختلاف رقم الطباعة
+  // عن رقم الشاشة (نفس الشحنة كانت بتتحسب بمنطق فلترة مختلف في النسختين).
+  const totalCollected = Number((manifest.stats as any)?.walletGrossDue ?? 0);
+  const effectiveShipping = totalCollected - Number((manifest.stats as any)?.walletNetDue ?? 0);
 
   return (
     <>
