@@ -1719,11 +1719,12 @@ router.get("/client-portal/manifests/:id", async (req, res): Promise<void> => {
       .where(eq(clientsTable.id, manifest.clientId));
     const clientType = clientRow?.clientType ?? "normal";
 
-    // ── الحالات اللي لسه معتبرة "لم تستلمها الشركة فعليًا" — بيان العميل ──────
-    // متعرضش شحنات لسه بحالة قيد الانتظار (pending/waiting) أو مؤكدة بس لسه
-    // مش داخلة المخزن (confirmed). البيان يبدأ من "قيد الشحن في المخزن" فصاعدًا.
-    const PRE_WAREHOUSE_STATUSES = ["pending", "waiting", "confirmed"];
-
+    // ⚠️ فيكس: كل الشحنات اللي جوة البيان بتتحسب هنا (بما فيها "قيد الانتظار" =
+    // pending/waiting/confirmed)، عشان الجدول التفصيلي يطابق بالظبط "إجمالي
+    // الأوردرات" في كارت الملخّص/القائمة (GET /client-portal/manifests) — نفس
+    // فيكس الأدمن (/client-account-manifests). قديمًا كان فيه فلتر
+    // PRE_WAREHOUSE_STATUSES بيشيل شحنات pending/waiting/confirmed من الجدول
+    // بس مش من العداد الكلي، فكان يظهر مثلاً "6" في الكارت و"4" بس في الجدول.
     const allItems = await db
       .select()
       .from(clientAccountManifestItemsTable)
@@ -1739,10 +1740,7 @@ router.get("/client-portal/manifests/:id", async (req, res): Promise<void> => {
     const shipmentStatusMap: Record<number, string> = {};
     allShipments.forEach(s => { shipmentStatusMap[s.id] = s.status; });
 
-    const items = allItems.filter(i => {
-      const st = shipmentStatusMap[i.shipmentId];
-      return st != null && !PRE_WAREHOUSE_STATUSES.includes(st);
-    });
+    const items = allItems.filter(i => shipmentStatusMap[i.shipmentId] != null);
 
     const shipmentIds = items.map(i => i.shipmentId);
     const shipmentMap: Record<number, any> = {};
