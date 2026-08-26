@@ -8,6 +8,8 @@ import {
   tripSettlementClientsTable,
   expensesTable,
   clientAccountPaymentsTable,
+  usersTable,
+  clientsTable,
 } from "@workspace/db";
 import { z } from "zod";
 import { requireAuth } from "../middlewares/requireAuth";
@@ -63,6 +65,50 @@ async function recomputeRepBalance(repRowId: number) {
     .where(eq(tripSettlementRepPaymentsTable.repRowId, repRowId));
   await db.update(tripSettlementRepsTable).set({ balance: String(Number(total) || 0) }).where(eq(tripSettlementRepsTable.id, repRowId));
 }
+
+// ─── قائمة المناديب الحقيقيين (role = representative) — للـ Select في الفرونت ─
+router.get("/trip-settlements/reps-list", async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const tenantCond = tenantId !== null ? eq(usersTable.tenantId, tenantId) : undefined;
+    const cond = tenantCond
+      ? and(eq(usersTable.role, "representative"), eq(usersTable.isActive, true), tenantCond)
+      : and(eq(usersTable.role, "representative"), eq(usersTable.isActive, true));
+
+    const reps = await db.select({
+      id: usersTable.id,
+      name: usersTable.displayName,
+      username: usersTable.username,
+    }).from(usersTable).where(cond).orderBy(usersTable.displayName);
+
+    res.json({ reps });
+  } catch (e) {
+    console.error("[GET /trip-settlements/reps-list]", e);
+    res.status(500).json({ error: "خطأ في جلب قائمة المناديب" });
+  }
+});
+
+// ─── قائمة العملاء الحقيقيين — للـ Select في الفرونت ──────────────────────────
+router.get("/trip-settlements/clients-list", async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const tenantCond = tenantId !== null ? eq(clientsTable.tenantId, tenantId) : undefined;
+    const cond = tenantCond
+      ? and(eq(clientsTable.isActive, true), tenantCond)
+      : eq(clientsTable.isActive, true);
+
+    const clients = await db.select({
+      id: clientsTable.id,
+      name: clientsTable.name,
+      phone: clientsTable.phone,
+    }).from(clientsTable).where(cond).orderBy(clientsTable.name);
+
+    res.json({ clients });
+  } catch (e) {
+    console.error("[GET /trip-settlements/clients-list]", e);
+    res.status(500).json({ error: "خطأ في جلب قائمة العملاء" });
+  }
+});
 
 // ─── جلب/فتح البيان الحالي المفتوح (بيتفتح تلقائياً لو مفيش) ─────────────────
 router.get("/trip-settlements/current", async (req, res): Promise<void> => {

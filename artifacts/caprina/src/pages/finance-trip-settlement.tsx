@@ -357,14 +357,14 @@ export default function FinanceTripSettlement() {
       )}
 
       {/* مودال إضافة مندوب */}
-      <AddRepDialog open={addRepOpen} onOpenChange={setAddRepOpen} onSubmit={(b) => addRep.mutate(b)} pending={addRep.isPending} />
+      <AddRepDialog open={addRepOpen} onOpenChange={setAddRepOpen} onSubmit={(b: { repName: string; notes?: string; userId?: number }) => addRep.mutate(b)} pending={addRep.isPending} />
 
       {/* مودال إضافة عميل */}
-      <AddClientDialog open={addClientOpen} onOpenChange={setAddClientOpen} onSubmit={(b) => addClient.mutate(b)} pending={addClient.isPending} />
+      <AddClientDialog open={addClientOpen} onOpenChange={setAddClientOpen} onSubmit={(b: any) => addClient.mutate(b)} pending={addClient.isPending} />
 
       {/* مودال وسيلة دفع للمندوب */}
       <AddPaymentDialog rep={payTarget} onClose={() => setPayTarget(null)}
-        onSubmit={(method, amount, note) => addPayment.mutate({ repId: payTarget!.id, method, amount, note })}
+        onSubmit={(method: string, amount: number, note?: string) => addPayment.mutate({ repId: payTarget!.id, method, amount, note })}
         pending={addPayment.isPending} />
 
       {/* مودال تأكيد سداد الرصيد */}
@@ -421,19 +421,50 @@ export default function FinanceTripSettlement() {
 
 // ─── مودال إضافة مندوب ───────────────────────────────────────────────────────
 function AddRepDialog({ open, onOpenChange, onSubmit, pending }: any) {
-  const [repName, setRepName] = useState("");
+  const [selectedId, setSelectedId] = useState<string>("");
+  const [customName, setCustomName] = useState("");
   const [notes, setNotes] = useState("");
+
+  const { data: repsListData } = useQuery({
+    queryKey: ["trip-settlement-reps-list"],
+    queryFn: () => api.get("/trip-settlements/reps-list"),
+    enabled: open,
+  });
+  const repsList: { id: number; name: string }[] = repsListData?.reps ?? [];
+  const isCustom = selectedId === "custom";
+  const finalName = isCustom ? customName : (repsList.find(r => r.id === Number(selectedId))?.name ?? "");
+
+  function reset() { setSelectedId(""); setCustomName(""); setNotes(""); }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent dir="rtl">
         <DialogHeader><DialogTitle>إضافة مندوب</DialogTitle></DialogHeader>
         <div className="space-y-3 py-2">
-          <Input placeholder="اسم المندوب" value={repName} onChange={e => setRepName(e.target.value)} />
+          <Select value={selectedId} onValueChange={setSelectedId}>
+            <SelectTrigger><SelectValue placeholder="اختر المندوب" /></SelectTrigger>
+            <SelectContent>
+              {repsList.map(r => (
+                <SelectItem key={r.id} value={String(r.id)}>{r.name}</SelectItem>
+              ))}
+              <SelectItem value="custom">اسم آخر (يدوي)...</SelectItem>
+            </SelectContent>
+          </Select>
+          {isCustom && (
+            <Input placeholder="اسم المندوب" value={customName} onChange={e => setCustomName(e.target.value)} />
+          )}
           <Textarea placeholder="ملاحظات (مصاريف فرع / سيارات...)" value={notes} onChange={e => setNotes(e.target.value)} />
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>إلغاء</Button>
-          <Button disabled={!repName.trim() || pending} onClick={() => { onSubmit({ repName, notes }); setRepName(""); setNotes(""); }}>
+          <Button
+            disabled={!finalName.trim() || pending}
+            onClick={() => {
+              const userId = !isCustom && selectedId ? Number(selectedId) : undefined;
+              onSubmit({ repName: finalName, notes, userId });
+              reset();
+            }}
+          >
             إضافة
           </Button>
         </DialogFooter>
@@ -444,21 +475,42 @@ function AddRepDialog({ open, onOpenChange, onSubmit, pending }: any) {
 
 // ─── مودال إضافة عميل ────────────────────────────────────────────────────────
 function AddClientDialog({ open, onOpenChange, onSubmit, pending }: any) {
-  const [clientName, setClientName] = useState("");
+  const [selectedId, setSelectedId] = useState<string>("");
+  const [customName, setCustomName] = useState("");
   const [alix, setAlix] = useState("0");
   const [vcash, setVcash] = useState("0");
   const [cash, setCash] = useState("0");
   const [balance, setBalance] = useState("0");
   const [notes, setNotes] = useState("");
 
-  function reset() { setClientName(""); setAlix("0"); setVcash("0"); setCash("0"); setBalance("0"); setNotes(""); }
+  const { data: clientsListData } = useQuery({
+    queryKey: ["trip-settlement-clients-list"],
+    queryFn: () => api.get("/trip-settlements/clients-list"),
+    enabled: open,
+  });
+  const clientsList: { id: number; name: string }[] = clientsListData?.clients ?? [];
+  const isCustom = selectedId === "custom";
+  const finalName = isCustom ? customName : (clientsList.find(c => c.id === Number(selectedId))?.name ?? "");
+
+  function reset() { setSelectedId(""); setCustomName(""); setAlix("0"); setVcash("0"); setCash("0"); setBalance("0"); setNotes(""); }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent dir="rtl">
         <DialogHeader><DialogTitle>إضافة عميل</DialogTitle></DialogHeader>
         <div className="space-y-3 py-2">
-          <Input placeholder="اسم العميل" value={clientName} onChange={e => setClientName(e.target.value)} />
+          <Select value={selectedId} onValueChange={setSelectedId}>
+            <SelectTrigger><SelectValue placeholder="اختر العميل" /></SelectTrigger>
+            <SelectContent>
+              {clientsList.map(c => (
+                <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+              ))}
+              <SelectItem value="custom">اسم آخر (يدوي)...</SelectItem>
+            </SelectContent>
+          </Select>
+          {isCustom && (
+            <Input placeholder="اسم العميل" value={customName} onChange={e => setCustomName(e.target.value)} />
+          )}
           <div className="grid grid-cols-3 gap-2">
             <Input type="number" placeholder="ALIX" value={alix} onChange={e => setAlix(e.target.value)} />
             <Input type="number" placeholder="V.CASH" value={vcash} onChange={e => setVcash(e.target.value)} />
@@ -470,10 +522,11 @@ function AddClientDialog({ open, onOpenChange, onSubmit, pending }: any) {
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>إلغاء</Button>
           <Button
-            disabled={!clientName.trim() || pending}
+            disabled={!finalName.trim() || pending}
             onClick={() => {
+              const clientId = !isCustom && selectedId ? Number(selectedId) : undefined;
               onSubmit({
-                clientName, alixAmount: Number(alix) || 0, vcashAmount: Number(vcash) || 0,
+                clientId, clientName: finalName, alixAmount: Number(alix) || 0, vcashAmount: Number(vcash) || 0,
                 cashAmount: Number(cash) || 0, balance: Number(balance) || 0, notes,
               });
               reset();
