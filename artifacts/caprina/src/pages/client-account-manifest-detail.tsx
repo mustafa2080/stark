@@ -4517,20 +4517,20 @@ export default function ShippingManifestPage() {
       !isConfirmed && !hasReturnValue;
   };
 
-  // استبعد المرتجع الكامل فقط من جدول الحساب لما يكون لسه عند الشحن أو اتأكد استلامه.
-  // المسلم الجزئي يفضل ظاهر ومحسوب بقيمة الجزء المحصل.
+  // استبعد أي مرتجع (سواء اتأكد استلامه أو لسه عند مندوب الشحن) من جدول الحساب —
+  // المرتجع بكل حالاته مالوش وجود إحصائي/مالي هنا؛ ظهوره الوحيد داخل الحاوية
+  // الحمرا "بضاعة لسه عند مندوب الشحن" تحت الجدول، منفصلة تمامًا عنه وعن الكروت.
   const isReturnConfirmed = (o: typeof manifest.orders[number]) => {
     const rr = (o as any).returnReceived;
     return o.deliveryStatus === "returned" && (rr === 1 || rr === true || rr === "1");
   };
   const ordersExcludingPendingShipping = (manifest.orders ?? []).filter(
-    (o) => !isReturnConfirmed(o)
+    (o) => o.deliveryStatus !== "returned"
   );
 
   // ─── كل العدادات (مسلَّم/مرتجع/جزئي/مؤجل/بانتظار/إجمالي) لازم تطابق صفوف جدول الطلبيات في البيان ───
-  // ملاحظة: الطلبيات المرتجعة اللي لسه عند شركة الشحن (isStillAtShipping) بتفضل محسوبة
-  // ضمن إجمالي البيان (كارت "إجمالي عدد الشحنات") فمن غير المفروض تتشال من هنا برضو —
-  // عشان مجموع كل الكروت والنسب يطابق العدد الكلي الظاهر فوق (manifest.orders.length).
+  // ملاحظة: المرتجع (المؤكد أو اللي لسه عند الشحن) مستبعد تمامًا من هنا ومن
+  // كل الكروت والعدادات تحت — بيظهر بس داخل الحاوية الحمرا المنفصلة.
   const groupedManifestOrders = groupManifestOrders(ordersExcludingPendingShipping);
   const allGroupedOrders = groupedManifestOrders;
   const manifestGroupPriority: Record<string, number> = {
@@ -4661,8 +4661,8 @@ export default function ShippingManifestPage() {
     return shipping + Number((o as any).repExtraCost ?? 0);
   };
 
-  const totalCollected = (manifest.orders ?? []).reduce((sum, o) => sum + getCollectedAmount(o), 0);
-  const effectiveShipping = (manifest.orders ?? []).reduce((sum, o) => sum + getChargeableShipping(o), 0);
+  const totalCollected = ordersExcludingPendingShipping.reduce((sum, o) => sum + getCollectedAmount(o), 0);
+  const effectiveShipping = ordersExcludingPendingShipping.reduce((sum, o) => sum + getChargeableShipping(o), 0);
   // إجمالي المستحق = مجموع "القيمة المستلمة" مباشرة لكل شحنات البيان، بدون طرح تكلفة الشحن.
   const netDue = totalCollected;
   // عدد الطلبيات الجديدة المضافة للبيان ولسه ماتحركتش (قيد الانتظار) — نفس منطق "عدد الأوردرات الجديدة" في نموذج تقفيل الرحلة
