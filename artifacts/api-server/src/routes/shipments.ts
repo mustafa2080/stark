@@ -1003,6 +1003,13 @@ router.put("/shipments/:id", async (req, res): Promise<void> => {
     if (updateData.status !== undefined) {
       await syncShipmentStatusToManifests(id, updateData.status, {
         returnReason: updateData.returnReason,
+        // ⚠️ ملاحظة "مهامي" (سبب التأجيل/الإرجاع اللي المندوب بيكتبه) — كانت
+        // بتتحفظ في shipmentsTable.notes بس من غير ما تتزامن مع deliveryNote في
+        // جدولي البيانات، فبيان المندوب كان بيعرض "لم يحدد السبب" دايمًا لحالة
+        // "مؤجل" رغم كتابة الملاحظة فعليًا. بنمررها هنا بس لو الفرونت بعتها
+        // فعلاً (d.notes !== undefined) عشان منمسحش ملاحظة قديمة بالغلط لو
+        // التحديث ده مالوش علاقة بالملاحظة أصلاً.
+        deliveryNote: d.notes !== undefined ? d.notes : undefined,
         deliveredValueReceived: d.collectedAmount !== undefined ? d.collectedAmount : undefined,
         partialQuantity: d.collectedAmount !== undefined && d.collectedAmount !== null
           ? Math.round(d.collectedAmount)
@@ -1179,6 +1186,13 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
       // زي partialQty بتاع "مهامي")، فبنقرّبها لأقرب رقم صحيح قبل التمرير.
       await syncShipmentStatusToManifests(id, updateData.status, {
         returnReason: updateData.returnReason,
+        // ⚠️ ملاحظة "مهامي" (سبب التأجيل/الإرجاع اللي المندوب بيكتبه) — كانت
+        // بتتحفظ في shipmentsTable.notes بس من غير ما تتزامن مع deliveryNote في
+        // جدولي البيانات، فبيان المندوب كان بيعرض "لم يحدد السبب" دايمًا لحالة
+        // "مؤجل" رغم كتابة الملاحظة فعليًا. بنمررها هنا بس لو الفرونت بعتها
+        // فعلاً (d.notes !== undefined) عشان منمسحش ملاحظة قديمة بالغلط لو
+        // التحديث ده مالوش علاقة بالملاحظة أصلاً.
+        deliveryNote: d.notes !== undefined ? d.notes : undefined,
         deliveredValueReceived: d.collectedAmount !== undefined ? d.collectedAmount : undefined,
         partialQuantity: d.collectedAmount !== undefined && d.collectedAmount !== null
           ? Math.round(d.collectedAmount)

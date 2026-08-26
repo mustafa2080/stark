@@ -61,6 +61,13 @@ export async function syncShipmentStatusToManifests(
     deliveredValueReceived?: number | null;
     partialQuantity?: number | null;
     returnValueReceived?: number | null;
+    // ⚠️ الملاحظة (سبب التأجيل/الإرجاع/إلخ) اللي المندوب بيكتبها من "مهامي"
+    // (PATCH /shipments/:id مع notes) كانت بتتحفظ في shipmentsTable.notes بس،
+    // من غير ما تتنقل لعمود deliveryNote في جدولي البيانات (شركة الشحن/حساب
+    // العميل) — فبيان المندوب (representative-manifest-detail) كان بيعرض
+    // "لم يحدد السبب" دايمًا لحالة "مؤجل" رغم إن المندوب كتب ملاحظة فعلاً،
+    // لأن الصفحة بتقرا order.deliveryNote مش shipment.notes.
+    deliveryNote?: string | null;
   },
 ): Promise<void> {
   const mapped = SHIPMENT_STATUS_TO_DELIVERY[newShipmentStatus];
@@ -72,6 +79,12 @@ export async function syncShipmentStatusToManifests(
   // أي سبب اتسجل قبل كده لو التحديث ده مالوش علاقة بالإرجاع.
   const returnReasonPatch = (mapped === "returned" && options?.returnReason !== undefined)
     ? { returnReason: options.returnReason }
+    : {};
+  // نفس فكرة returnReasonPatch لكن للملاحظة (سبب التأجيل بالذات، أو أي ملاحظة
+  // عامة تانية) — بتتحدث مع أي تغيير حالة عنده ملاحظة مُرسَلة، بغض النظر عن
+  // "مُعيَّنة" (mapped) تحديدًا، عشان تفضل متزامنة مع shipmentsTable.notes.
+  const deliveryNotePatch = options?.deliveryNote !== undefined
+    ? { deliveryNote: options.deliveryNote }
     : {};
   // القيمة الفعلية المستلمة (تقفيل من مهامي المندوب) — بتتنقل لعمود "مستلم" في البيان
   // بس لو الحالة النهائية مسلَّم بالكامل. عمود decimal في القاعدة فبنحوّلها string
@@ -94,6 +107,7 @@ export async function syncShipmentStatusToManifests(
         deliveryStatus: mapped,
         ...(deliveredAt ? { deliveredAt } : {}),
         ...returnReasonPatch,
+        ...deliveryNotePatch,
         ...deliveredValuePatch,
         ...partialQuantityPatch,
         ...returnValuePatch,
@@ -117,6 +131,7 @@ export async function syncShipmentStatusToManifests(
         deliveryStatus: mapped,
         ...(deliveredAt ? { deliveredAt } : {}),
         ...returnReasonPatch,
+        ...deliveryNotePatch,
         ...deliveredValuePatch,
         ...partialQuantityPatch,
         ...returnValuePatch,
