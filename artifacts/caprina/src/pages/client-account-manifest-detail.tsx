@@ -4135,7 +4135,20 @@ export default function ShippingManifestPage() {
       // لأي شحنة اتضافت حديثًا للبيان، حتى لو الشحنة نفسها بقت "قيد الشحن"
       // (in_shipping) فعليًا. الاستبعاد بـ dStatus === "pending" كان بيخفي
       // شحنات in_shipping غلط رغم وصولها للمخزن.
-      if (shipmentStatus === "pending" || shipmentStatus === "waiting") return false;
+      // ملحوظة مهمة (إصلاح): لو البند أصلاً مرتجع/جزئي لسه مش مؤكد الاستلام
+      // (isReturnedOrPartialByDelivery && !isConfirmed) — يبقى هو نفس البند
+      // اللي بيظهر في الحاوية الحمرا تحت (فلترها بيعتمد على deliveryStatus
+      // بس، من غير أي شرط على shipmentStatus). مينفعش نستبعده هنا بسبب
+      // shipmentStatus === "pending"/"waiting"، لأن shipmentsTable.status
+      // ممكن يفضل قديم/غير متزامن (مثلاً لو الباك اند محدّثش الحالة وقت
+      // تسجيل "مرتجع" على بند بيان حساب العميل). لو استبعدناه هنا، هيختفي من
+      // الجدول العادي بينما لسه ظاهر في الحاوية الحمرا تحت — فرق العدد اللي
+      // شفناه (محمد 3 و 5). الشرط ده لازم يفضل قاصر بس على الشحنات اللي مش
+      // مرتجع/جزئي غير مؤكد أصلاً.
+      if (
+        (shipmentStatus === "pending" || shipmentStatus === "waiting") &&
+        !(isReturnedOrPartialByDelivery && !isConfirmed)
+      ) return false;
       return true;
     });
     const groups = groupManifestOrders(ordersWithoutPendingReturns);
