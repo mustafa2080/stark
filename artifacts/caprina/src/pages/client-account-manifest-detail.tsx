@@ -2759,13 +2759,17 @@ function CloseConfirmDialog({
                 // ⚠️⚠️ استبعاد rolledOver: نفس شرط ordersForPnl فوق بالظبط — البند
                 // المُرحّل يتصفّر بس لو لسه معلّق عند شركة الشحن (isPendingAtShippingCompany)،
                 // مش لو حصل له حدث مالي جديد فعلي (تسليم مثلاً) داخل البيان الحالي.
+                // ⚠️ إصلاح: isPendingAtShippingCompany لازم يقتصر على "returned" بس —
+                // بالظبط زي ordersForPnl فوق. partial_received/partial_delivered
+                // مالهاش علاقة برولوفر أصلاً، وكانت بتقع تحت "return false" الافتراضي
+                // وتتشال بالكامل من رقم الديالوج غلط (زي محمد 5)، فيفضل مختلف عن
+                // كارت "إجمالي الإيرادات"/"إجمالي تكلفة الشحن" بعد الإصلاح فوق.
                 const orders = (manifest.orders ?? []).filter(o => {
                   const isPendingAtShippingCompany =
-                    (o.deliveryStatus === "returned" || o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") &&
-                    (o as any).returnReceived !== 1;
+                    o.deliveryStatus === "returned" && (o as any).returnReceived !== 1;
                   if (!isPendingAtShippingCompany) return true;
                   if ((o as any).rolledOver) return false;
-                  if (o.deliveryStatus === "returned" && RETURN_REASONS_FINANCIAL_LOCAL.includes(String((o as any).returnReason ?? ""))) {
+                  if (RETURN_REASONS_FINANCIAL_LOCAL.includes(String((o as any).returnReason ?? ""))) {
                     return true;
                   }
                   return false;
@@ -5965,12 +5969,18 @@ export default function ShippingManifestPage() {
         // اتسلّمت فعلاً في البيان الجديد). استبعادها هنا مطلقًا كان بيصفّر
         // شحنات مُسلَّمة فعليًا بقيمة حقيقية (زي محمد 6 هنا).
         const ordersForPnl = (manifest.orders ?? []).filter(o => {
+          // ⚠️ إصلاح: isPendingAtShippingCompany واستبعاد rolledOver لازم يقتصروا على
+          // "returned" بس. partial_received/partial_delivered مالهاش علاقة برولوفر
+          // أصلاً (الرولوفر بيحصل بس للمرتجع/الجزئي اللي اتقفل بيانه القديم ولسه
+          // مرجعش returnReceived)، وليها قيمة مستلمة وسعر شحن مستحقين فعليًا زي
+          // الجدول التفصيلي (isShippingZeroedRow) وكارت SettlementCard بالظبط.
+          // كانت بتقع تحت "return false" الافتراضي وتتشال بالكامل من كروت
+          // "إجمالي الإيرادات"/"إجمالي تكلفة الشحن" غلط (زي محمد 5 هنا).
           const isPendingAtShippingCompany =
-            (o.deliveryStatus === "returned" || o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") &&
-            (o as any).returnReceived !== 1;
+            o.deliveryStatus === "returned" && (o as any).returnReceived !== 1;
           if (!isPendingAtShippingCompany) return true;
           if ((o as any).rolledOver) return false;
-          if (o.deliveryStatus === "returned" && RETURN_REASONS_FINANCIAL.includes(String((o as any).returnReason ?? ""))) {
+          if (RETURN_REASONS_FINANCIAL.includes(String((o as any).returnReason ?? ""))) {
             return true;
           }
           return false;
