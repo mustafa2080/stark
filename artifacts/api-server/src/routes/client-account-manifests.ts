@@ -679,16 +679,25 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
     // عادي طالما البيان الحالي مفتوح، بغض النظر عن عدد مرات ترحيله قبل كده.
     // الحذف من البيان (DELETE) بيمسح صف البند القديم، فمفيش false positive من
     // إعادة الإضافة.
+    // ⚠️⚠️ إصلاح جوهري: المعيار الصح لـ "مُرحَّل" هو وجود بيان **أقدم** (id أصغر)
+    // بنفس الشحنة — يعني البند الحالي (في البيان الحالي اللي بيتفتح) هو النسخة
+    // اللي وصلت هنا عن طريق الترحيل من بيان أقدم اتقفل. الشرط القديم (gt: بيان
+    // أحدث) كان بيحدد العكس تمامًا — بيعتبر البند في البيان **القديم** نفسه
+    // "مُرحَّل" (لأن فيه بيان أحدث منه)، وبيسيب البند في البيان **الجديد** (اللي
+    // هو فعليًا النسخة المُرحَّلة) rolledOver=false غلط. ده سبب ظهور المرتجع
+    // المُرحَّل في جدول "الشحنات في البيان" بتاع البيان الجديد بدل ما يختفي منه
+    // ويفضل بس في حاوية "بضاعة لسه عند مندوب الشحن"، وسبب عدم تصفير كروت
+    // الإيرادات/تكلفة الشحن/الرصيد المستحق للبيان الجديد.
     const rolledOverShipmentIds = new Set<number>();
     if (shipmentIds.length) {
-      const newerItemRows = await db
+      const olderItemRows = await db
         .select({ shipmentId: clientAccountManifestItemsTable.shipmentId })
         .from(clientAccountManifestItemsTable)
         .where(and(
           inArray(clientAccountManifestItemsTable.shipmentId, shipmentIds),
-          gt(clientAccountManifestItemsTable.manifestId, id), // بيان أحدث من الحالي = تجاوَز البند ده
+          lt(clientAccountManifestItemsTable.manifestId, id), // بيان أقدم من الحالي = البند ده اترحّل منه
         ));
-      newerItemRows.forEach(r => rolledOverShipmentIds.add(r.shipmentId));
+      olderItemRows.forEach(r => rolledOverShipmentIds.add(r.shipmentId));
     }
 
     const enrichedItems = visibleItems.map(item => {
