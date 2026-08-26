@@ -668,7 +668,12 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
     // (pending/delayed/delivered/postponed) يبقى هيتسلّم/هيتحصّل من جديد في البيان ده —
     // فلازم نشيل العلامة (العمود + النص) عشان تسليمه الجديد يتحسب هنا وماتقمعش الإيراد.
     const staysNoOp = body.deliveryStatus === "returned" || body.deliveryStatus === "partial_delivered";
-    let nextDeliveryNote: string | null = body.deliveryNote ?? null;
+    // لو الطلب مبعتش deliveryNote أصلاً (undefined) — زي التحديث السريع لعمود الحالة
+    // في صفحة حساب العميل (client-account-client-page.tsx) اللي بيبعت deliveryStatus
+    // بس من غير أي حقل ملاحظة — لازم نحافظ على الملاحظة القديمة زي ما هي، مش نمسحها
+    // بـ null. المسح المتعمد للملاحظة (حذفها فعليًا) لازم يبقى بإرسال "" صريحة، مش
+    // بعدم إرسال الحقل خالص.
+    let nextDeliveryNote: string | null = body.deliveryNote !== undefined ? (body.deliveryNote ?? null) : existingNote || null;
     if (wasRolledOver) {
       // لو الطلب مابعتش note نحافظ على النوت القديمة (بنصها/سببها)، وإلا ناخد الجديدة.
       const sourceNote = (body.deliveryNote !== undefined ? (body.deliveryNote ?? "") : existingNote) as string;
