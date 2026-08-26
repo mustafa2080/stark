@@ -721,7 +721,11 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
       delayed:   "delayed",
       partial_delivered: "partial_received",
       pending:   "in_transit",
-      postponed: "in_transit",
+      // "مؤجل" (postponed) من خيارات البيان لازم ينعكس فعليًا كـ "delayed" في
+      // shipments.status — كان بيتحول لـ "in_transit" فتختفي الشحنة من أي إحصائية
+      // بتفلتر على status="delayed" (زي كارت "مؤجل" في صفحة العميل التجاري)
+      // رغم إنها فعليًا مؤجلة. postponed و delayed نفس المعنى في جدول الشحنات.
+      postponed: "delayed",
     };
 
     // ربط المخزون: لو الحالة "مرتجع" أو "استلام جزئي" → نفس منطق صفحة الشحنة مباشرة
