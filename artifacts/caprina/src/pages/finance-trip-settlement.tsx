@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/select";
 import {
   Plus, Trash2, Lock, CheckCircle2, Truck, Users, Archive,
-  Wallet, Smartphone, Building2, Banknote, X, AlertTriangle,
+  Wallet, Smartphone, Building2, Banknote, X, AlertTriangle, TrendingDown,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiFetch } from "@/lib/api";
@@ -45,7 +45,7 @@ type ClientRow = {
   id: number; clientId?: number | null; clientName: string;
   alixAmount: string; vcashAmount: string; cashAmount: string; balance: string;
   status: string; paidAmount?: string | null; notes?: string | null;
-  isRolledOver?: number; rolledFromId?: number | null;
+  isRolledOver?: number; rolledFromId?: number | null; negativeStreak?: number;
 };
 type Settlement = {
   id: number; settlementNumber: string; title?: string | null; status: string;
@@ -151,6 +151,18 @@ export default function FinanceTripSettlement() {
 
   const netBalance = Number(settlement?.netBalance ?? 0);
 
+  // ── جاهزية الإغلاق: مناديب مقفولين + عملاء خالص + عملاء لسه معلّقين ──────────
+  const repsClosedCount = reps.filter(r => r.status === "closed").length;
+  const clientsPaidCount = clients.filter(c => c.status === "paid").length;
+  const clientsPendingCount = clients.length - clientsPaidCount;
+  const totalItems = reps.length + clients.length;
+  const closedShare = totalItems > 0 ? repsClosedCount / totalItems : 0;
+  const paidShare = totalItems > 0 ? clientsPaidCount / totalItems : 0;
+  const readyCount = repsClosedCount + clientsPaidCount;
+
+  // ── عملاء متكرري السالب (رصيد سالب رحلتين متتاليتين فأكتر) ───────────────────
+  const repeatNegativeClients = clients.filter(c => c.status === "pending" && (c.negativeStreak ?? 0) >= 2);
+
   return (
     <div className="p-4 md:p-6 space-y-5" dir="rtl">
       {/* هيدر */}
@@ -217,6 +229,25 @@ export default function FinanceTripSettlement() {
         <Card className="p-8 text-center text-muted-foreground">لا يوجد بيان</Card>
       ) : (
         <>
+          {/* شريط جاهزية الإغلاق */}
+          {isOpen && totalItems > 0 && (
+            <Card className="p-3">
+              <div className="flex items-center justify-between text-xs mb-2">
+                <span className="text-muted-foreground">جاهزية الإغلاق</span>
+                <span className="font-bold">{readyCount} من {totalItems} بنود مكتملة</span>
+              </div>
+              <div className="h-2 rounded-full bg-muted overflow-hidden flex">
+                <div className="h-full bg-emerald-500" style={{ width: `${closedShare * 100}%` }} />
+                <div className="h-full bg-amber-500" style={{ width: `${paidShare * 100}%` }} />
+              </div>
+              <div className="flex flex-wrap gap-3 mt-2 text-[11px] text-muted-foreground">
+                <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> {repsClosedCount} مناديب مقفولين</span>
+                <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-amber-500" /> {clientsPaidCount} عملاء خالص</span>
+                <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40" /> {clientsPendingCount} عملاء معلّقين</span>
+              </div>
+            </Card>
+          )}
+
           {/* شريط الإجماليات */}
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             <Card className="p-3 text-center">
@@ -227,13 +258,31 @@ export default function FinanceTripSettlement() {
               <p className="text-[11px] text-muted-foreground mb-1">إجمالي العملاء (معلق)</p>
               <p className="text-lg font-black text-amber-500">{fmt(Number(settlement.totalClientsBalance ?? 0))}</p>
             </Card>
-            <Card className="p-3 text-center col-span-2 md:col-span-1">
+            <Card className={`p-3 text-center col-span-2 md:col-span-1 ${netBalance < 0 ? "bg-rose-500/10 border-rose-500/30" : "bg-emerald-500/10 border-emerald-500/30"}`}>
               <p className="text-[11px] text-muted-foreground mb-1">السالب (الصافي)</p>
               <p className={`text-lg font-black ${netBalance < 0 ? "text-rose-500" : "text-emerald-500"}`}>
                 {fmt(netBalance)}
               </p>
             </Card>
           </div>
+
+          {/* تنبيه العملاء المعلّقين ومتكرري السالب */}
+          {(clientsPendingCount > 0 || repeatNegativeClients.length > 0) && (
+            <div className="flex items-start gap-2 text-xs bg-amber-500/10 border border-amber-500/20 rounded-lg p-3">
+              <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                {clientsPendingCount > 0 && (
+                  <p>فيه {clientsPendingCount} عملاء معلّقين هيترحلوا تلقائيًا للرحلة الجديدة عند الإغلاق.</p>
+                )}
+                {repeatNegativeClients.map(c => (
+                  <p key={c.id} className="flex items-center gap-1.5 text-rose-500">
+                    <TrendingDown className="w-3.5 h-3.5" />
+                    <span className="font-bold">{c.clientName}</span> رصيده سالب {c.negativeStreak} رحلات متتالية — يحتاج متابعة.
+                  </p>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="grid md:grid-cols-2 gap-4">
             {/* عمود المناديب (يسار) */}
@@ -251,31 +300,35 @@ export default function FinanceTripSettlement() {
               <div className="space-y-2">
                 {reps.length === 0 && <p className="text-xs text-muted-foreground text-center py-6">لا يوجد مناديب في هذه الرحلة</p>}
                 {reps.map(rep => (
-                  <div key={rep.id} className="rounded-xl border border-border p-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-sm">{rep.repName}</span>
-                        {rep.status === "closed" && <Badge className="bg-slate-500/15 text-slate-400 text-[10px]">مقفول</Badge>}
+                  <div key={rep.id} className="group rounded-lg border border-border px-3 py-2 hover:border-border/80 transition-colors">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="font-bold text-[13px] truncate">{rep.repName}</span>
+                        {rep.status === "closed" ? (
+                          <Badge className="bg-slate-500/15 text-slate-400 border-slate-500/20 text-[9px] px-1.5 py-0 h-4 shrink-0">مقفول</Badge>
+                        ) : (
+                          <span className="w-1.5 h-1.5 rounded-full bg-blue-500/60 shrink-0" />
+                        )}
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-black text-sm text-blue-500">{fmt(Number(rep.balance))}</span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="font-black text-[13px] text-blue-500 tabular-nums">{fmt(Number(rep.balance))}</span>
                         {isOpen && (
-                          <button onClick={() => deleteRep.mutate(rep.id)} className="text-rose-500/70 hover:text-rose-500">
+                          <button onClick={() => deleteRep.mutate(rep.id)} className="text-rose-500/50 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity">
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         )}
                       </div>
                     </div>
-                    {rep.notes && <p className="text-[11px] text-muted-foreground mt-1">{rep.notes}</p>}
-                    <div className="flex flex-wrap gap-1.5 mt-2">
+                    {rep.notes && <p className="text-[10px] text-muted-foreground mt-0.5 truncate">{rep.notes}</p>}
+                    <div className="flex flex-wrap gap-1 mt-1.5">
                       {rep.payments.map(p => {
                         const m = METHOD_LABELS[p.method] ?? METHOD_LABELS.other;
                         return (
-                          <span key={p.id} className="text-[10px] px-2 py-1 rounded-lg flex items-center gap-1"
-                            style={{ background: `${m.color}15`, border: `1px solid ${m.color}30`, color: m.color }}>
-                            <m.Icon className="w-3 h-3" /> {m.label}: {fmt(Number(p.amount))}
+                          <span key={p.id} className="text-[10px] pr-1.5 pl-1 py-0.5 rounded-md flex items-center gap-1 leading-none"
+                            style={{ background: `${m.color}12`, border: `1px solid ${m.color}25`, color: m.color }}>
+                            <m.Icon className="w-2.5 h-2.5" /> {fmt(Number(p.amount))}
                             {isOpen && (
-                              <X className="w-3 h-3 cursor-pointer opacity-60 hover:opacity-100" onClick={() => deletePayment.mutate(p.id)} />
+                              <X className="w-2.5 h-2.5 cursor-pointer opacity-50 hover:opacity-100" onClick={() => deletePayment.mutate(p.id)} />
                             )}
                           </span>
                         );
@@ -283,7 +336,7 @@ export default function FinanceTripSettlement() {
                       {isOpen && (
                         <button
                           onClick={() => setPayTarget(rep)}
-                          className="text-[10px] px-2 py-1 rounded-lg border border-dashed border-border text-muted-foreground hover:bg-white/5"
+                          className="text-[10px] px-1.5 py-0.5 rounded-md border border-dashed border-border text-muted-foreground hover:bg-white/5 leading-none"
                         >
                           + وسيلة دفع
                         </button>
@@ -311,40 +364,53 @@ export default function FinanceTripSettlement() {
                 {clients.map(c => {
                   const bal = Number(c.balance);
                   return (
-                    <div key={c.id} className="rounded-xl border border-border p-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-sm">{c.clientName}</span>
+                    <div key={c.id} className="group rounded-lg border border-border px-3 py-2 hover:border-border/80 transition-colors">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                          <span className="font-bold text-[13px] truncate">{c.clientName}</span>
                           {!!c.rolledFromId && (
-                            <Badge className="text-[10px] bg-indigo-500/15 text-indigo-400 border-indigo-500/20">مرحّل من رحلة سابقة</Badge>
+                            <Badge className="text-[9px] px-1.5 py-0 h-4 bg-indigo-500/15 text-indigo-400 border-indigo-500/20 shrink-0">مرحّل</Badge>
+                          )}
+                          {(c.negativeStreak ?? 0) >= 2 && (
+                            <Badge className="text-[9px] px-1.5 py-0 h-4 bg-rose-500/15 text-rose-500 border-rose-500/20 flex items-center gap-0.5 shrink-0">
+                              <TrendingDown className="w-2.5 h-2.5" /> {c.negativeStreak}×
+                            </Badge>
                           )}
                         </div>
-                        <div className="flex items-center gap-2">
-                          <span className={`font-black text-sm ${bal < 0 ? "text-rose-500" : "text-emerald-500"}`}>{fmt(bal)}</span>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className={`font-black text-[13px] tabular-nums ${bal < 0 ? "text-rose-500" : "text-emerald-500"}`}>{fmt(bal)}</span>
                           {isOpen && (
-                            <button onClick={() => deleteClient.mutate(c.id)} className="text-rose-500/70 hover:text-rose-500">
+                            <button onClick={() => deleteClient.mutate(c.id)} className="text-rose-500/50 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity">
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           )}
                         </div>
                       </div>
-                      <div className="flex flex-wrap gap-1.5 mt-2 text-[10px] text-muted-foreground">
-                        {Number(c.alixAmount) > 0 && <span>ALIX: {fmt(Number(c.alixAmount))}</span>}
-                        {Number(c.vcashAmount) > 0 && <span>V.CASH: {fmt(Number(c.vcashAmount))}</span>}
-                        {Number(c.cashAmount) > 0 && <span>CASH: {fmt(Number(c.cashAmount))}</span>}
-                      </div>
-                      {c.notes && <p className="text-[11px] text-muted-foreground mt-1">{c.notes}</p>}
-                      <div className="mt-2">
+                      {(Number(c.alixAmount) > 0 || Number(c.vcashAmount) > 0 || Number(c.cashAmount) > 0) && (
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {Number(c.alixAmount) > 0 && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-md leading-none" style={{ background: "#3b82f612", border: "1px solid #3b82f625", color: "#3b82f6" }}>ALIX {fmt(Number(c.alixAmount))}</span>
+                          )}
+                          {Number(c.vcashAmount) > 0 && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-md leading-none" style={{ background: "#e11d4812", border: "1px solid #e11d4825", color: "#e11d48" }}>V.CASH {fmt(Number(c.vcashAmount))}</span>
+                          )}
+                          {Number(c.cashAmount) > 0 && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-md leading-none" style={{ background: "#22c55e12", border: "1px solid #22c55e25", color: "#22c55e" }}>CASH {fmt(Number(c.cashAmount))}</span>
+                          )}
+                        </div>
+                      )}
+                      {c.notes && <p className="text-[10px] text-muted-foreground mt-1 truncate">{c.notes}</p>}
+                      <div className="mt-1.5">
                         {c.status === "paid" ? (
-                          <Badge className="bg-emerald-500/15 text-emerald-500 border-emerald-500/20">
-                            <CheckCircle2 className="w-3 h-3 ml-1" /> خالص
+                          <Badge className="text-[10px] px-1.5 py-0 h-[18px] bg-emerald-500/15 text-emerald-500 border-emerald-500/20">
+                            <CheckCircle2 className="w-2.5 h-2.5 ml-0.5" /> خالص
                           </Badge>
                         ) : isOpen ? (
-                          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setSettleTarget(c)}>
+                          <Button size="sm" variant="outline" className="h-6 text-[11px] px-2" onClick={() => setSettleTarget(c)}>
                             سداد الرصيد
                           </Button>
                         ) : (
-                          <Badge className="bg-amber-500/15 text-amber-500 border-amber-500/20 text-[10px]">معلق</Badge>
+                          <Badge className="text-[10px] px-1.5 py-0 h-[18px] bg-amber-500/15 text-amber-500 border-amber-500/20">معلق</Badge>
                         )}
                       </div>
                     </div>

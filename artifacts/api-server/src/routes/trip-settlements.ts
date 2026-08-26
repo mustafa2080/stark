@@ -58,6 +58,30 @@ async function recomputeSettlementTotals(settlementId: number) {
   return { repsTotal: repsNum, clientsTotal: clientsNum, netBalance: net };
 }
 
+// عدد الرحلات المتتالية (بما فيها الحالية) اللي رصيد نفس العميل فيها سالب على
+// التوالي — بتتبع سلسلة rolled_from_id للخلف. بتوقف أول ما تلاقي رصيد غير سالب
+// أو تخلص السلسلة (مفيش رولوفر أكتر). بتستخدم في تنبيه "عميل متكرر السالب".
+async function getConsecutiveNegativeStreak(clientRow: { id: number; clientId: number | null; balance: string }): Promise<number> {
+  if (!clientRow.clientId || Number(clientRow.balance) >= 0) return 0;
+  let streak = 1;
+  let cursorId: number | null = clientRow.id;
+  for (let i = 0; i < 12; i++) {
+    const [row] = await db.select({
+      rolledFromId: tripSettlementClientsTable.rolledFromId,
+    }).from(tripSettlementClientsTable).where(eq(tripSettlementClientsTable.id, cursorId!));
+    const prevId = row?.rolledFromId ?? null;
+    if (!prevId) break;
+    const [prev] = await db.select({
+      balance: tripSettlementClientsTable.balance,
+      rolledFromId: tripSettlementClientsTable.rolledFromId,
+    }).from(tripSettlementClientsTable).where(eq(tripSettlementClientsTable.id, prevId));
+    if (!prev || Number(prev.balance) >= 0) break;
+    streak++;
+    cursorId = prevId;
+  }
+  return streak;
+}
+
 async function recomputeRepBalance(repRowId: number) {
   const [{ total }] = await db
     .select({ total: sql<string>`COALESCE(SUM(${tripSettlementRepPaymentsTable.amount}),0)` })
@@ -182,7 +206,13 @@ router.get("/trip-settlements/:id", async (req, res): Promise<void> => {
 
     const repsWithPayments = reps.map(r => ({ ...r, payments: payments.filter(p => p.repRowId === r.id) }));
 
-    res.json({ settlement, reps: repsWithPayments, clients });
+    // تنبيه "عميل متكرر السالب": نحسب السلسلة بس للمعلّق وسالب فعلاً — توفير queries.
+    const clientsWithStreak = await Promise.all(clients.map(async c => {
+      const negativeStreak = c.status === "pending" ? await getConsecutiveNegativeStreak(c) : 0;
+      return { ...c, negativeStreak };
+    }));
+
+    res.json({ settlement, reps: repsWithPayments, clients: clientsWithStreak });
   } catch (e) {
     console.error("[GET /trip-settlements/:id]", e);
     res.status(500).json({ error: "خطأ في جلب تفاصيل البيان" });
