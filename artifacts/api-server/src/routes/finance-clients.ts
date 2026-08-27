@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, clientsTable, saleOrdersTable, saleOrderItemsTable, shipmentsTable, warehousesTable, usersTable, clientAccountManifestItemsTable, clientAccountManifestsTable, pickupRequestsTable, shipmentZonesTable } from "@workspace/db";
+import { db, clientsTable, saleOrdersTable, saleOrderItemsTable, shipmentsTable, warehousesTable, usersTable, clientAccountManifestItemsTable, clientAccountManifestsTable, pickupRequestsTable, shipmentZonesTable, shipmentManifestsTable, shipmentManifestItemsTable } from "@workspace/db";
 import { eq, desc, and, sql, or, like, isNull, inArray, notInArray, ne } from "drizzle-orm";
 import { getTenantId } from "../middlewares/requireTenant.js";
 import { hashPassword } from "../lib/auth.js";
@@ -1106,13 +1106,36 @@ router.get("/finance/clients/:id/shipments", async (req, res): Promise<void> => 
       .orderBy(desc(shipmentsTable.createdAt), desc(clientAccountManifestItemsTable.manifestId))
       .limit(400);
 
+    // ✅ "مؤجل" الحقيقي مش عمود فى shipmentsTable.status ولا فى
+    // clientAccountManifestItemsTable.deliveryStatus (ده مفهوش قيمة delayed أصلًا).
+    // التأجيل الفعلي بيتحدد من shipment_manifest_items.deliveryStatus='delayed'
+    // ضمن بيان شحن (shipment_manifests) لسه status='open' — نفس منطق
+    // getOpenManifestDelayedMap() فى client-account-sheet.ts. نجيبه هنا كمان
+    // عشان كارت "مؤجل" فى صفحة العميل التجاري يطابق الواقع.
+    const openManifests = await db
+      .select({ id: shipmentManifestsTable.id })
+      .from(shipmentManifestsTable)
+      .where(eq(shipmentManifestsTable.status, "open"));
+    const openManifestIds = openManifests.map((m: any) => m.id);
+    const delayedShipmentIds = new Set<number>();
+    if (openManifestIds.length > 0) {
+      const delayedLinks = await db
+        .select({ shipmentId: shipmentManifestItemsTable.shipmentId })
+        .from(shipmentManifestItemsTable)
+        .where(and(
+          inArray(shipmentManifestItemsTable.manifestId, openManifestIds),
+          eq(shipmentManifestItemsTable.deliveryStatus, "delayed"),
+        ));
+      for (const l of delayedLinks) delayedShipmentIds.add(l.shipmentId);
+    }
+
     // كل شحنة ممكن تتكرر لو مرتبطة بأكتر من بيان — ناخد أحدث manifestId بس لكل shipment
     const seen = new Set<number>();
     const shipments = [];
     for (const s of rawShipments) {
       if (seen.has(s.id)) continue;
       seen.add(s.id);
-      shipments.push(s);
+      shipments.push({ ...s, isDelayed: delayedShipmentIds.has(s.id) });
       if (shipments.length >= 200) break;
     }
 

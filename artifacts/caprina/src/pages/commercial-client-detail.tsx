@@ -165,6 +165,7 @@ type ClientShipment = {
   manifestDeliveryStatus?: string | null;
   manifestPartialQty?: number | null;
   manifestReturnReceived?: number | null;
+  isDelayed?: boolean;
 };
 
 // ── بطاقة الفاتورة — زي ManifestCard بالظبط ────────────────────────────────
@@ -950,7 +951,7 @@ export default function CommercialClientDetailPage() {
               {" · "}
               {clientShipments.filter(s => ["returned"].includes(s.status)).length} مرتجع
               {" · "}
-              {clientShipments.filter(s => ["delayed", "postponed"].includes(s.status)).length} مؤجل
+              {clientShipments.filter(s => s.isDelayed).length} مؤجل
             </p>
           </Card>
           <Card className="card-glow border-emerald-900/40 p-3 text-center" style={GLOW.emerald.style}>
