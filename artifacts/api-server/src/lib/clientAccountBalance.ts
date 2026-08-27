@@ -20,7 +20,7 @@ import {
 // — لازم يفضلوا متطابقين تمامًا، الرقم الظاهر في كارت "رصيد العميل" بالداشبورد
 // هو المرجع الوحيد الصحيح).
 export async function computeClosedManifestsForClient(clientId: number): Promise<{
-  manifests: { id: number; manifestNumber: string; closedAt: Date | null; createdAt: Date; itemsCount: number; value: number }[];
+  manifests: { id: number; manifestNumber: string; closedAt: Date | null; createdAt: Date; itemsCount: number; value: number; dueValue: number; returnedCount: number }[];
   totalManifestsValue: number;
   payments: { id: number; amount: number; notes: string | null; createdAt: Date; createdByName: string | null }[];
   totalPaid: number;
@@ -35,7 +35,7 @@ export async function computeClosedManifestsForClient(clientId: number): Promise
     ));
 
   const manifestIds = allManifests.map(m => m.id);
-  const manifestResults: { id: number; manifestNumber: string; closedAt: Date | null; createdAt: Date; itemsCount: number; value: number }[] = [];
+  const manifestResults: { id: number; manifestNumber: string; closedAt: Date | null; createdAt: Date; itemsCount: number; value: number; dueValue: number; returnedCount: number }[] = [];
 
   if (manifestIds.length) {
     const items = await db
@@ -121,6 +121,11 @@ export async function computeClosedManifestsForClient(clientId: number): Promise
     // نجمّع قيمة كل بيان على حدة (بدل إجمالي واحد بس) عشان نعرضها كحركة مستقلة في كشف الحساب
     const valueByManifest: Record<number, number> = {};
     const countByManifest: Record<number, number> = {};
+    // ── قيمة "المستحق" فقط لكل بيان (بدون أي أثر مالي للمرتجعات) + عدد المرتجعات ─
+    // المرتجعات بكل أنواعها تُستبعد تمامًا من القيمة المالية للبيان وتُسجَّل كعدد
+    // فقط — لاستخدامها في كشف الحساب (إجمالي المستحق يعكس البيانات المستحقة فقط).
+    const dueValueByManifest: Record<number, number> = {};
+    const returnedCountByManifest: Record<number, number> = {};
 
     for (const item of items) {
       const shipment = shipmentMap[item.shipmentId];
@@ -154,6 +159,12 @@ export async function computeClosedManifestsForClient(clientId: number): Promise
 
       valueByManifest[item.manifestId] = (valueByManifest[item.manifestId] ?? 0) + rowValue;
       countByManifest[item.manifestId] = (countByManifest[item.manifestId] ?? 0) + 1;
+
+      if (st === "returned") {
+        returnedCountByManifest[item.manifestId] = (returnedCountByManifest[item.manifestId] ?? 0) + 1;
+      } else {
+        dueValueByManifest[item.manifestId] = (dueValueByManifest[item.manifestId] ?? 0) + rowValue;
+      }
     }
 
     for (const m of allManifests) {
@@ -164,6 +175,8 @@ export async function computeClosedManifestsForClient(clientId: number): Promise
         createdAt: m.createdAt,
         itemsCount: countByManifest[m.id] ?? 0,
         value: Number((valueByManifest[m.id] ?? 0).toFixed(2)),
+        dueValue: Number((dueValueByManifest[m.id] ?? 0).toFixed(2)),
+        returnedCount: returnedCountByManifest[m.id] ?? 0,
       });
     }
   }

@@ -693,13 +693,18 @@ router.get("/finance/clients/:id/statement", async (req, res): Promise<void> => 
     type Txn = { type: "manifest" | "payment" | "sale_order"; date: Date; label: string; amount: number; direction: "due" | "paid"; refId: number };
     const transactions: Txn[] = [];
 
+    // ── ملاحظة مهمة: المرتجعات لا تُحسب كقيمة مالية في كشف الحساب إطلاقًا ──
+    // نستخدم dueValue (قيمة البيان بعد استبعاد أي أثر مالي للشحنات المرتجعة)
+    // بدل value الكاملة، فـ"إجمالي المستحق" يعكس البيانات المستحقة فقط.
+    // المرتجعات تظهر في نص الحركة كعدد/صنف فقط للعِلم، بدون التأثير على أي رقم.
     for (const m of closedManifests) {
       const d = m.closedAt ?? m.createdAt;
       if (!inRange(d)) continue;
+      const returnsNote = m.returnedCount > 0 ? `، منها ${m.returnedCount} مرتجع` : "";
       transactions.push({
         type: "manifest", date: d, refId: m.id,
-        label: `بيان مرتجعات مغلق ${m.manifestNumber} (${m.itemsCount} شحنة)`,
-        amount: m.value, direction: "due",
+        label: `بيان بيانات مغلق ${m.manifestNumber} (${m.itemsCount} شحنة${returnsNote})`,
+        amount: m.dueValue, direction: "due",
       });
     }
     for (const p of accountPayments) {
@@ -735,7 +740,8 @@ router.get("/finance/clients/:id/statement", async (req, res): Promise<void> => 
       return { ...t, runningBalance: Number(running.toFixed(2)) };
     }).reverse(); // الأحدث أولاً للعرض
 
-    const manifestsTotal = closedManifests.reduce((s, m) => s + m.value, 0);
+    // إجمالي "المستحق" من البيانات المغلقة = مجموع dueValue فقط (بدون المرتجعات)
+    const manifestsTotal = closedManifests.reduce((s, m) => s + m.dueValue, 0);
     const paymentsTotal = accountPayments.reduce((s, p) => s + p.amount, 0);
 
     res.json({
