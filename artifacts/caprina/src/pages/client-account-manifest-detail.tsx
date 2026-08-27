@@ -6055,20 +6055,31 @@ export default function ShippingManifestPage() {
         // بسبب غير مالي) عشان "X شحنة" الظاهرة تحت الكارت تتطابق فعليًا مع عدد
         // الشحنات اللي ساهمت في الرقم، مش كل ordersForPnl.length.
         const shippingCostOrdersCount = ordersForPnl.filter(o => !isShippingZeroedRowLocal(o)).length;
-        // إجمالي المستحق = مجموع "القيمة المستلمة" (getCollectedAmount) لكل شحنات البيان
-        // مباشرة، بدون طرح تكلفة الشحن.
-        const netAmount       = ordersForPnl.reduce((s, o) => s + getCollectedAmount(o), 0);
+        // ─── تبسيط بطلب صريح من المستخدم (2026-08-27) ──────────────────────────
+        // إجمالي الإيرادات = مجموع عمود "القيمة المستلمة" (getCollectedAmount) لكل
+        // شحنات البيان مباشرة من manifest.orders — نفس المصدر والدالة المستخدمين
+        // في عمود "القيمة المستلمة" الظاهر فعليًا بجدول "الشحنات في البيان" (case
+        // "collected" في getGroupVal). بدون فلتر ordersForPnl/rolledOver المعقّد،
+        // عشان الكارت يطابق مجموع العمود الظاهر في الجدول تمامًا دايمًا.
+        const netAmount = (manifest.orders ?? []).reduce((s, o) => s + getCollectedAmount(o), 0);
+        // إجمالي تكلفة الشحن = مجموع عمود "سعر الشحن" (shippingCost) لكل شحنات
+        // البيان مباشرة من manifest.orders — نفس الحقل بالظبط المستخدم في عمود
+        // "سعر الشحن" الظاهر في الجدول (case "shipping" في getGroupVal)، بدون أي
+        // شرط تصفير أو استبدال بـ zoneCost.
+        const displayedShippingCostSimple = (manifest.orders ?? []).reduce(
+          (s, o) => s + Number((o as any).shippingCost ?? 0), 0
+        );
         // إجمالي المستحق بيشمل بس الشحنات اللي فعلاً بتولد مبلغ مستحق:
         // مسلَّم + استلام جزئي + مرتجع بأسباب الشحن الثلاثة (رفض بعد المعاينة
         // مدفوع/غير مدفوع، أو تهرب من المعاينة) — مش كل شحنات البيان.
         const dueOrdersCount = deliveredOrders.length + partialOrders.length + returnedDueOrders.length;
         // الرصيد المستحق (كارت ثابت دايمًا) = إجمالي الإيرادات - إجمالي تكلفة الشحن (شامل إضافات الأنواع)
-        const totalDueFromClient = netAmount - displayedShippingCost;
+        const totalDueFromClient = netAmount - displayedShippingCostSimple;
         // صافي الإيراد المستحق (الحاوية المخفية تحت فقط) = إجمالي سعر الشحن
-        // (displayedShippingCost = shippingCost + repExtraCostTotal، نفس رقم كارت
-        // "إجمالي تكلفة الشحن" فوق) ناقص تكلفة المندوب الحقيقية في الأوردر
-        // (zoneCostTotal = zone_costs.deliveryCost لكل منطقة) — حسب طلب المدير.
-        const netRevenueDue   = displayedShippingCost - zoneCostTotal;
+        // (displayedShippingCostSimple، نفس رقم كارت "إجمالي تكلفة الشحن" فوق)
+        // ناقص تكلفة المندوب الحقيقية في الأوردر (zoneCostTotal = zone_costs.deliveryCost
+        // لكل منطقة) — حسب طلب المدير.
+        const netRevenueDue   = displayedShippingCostSimple - zoneCostTotal;
         const isProfit        = netRevenueDue >= 0;
         return (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 print:hidden">
@@ -6079,7 +6090,7 @@ export default function ShippingManifestPage() {
             </Card>
             <Card className="border-amber-900/40 bg-amber-900/10 p-4">
               <p className="text-xs text-amber-400 mb-1">إجمالي تكلفة الشحن</p>
-              <p className="text-lg font-black text-amber-400">{formatCurrency(displayedShippingCost)}</p>
+              <p className="text-lg font-black text-amber-400">{formatCurrency(displayedShippingCostSimple)}</p>
               <p className="text-[10px] text-muted-foreground mt-0.5">
                 {shippingCostOrdersCount} شحنة
                 {repExtraCostTotal > 0 ? ` · إضافات أنواع: ${formatCurrency(repExtraCostTotal)}` : ""}
@@ -6126,7 +6137,7 @@ export default function ShippingManifestPage() {
                     {formatCurrency(Math.abs(netRevenueDue))}
                   </p>
                   <p className="text-[10px] text-muted-foreground mt-1">
-                    {formatCurrency(displayedShippingCost)} إجمالي سعر الشحن − {formatCurrency(zoneCostTotal)} تكلفة المندوب
+                    {formatCurrency(displayedShippingCostSimple)} إجمالي سعر الشحن − {formatCurrency(zoneCostTotal)} تكلفة المندوب
                   </p>
                 </div>
               )}
