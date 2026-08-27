@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Component, type ReactNode } from "react";
-import { useParams, Link } from "wouter";
+import { useParams, useLocation, Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   shipmentManifestsApi,
@@ -3794,6 +3794,7 @@ function ReturnReceivedButton({
 export default function ShippingManifestPage() {
   const params = useParams();
   const id = Number(params.id);
+  const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { canViewFinancials, isAdmin } = useAuth();
@@ -4233,8 +4234,16 @@ export default function ShippingManifestPage() {
       // ملحوظة: query key الحقيقي بتاع صفحة الشحنات هو "shipments-list" (مش "shipments")
       queryClient.invalidateQueries({ queryKey: ["shipments-list"] });
       queryClient.invalidateQueries({ queryKey: ["shipments-stats"] });
+      setShowDeleteDialog(false);
       toast({ title: "تم الحذف" });
-      window.history.back();
+      // ⚠️ إصلاح جوهري: window.history.back() مش موثوق فيه — لو الصفحة دي
+      // اتفتحت مباشرة (رابط/تحديث/تاب جديد) مفيش حاجة في الـ history تترجعله
+      // المستخدم، فالصفحة تفضل واقفة زي ما هي (البيان اتمسح فعليًا من
+      // الداتابيز، لكن المستخدم مش شايف أي تغيير) وده اللي كان بيخلي
+      // الحذف يحتاج مرتين. الحل: navigation صريح لصفحة قائمة الشحن الرئيسية
+      // (بدل صفحة الشركة تحديدًا، عشان الصفحة دي بتخدم شركات الشحن والمناديب
+      // مع بعض ومفيش فرق موثوق بينهم في الداتا الراجعة من الـ API).
+      setLocation("/shipping");
     },
     onError: () =>
       toast({
