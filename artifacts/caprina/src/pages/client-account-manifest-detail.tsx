@@ -4093,16 +4093,13 @@ export default function ShippingManifestPage() {
   // ─── Search filter — real-time, no popover ────────────────────────────────
   const filteredManifestOrders = useMemo(() => {
     const orders = manifest?.orders ?? [];
-    const isClosed = manifest?.status === "closed";
     // ─── منطق ظهور المرتجع/الجزئي في جدول "الشحنات في البيان" ─────────────────
-    // البيان مفتوح: المرتجع/الجزئي (لسه عند المندوب) يظهر في الجدول وفي الحاوية
-    //   الحمرا مع بعض (عرض مزدوج — خرج من عند المندوب لسه مش مؤكد).
-    // البيان مقفول: المرتجع/الجزئي اللي لسه عند المندوب (غير مؤكد الاستلام)
-    //   يختفي من الجدول تمامًا ويفضل في الحاوية الحمرا بس — الجدول المقفول
-    //   يقتصر على قيد الانتظار/مؤجل. (تحديث بطلب صريح من المستخدم 2026-08-27،
-    //   يلغي القرار القديم اللي كان بيخلي المرتجع الأصلي ظاهر في الجدول حتى
-    //   بعد القفل.)
-    // المسلَّم (delivered) يفضل ظاهر في الجدول بحالة "مسلَّم" في الحالتين.
+    // مفتوح أو مقفول: المرتجع/الجزئي اللي لسه عند المندوب (غير مؤكد الاستلام)
+    //   يختفي من الجدول تمامًا ويفضل في الحاوية الحمرا بس — الجدول يقتصر دايمًا
+    //   على قيد الانتظار/مؤجل. (تحديث بطلب صريح من المستخدم 2026-08-27: الجدول
+    //   العلوي يعرض بس قيد الانتظار ومؤجل، والمرتجع ينزل تحت في حاوية "بضاعة
+    //   لسه عند مندوب الشحن" — بغض النظر عن حالة البيان مفتوح أو مقفول.)
+    // المسلَّم (delivered) يفضل ظاهر في الجدول بحالة "مسلَّم" دايمًا.
     const ordersWithoutPendingReturns = orders.filter(o => {
       const rr = (o as any).returnReceived;
       const isConfirmed = rr === 1 || rr === true;
@@ -4117,13 +4114,13 @@ export default function ShippingManifestPage() {
       // ومش بيظهر في الحاوية الحمرا (فلترها returnReceived !== 1).
       if ((isReturnedOrPartialByDelivery || isReturnedOrPartialByShipment) && isConfirmed) return false;
       // ─── (2) المرتجع/الجزئي اللي لسه عند مندوب الشحن (returnReceived !== 1) ────
-      // بعد قفل البيان: يختفي من الجدول ويفضل في الحاوية الحمرا بس، بغض النظر
-      // عن كونه مُرحّل من بيان أقدم أو لأ — البيان المقفول يعرض بس قيد الانتظار
-      // ومؤجل، والمرتجع/الجزئي غير المستلم يتابعوه من الحاوية الحمرا لحد ما
+      // مفتوح أو مقفول: يختفي من الجدول ويفضل في الحاوية الحمرا بس، بغض النظر
+      // عن كونه مُرحّل من بيان أقدم أو لأ — الجدول يعرض بس قيد الانتظار ومؤجل
+      // دايمًا، والمرتجع/الجزئي غير المستلم يتابعوه من الحاوية الحمرا لحد ما
       // يوصل المخزن ويتأكد استلامه.
       // ملحوظة: الكروت المالية والعدّادات فوق بتقرا من manifest.orders مباشرةً
       // (مش من الجدول)، فالتغيير هنا في العرض بس ومابيأثرش على أي حساب مالي.
-      if (isReturnedOrPartialByDelivery && !isConfirmed && isClosed) return false;
+      if (isReturnedOrPartialByDelivery && !isConfirmed) return false;
       // ─── استبعاد الشحنات اللي حالتها الفعلية لسه "قيد الانتظار" ─────────────
       // (لسه محدش استلمها في المخزن) — البيان يعرض بس اللي وصلت لمرحلة
       // "قيد الشحن في المخزن" فيما فوق. المعيار الصح هو shipmentStatus (حالة
@@ -6057,7 +6054,24 @@ export default function ShippingManifestPage() {
         // في عمود "القيمة المستلمة" الظاهر فعليًا بجدول "الشحنات في البيان" (case
         // "collected" في getGroupVal). بدون فلتر ordersForPnl/rolledOver المعقّد،
         // عشان الكارت يطابق مجموع العمود الظاهر في الجدول تمامًا دايمًا.
-        const netAmount = (manifest.orders ?? []).reduce((s, o) => s + getCollectedAmount(o), 0);
+        // ⚠️⚠️ إصلاح (2026-08-27): البند المُرحّل من بيان قديم مقفول لسه معلَّق عند
+        // شركة الشحن (returned/partial_* و returnReceived !== 1) اتحسب ماليًا أصلاً
+        // في بيانه القديم وقت قفله — فلازم يتصفّر هنا في البيان الجديد المُرحّل
+        // إليه، وإلا هيتحسب مرتين (زي مبلغ الشحن ١٢٥ اللي كان بيظهر غلط بدل صفر).
+        // نفس شرط isPendingAtShippingCompany/rolledOver المستخدم في ordersForPnl
+        // فوق بالظبط — لو حصل حدث مالي جديد فعلي (تسليم) داخل البيان الحالي، الصف
+        // بيتحدّث لحالة تانية غير returned/partial_* المعلّقة، فيتحسب عادي هنا.
+        const isRolledOverPendingAtShipping = (o: ManifestOrder) => {
+          if (!(o as any).rolledOver) return false;
+          if (o.deliveryStatus === "returned" && (o as any).returnReceived !== 1) return true;
+          if (
+            (o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") &&
+            (o as any).returnReceived !== 1
+          ) return true;
+          return false;
+        };
+        const ordersForTopCards = (manifest.orders ?? []).filter(o => !isRolledOverPendingAtShipping(o));
+        const netAmount = ordersForTopCards.reduce((s, o) => s + getCollectedAmount(o), 0);
         // إجمالي تكلفة الشحن = مجموع "سعر الشحن" لكل شحنات البيان بنفس المعادلة
         // المستخدمة فعليًا في عمود "سعر الشحن" الظاهر بالجدول الحي (shippingDisplay
         // في قسم "نظرة العميل" — isShippingZeroedRow ? 0 : getChargeableShipping):
@@ -6074,7 +6088,7 @@ export default function ShippingManifestPage() {
           }
           return false;
         };
-        const displayedShippingCostSimple = (manifest.orders ?? []).reduce(
+        const displayedShippingCostSimple = ordersForTopCards.reduce(
           (s, o) => s + (isShippingZeroedRowCard(o) ? 0 : getChargeableShipping(o)), 0
         );
         // إجمالي المستحق بيشمل بس الشحنات اللي فعلاً بتولد مبلغ مستحق:
