@@ -181,7 +181,12 @@ export async function computeClosedManifestsForClient(clientId: number): Promise
     }
   }
 
-  const totalManifestsValue = manifestResults.reduce((s, m) => s + m.value, 0);
+  // ⚠️ لازم نجمع dueValue مش value: المرتجعات (حتى المالية منها) لا تُحسب كقيمة
+  // مالية في "رصيد العميل" إطلاقًا — نفس بالظبط منطق "إجمالي المستحق" في كشف
+  // الحساب (GET /finance/clients/:id/statement)، عشان الرقمين يفضلوا متطابقين
+  // تمامًا زي ما هو مفروض (تعديل: كان بيجمع value قبل كده وده كان يخليهم يختلفوا
+  // في وجود أي مرتجع بسبب مالي refused_paid/refused_unpaid/quality).
+  const totalManifestsValue = manifestResults.reduce((s, m) => s + m.dueValue, 0);
 
   const paymentRows = await db
     .select()
@@ -349,7 +354,12 @@ export async function computeClientBalancesForAllClients(
         rowValue -= (zoneShippingForItem + repExtraCost);
       }
 
-      result[clientId].totalManifestsValue += rowValue;
+      // ⚠️ نفس منطق dueValue في computeClosedManifestsForClient بالظبط: المرتجعات
+      // (حتى المالية منها) لا تُحسب كقيمة مالية في "رصيد العميل" إطلاقًا — نستبعد
+      // صفوف المرتجعات هنا عشان الرقم يفضل متطابق مع كشف الحساب.
+      if (st !== "returned") {
+        result[clientId].totalManifestsValue += rowValue;
+      }
     }
   }
 
