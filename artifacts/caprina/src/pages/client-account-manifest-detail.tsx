@@ -5358,7 +5358,8 @@ export default function ShippingManifestPage() {
       </div>
 
       {/* ─── حاوية المرتجعات والجزئي لسه عند مندوب الشحن ─── */}
-      {(() => {
+      {/* تم إخفاء هذه الحاوية بناءً على طلب مصطفى — بدون أي تغيير في منطق حساب الحالات */}
+      {false && (() => {
         const pendingReturnOrders = (manifest.orders ?? []).filter(o =>
           (o.deliveryStatus === "returned" || o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") &&
           (o as any).returnReceived !== 1
