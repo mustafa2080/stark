@@ -428,6 +428,13 @@ router.get("/client-account-manifests/balance/:clientId", async (req, res): Prom
 // ─── GET /client-account-manifests/:id ───────────────────────────────────────
 router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
   try {
+    // منع أي كاش (ETag/304) على هذا الـ endpoint — نفس السبب المطبّق على
+    // /client-account-manifests/summary/:clientId فوق: البيانات (حالة الشحنات،
+    // القيم المستلمة، rolledOver) بتتغيّر باستمرار، وكاش الـ 304 كان بيخلي
+    // المتصفح يرجّع نسخة قديمة (مثلاً rolledOver من قبل إصلاح شرط lt/gt) حتى
+    // بعد أي تعديل لاحق في الكود، لأن الـ handler ماكانش بيتنفذ من الأساس.
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+    res.setHeader("Pragma", "no-cache");
     const id = Number(req.params.id);
     const [manifest] = await db.select().from(clientAccountManifestsTable).where(eq(clientAccountManifestsTable.id, id));
     if (!manifest) { res.status(404).json({ error: "البيان غير موجود" }); return; }
