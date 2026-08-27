@@ -6062,12 +6062,24 @@ export default function ShippingManifestPage() {
         // "collected" في getGroupVal). بدون فلتر ordersForPnl/rolledOver المعقّد،
         // عشان الكارت يطابق مجموع العمود الظاهر في الجدول تمامًا دايمًا.
         const netAmount = (manifest.orders ?? []).reduce((s, o) => s + getCollectedAmount(o), 0);
-        // إجمالي تكلفة الشحن = مجموع عمود "سعر الشحن" (shippingCost) لكل شحنات
-        // البيان مباشرة من manifest.orders — نفس الحقل بالظبط المستخدم في عمود
-        // "سعر الشحن" الظاهر في الجدول (case "shipping" في getGroupVal)، بدون أي
-        // شرط تصفير أو استبدال بـ zoneCost.
+        // إجمالي تكلفة الشحن = مجموع "سعر الشحن" لكل شحنات البيان بنفس المعادلة
+        // المستخدمة فعليًا في عمود "سعر الشحن" الظاهر بالجدول الحي (shippingDisplay
+        // في قسم "نظرة العميل" — isShippingZeroedRow ? 0 : getChargeableShipping):
+        // صفر لمؤجل/قيد الانتظار/مرتجع بسبب غير مالي، وإلا getChargeableShipping
+        // (اللي بتستبدل zoneCost بدل shippingCost لحالتي refused_unpaid/quality).
+        // ⚠️ تصحيح عن التعديل السابق: استخدام shippingCost الخام مباشرة كان بيجمع
+        // سعر شحن كامل حتى للمؤجل (الباك اند بيرجّعه كامل لأي حالة غير returned)،
+        // فطلعت النتيجة أعلى من مجموع العمود الظاهر فعليًا في الجدول.
+        const isShippingZeroedRowCard = (o: ManifestOrder) => {
+          const st = o.deliveryStatus;
+          if (st === "postponed" || st === "delayed" || st === "pending") return true;
+          if (st === "returned") {
+            if (!RETURN_REASONS_FINANCIAL.includes(String((o as any).returnReason ?? ""))) return true;
+          }
+          return false;
+        };
         const displayedShippingCostSimple = (manifest.orders ?? []).reduce(
-          (s, o) => s + Number((o as any).shippingCost ?? 0), 0
+          (s, o) => s + (isShippingZeroedRowCard(o) ? 0 : getChargeableShipping(o)), 0
         );
         // إجمالي المستحق بيشمل بس الشحنات اللي فعلاً بتولد مبلغ مستحق:
         // مسلَّم + استلام جزئي + مرتجع بأسباب الشحن الثلاثة (رفض بعد المعاينة
