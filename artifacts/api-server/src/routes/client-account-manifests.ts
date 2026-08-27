@@ -695,11 +695,24 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
     // المُرحَّل في جدول "الشحنات في البيان" بتاع البيان الجديد بدل ما يختفي منه
     // ويفضل بس في حاوية "بضاعة لسه عند مندوب الشحن"، وسبب عدم تصفير كروت
     // الإيرادات/تكلفة الشحن/الرصيد المستحق للبيان الجديد.
+    // ⚠️⚠️ إصلاح جوهري تاني (2026-08-27): لازم نتأكد إن البيان الأقدم (manifest_id
+    // الأصغر) موجود فعليًا في client_account_manifests، مش بس إن فيه صف قديم في
+    // client_account_manifest_items. لو بيان قديم اتمسح (DELETE) من الجدول
+    // الأساسي بدون CASCADE على الجدول الفرعي، بتفضل صفوف "يتيمة" (orphaned) في
+    // client_account_manifest_items بنفس shipment_id — والاستعلام القديم (lt
+    // بدون JOIN) كان بيعتبر أي شحنة ليها صف يتيم بـ manifest_id أصغر "مُرحّلة"
+    // غلط، حتى لو البيان الأصلي ده اتمسح تمامًا ومالوش أي وجود، فكانت كل شحنات
+    // البيان الحالي بترجع rolledOver=true غلط والكروت/المودال يطلعوا بأرقام
+    // ناقصة عن الظاهر فعليًا في الجدول.
     const rolledOverShipmentIds = new Set<number>();
     if (shipmentIds.length) {
       const olderItemRows = await db
         .select({ shipmentId: clientAccountManifestItemsTable.shipmentId })
         .from(clientAccountManifestItemsTable)
+        .innerJoin(
+          clientAccountManifestsTable,
+          eq(clientAccountManifestItemsTable.manifestId, clientAccountManifestsTable.id)
+        )
         .where(and(
           inArray(clientAccountManifestItemsTable.shipmentId, shipmentIds),
           lt(clientAccountManifestItemsTable.manifestId, id), // بيان أقدم من الحالي = البند ده اترحّل منه
