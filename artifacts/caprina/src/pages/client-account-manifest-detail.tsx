@@ -3995,7 +3995,6 @@ export default function ShippingManifestPage() {
     if (!rawManifest) return undefined;
     const orders: ManifestOrder[] = (rawManifest.items ?? []).map((item) => {
       const sh = item.shipment;
-      console.log("[adapter debug] item keys:", Object.keys(item as any), "totalPrice:", (item as any).totalPrice, "sh:", sh ? {codAmount: sh.codAmount} : null);
       // نقرأ من الـ enriched fields اللي الـ backend بيبعتها مباشرة على الـ item
       const codAmt = (item as any).totalPrice != null
         ? Number((item as any).totalPrice)
@@ -4013,9 +4012,6 @@ export default function ShippingManifestPage() {
         : sh && Number((sh as any).collectedAmount ?? 0) > 0
           ? Number((sh as any).collectedAmount)
           : null;
-      if (item.deliveryStatus === "partial_delivered" || item.deliveryStatus === "partial_received") {
-        console.log("[DEBUG-PARTIAL]", item.shipmentId, "status:", item.deliveryStatus, "item.partialQuantity:", item.partialQuantity, "sh.collectedAmount:", (sh as any)?.collectedAmount, "sh.codAmount:", (sh as any)?.codAmount, "partialAmount(final):", partialAmount);
-      }
       return {
         id: item.shipmentId,
         manifestOrderId: item.id,
