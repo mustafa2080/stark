@@ -127,6 +127,22 @@ export async function computeClosedManifestsForClient(clientId: number): Promise
     const dueValueByManifest: Record<number, number> = {};
     const returnedCountByManifest: Record<number, number> = {};
 
+    // ⚠️⚠️ إصلاح (2026-08-28): "المستحق" (dueValue) لازم يطابق بالظبط منطق كارتي
+    // "إجمالي الإيرادات"/"إجمالي تكلفة الشحن" في صفحة تفاصيل البيان (client-account
+    // -manifest-detail.tsx) — مسلَّم + مرتجع بأحد الأسباب المالية الثلاثة فقط، مع
+    // استبعاد أي بند "مُرحّل" (rolledOver) لسه معلّق عند شركة الشحن (اتحسب فعليًا
+    // في بيانه القديم وقت قفله). قبل كده كان بيحسب أي حالة غير returned (بما فيها
+    // جزئي/مؤجل/قيد انتظار) كمستحق، وده كان يخلي "رصيد العميل"/كشف الحساب يختلفوا
+    // عن "الرصيد المستحق" الظاهر في صفحة البيان الفردي. مصدر الحقيقة لـ rolledOver
+    // هنا (بدون عمود DB): أقدم manifestId لنفس الشحنة ضمن كل بيانات العميل المقفولة.
+    const minManifestIdByShipment: Record<number, number> = {};
+    for (const item of items) {
+      const cur = minManifestIdByShipment[item.shipmentId];
+      if (cur === undefined || item.manifestId < cur) minManifestIdByShipment[item.shipmentId] = item.manifestId;
+    }
+    const isRolledOverItem = (item: typeof items[number]) =>
+      minManifestIdByShipment[item.shipmentId] < item.manifestId;
+
     for (const item of items) {
       const shipment = shipmentMap[item.shipmentId];
       if (!shipment) continue;
@@ -162,7 +178,11 @@ export async function computeClosedManifestsForClient(clientId: number): Promise
 
       if (st === "returned") {
         returnedCountByManifest[item.manifestId] = (returnedCountByManifest[item.manifestId] ?? 0) + 1;
-      } else {
+      }
+
+      const isRolledOverPending = isRolledOverItem(item) && st === "returned" && (item as any).returnReceived !== 1;
+      const isDueEligible = !isRolledOverPending && (st === "delivered" || isReturnedWithValue);
+      if (isDueEligible) {
         dueValueByManifest[item.manifestId] = (dueValueByManifest[item.manifestId] ?? 0) + rowValue;
       }
     }
@@ -320,6 +340,17 @@ export async function computeClientBalancesForAllClients(
       return false;
     };
 
+    // ⚠️⚠️ إصلاح (2026-08-28): نفس إصلاح computeClosedManifestsForClient بالظبط —
+    // مصدر الحقيقة لـ rolledOver هنا (بدون عمود DB): أقدم manifestId لنفس الشحنة
+    // ضمن كل البيانات المقفولة المحمّلة (لكل العملاء دفعة واحدة).
+    const minManifestIdByShipmentAll: Record<number, number> = {};
+    for (const item of items) {
+      const cur = minManifestIdByShipmentAll[item.shipmentId];
+      if (cur === undefined || item.manifestId < cur) minManifestIdByShipmentAll[item.shipmentId] = item.manifestId;
+    }
+    const isRolledOverItemAll = (item: typeof items[number]) =>
+      minManifestIdByShipmentAll[item.shipmentId] < item.manifestId;
+
     for (const item of items) {
       const shipment = shipmentMap[item.shipmentId];
       if (!shipment) continue;
@@ -354,10 +385,13 @@ export async function computeClientBalancesForAllClients(
         rowValue -= (zoneShippingForItem + repExtraCost);
       }
 
-      // ⚠️ نفس منطق dueValue في computeClosedManifestsForClient بالظبط: المرتجعات
-      // (حتى المالية منها) لا تُحسب كقيمة مالية في "رصيد العميل" إطلاقًا — نستبعد
-      // صفوف المرتجعات هنا عشان الرقم يفضل متطابق مع كشف الحساب.
-      if (st !== "returned") {
+      // ⚠️ نفس منطق dueValue في computeClosedManifestsForClient بالظبط (إصلاح
+      // 2026-08-28): مسلَّم + مرتجع بأحد الأسباب المالية الثلاثة فقط، مع استبعاد
+      // أي بند "مُرحّل" لسه معلّق عند شركة الشحن — عشان يفضل متطابق مع الرصيد
+      // المستحق الظاهر في صفحة تفاصيل البيان وكشف الحساب.
+      const isRolledOverPendingAll = isRolledOverItemAll(item) && st === "returned" && (item as any).returnReceived !== 1;
+      const isDueEligibleAll = !isRolledOverPendingAll && (st === "delivered" || isReturnedWithValue);
+      if (isDueEligibleAll) {
         result[clientId].totalManifestsValue += rowValue;
       }
     }
