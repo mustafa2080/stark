@@ -2088,9 +2088,13 @@ router.get("/client-portal/returns", async (req, res): Promise<void> => {
       // الشحنات المحذوفة (soft-deleted) مش موجودة في shipmentMap — نستبعد بنودها
       // عشان ما تظهرش في قائمة المرتجعات/المشاكل بالبورتال.
       .filter(i => shipmentMap[i.shipmentId])
-      // partial_delivered/partial_received لسه في الشحن فقط (اللي اتأكد
-      // استلامها بالكامل بالفعل مستبعدة — returnReceived === 1)
-      .filter(i => (i.deliveryStatus !== "partial_delivered" && i.deliveryStatus !== "partial_received") || i.returnReceived !== 1)
+      // ⚠️ تصحيح (2026-08-28، ٣): كان فيه فلتر هنا بيستبعد أي صف
+      // partial_delivered/partial_received لما returnReceived === 1 بحجة إنه
+      // "اتأكد استلامه فخلص". ده غلط: returnReceived === 1 هو بالظبط اللي
+      // بيحوّل الصف لتاب "تم الاستلام" فى الفرونت (الفرونت بيعمل split على
+      // returnReceived === 1 مش بيستبعد حاجة) — فالفلتر القديم كان بيشيل
+      // الصف من الـ result كله بدل ما يسيبه يترحّل لتاب "تم الاستلام"،
+      // فشحنات زي دي كانت بتختفي تمامًا من صفحة المرتجعات فى بوابة العميل.
       .map(item => {
         const sh = shipmentMap[item.shipmentId] ?? null;
         return {
@@ -2116,26 +2120,6 @@ router.get("/client-portal/returns", async (req, res): Promise<void> => {
   } catch (e) {
     console.error("[GET /client-portal/returns]", e);
     res.status(500).json({ error: "خطأ في جلب المرتجعات" });
-  }
-});
-
-// ─── TEMP DEBUG — هيتشال بعد التشخيص ───────────────────────────────────────
-router.get("/client-portal/returns/_debug", async (req, res): Promise<void> => {
-  try {
-    const user = (req as any).user;
-    if (!user.clientId) { res.json([]); return; }
-    const shipNum = String(req.query.sh || "");
-    const sh = await db.select().from(shipmentsTable).where(eq(shipmentsTable.shipmentNumber, shipNum));
-    if (!sh.length) { res.json({ error: "shipment not found", shipNum }); return; }
-    const shipmentId = sh[0].id;
-    const rows = await db.select().from(clientAccountManifestItemsTable).where(eq(clientAccountManifestItemsTable.shipmentId, shipmentId));
-    const manifestIds = [...new Set(rows.map(r => r.manifestId))];
-    const manifestsInfo = manifestIds.length
-      ? await db.select().from(clientAccountManifestsTable).where(inArray(clientAccountManifestsTable.id, manifestIds))
-      : [];
-    res.json({ shipmentId, deletedAt: sh[0].deletedAt, myClientId: user.clientId, rows, manifestsInfo });
-  } catch (e: any) {
-    res.status(500).json({ error: String(e) });
   }
 });
 
