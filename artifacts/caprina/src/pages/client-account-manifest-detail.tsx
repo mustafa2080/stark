@@ -6061,7 +6061,18 @@ export default function ShippingManifestPage() {
         // أي حالة تانية (partial_received/partial_delivered/postponed/delayed/pending
         // أو مرتجع بسبب غير مالي) تُستبعد بالكامل من الكارتين، حتى لو ليها قيمة
         // مستلمة أو سعر شحن مسجّل — مش من ضمن الحالات الثلاثة المطلوبة.
+        // ⚠️⚠️ إصلاح (2026-08-28): البند المُرحّل من بيان قديم مقفول (rolledOver)
+        // ولسه معلّق عند شركة الشحن (returned و returnReceived !== 1، أو delayed/
+        // postponed/pending أصلاً مش من الحالتين فوق) اتحسب ماليًا بالفعل في بيانه
+        // القديم وقت قفله — فلازم يفضل صفر بالكامل هنا في البيان الجديد المُرحّل
+        // إليه، وإلا هيتحسب مرتين. لو حصل حدث مالي جديد فعلي (تسليم) داخل البيان
+        // الحالي، الصف بيتحدّث لحالة تانية غير المعلّقة، فيتحسب عادي زي أي بند تاني.
+        const isRolledOverPendingAtShippingTop = (o: ManifestOrder) => {
+          if (!(o as any).rolledOver) return false;
+          return o.deliveryStatus === "returned" && (o as any).returnReceived !== 1;
+        };
         const ordersForTopCards = (manifest.orders ?? []).filter(o => {
+          if (isRolledOverPendingAtShippingTop(o)) return false;
           if (o.deliveryStatus === "delivered") return true;
           if (o.deliveryStatus === "returned") {
             return RETURN_REASONS_FINANCIAL.includes(String((o as any).returnReason ?? ""));
