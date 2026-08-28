@@ -609,22 +609,45 @@ export default function ClientManifestViewPage() {
   const returnedDueItems = returnedItems.filter((i) =>
     RETURN_REASONS_FINANCIAL.includes(String(i.returnReason ?? ""))
   );
-  const netAmount = items.reduce((s, i) => s + getCollectedAmount(i), 0);
-  const shippingCost = items.reduce((s, i) => s + getChargeableShipping(i), 0);
-  const repExtraCostTotal = items.reduce(
+  // ⚠️ نفس استبعاد rolledOver المعلّق عند شركة الشحن المطبّق تحت على كارت
+  // "الرصيد المستحق" — لازم يتطبّق هنا كمان على كارتي "إجمالي الإيرادات" و
+  // "إجمالي تكلفة الشحن"، وإلا البند اللي اتحسب فعليًا في بيانه القديم المقفول
+  // هيتحسب مرتين هنا كمان (نفس الباج اللي اتصلح فى client-account-manifest-detail.tsx).
+  const rolledOverPendingItems = items.filter(
+    (i) => (i as any).rolledOver && i.deliveryStatus === "returned" && (i as any).returnReceived !== 1
+  );
+  const itemsForTopCards = items.filter((i) => !rolledOverPendingItems.includes(i));
+  const netAmount = itemsForTopCards.reduce((s, i) => s + getCollectedAmount(i), 0);
+  const shippingCost = itemsForTopCards.reduce((s, i) => s + getChargeableShipping(i), 0);
+  const repExtraCostTotal = itemsForTopCards.reduce(
     (s, i) => s + (isShippingZeroedRow(i) ? 0 : Number(i.repExtraCost ?? 0)),
     0
   );
-  // ⚠️ الرصيد المستحق لازم يستبعد المرتجعات بالكامل (حتى المالية منها زي
-  // refused_paid/refused_unpaid/quality) من القيمة المالية تمامًا — نفس بالظبط
-  // منطق dueValue فى computeClosedManifestsForClient (الباك إند، المرجع الوحيد
-  // الصحيح لكارت "رصيد العميل" وكشف الحساب فى صفحة الأدمن). المرتجعات لسه
-  // بتتعرض كعدد شحنات (returnedDueItems/dueOrdersCount) من غير أي أثر مالي هنا.
-  const totalDueFromClient = items.reduce((s, i) => {
-    if (i.deliveryStatus === "returned") return s;
-    return s + getCollectedAmount(i) - getChargeableShipping(i);
-  }, 0);
-  const dueOrdersCount = deliveredItems.length + partialItems.length + returnedDueItems.length;
+  // ⚠️ الرصيد المستحق لازم يطابق بالظبط منطق totalDueFromClient فى صفحة الأدمن
+  // (client-account-manifest-detail.tsx) والباك إند (computeClosedManifestsForClient):
+  // 1) استبعاد أي بند rolledOver لسه معلّق عند شركة الشحن (returned و
+  //    returnReceived !== 1) تمامًا — ده اتحسب فعليًا فى بيانه القديم المقفول
+  //    وقت قفله، فلو اتحسب تاني هنا هيتكرر.
+  // 2) الأهلية المالية = مسلَّم فقط، أو مرتجع بسبب مالى من الثلاثة
+  //    (refused_paid/refused_unpaid/quality) — أي حالة تانية (جزئي/مؤجل/معلّق/
+  //    مرتجع بسبب غير مالي) تُستبعد بالكامل من الرقم، حتى لو ليها قيمة مستلمة.
+  const isRolledOverPendingAtShippingTop = (i: ManifestItem) => {
+    if (!(i as any).rolledOver) return false;
+    return i.deliveryStatus === "returned" && (i as any).returnReceived !== 1;
+  };
+  const itemsForDueCard = items.filter((i) => {
+    if (isRolledOverPendingAtShippingTop(i)) return false;
+    if (i.deliveryStatus === "delivered") return true;
+    if (i.deliveryStatus === "returned") {
+      return RETURN_REASONS_FINANCIAL.includes(String(i.returnReason ?? ""));
+    }
+    return false;
+  });
+  const totalDueFromClient = itemsForDueCard.reduce(
+    (s, i) => s + getCollectedAmount(i) - getChargeableShipping(i),
+    0
+  );
+  const dueOrdersCount = itemsForDueCard.length;
 
   return (
     <div className="flex flex-col gap-4 max-w-5xl mx-auto p-4" dir="rtl">
@@ -949,7 +972,7 @@ export default function ClientManifestViewPage() {
               اللي مش عمود منفصل ظاهر هناك — الإضافة دي بتتعرض كملاحظة فرعية فقط. */}
           <p className="text-lg font-black text-amber-400">{formatCurrency(shippingCost)}</p>
           <p className="text-[10px] text-muted-foreground mt-0.5">
-            {items.length} شحنة
+            {itemsForTopCards.length} شحنة
             {repExtraCostTotal > 0 ? ` · إضافات أنواع: ${formatCurrency(repExtraCostTotal)}` : ""}
           </p>
         </div>
