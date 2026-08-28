@@ -108,6 +108,62 @@ export async function computeClosedManifestsForClient(clientId: number): Promise
         });
     }
 
+    // ── تكلفة المندوب الحقيقية (zone_costs.deliveryCost أو سعر شركة الشحن الثابت
+    // حسب costMode) — نفس منطق getZoneCost في GET /client-account-manifests/:id
+    // بالظبط. لازمة عشان مرتجع "رفض ولم يدفع"/"تهرب من الاستلام" بيتحمّل تكلفة
+    // المندوب الفعلية بدل سعر الشحن العادي على العميل (useRepCost بالفرونت).
+    let shipmentToCompanyId: Record<number, number> = {};
+    if (shipmentIds.length) {
+      const manifestLinkRows = await db
+        .select({
+          shipmentId: shipmentManifestItemsTable.shipmentId,
+          addedAt: shipmentManifestItemsTable.addedAt,
+          companyId: shippingManifestsTable.shippingCompanyId,
+        })
+        .from(shipmentManifestItemsTable)
+        .innerJoin(shippingManifestsTable, eq(shipmentManifestItemsTable.manifestId, shippingManifestsTable.id))
+        .where(and(
+          inArray(shipmentManifestItemsTable.shipmentId, shipmentIds),
+          isNull(shippingManifestsTable.clientId),
+        ));
+      manifestLinkRows
+        .filter(r => r.companyId != null)
+        .sort((a, b) => new Date(a.addedAt).getTime() - new Date(b.addedAt).getTime())
+        .forEach(row => { shipmentToCompanyId[row.shipmentId] = row.companyId as number; });
+    }
+    const shipmentCompanyIds = [...new Set([
+      ...shipments.map(s => s.shippingCompanyId).filter((v): v is number => !!v),
+      ...Object.values(shipmentToCompanyId),
+    ])];
+    let companyCostModeMap: Record<number, { costMode: string; shippingCost: number }> = {};
+    if (shipmentCompanyIds.length) {
+      const companyRows = await db.select({
+        id: shippingCompaniesTable.id,
+        costMode: shippingCompaniesTable.costMode,
+        shippingCost: shippingCompaniesTable.shippingCost,
+      }).from(shippingCompaniesTable).where(inArray(shippingCompaniesTable.id, shipmentCompanyIds));
+      companyCostModeMap = Object.fromEntries(companyRows.map(c => [c.id, {
+        costMode: c.costMode === "zone" ? "zone" : "rep",
+        shippingCost: Math.abs(Number(c.shippingCost ?? 0)),
+      }]));
+    }
+    let zoneCostMap: Record<number, number> = {};
+    if (zoneIds.length) {
+      const zoneCostRows = await db.select().from(zoneCostsTable).where(inArray(zoneCostsTable.zoneId, zoneIds));
+      zoneCostMap = Object.fromEntries(zoneCostRows.map(z => [z.zoneId as number, Number(z.deliveryCost) || 0]));
+    }
+    const getZoneCost = (shipment: any) => {
+      if (!shipment) return 0;
+      const companyId = shipment.shippingCompanyId ?? shipmentToCompanyId[shipment.id];
+      const company = companyId ? companyCostModeMap[companyId] : null;
+      if (company) {
+        return company.costMode === "zone"
+          ? (shipment.zoneId != null ? (zoneCostMap[shipment.zoneId] ?? 0) : 0)
+          : company.shippingCost;
+      }
+      return shipment.zoneId != null ? (zoneCostMap[shipment.zoneId] ?? 0) : 0;
+    };
+
     const RETURN_REASONS_FINANCIAL = new Set(["refused_paid", "refused_unpaid", "quality"]);
     const isShippingZeroedRow = (item: any, st: string, shipment: any) => {
       if (st === "postponed" || st === "delayed" || st === "pending") return true;
@@ -168,9 +224,10 @@ export async function computeClosedManifestsForClient(clientId: number): Promise
       }
 
       let rowValue = collected;
+      let repExtraCostForItem = 0;
       if (!isShippingZeroedRow(item, st, shipment)) {
-        const repExtraCost = (zoneShippingForItem > 0 && shipment.parcelType) ? (parcelBasePriceMap[shipment.parcelType] ?? 0) : 0;
-        rowValue -= (zoneShippingForItem + repExtraCost);
+        repExtraCostForItem = (zoneShippingForItem > 0 && shipment.parcelType) ? (parcelBasePriceMap[shipment.parcelType] ?? 0) : 0;
+        rowValue -= (zoneShippingForItem + repExtraCostForItem);
       }
 
       valueByManifest[item.manifestId] = (valueByManifest[item.manifestId] ?? 0) + rowValue;
@@ -180,10 +237,18 @@ export async function computeClosedManifestsForClient(clientId: number): Promise
         returnedCountByManifest[item.manifestId] = (returnedCountByManifest[item.manifestId] ?? 0) + 1;
       }
 
+      // ⚠️ إصلاح (2026-08-28): مرتجع "رفض ولم يدفع"/"تهرب من الاستلام" العميل
+      // مش بيتحمّل سعر الشحن العادي بتاعه — تكلفة المندوب الفعلية (zoneCost) هي
+      // اللي بتتخصم بدلها، نفس useRepCost بالفرونت (getChargeableShipping)
+      // بالظبط. "رفض ودفع" لوحده بيتخصم منه سعر الشحن العادي على العميل.
+      const useRepCostForDue = isReturnedWithValue && (reason === "refused_unpaid" || reason === "quality");
+      const dueShippingBase = useRepCostForDue ? getZoneCost(shipment) : zoneShippingForItem;
+      const dueRowValue = collected - (dueShippingBase + repExtraCostForItem);
+
       const isRolledOverPending = isRolledOverItem(item) && st === "returned" && (item as any).returnReceived !== 1;
       const isDueEligible = !isRolledOverPending && (st === "delivered" || isReturnedWithValue);
       if (isDueEligible) {
-        dueValueByManifest[item.manifestId] = (dueValueByManifest[item.manifestId] ?? 0) + rowValue;
+        dueValueByManifest[item.manifestId] = (dueValueByManifest[item.manifestId] ?? 0) + dueRowValue;
       }
     }
 
@@ -330,6 +395,61 @@ export async function computeClientBalancesForAllClients(
         });
     }
 
+    // ── تكلفة المندوب الحقيقية (لكل العملاء دفعة واحدة) — نفس منطق getZoneCost
+    // في computeClosedManifestsForClient بالظبط، لازمة لمرتجع "رفض ولم يدفع"/
+    // "تهرب من الاستلام" (useRepCost بالفرونت).
+    let shipmentToCompanyIdAll: Record<number, number> = {};
+    if (shipmentIds.length) {
+      const manifestLinkRows = await db
+        .select({
+          shipmentId: shipmentManifestItemsTable.shipmentId,
+          addedAt: shipmentManifestItemsTable.addedAt,
+          companyId: shippingManifestsTable.shippingCompanyId,
+        })
+        .from(shipmentManifestItemsTable)
+        .innerJoin(shippingManifestsTable, eq(shipmentManifestItemsTable.manifestId, shippingManifestsTable.id))
+        .where(and(
+          inArray(shipmentManifestItemsTable.shipmentId, shipmentIds),
+          isNull(shippingManifestsTable.clientId),
+        ));
+      manifestLinkRows
+        .filter(r => r.companyId != null)
+        .sort((a, b) => new Date(a.addedAt).getTime() - new Date(b.addedAt).getTime())
+        .forEach(row => { shipmentToCompanyIdAll[row.shipmentId] = row.companyId as number; });
+    }
+    const shipmentCompanyIdsAll = [...new Set([
+      ...shipments.map(s => s.shippingCompanyId).filter((v): v is number => !!v),
+      ...Object.values(shipmentToCompanyIdAll),
+    ])];
+    let companyCostModeMapAll: Record<number, { costMode: string; shippingCost: number }> = {};
+    if (shipmentCompanyIdsAll.length) {
+      const companyRows = await db.select({
+        id: shippingCompaniesTable.id,
+        costMode: shippingCompaniesTable.costMode,
+        shippingCost: shippingCompaniesTable.shippingCost,
+      }).from(shippingCompaniesTable).where(inArray(shippingCompaniesTable.id, shipmentCompanyIdsAll));
+      companyCostModeMapAll = Object.fromEntries(companyRows.map(c => [c.id, {
+        costMode: c.costMode === "zone" ? "zone" : "rep",
+        shippingCost: Math.abs(Number(c.shippingCost ?? 0)),
+      }]));
+    }
+    let zoneCostMapAll: Record<number, number> = {};
+    if (zoneIds.length) {
+      const zoneCostRows = await db.select().from(zoneCostsTable).where(inArray(zoneCostsTable.zoneId, zoneIds));
+      zoneCostMapAll = Object.fromEntries(zoneCostRows.map(z => [z.zoneId as number, Number(z.deliveryCost) || 0]));
+    }
+    const getZoneCostAll = (shipment: any) => {
+      if (!shipment) return 0;
+      const companyId = shipment.shippingCompanyId ?? shipmentToCompanyIdAll[shipment.id];
+      const company = companyId ? companyCostModeMapAll[companyId] : null;
+      if (company) {
+        return company.costMode === "zone"
+          ? (shipment.zoneId != null ? (zoneCostMapAll[shipment.zoneId] ?? 0) : 0)
+          : company.shippingCost;
+      }
+      return shipment.zoneId != null ? (zoneCostMapAll[shipment.zoneId] ?? 0) : 0;
+    };
+
     const RETURN_REASONS_FINANCIAL = new Set(["refused_paid", "refused_unpaid", "quality"]);
     const isShippingZeroedRow = (item: any, st: string, shipment: any) => {
       if (st === "postponed" || st === "delayed" || st === "pending") return true;
@@ -380,19 +500,23 @@ export async function computeClientBalancesForAllClients(
       }
 
       let rowValue = collected;
+      let repExtraCostForItemAll = 0;
       if (!isShippingZeroedRow(item, st, shipment)) {
-        const repExtraCost = (zoneShippingForItem > 0 && shipment.parcelType) ? (parcelBasePriceMap[shipment.parcelType] ?? 0) : 0;
-        rowValue -= (zoneShippingForItem + repExtraCost);
+        repExtraCostForItemAll = (zoneShippingForItem > 0 && shipment.parcelType) ? (parcelBasePriceMap[shipment.parcelType] ?? 0) : 0;
+        rowValue -= (zoneShippingForItem + repExtraCostForItemAll);
       }
 
-      // ⚠️ نفس منطق dueValue في computeClosedManifestsForClient بالظبط (إصلاح
-      // 2026-08-28): مسلَّم + مرتجع بأحد الأسباب المالية الثلاثة فقط، مع استبعاد
-      // أي بند "مُرحّل" لسه معلّق عند شركة الشحن — عشان يفضل متطابق مع الرصيد
-      // المستحق الظاهر في صفحة تفاصيل البيان وكشف الحساب.
+      // ⚠️ إصلاح (2026-08-28): مرتجع "رفض ولم يدفع"/"تهرب من الاستلام" العميل مش
+      // بيتحمّل سعر الشحن العادي بتاعه — تكلفة المندوب الفعلية (zoneCost) هي اللي
+      // بتتخصم بدلها، نفس useRepCost بالفرونت بالظبط. + استبعاد المُرحّل المعلّق.
+      const useRepCostForDueAll = isReturnedWithValue && (reason === "refused_unpaid" || reason === "quality");
+      const dueShippingBaseAll = useRepCostForDueAll ? getZoneCostAll(shipment) : zoneShippingForItem;
+      const dueRowValueAll = collected - (dueShippingBaseAll + repExtraCostForItemAll);
+
       const isRolledOverPendingAll = isRolledOverItemAll(item) && st === "returned" && (item as any).returnReceived !== 1;
       const isDueEligibleAll = !isRolledOverPendingAll && (st === "delivered" || isReturnedWithValue);
       if (isDueEligibleAll) {
-        result[clientId].totalManifestsValue += rowValue;
+        result[clientId].totalManifestsValue += dueRowValueAll;
       }
     }
   }
