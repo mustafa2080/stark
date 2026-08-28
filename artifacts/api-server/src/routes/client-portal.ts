@@ -2049,7 +2049,23 @@ router.get("/client-portal/returns", async (req, res): Promise<void> => {
         inArray(clientAccountManifestItemsTable.deliveryStatus, ["returned", "delayed", "partial_delivered"]),
       ));
 
-    const shipmentIds = items.map(i => i.shipmentId);
+    // ⚠️⚠️ إصلاح (2026-08-28): شحنة اترحّلت من بيان مقفول لبيان جديد بيبقى ليها
+    // صف قديم (فى البيان القديم) وصف جديد (فى البيان الجديد) بنفس shipmentId فى
+    // clientAccountManifestItemsTable. من غير استبعاد، الشحنة كانت بتظهر مرتين فى
+    // "المرتجعات" (مرة بكل بيان)، وده كان يخلي "إجمالي المرتجعات" يتضاعف تقريبًا
+    // (20 بدل 13). مفيش عمود DB لـ rolledOver هنا (زي clientAccountBalance.ts
+    // بالظبط) — فمصدر الحقيقة: أقدم manifestId لكل shipmentId هو الصف "الأصلي"،
+    // وأي صف بمانيفست أحدث لنفس الشحنة هو نسخة مُرحّلة. بس إحنا عايزين نعرض الصف
+    // الحالي (الأحدث) مش نستبعده، فالمنطق هنا عكسي شوية عن clientAccountBalance:
+    // بدل ما نستبعد "المُرحّل"، بنستبعد النسخة "القديمة" ونسيب بس أحدث صف لكل شحنة.
+    const maxManifestIdByShipment: Record<number, number> = {};
+    for (const item of items) {
+      const cur = maxManifestIdByShipment[item.shipmentId];
+      if (cur === undefined || item.manifestId > cur) maxManifestIdByShipment[item.shipmentId] = item.manifestId;
+    }
+    const dedupedItems = items.filter(i => i.manifestId === maxManifestIdByShipment[i.shipmentId]);
+
+    const shipmentIds = dedupedItems.map(i => i.shipmentId);
     let shipments: any[] = [];
     if (shipmentIds.length) {
       shipments = await db.select().from(shipmentsTable).where(and(inArray(shipmentsTable.id, shipmentIds), isNull(shipmentsTable.deletedAt)));
@@ -2057,7 +2073,7 @@ router.get("/client-portal/returns", async (req, res): Promise<void> => {
     const shipmentMap: Record<number, any> = {};
     shipments.forEach(s => { shipmentMap[s.id] = s; });
 
-    const result = items
+    const result = dedupedItems
       // الشحنات المحذوفة (soft-deleted) مش موجودة في shipmentMap — نستبعد بنودها
       // عشان ما تظهرش في قائمة المرتجعات/المشاكل بالبورتال.
       .filter(i => shipmentMap[i.shipmentId])
