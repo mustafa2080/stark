@@ -6025,31 +6025,15 @@ export default function ShippingManifestPage() {
         // من ordersForTopCards (مسلَّم + مرتجع بالأسباب المالية الثلاثة فقط)
         // بالظبط زي netAmount/displayedShippingCostSimple — عشان يطابق نفس شرط
         // الكارتين. القيمة هنا placeholder بيتجاوزها التعريف الفعلي تحت.
-        // ─── تصحيح بطلب صريح من المستخدم (2026-08-28) ──────────────────────────
-        // إجمالي الإيرادات وإجمالي تكلفة الشحن لازم يتحسبوا بس من حالتين اتنين:
-        // 1) مسلَّم بالكامل (delivered)
-        // 2) مرتجع بأحد الأسباب المالية الثلاثة فقط (رفض بعد المعاينة مدفوع/غير
-        //    مدفوع، أو تهرب من الاستلام = quality) — refused_paid/refused_unpaid/quality
-        // أي حالة تانية (partial_received/partial_delivered/postponed/delayed/pending
-        // أو مرتجع بسبب غير مالي) تُستبعد بالكامل من الكارتين، حتى لو ليها قيمة
-        // مستلمة أو سعر شحن مسجّل — مش من ضمن الحالات الثلاثة المطلوبة.
-        // ⚠️⚠️ إصلاح (2026-08-28): البند المُرحّل من بيان قديم مقفول (rolledOver)
-        // ولسه معلّق عند شركة الشحن (returned و returnReceived !== 1، أو delayed/
-        // postponed/pending أصلاً مش من الحالتين فوق) اتحسب ماليًا بالفعل في بيانه
-        // القديم وقت قفله — فلازم يفضل صفر بالكامل هنا في البيان الجديد المُرحّل
-        // إليه، وإلا هيتحسب مرتين. لو حصل حدث مالي جديد فعلي (تسليم) داخل البيان
-        // الحالي، الصف بيتحدّث لحالة تانية غير المعلّقة، فيتحسب عادي زي أي بند تاني.
-        const isRolledOverPendingAtShippingTop = (o: ManifestOrder) => {
-          if (!(o as any).rolledOver) return false;
-          return o.deliveryStatus === "returned" && (o as any).returnReceived !== 1;
-        };
+        // ─── تصحيح بطلب صريح من المستخدم (2026-08-28، ٨) ──────────────────────
+        // إجمالي الإيرادات = مجموع بسيط لعمود "القيمة المستلمة" لكل الصفوف
+        // الظاهرة فعليًا في جدول "الشحنات في البيان" (نفس ordersWithoutPendingReturns
+        // فوق — كل حالة إلا قيد الانتظار/waiting الفعلية). إجمالي تكلفة الشحن
+        // بالمثل = مجموع عمود "سعر الشحن" لنفس الصفوف. لا فلترة إضافية بحالة
+        // أو سبب أو rolledOver — الكارتين بيعكسوا الجدول زي ما هو بالظبط.
         const ordersForTopCards = (manifest.orders ?? []).filter(o => {
-          if (isRolledOverPendingAtShippingTop(o)) return false;
-          if (o.deliveryStatus === "delivered") return true;
-          if (o.deliveryStatus === "returned") {
-            return RETURN_REASONS_FINANCIAL.includes(String((o as any).returnReason ?? ""));
-          }
-          return false;
+          const shipmentStatus = (o as any).status;
+          return shipmentStatus !== "pending" && shipmentStatus !== "waiting";
         });
         const netAmount = ordersForTopCards.reduce((s, o) => s + getCollectedAmount(o), 0);
         const displayedShippingCostSimple = ordersForTopCards.reduce(
