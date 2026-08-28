@@ -206,9 +206,18 @@ export async function computeClosedManifestsForClient(clientId: number): Promise
     const isRolledOverItem = (item: typeof items[number]) =>
       minManifestIdByShipment[item.shipmentId] < item.manifestId;
 
+    // ⚠️ إصلاح (فرق 95 ج.م بين "إجمالي رصيد العميل" بالداشبورد و"الرصيد المستحق" في
+    // صفحة تفاصيل البيان): netDueFromClientAllStatuses (client-account-manifests.ts)
+    // بيستبعد أي بند حالته الفعلية (shipment.status، مش deliveryStatus) "waiting" أو
+    // "pending" بالكامل من visibleItems قبل أي حساب (EXCLUDED_SHIPMENT_STATUSES) —
+    // هنا كان بيتحسب البند عادي طالما فيه shipment مرتبط، فالرقمين يختلفوا لأي شحنة
+    // لسه فعليًا "قيد الانتظار"/"في المخزن" رغم إنها مضافة لبيان مقفول.
+    const EXCLUDED_SHIPMENT_STATUSES = new Set(["waiting", "pending"]);
+
     for (const item of items) {
       const shipment = shipmentMap[item.shipmentId];
       if (!shipment) continue;
+      if (EXCLUDED_SHIPMENT_STATUSES.has(shipment.status)) continue;
       const st = item.deliveryStatus;
       const reason = (item as any).returnReason ?? (shipment as any)?.returnReason ?? null;
       const isReturnedWithValue = st === "returned" && RETURN_REASONS_FINANCIAL.has(String(reason ?? ""));
@@ -484,9 +493,15 @@ export async function computeClientBalancesForAllClients(
     const isRolledOverItemAll = (item: typeof items[number]) =>
       minManifestIdByShipmentAll[item.shipmentId] < item.manifestId;
 
+    // ⚠️ نفس إصلاح computeClosedManifestsForClient فوق — استبعاد أي بند حالته
+    // الفعلية (shipment.status) "waiting" أو "pending" بالكامل، عشان يفضل مطابق
+    // تمامًا لـ netDueFromClientAllStatuses (client-account-manifests.ts).
+    const EXCLUDED_SHIPMENT_STATUSES_ALL = new Set(["waiting", "pending"]);
+
     for (const item of items) {
       const shipment = shipmentMap[item.shipmentId];
       if (!shipment) continue;
+      if (EXCLUDED_SHIPMENT_STATUSES_ALL.has(shipment.status)) continue;
       const clientId = manifestClientMap[item.manifestId];
       if (clientId == null) continue;
       const clientType = clientTypeMap[clientId] ?? "normal";
