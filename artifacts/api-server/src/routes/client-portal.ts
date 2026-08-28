@@ -2058,12 +2058,23 @@ router.get("/client-portal/returns", async (req, res): Promise<void> => {
     // وأي صف بمانيفست أحدث لنفس الشحنة هو نسخة مُرحّلة. بس إحنا عايزين نعرض الصف
     // الحالي (الأحدث) مش نستبعده، فالمنطق هنا عكسي شوية عن clientAccountBalance:
     // بدل ما نستبعد "المُرحّل"، بنستبعد النسخة "القديمة" ونسيب بس أحدث صف لكل شحنة.
-    const maxManifestIdByShipment: Record<number, number> = {};
+    //
+    // ⚠️ تصحيح (2026-08-28، ٢): الدي-ديوب الأول كان بياخد أعلى manifestId لكل
+    // shipmentId من غير النظر للـ deliveryStatus — فلو الشحنة اترحّلت وهي لسه
+    // فعلاً partial_received في المانيفست القديم، وبعدين ليها صف تاني بحالة
+    // مختلفة في المانيفست الجديد (rollover جزئي حقيقي، مش تكرار)، كان بيشيل
+    // صف الـ partial_received القديم بالكامل رغم إنه معلومة حقيقية مختلفة.
+    // الصح: الدي-ديوب لازم يكون على (shipmentId + deliveryStatus) مع بعض —
+    // يعني بس لو نفس الشحنة نفس الحالة اتكررت عبر مانيفستين (تكرار rollover
+    // فعلي) بناخد الأحدث بينهم؛ أما لو الحالة مختلفة فالصفين معلومة حقيقية
+    // ولازم يفضلوا الاتنين.
+    const maxManifestIdByKey: Record<string, number> = {};
     for (const item of items) {
-      const cur = maxManifestIdByShipment[item.shipmentId];
-      if (cur === undefined || item.manifestId > cur) maxManifestIdByShipment[item.shipmentId] = item.manifestId;
+      const key = `${item.shipmentId}:${item.deliveryStatus}`;
+      const cur = maxManifestIdByKey[key];
+      if (cur === undefined || item.manifestId > cur) maxManifestIdByKey[key] = item.manifestId;
     }
-    const dedupedItems = items.filter(i => i.manifestId === maxManifestIdByShipment[i.shipmentId]);
+    const dedupedItems = items.filter(i => i.manifestId === maxManifestIdByKey[`${i.shipmentId}:${i.deliveryStatus}`]);
 
     const shipmentIds = dedupedItems.map(i => i.shipmentId);
     let shipments: any[] = [];
