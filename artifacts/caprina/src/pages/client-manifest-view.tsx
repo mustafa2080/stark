@@ -615,7 +615,6 @@ export default function ClientManifestViewPage() {
     (s, i) => s + (isShippingZeroedRow(i) ? 0 : Number(i.repExtraCost ?? 0)),
     0
   );
-  const displayedShippingCost = shippingCost + repExtraCostTotal;
   // ⚠️ الرصيد المستحق لازم يستبعد المرتجعات بالكامل (حتى المالية منها زي
   // refused_paid/refused_unpaid/quality) من القيمة المالية تمامًا — نفس بالظبط
   // منطق dueValue فى computeClosedManifestsForClient (الباك إند، المرجع الوحيد
@@ -945,7 +944,10 @@ export default function ClientManifestViewPage() {
         </div>
         <div className="relative overflow-hidden rounded-2xl border border-amber-500/25 bg-gradient-to-br from-amber-500/10 via-amber-500/[0.03] to-transparent p-4 shadow-lg shadow-black/10">
           <p className="text-xs text-amber-400 mb-1">إجمالي تكلفة الشحن</p>
-          <p className="text-lg font-black text-amber-400">{formatCurrency(displayedShippingCost)}</p>
+          {/* ⚠️ لازم يطابق بالظبط مجموع عمود "سعر الشحن" الظاهر في صفوف الجدول
+              (shippingCost = Σ getChargeableShipping)، بدون إضافة repExtraCost
+              اللي مش عمود منفصل ظاهر هناك — الإضافة دي بتتعرض كملاحظة فرعية فقط. */}
+          <p className="text-lg font-black text-amber-400">{formatCurrency(shippingCost)}</p>
           <p className="text-[10px] text-muted-foreground mt-0.5">
             {items.length} شحنة
             {repExtraCostTotal > 0 ? ` · إضافات أنواع: ${formatCurrency(repExtraCostTotal)}` : ""}
