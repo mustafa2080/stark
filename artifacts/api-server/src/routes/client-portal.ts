@@ -2119,6 +2119,22 @@ router.get("/client-portal/returns", async (req, res): Promise<void> => {
   }
 });
 
+// ─── TEMP DEBUG — هيتشال بعد التشخيص ───────────────────────────────────────
+router.get("/client-portal/returns/_debug", async (req, res): Promise<void> => {
+  try {
+    const user = (req as any).user;
+    if (!user.clientId) { res.json([]); return; }
+    const shipNum = String(req.query.sh || "");
+    const sh = await db.select().from(shipmentsTable).where(eq(shipmentsTable.shipmentNumber, shipNum));
+    if (!sh.length) { res.json({ error: "shipment not found", shipNum }); return; }
+    const shipmentId = sh[0].id;
+    const rows = await db.select().from(clientAccountManifestItemsTable).where(eq(clientAccountManifestItemsTable.shipmentId, shipmentId));
+    res.json({ shipmentId, deletedAt: sh[0].deletedAt, rows });
+  } catch (e: any) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
 // ─── GET /client-portal/returns/analysis — تحليل المرتجعات: توزيع المناطق + مقارنة بمتوسط العملاء ──
 router.get("/client-portal/returns/analysis", async (req, res): Promise<void> => {
   try {
