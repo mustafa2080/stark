@@ -29,7 +29,7 @@ type Client = {
   taxNumber: string | null; commercialReg: string | null; paymentTerms: string | null;
   creditLimit: string; totalOrders: number; totalSales: string; totalPaid: string;
   notes: string | null; isActive: boolean; createdAt: string; avatar: string | null;
-  warehouseId: number | null;
+  warehouseId: number | null; clientType: "normal" | "commercial" | "vip" | null;
 };
 
 // ── Avatar helpers ──────────────────────────────────────────────────────────
@@ -66,7 +66,14 @@ const emptyForm = {
   name: "", phone: "", phone2: "", email: "", address: "", city: "", region: "",
   taxNumber: "", commercialReg: "", paymentTerms: "فوري",
   creditLimit: "0", notes: "", isActive: true, avatar: "", warehouseId: "",
+  clientType: "normal" as "normal" | "commercial" | "vip",
 };
+
+const CLIENT_TYPE_OPTIONS: { value: "vip" | "commercial" | "normal"; label: string; hint: string; color: string }[] = [
+  { value: "vip",        label: "VIP",   hint: "٥٠١ - ١٠٠٠ شحنة/شهر", color: "amber"   },
+  { value: "commercial", label: "تجاري", hint: "٢٠١ - ٥٠٠ شحنة/شهر",  color: "blue"    },
+  { value: "normal",     label: "عادي",  hint: "١ - ٢٠٠ شحنة/شهر",    color: "slate"   },
+];
 
 function EditClientDialog({ client, open, onClose, onSuccess }: {
   client: Client; open: boolean; onClose: () => void; onSuccess: () => void;
@@ -96,6 +103,7 @@ function EditClientDialog({ client, open, onClose, onSuccess }: {
       isActive: client.isActive,
       avatar: client.avatar ?? "",
       warehouseId: client.warehouseId ? String(client.warehouseId) : "",
+      clientType: client.clientType ?? "normal",
     });
   }, [open, client]);
 
@@ -111,6 +119,7 @@ function EditClientDialog({ client, open, onClose, onSuccess }: {
         notes: form.notes || null, isActive: form.isActive,
         avatar: form.avatar || null,
         warehouseId: form.warehouseId ? parseInt(form.warehouseId) : null,
+        clientType: form.clientType || null,
       };
       return apiFetch<any>(`/finance/clients/${client.id}`, { method: "PATCH", body: JSON.stringify(body) });
     },
@@ -227,6 +236,40 @@ function EditClientDialog({ client, open, onClose, onSuccess }: {
                 ? <><ToggleRight className="w-4 h-4 text-emerald-400" />نشط</>
                 : <><ToggleLeft className="w-4 h-4" />غير نشط</>}
             </Button>
+          </div>
+
+          {/* تصنيف العميل */}
+          <div>
+            <Label className="text-xs mb-1.5 block">تصنيف العميل</Label>
+            <div className="grid grid-cols-3 gap-2">
+              {CLIENT_TYPE_OPTIONS.map(opt => {
+                const active = form.clientType === opt.value;
+                return (
+                  <button key={opt.value} type="button" onClick={() => f("clientType", opt.value)}
+                    className={`rounded-lg border p-2 text-center transition-colors ${
+                      active
+                        ? opt.color === "amber"
+                          ? "border-amber-500 bg-amber-500/10"
+                          : opt.color === "blue"
+                            ? "border-blue-500 bg-blue-500/10"
+                            : "border-primary bg-primary/10"
+                        : "border-border bg-background hover:bg-muted/20"
+                    }`}>
+                    <p className={`text-xs font-bold ${
+                      active
+                        ? opt.color === "amber" ? "text-amber-500" : opt.color === "blue" ? "text-blue-500" : "text-foreground"
+                        : "text-foreground"
+                    }`}>{opt.label}</p>
+                    <p className="text-[9px] text-muted-foreground mt-0.5">{opt.hint}</p>
+                  </button>
+                );
+              })}
+            </div>
+            {form.clientType === "normal" && (
+              <p className="text-[10px] text-muted-foreground mt-1.5 flex items-center gap-1">
+                عميل عادي — أقل من ٢٠٠ شحنة/شهر، بحصل على السعر الأساسي
+              </p>
+            )}
           </div>
 
           {/* المخزن المرتبط */}
