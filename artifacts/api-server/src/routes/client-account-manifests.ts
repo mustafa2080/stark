@@ -877,17 +877,43 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
         }
       }
     }
-    // ─── إجمالي المستحق الشامل: كل شحنة في البيان (بغض النظر عن حالتها) تُحسب
-    // COD ناقص سعر الشحن — بما في ذلك pending/delayed، بطلب المدير أن يُحسب
-    // المستحق بافتراض متفائل (كل الشحنات هتتحصّل بكامل قيمتها). هذا منفصل عن
-    // netProfit/deliveredGross الأصليين اللي بيقيسوا الأداء الفعلي المُقفل فقط.
+    // ─── إجمالي المستحق الشامل: لازم يطابق بالظبط dueValue في computeClosedManifestsForClient
+    // (clientAccountBalance.ts) — نفس مصدر الحقيقة المستخدم في "إجمالي رصيد العميل"
+    // بالداشبورد. تعديل (2026-08-28، طلب المستخدم): إلغاء المنطق المتفائل القديم (COD
+    // كامل لكل الحالات) لأنه كان يخلي هذا الرقم يختلف عن رصيد العميل الإجمالي. الآن:
+    // مسلَّم كامل/جزئي + مرتجع بسبب مالي (refused_paid/refused_unpaid/quality) فقط، مع
+    // استبعاد أي بند مُرحّل (rolledOver) لسه معلّق (اتحسب فعليًا وقت قفل بيانه الأصلي).
+    const RETURN_REASONS_DUE = new Set(["refused_paid", "refused_unpaid", "quality"]);
     let netDueFromClientAllStatuses = 0;
-    for (const item of visibleItems) {
+    for (const item of visibleItems as any[]) {
       const shipment = shipmentMap[item.shipmentId];
       if (!shipment) continue;
-      const cod      = Number(shipment.codAmount ?? shipment.totalAmount ?? 0);
-      const shipping = getZoneShipping(shipment);
-      netDueFromClientAllStatuses += cod - shipping;
+      const st = item.deliveryStatus;
+      const reason = item.returnReason ?? shipment.returnReason ?? null;
+      const isReturnedWithValue = st === "returned" && RETURN_REASONS_DUE.has(String(reason ?? ""));
+
+      // بند مُرحّل من بيان أقدم لسه معلّق (مرتجع لم يُستلم بعد) — يُستبعد بالكامل،
+      // لأنه اتحسب فعليًا في بيانه الأصلي وقت قفله (نفس isRolledOverPending).
+      if (item.rolledOver && st === "returned" && item.returnReceived !== 1) continue;
+      if (st === "returned" && !isReturnedWithValue) continue; // مرتجع بلا قيمة مالية: مستبعد تمامًا
+
+      let collected = 0;
+      if (st === "delivered") {
+        collected = item.deliveredValueReceived != null ? Number(item.deliveredValueReceived) : item.totalPrice;
+      } else if (st === "partial_delivered") {
+        collected = item.partialQuantity != null ? Number(item.partialQuantity) : (shipment.partialQuantity != null ? Number(shipment.partialQuantity) : 0);
+      } else if (st === "partial_received") {
+        const pq = item.partialQuantity != null ? item.partialQuantity : shipment.partialQuantity;
+        collected = pq != null ? Math.round(Number(pq)) : 0;
+      } else if (isReturnedWithValue) {
+        collected = item.returnValueReceived != null ? Number(item.returnValueReceived) : (shipmentReturnValueMap[item.shipmentId] ?? 0);
+      }
+
+      // "رفض ولم يدفع"/"تهرب من الاستلام": تكلفة المندوب الفعلية (zoneCost) بدل سعر
+      // الشحن العادي — نفس useRepCost. غير كده: سعر الشحن العادي (zonePrice) + repExtraCost.
+      const useRepCostForDue = isReturnedWithValue && (reason === "refused_unpaid" || reason === "quality");
+      const dueShippingBase = useRepCostForDue ? item.zoneCost : item.zonePrice;
+      netDueFromClientAllStatuses += collected - (dueShippingBase + (item.repExtraCost ?? 0));
     }
     const netProfit = totalRevenue - totalCost - totalShippingCost - returnLosses;
     const netDueFromClient = netDueFromClientAllStatuses; // صافي المستحق من/على العميل — شامل كل الحالات
