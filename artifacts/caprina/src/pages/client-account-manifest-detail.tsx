@@ -243,13 +243,15 @@ function OrderDeliveryRow({
 
   const mutation = useMutation({
     mutationFn: () => {
+      const isValueMode = status === "partial_delivered" && isShipmentManifest;
       if (status === "partial_received" || status === "partial_delivered") {
-        const qty = parseInt(partialQty);
+        const qty = isValueMode ? Number(partialQty) : parseInt(partialQty);
+        const maxAllowed = isValueMode ? Number(order.totalPrice ?? 0) : order.quantity;
         if (partialQty === "" || partialQty === null || partialQty === undefined || isNaN(qty) || qty < 0) {
-          throw new Error("يجب إدخال الكمية المستلمة أولاً");
+          throw new Error(isValueMode ? "يجب إدخال القيمة المستلمة أولاً" : "يجب إدخال الكمية المستلمة أولاً");
         }
-        if (qty > order.quantity) {
-          throw new Error("الكمية لا يمكن أن تتجاوز " + order.quantity);
+        if (qty > maxAllowed) {
+          throw new Error((isValueMode ? "القيمة لا يمكن أن تتجاوز " : "الكمية لا يمكن أن تتجاوز ") + maxAllowed);
         }
       }
       let finalNote = note.trim() || null;
@@ -273,7 +275,7 @@ function OrderDeliveryRow({
           deliveryNote: finalNote,
           partialQuantity:
             safeStatus === "partial_delivered" && partialQty !== "" && partialQty !== null && partialQty !== undefined
-              ? parseInt(partialQty)
+              ? Number(partialQty)
               : null,
           returnReceived: status === "returned" ? returnReceived : null,
           returnReason: status === "returned" ? (returnReason || null) : null,
@@ -608,39 +610,42 @@ function OrderDeliveryRow({
                 </SelectContent>
               </Select>
             </div>
-            {needsPartial && (
+            {needsPartial && (() => {
+              const isValueMode = status === "partial_delivered" && isShipmentManifest;
+              const maxVal = isValueMode ? Number(order.totalPrice ?? 0) : Number(order.quantity ?? 0);
+              return (
               <>
                 <div>
                   <Label className="text-[10px] mb-1 block text-muted-foreground">
-                    الكمية المستلمة (من {order.quantity}) <span className="text-destructive font-bold">*</span>
+                    {isValueMode ? `القيمة المستلمة من العميل (من إجمالي الشحنة ${formatCurrency(maxVal)})` : `الكمية المستلمة (من ${order.quantity})`} <span className="text-destructive font-bold">*</span>
                   </Label>
                   <Input
                     type="number"
                     min={0}
-                    max={order.quantity}
+                    max={maxVal}
                     value={partialQty}
                     onChange={(e) => {
                       const val = e.target.value;
                       if (val === "") { setPartialQty(""); return; }
                       const n = parseInt(val);
-                      if (!isNaN(n) && n > order.quantity) { setPartialQty(String(order.quantity)); e.target.value = String(order.quantity); return; }
+                      if (!isNaN(n) && n > maxVal) { setPartialQty(String(maxVal)); e.target.value = String(maxVal); return; }
                       if (!isNaN(n) && n < 0) { setPartialQty("0"); e.target.value = "0"; return; }
                       setPartialQty(val);
                     }}
                     onBlur={(e) => {
                       const n = parseInt(e.target.value);
-                      if (!isNaN(n) && n > order.quantity) setPartialQty(String(order.quantity));
+                      if (!isNaN(n) && n > maxVal) setPartialQty(String(maxVal));
                       if (!isNaN(n) && n < 0) setPartialQty("0");
                     }}
-                    className={`h-8 text-xs w-28 bg-background ${partialQty === "" || parseInt(partialQty) > order.quantity ? "border-destructive" : ""}`}
+                    className={`h-8 text-xs w-28 bg-background ${partialQty === "" || parseInt(partialQty) > maxVal ? "border-destructive" : ""}`}
                     placeholder="مطلوب"
                     autoFocus
                   />
                   {(partialQty === "") && (
-                    <p className="text-[10px] text-destructive mt-0.5">⚠ أدخل الكمية المستلمة</p>
+                    <p className="text-[10px] text-destructive mt-0.5">{isValueMode ? "⚠ أدخل القيمة المستلمة" : "⚠ أدخل الكمية المستلمة"}</p>
                   )}
-                  {(partialQty !== "" && parseInt(partialQty) > order.quantity) && (
-                    <p className="text-[10px] text-destructive mt-0.5">⚠ الحد الأقصى {order.quantity}</p>
+                  {(partialQty !== "" && parseInt(partialQty) > maxVal) && (
+                    <p className="text-[10px] text-destructive mt-0.5">⚠ الحد الأقصى {isValueMode ? formatCurrency(maxVal) : maxVal}</p>
                   )}
                 </div>
                 <div>
@@ -655,7 +660,8 @@ function OrderDeliveryRow({
                   />
                 </div>
               </>
-            )}
+              );
+            })()}
           </div>
           {/* القيمة المستلمة فعليًا عند التسليم — مقارنة تلقائية بإجمالي الطلب */}
           {status === "delivered" && (() => {
