@@ -47,15 +47,28 @@ function isShippingZeroedRow(item: ManifestItem): boolean {
   const st = item.deliveryStatus;
   if (st === "postponed" || st === "delayed" || st === "pending") return true;
   if (st === "returned") {
+    // سعر الشحن مستحق دايمًا للأسباب المالية التلاتة (العميل/تكلفة المندوب
+    // مسؤول عنها بغض النظر عن وجود تحصيل فعلي أو لا) — نفس بالظبط منطق
+    // isShippingZeroedRowTop فى الأدمن (client-account-manifest-detail.tsx).
+    // ⚠️ تصحيح (2026-08-28): كان فيه هنا شرط زيادة بيصفّر الشحن كمان لو
+    // returnValueReceived == null، مش موجود فى الأدمن، وده كان يخلي "الرصيد
+    // المستحق" فى بورتال العميل يطلع أعلى من الأدمن (بيستبعد تكلفة الشحن غلط).
     if (!RETURN_REASONS_FINANCIAL.includes(String(item.returnReason ?? ""))) return true;
-    // مجرد وجود تحصيل فعلي (returnValueReceived) بيفعّل المساهمة المالية.
-    if (item.returnValueReceived == null) return true;
   }
   return false;
 }
 
 function getChargeableShipping(item: ManifestItem): number {
-  return isShippingZeroedRow(item) ? 0 : Number(item.shippingCost ?? 0);
+  if (isShippingZeroedRow(item)) return 0;
+  // ⚠️ تصحيح (2026-08-28): للمرتجع بسبب refused_unpaid/quality، الأدمن
+  // بيستخدم zoneCost (تكلفة المندوب الفعلية) بدل shippingCost (سعر شحن
+  // العميل) — نفس بالظبط getChargeableShipping فى client-account-manifest
+  // -detail.tsx. من غيرها "الرصيد المستحق" هنا كان بيطلع أعلى من الأدمن
+  // بمقدار الفرق بين السعرين على كل شحنة بالحالتين دول.
+  const rr = String(item.returnReason ?? "");
+  const useRepCost = item.deliveryStatus === "returned" && (rr === "refused_unpaid" || rr === "quality");
+  const shipping = useRepCost ? Number(item.zoneCost ?? 0) : Number(item.shippingCost ?? 0);
+  return shipping + Number(item.repExtraCost ?? 0);
 }
 
 // ─── تجميع الشحنات المتشابهة (نفس رقم الفاتورة أو نفس العميل/الهاتف/العنوان) — نفس منطق الأدمن ───
@@ -91,6 +104,7 @@ interface ManifestItem {
   quantity: number;
   totalPrice: number;
   shippingCost: number;
+  zoneCost?: number | null;
   invoiceNumber: string;
   representativeName: string | null;
   warehouseName: string | null;

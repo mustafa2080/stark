@@ -13,6 +13,8 @@ import {
   pickupRequestsTable,
   shippingCompaniesTable,
   shipmentZonesTable,
+  zoneCostsTable,
+  shipmentManifestsTable,
   parcelTypePricingTable,
   clientAccountManifestsTable,
   clientAccountManifestItemsTable,
@@ -1790,6 +1792,63 @@ router.get("/client-portal/manifests/:id", async (req, res): Promise<void> => {
     const getZoneShipping = (shipment: any) =>
       shipment?.zoneId ? (zonePriceMap[shipment.zoneId] ?? Number(shipment.shippingFee ?? 0)) : Number(shipment?.shippingFee ?? 0);
 
+    // ── تكلفة المندوب الحقيقية (zoneCost) — لازم تتحسب بالظبط زي الأدمن ────────
+    // (client-account-manifests.ts: getZoneCost) عشان "الرصيد المستحق" يطابق:
+    // للمرتجع بسبب refused_unpaid/quality، الأدمن بيستخدم zoneCost (تكلفة
+    // المندوب الفعلية) بدل shippingCost (سعر شحن العميل) في حساب سعر الشحن
+    // المخصوم. من غيرها الرقم في بورتال العميل كان بيطلع أوطى من الأدمن.
+    let shipmentToCompanyId: Record<number, number> = {};
+    if (shipmentIds.length) {
+      const manifestLinkRows = await db
+        .select({
+          shipmentId: shipmentManifestItemsTable.shipmentId,
+          companyId: shipmentManifestsTable.shippingCompanyId,
+          addedAt: shipmentManifestItemsTable.addedAt,
+        })
+        .from(shipmentManifestItemsTable)
+        .innerJoin(shipmentManifestsTable, eq(shipmentManifestItemsTable.manifestId, shipmentManifestsTable.id))
+        .where(and(
+          inArray(shipmentManifestItemsTable.shipmentId, shipmentIds),
+          isNull(shipmentManifestsTable.clientId),
+        ));
+      manifestLinkRows
+        .filter(r => r.companyId != null)
+        .sort((a, b) => new Date(a.addedAt).getTime() - new Date(b.addedAt).getTime())
+        .forEach(row => { shipmentToCompanyId[row.shipmentId] = row.companyId as number; });
+    }
+    const shipmentCompanyIds = [...new Set([
+      ...items.map(i => shipmentMap[i.shipmentId]?.shippingCompanyId).filter((v): v is number => !!v),
+      ...Object.values(shipmentToCompanyId),
+    ])];
+    let companyCostModeMap: Record<number, { costMode: string; shippingCost: number }> = {};
+    if (shipmentCompanyIds.length) {
+      const companyRows = await db.select({
+        id: shippingCompaniesTable.id,
+        costMode: shippingCompaniesTable.costMode,
+        shippingCost: shippingCompaniesTable.shippingCost,
+      }).from(shippingCompaniesTable).where(inArray(shippingCompaniesTable.id, shipmentCompanyIds));
+      companyCostModeMap = Object.fromEntries(companyRows.map(c => [c.id, {
+        costMode: c.costMode === "zone" ? "zone" : "rep",
+        shippingCost: Math.abs(Number(c.shippingCost ?? 0)),
+      }]));
+    }
+    let zoneCostMap: Record<number, number> = {};
+    if (zoneIds.length) {
+      const zoneCostRows = await db.select().from(zoneCostsTable).where(inArray(zoneCostsTable.zoneId, zoneIds));
+      zoneCostMap = Object.fromEntries(zoneCostRows.map(z => [z.zoneId as number, Number(z.deliveryCost) || 0]));
+    }
+    const getZoneCost = (shipment: any) => {
+      if (!shipment) return 0;
+      const companyId = shipment.shippingCompanyId ?? shipmentToCompanyId[shipment.id];
+      const company = companyId ? companyCostModeMap[companyId] : null;
+      if (company) {
+        return company.costMode === "zone"
+          ? (shipment.zoneId != null ? (zoneCostMap[shipment.zoneId] ?? 0) : 0)
+          : company.shippingCost;
+      }
+      return shipment.zoneId != null ? (zoneCostMap[shipment.zoneId] ?? 0) : 0;
+    };
+
     const repUserIds = [...new Set(items.map(i => shipmentMap[i.shipmentId]?.assignedUserId).filter((v): v is number => !!v))];
     let repNameMap: Record<number, string> = {};
     if (repUserIds.length) {
@@ -1879,6 +1938,9 @@ router.get("/client-portal/manifests/:id", async (req, res): Promise<void> => {
         totalPrice:    Number(sh?.totalAmount ?? sh?.codAmount ?? 0),
         unitPrice:     Number(sh?.totalAmount ?? sh?.codAmount ?? 0),
         shippingCost:  zoneShippingForItem,
+        // تكلفة المندوب الفعلية — الفرونت بيستخدمها بدل shippingCost في حساب
+        // "الرصيد المستحق" لحالة refused_unpaid/quality، نفس الأدمن بالظبط.
+        zoneCost:      getZoneCost(sh),
         // بيان العميل بيعرض سعر العميل (basePrice) — مش تكلفة المندوب الداخلية
         repExtraCost:  (zoneShippingForItem > 0 && sh?.parcelType) ? (parcelPricingMap[sh.parcelType]?.basePrice ?? 0) : 0,
         repExtraReason: (zoneShippingForItem > 0 && sh?.parcelType && (parcelPricingMap[sh.parcelType]?.basePrice ?? 0) > 0)
