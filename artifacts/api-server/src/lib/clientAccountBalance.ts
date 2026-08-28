@@ -245,8 +245,12 @@ export async function computeClosedManifestsForClient(clientId: number): Promise
       const dueShippingBase = useRepCostForDue ? getZoneCost(shipment) : zoneShippingForItem;
       const dueRowValue = collected - (dueShippingBase + repExtraCostForItem);
 
+      // ⚠️ تصحيح (2026-08-28، ١٠): "المستحق" لازم يشمل كل الحالات إلا returned
+      // بسبب غير مالي (نفس مبدأ باقي الكروت بعد التصحيحات اللي فاتت) — بما فيها
+      // partial_delivered/partial_received، مش delivered فقط. مطابق تمامًا لمنطق
+      // itemsForTopCards فى client-manifest-view.tsx وclient-account-manifest-detail.tsx.
       const isRolledOverPending = isRolledOverItem(item) && st === "returned" && (item as any).returnReceived !== 1;
-      const isDueEligible = !isRolledOverPending && (st === "delivered" || isReturnedWithValue);
+      const isDueEligible = !isRolledOverPending && (st !== "returned" || isReturnedWithValue);
       if (isDueEligible) {
         dueValueByManifest[item.manifestId] = (dueValueByManifest[item.manifestId] ?? 0) + dueRowValue;
       }
@@ -513,8 +517,10 @@ export async function computeClientBalancesForAllClients(
       const dueShippingBaseAll = useRepCostForDueAll ? getZoneCostAll(shipment) : zoneShippingForItem;
       const dueRowValueAll = collected - (dueShippingBaseAll + repExtraCostForItemAll);
 
+      // ⚠️ تصحيح (2026-08-28، ١٠): نفس تصحيح computeClosedManifestsForClient —
+      // المستحق يشمل كل الحالات إلا returned بسبب غير مالي (بما فيها partial).
       const isRolledOverPendingAll = isRolledOverItemAll(item) && st === "returned" && (item as any).returnReceived !== 1;
-      const isDueEligibleAll = !isRolledOverPendingAll && (st === "delivered" || isReturnedWithValue);
+      const isDueEligibleAll = !isRolledOverPendingAll && (st !== "returned" || isReturnedWithValue);
       if (isDueEligibleAll) {
         result[clientId].totalManifestsValue += dueRowValueAll;
       }
