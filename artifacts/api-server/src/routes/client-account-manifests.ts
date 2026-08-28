@@ -53,99 +53,27 @@ async function generateManifestNumber(clientId: number): Promise<string> {
 }
 
 // ─── إضافة تلقائية للبيان عند دخول الشحنة "قيد الشحن في المخزن" ──────────────
-// ✅ السلوك (بطلب المستخدم 2026-08-25): أول ما الشحنة توصل "قيد الشحن في المخزن"
-// (warehouse_ready) أو أبعد، بتتضاف تلقائيًا لبيان حساب العميل بدل ما تفضل معلّقة:
-//   • لو العميل عنده بيان مفتوح → الشحنة تتضاف عليه فورًا (ماتفضلش مستنية الإغلاق/
-//     البيان اللي بعده).
-//   • لو مفيش بيان مفتوح → يتفتح بيان جديد تلقائيًا للعميل وتتحط فيه الشحنة.
-// الدالة idempotent وآمنة للاستدعاء المتكرر: لو الشحنة مضافة لأي بيان بالفعل
-// (مفتوح أو مقفول) بتتجاهل، ولو الشحنة لسه "قيد الانتظار/مؤكدة/ملغية" أو محذوفة
-// بتتجاهل كمان (نفس NOT_COUNTED_STATUSES بتاعة عدّ الأوردرات الفعلية) — عشان
-// أي موضع استدعاء (shipments create/update، import، client-portal، sync routes)
-// يفضل يشتغل صح من غير ما يضيف شحنة مش مؤهلة. الأخطاء بتتسجّل بس ومابتكسرش
-// عملية تحديث/إنشاء الشحنة الأصلية (نفس فلسفة الاستدعاء بـ fire-and-forget).
+// ⚠️ بالتصميم (تراجع رجّعناه بعد ما اتلغى بالغلط في كوميت 309fde3a): الشحنة
+// الجديدة متتضافش لأي بيان مفتوح تلقائيًا أبدًا، ولا يتفتح لها بيان جديد. تفضل
+// "معلّقة" (من غير manifestId) عشان مينفعش تدخل بيان قيد العمل بعد ما اتقفّل
+// شغله. بتتضاف لبيان بس في لحظتين: (1) الأدمن يضيفها يدويًا لبيان مفتوح موجود
+// عبر POST /add-shipments، أو (2) لما بيان مفتوح يتقفل — عندها كل الشحنات
+// المعلّقة بتتجمع تلقائيًا مع شحنات البيان القديم اللي لسه "قيد الانتظار/
+// مؤجلة/مرتجعة-لم-تُستلم" في بيان جديد واحد (rolloverPendingItemsToNewManifest).
+// الدالة اتسابت بنفس التوقيع والاستدعاءات القديمة (idempotent/no-op) عشان
+// الكود اللي بينادي عليها من أماكن تانية (shipments.ts, import.ts,
+// client-portal.ts, sync-warehouse-ready) يفضل شغال من غير أي تعديل فيهم —
+// هي بس بقت no-op فعليًا (متعملش أي إضافة أو فتح بيان).
 export async function autoAddShipmentToClientAccountManifest(
   shipmentId: number,
   clientId: number | null | undefined,
   tenantId: number | null,
 ): Promise<void> {
-  try {
-    if (!clientId) return;
-
-    // (1) نجيب الشحنة ونتأكد إنها مؤهلة: مش محذوفة، ووصلت warehouse_ready فأكثر.
-    // أي حالة "قيد الانتظار/مؤكدة/ملغية" ماتتضافش لبيان (متطابقة مع قاعدة عدّ
-    // الأوردرات الفعلية في finance-clients.ts).
-    const NOT_COUNTED_STATUSES = ["pending", "waiting", "confirmed", "cancelled"];
-    const [shipment] = await db
-      .select({ id: shipmentsTable.id, status: shipmentsTable.status, deletedAt: shipmentsTable.deletedAt })
-      .from(shipmentsTable)
-      .where(eq(shipmentsTable.id, shipmentId))
-      .limit(1);
-    if (!shipment || shipment.deletedAt) return;
-    if (NOT_COUNTED_STATUSES.includes(shipment.status)) return;
-
-    // (2) idempotent: لو الشحنة مرتبطة بأي بيان موجود بالفعل (بند + بيان فعلي مش
-    // يتيم/محذوف) نسيبها زي ما هي — مانضيفهاش تاني ومانفتحش بيان جديد.
-    const alreadyInManifest = await db
-      .select({ id: clientAccountManifestItemsTable.id })
-      .from(clientAccountManifestItemsTable)
-      .innerJoin(clientAccountManifestsTable, eq(clientAccountManifestItemsTable.manifestId, clientAccountManifestsTable.id))
-      .where(eq(clientAccountManifestItemsTable.shipmentId, shipmentId))
-      .limit(1);
-    if (alreadyInManifest.length) return;
-
-    // (3) ندوّر على بيان العميل المفتوح (نفس شرط الـ tenant بتاع POST
-    // /client-account-manifests). لو مفيش → نفتح بيان جديد تلقائيًا.
-    const tenantCond = tenantId !== null
-      ? or(eq(clientAccountManifestsTable.tenantId, tenantId), isNull(clientAccountManifestsTable.tenantId))
-      : undefined;
-    const [openManifest] = await db
-      .select({ id: clientAccountManifestsTable.id })
-      .from(clientAccountManifestsTable)
-      .where(and(
-        eq(clientAccountManifestsTable.clientId, clientId),
-        eq(clientAccountManifestsTable.status, "open"),
-        tenantCond,
-      ))
-      .limit(1);
-
-    const now = new Date();
-    let manifestId: number;
-    if (openManifest) {
-      manifestId = openManifest.id;
-    } else {
-      const manifestNumber = await generateManifestNumber(clientId);
-      const [created] = await db.insert(clientAccountManifestsTable).values({
-        tenantId: tenantId ?? null,
-        manifestNumber,
-        clientId,
-        status: "open",
-        createdAt: now,
-        scheduledCloseAt: computeNextClosingDate(now),
-      });
-      manifestId = (created as any).insertId as number;
-    }
-
-    // (4) نضيف بند الشحنة بحالة تسليم مشتقة من حالة الشحنة الحالية — نفس منطق
-    // toClientAccountStatus في POST /add-shipments بالظبط (warehouse_ready →
-    // "pending"، partial_delivered → "partial_received"، delayed → "postponed").
-    const mapped = SHIPMENT_STATUS_TO_DELIVERY[shipment.status];
-    const deliveryStatus =
-      !mapped ? "pending" :
-      mapped === "partial_delivered" ? "partial_received" :
-      mapped === "delayed" ? "postponed" :
-      mapped;
-
-    await db.insert(clientAccountManifestItemsTable).values({
-      manifestId,
-      shipmentId,
-      deliveryStatus,
-      addedAt: now,
-    });
-  } catch (err) {
-    // ما نكسرش عملية تحديث/إنشاء الشحنة لو الإضافة التلقائية فشلت — نسجّل بس.
-    console.error("[autoAddShipmentToClientAccountManifest]", err);
-  }
+  // مفيش أي إضافة تلقائية لبيان مفتوح ولا فتح بيان جديد بعد النهارده. الشحنة
+  // تفضل معلّقة (orphan) لحد ما تتضاف يدويًا أو يحصل rollover عند إغلاق بيان —
+  // وده اللي بيغذّي عداد وكارت "الأوردرات الجديدة" (pendingShipmentsCount) في
+  // client-manifests.tsx و client-portal.ts.
+  return;
 }
 
 // ─── GET /client-account-manifests?clientId=X ────────────────────────────────
