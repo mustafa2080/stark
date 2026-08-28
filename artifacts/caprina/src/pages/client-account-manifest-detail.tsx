@@ -6049,58 +6049,34 @@ export default function ShippingManifestPage() {
         const zoneCostTotal = ordersForPnl.reduce((s, o) => s + (isShippingZeroedRowLocal(o) ? 0 : Number((o as any).zoneCost ?? 0)), 0);
         // كارت "إجمالي تكلفة الشحن" العلوي لسه بيعرض شامل إضافات الأنواع (شفافية كاملة للمستخدم).
         const displayedShippingCost = shippingCost + repExtraCostTotal;
-        // عدد الشحنات اللي فعلاً بتساهم في مبلغ تكلفة الشحن أعلاه — لازم يستثني
-        // نفس الشحنات المصفّرة (isShippingZeroedRowLocal: قيد الانتظار/مؤجل/مرتجع
-        // بسبب غير مالي) عشان "X شحنة" الظاهرة تحت الكارت تتطابق فعليًا مع عدد
-        // الشحنات اللي ساهمت في الرقم، مش كل ordersForPnl.length.
-        const shippingCostOrdersCount = ordersForPnl.filter(o => !isShippingZeroedRowLocal(o)).length;
-        // ─── تبسيط بطلب صريح من المستخدم (2026-08-27) ──────────────────────────
-        // إجمالي الإيرادات = مجموع عمود "القيمة المستلمة" (getCollectedAmount) لكل
-        // شحنات البيان مباشرة من manifest.orders — نفس المصدر والدالة المستخدمين
-        // في عمود "القيمة المستلمة" الظاهر فعليًا بجدول "الشحنات في البيان" (case
-        // "collected" في getGroupVal). بدون فلتر ordersForPnl/rolledOver المعقّد،
-        // عشان الكارت يطابق مجموع العمود الظاهر في الجدول تمامًا دايمًا.
-        // ⚠️⚠️ إصلاح (2026-08-27): البند المُرحّل من بيان قديم مقفول لسه معلَّق عند
-        // شركة الشحن (returned/partial_* و returnReceived !== 1) اتحسب ماليًا أصلاً
-        // في بيانه القديم وقت قفله — فلازم يتصفّر هنا في البيان الجديد المُرحّل
-        // إليه، وإلا هيتحسب مرتين (زي مبلغ الشحن ١٢٥ اللي كان بيظهر غلط بدل صفر).
-        // نفس شرط isPendingAtShippingCompany/rolledOver المستخدم في ordersForPnl
-        // فوق بالظبط — لو حصل حدث مالي جديد فعلي (تسليم) داخل البيان الحالي، الصف
-        // بيتحدّث لحالة تانية غير returned/partial_* المعلّقة، فيتحسب عادي هنا.
-        const isRolledOverPendingAtShipping = (o: ManifestOrder) => {
-          if (!(o as any).rolledOver) return false;
-          if (o.deliveryStatus === "returned" && (o as any).returnReceived !== 1) return true;
-          if (
-            (o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") &&
-            (o as any).returnReceived !== 1
-          ) return true;
-          return false;
-        };
-        const ordersForTopCards = (manifest.orders ?? []).filter(o => !isRolledOverPendingAtShipping(o));
-        const netAmount = ordersForTopCards.reduce((s, o) => s + getCollectedAmount(o), 0);
-        // إجمالي تكلفة الشحن = مجموع "سعر الشحن" لكل شحنات البيان بنفس المعادلة
-        // المستخدمة فعليًا في عمود "سعر الشحن" الظاهر بالجدول الحي (shippingDisplay
-        // في قسم "نظرة العميل" — isShippingZeroedRow ? 0 : getChargeableShipping):
-        // صفر لمؤجل/قيد الانتظار/مرتجع بسبب غير مالي، وإلا getChargeableShipping
-        // (اللي بتستبدل zoneCost بدل shippingCost لحالتي refused_unpaid/quality).
-        // ⚠️ تصحيح عن التعديل السابق: استخدام shippingCost الخام مباشرة كان بيجمع
-        // سعر شحن كامل حتى للمؤجل (الباك اند بيرجّعه كامل لأي حالة غير returned)،
-        // فطلعت النتيجة أعلى من مجموع العمود الظاهر فعليًا في الجدول.
-        const isShippingZeroedRowCard = (o: ManifestOrder) => {
-          const st = o.deliveryStatus;
-          if (st === "postponed" || st === "delayed" || st === "pending") return true;
-          if (st === "returned") {
-            if (!RETURN_REASONS_FINANCIAL.includes(String((o as any).returnReason ?? ""))) return true;
+        // ⚠️ عدد الشحنات الظاهر تحت كارت "إجمالي تكلفة الشحن" العلوي بيتحسب لاحقًا
+        // من ordersForTopCards (مسلَّم + مرتجع بالأسباب المالية الثلاثة فقط)
+        // بالظبط زي netAmount/displayedShippingCostSimple — عشان يطابق نفس شرط
+        // الكارتين. القيمة هنا placeholder بيتجاوزها التعريف الفعلي تحت.
+        // ─── تصحيح بطلب صريح من المستخدم (2026-08-28) ──────────────────────────
+        // إجمالي الإيرادات وإجمالي تكلفة الشحن لازم يتحسبوا بس من حالتين اتنين:
+        // 1) مسلَّم بالكامل (delivered)
+        // 2) مرتجع بأحد الأسباب المالية الثلاثة فقط (رفض بعد المعاينة مدفوع/غير
+        //    مدفوع، أو تهرب من الاستلام = quality) — refused_paid/refused_unpaid/quality
+        // أي حالة تانية (partial_received/partial_delivered/postponed/delayed/pending
+        // أو مرتجع بسبب غير مالي) تُستبعد بالكامل من الكارتين، حتى لو ليها قيمة
+        // مستلمة أو سعر شحن مسجّل — مش من ضمن الحالات الثلاثة المطلوبة.
+        const ordersForTopCards = (manifest.orders ?? []).filter(o => {
+          if (o.deliveryStatus === "delivered") return true;
+          if (o.deliveryStatus === "returned") {
+            return RETURN_REASONS_FINANCIAL.includes(String((o as any).returnReason ?? ""));
           }
           return false;
-        };
+        });
+        const netAmount = ordersForTopCards.reduce((s, o) => s + getCollectedAmount(o), 0);
         const displayedShippingCostSimple = ordersForTopCards.reduce(
-          (s, o) => s + (isShippingZeroedRowCard(o) ? 0 : getChargeableShipping(o)), 0
+          (s, o) => s + getChargeableShipping(o), 0
         );
-        // إجمالي المستحق بيشمل بس الشحنات اللي فعلاً بتولد مبلغ مستحق:
-        // مسلَّم + استلام جزئي + مرتجع بأسباب الشحن الثلاثة (رفض بعد المعاينة
-        // مدفوع/غير مدفوع، أو تهرب من المعاينة) — مش كل شحنات البيان.
-        const dueOrdersCount = deliveredOrders.length + partialOrders.length + returnedDueOrders.length;
+        const shippingCostOrdersCount = ordersForTopCards.length;
+        // عدد الشحنات الظاهر تحت كارت "إجمالي الإيرادات" لازم يطابق بالظبط عدد
+        // الشحنات اللي دخلت فعليًا في netAmount أعلاه (مسلَّم + مرتجع بالأسباب
+        // المالية الثلاثة فقط) — بدون استلام جزئي، حسب طلب المستخدم (2026-08-28).
+        const dueOrdersCount = ordersForTopCards.length;
         // الرصيد المستحق (كارت ثابت دايمًا) = إجمالي الإيرادات - إجمالي تكلفة الشحن (شامل إضافات الأنواع)
         const totalDueFromClient = netAmount - displayedShippingCostSimple;
         // صافي الإيراد المستحق (الحاوية المخفية تحت فقط) = إجمالي سعر الشحن
