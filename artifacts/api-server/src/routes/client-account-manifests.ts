@@ -1098,7 +1098,10 @@ async function rolloverPendingItemsToNewManifest(
 
   const pendingItems = items.filter(item => {
     if (item.deliveryStatus === "pending" || item.deliveryStatus === "delayed") return true;
-    if (item.deliveryStatus === "returned" && item.returnReceived !== 1) return true;
+    // ⚠️ تصحيح (2026-08-28): كان فيه هنا شرط بيرحّل كمان returned غير مؤكد
+    // الاستلام. المطلوب فعليًا: عند إغلاق البيان، بس قيد الانتظار (pending)
+    // والمؤجل (delayed) هما اللي يترحّلوا للبيان الجديد. المرتجع (وبكل حالاته
+    // الجزئية) لازم يفضل في البيان القديم المقفول زي ما كان لحظة القفل بالظبط.
     return false;
   });
 
@@ -1159,16 +1162,13 @@ async function rolloverPendingItemsToNewManifest(
   });
   const newManifestId = (result as any).insertId as number;
 
-  // ─── التفرقة بين نوعين وقت الترحيل ────────────────────────────────────────
-  // 1) قيد الانتظار / مؤجل → بيترحّل كصف "pending" عادي في جدول "الشحنات في
-  //    البيان" (الجدول الرئيسي) — زي ما كان دايمًا.
-  // 2) مرتجع لسه عند مندوب الشحن (returnReceived !== 1) → لازم يترحّل بحالته
-  //    الأصلية "returned" (مش "pending") مع الحفاظ على returnReason/returnReceived،
-  //    عشان الفرونت إند (فلتر pendingReturnOrders في client-account-manifest-detail)
-  //    يحطه في حاوية "بضاعة لسه عند مندوب الشحن" بس — مش جدول "الشحنات في البيان".
-  //    وبما إن مفيش حد استلم فلوس عليه لسه، بنصفّر أي قيمة مالية قديمة
-  //    (returnValueReceived) عشان البيان الجديد يبدأ نضيف ماليًا زيه زي باقي
-  //    الأنواع — نفس فلسفة rolloverPartialShipments بتاعة بيانات المندوب.
+  // ─── وقت الترحيل ────────────────────────────────────────────────────────
+  // ⚠️ تصحيح (2026-08-28): كان فيه هنا تفرقة بين "قيد الانتظار/مؤجل" و"مرتجع
+  // لسه عند مندوب الشحن" لأن pendingItems كانت بترحّل الاتنين. دلوقتي
+  // pendingItems بترحّل بس pending/delayed (المرتجع مبيترحّلش خالص، يفضل في
+  // بيانه القديم المقفول)، فـ returnedStillAtShippingToRoll هتفضل فاضية
+  // دايمًا — سايبها هنا (no-op آمن) عشان الكونتراكت اللي الفرونت بيقراه
+  // (rolledOverManifest.returnedInShippingCount) يفضل شغال من غير تعديل هناك.
   const delayedOrPendingToRoll = pendingItemsToRoll.filter(i => i.deliveryStatus !== "returned");
   const returnedStillAtShippingToRoll = pendingItemsToRoll.filter(i => i.deliveryStatus === "returned");
 

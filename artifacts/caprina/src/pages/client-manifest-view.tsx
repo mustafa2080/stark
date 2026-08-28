@@ -560,25 +560,12 @@ export default function ClientManifestViewPage() {
   }
 
   const items = manifest.items ?? [];
-  // ⚠️ تصحيح (2026-08-28، ٥): نفس بالظبط منطق ordersWithoutPendingReturns +
-  // ordersExcludingPendingShipping فى الأدمن مجتمعين:
-  // - returned/partial_delivered/partial_received اتأكد استلامه فى المخزن
-  //   (return_received === 1) → يُستبعد تمامًا من الجدول (راح المخزن خلاص،
-  //   مكانه الوحيد صفحة "المرتجعات" client-returns.tsx مش هنا).
-  // - returned بس (بغض النظر عن التأكيد) → يُستبعد من الجدول برضو، يظهر فى
-  //   الحاوية الحمرا لو لسه مش مؤكد.
-  // - partial_delivered/partial_received اللى لسه مش مؤكد (عند المندوب) →
-  //   يفضل ظاهر فى الجدول العادي (نفس الأدمن بالظبط)، وكمان فى الحاوية
-  //   الحمرا كتنبيه.
-  const itemsForTable = items.filter((i) => {
-    const isConfirmedReturnOrPartial =
-      (i.deliveryStatus === "returned" || i.deliveryStatus === "partial_delivered" || i.deliveryStatus === "partial_received")
-      && i.returnReceived === 1;
-    if (isConfirmedReturnOrPartial) return false;
-    if (i.deliveryStatus === "returned") return false;
-    return true;
-  });
-  const groupedItems = groupManifestItems(itemsForTable);
+  // ⚠️ تصحيح (2026-08-28، ٦): بناءً على طلب صريح، جدول "الشحنات في البيان"
+  // فى بورتال العميل بيعرض *كل* الأوردرات (بما فيها المرتجع/الجزئي، مؤكد
+  // الاستلام أو لأ) — من غير أي استبعاد. البيان بيفضل زي ما كان لحظة قفله
+  // بالظبط. حاوية "بضاعة لسه عند مندوب الشحن" اتشالت خالص (تحت)، فمفيش داعي
+  // لاستبعاد أي حاجة من الجدول عشان تظهر هناك.
+  const groupedItems = groupManifestItems(items);
 
   const manifestGroupPriority: Record<string, number> = {
     returned: 5,
@@ -622,15 +609,6 @@ export default function ClientManifestViewPage() {
         )
       )
     : groupedItems;
-
-  // ─── بضاعة لسه عند شركة الشحن (مرتجع/جزئي لسه محتاج تأكيد استلام) ───
-  const pendingReturnItems = items.filter(
-    (item) =>
-      (item.deliveryStatus === "returned" ||
-        item.deliveryStatus === "partial_received" ||
-        item.deliveryStatus === "partial_delivered") &&
-      item.returnReceived !== 1
-  );
 
   // ─── كروت المجاميع المالية — بدون أي بيانات تكلفة داخلية (zoneCost/costPrice) ───
   const deliveredItems = items.filter((i) => i.deliveryStatus === "delivered");
@@ -935,60 +913,6 @@ export default function ClientManifestViewPage() {
           </div>
         )}
       </div>
-
-      {/* ─── بضاعة لسه عند شركة الشحن ─── */}
-      {pendingReturnItems.length > 0 && (
-        <div
-          className="rounded-xl border-2 border-red-500/70 bg-red-950/30 p-4"
-          style={{ boxShadow: "0 0 30px 6px rgba(239,68,68,0.4), 0 0 60px 10px rgba(239,68,68,0.15), inset 0 0 20px 2px rgba(239,68,68,0.05)" }}
-        >
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-base">🚚</span>
-            <h2 className="font-bold text-sm text-red-400">
-              بضاعة لسه عند مندوب الشحن ({pendingReturnItems.length})
-            </h2>
-          </div>
-          <div className="flex flex-col gap-2">
-            {pendingReturnItems.map((item) => {
-              const isPartial = item.deliveryStatus === "partial_received" || item.deliveryStatus === "partial_delivered";
-              const deliveredQty = item.partialQuantity ?? 0;
-              const remainingQty = isPartial ? (item.quantity - deliveredQty) : item.quantity;
-              return (
-                <div
-                  key={item.id}
-                  className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 rounded-lg border border-red-800/30 bg-red-950/30 px-3 py-2.5"
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="font-medium text-xs truncate text-foreground">{item.customerName}</span>
-                      {item.phone && <span className="text-[10px] text-muted-foreground">{item.phone}</span>}
-                      <span className="text-[10px] text-muted-foreground font-mono">#{item.shipmentId}</span>
-                      <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${isPartial ? "bg-teal-900/40 text-teal-400" : "bg-red-900/40 text-red-400"}`}>
-                        {isPartial ? "جزئي" : "مرتجع"}
-                      </span>
-                    </div>
-                    <p className="text-[10px] font-semibold text-red-400 mt-0.5">
-                      {isPartial
-                        ? `كمية باقية عند الشحن: ${remainingQty} من ${item.quantity}`
-                        : `كمية مرتجعة: ${item.quantity}`}
-                    </p>
-                    <div className="flex items-center gap-2.5 flex-wrap mt-0.5">
-                      <p className="text-[10px] text-muted-foreground">
-                        إجمالي الشحنة: <span className="font-bold text-foreground">{formatCurrency(item.totalPrice)}</span>
-                      </p>
-                      {!isPartial && item.returnReason && (
-                        <p className="text-[10px] text-muted-foreground">
-                          السبب: <span className="font-bold text-red-300">{returnReasonLabel(item.returnReason)}</span>
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
       {/* ─── كروت المجاميع المالية ─── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
