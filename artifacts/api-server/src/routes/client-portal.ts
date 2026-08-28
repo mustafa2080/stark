@@ -2129,7 +2129,11 @@ router.get("/client-portal/returns/_debug", async (req, res): Promise<void> => {
     if (!sh.length) { res.json({ error: "shipment not found", shipNum }); return; }
     const shipmentId = sh[0].id;
     const rows = await db.select().from(clientAccountManifestItemsTable).where(eq(clientAccountManifestItemsTable.shipmentId, shipmentId));
-    res.json({ shipmentId, deletedAt: sh[0].deletedAt, rows });
+    const manifestIds = [...new Set(rows.map(r => r.manifestId))];
+    const manifestsInfo = manifestIds.length
+      ? await db.select().from(clientAccountManifestsTable).where(inArray(clientAccountManifestsTable.id, manifestIds))
+      : [];
+    res.json({ shipmentId, deletedAt: sh[0].deletedAt, myClientId: user.clientId, rows, manifestsInfo });
   } catch (e: any) {
     res.status(500).json({ error: String(e) });
   }
