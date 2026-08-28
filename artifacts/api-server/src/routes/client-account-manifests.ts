@@ -55,25 +55,70 @@ async function generateManifestNumber(clientId: number): Promise<string> {
 // ─── إضافة تلقائية للبيان عند دخول الشحنة "قيد الشحن في المخزن" ──────────────
 // ⚠️ بالتصميم (تراجع رجّعناه بعد ما اتلغى بالغلط في كوميت 309fde3a): الشحنة
 // الجديدة متتضافش لأي بيان مفتوح تلقائيًا أبدًا، ولا يتفتح لها بيان جديد. تفضل
-// "معلّقة" (من غير manifestId) عشان مينفعش تدخل بيان قيد العمل بعد ما اتقفّل
-// شغله. بتتضاف لبيان بس في لحظتين: (1) الأدمن يضيفها يدويًا لبيان مفتوح موجود
-// عبر POST /add-shipments، أو (2) لما بيان مفتوح يتقفل — عندها كل الشحنات
-// المعلّقة بتتجمع تلقائيًا مع شحنات البيان القديم اللي لسه "قيد الانتظار/
-// مؤجلة/مرتجعة-لم-تُستلم" في بيان جديد واحد (rolloverPendingItemsToNewManifest).
-// الدالة اتسابت بنفس التوقيع والاستدعاءات القديمة (idempotent/no-op) عشان
-// الكود اللي بينادي عليها من أماكن تانية (shipments.ts, import.ts,
-// client-portal.ts, sync-warehouse-ready) يفضل شغال من غير أي تعديل فيهم —
-// هي بس بقت no-op فعليًا (متعملش أي إضافة أو فتح بيان).
+// "معلّقة" (من غير manifestId) لحد ما تتحول لـ "قيد الشحن في المخزن" (warehouse_ready)
+// أو أبعد — عندها الدالة دي بتضيفها تلقائيًا لبيان العميل المفتوح، أو تفتح
+// بيان جديد له لو مفيش بيان مفتوح أصلاً. (تراجعنا عن نسخة الـ no-op اللي كانت
+// هنا قبل كده — رجّعنا auto-add الحقيقي بطلب صريح من مصطفى بتاريخ 2026-08-28).
+//
+// idempotent: بتتأكد الأول إن الشحنة مالهاش صف بالفعل في clientAccountManifestItemsTable
+// (بأي بيان، مفتوح أو مقفول) قبل ما تضيف — فمينفعش تتكرر لو اتنادت أكتر من مرة
+// لنفس الشحنة (زي إعادة المزامنة sync-warehouse-ready).
 export async function autoAddShipmentToClientAccountManifest(
   shipmentId: number,
   clientId: number | null | undefined,
   tenantId: number | null,
 ): Promise<void> {
-  // مفيش أي إضافة تلقائية لبيان مفتوح ولا فتح بيان جديد بعد النهارده. الشحنة
-  // تفضل معلّقة (orphan) لحد ما تتضاف يدويًا أو يحصل rollover عند إغلاق بيان —
-  // وده اللي بيغذّي عداد وكارت "الأوردرات الجديدة" (pendingShipmentsCount) في
-  // client-manifests.tsx و client-portal.ts.
-  return;
+  if (!clientId) return;
+
+  // الشحنة مضافة بالفعل لبيان (أي بيان) → متتضافش تاني.
+  const [existingItem] = await db
+    .select({ id: clientAccountManifestItemsTable.id })
+    .from(clientAccountManifestItemsTable)
+    .where(eq(clientAccountManifestItemsTable.shipmentId, shipmentId))
+    .limit(1);
+  if (existingItem) return;
+
+  const tenantCondition = tenantId !== null
+    ? or(eq(clientAccountManifestsTable.tenantId, tenantId), isNull(clientAccountManifestsTable.tenantId))
+    : undefined;
+
+  // فيه بيان مفتوح بالفعل لنفس العميل؟ نضيف الشحنة له.
+  const [openManifest] = await db
+    .select({ id: clientAccountManifestsTable.id })
+    .from(clientAccountManifestsTable)
+    .where(and(
+      eq(clientAccountManifestsTable.clientId, clientId),
+      eq(clientAccountManifestsTable.status, "open"),
+      tenantCondition,
+    ))
+    .limit(1);
+
+  const now = new Date();
+  let manifestId: number;
+
+  if (openManifest) {
+    manifestId = openManifest.id;
+  } else {
+    // مفيش بيان مفتوح → نفتح واحد جديد للعميل ده (نفس منطق POST /client-account-manifests).
+    const manifestNumber = await generateManifestNumber(clientId);
+    const [result] = await db.insert(clientAccountManifestsTable).values({
+      tenantId: tenantId ?? null,
+      manifestNumber,
+      clientId,
+      status: "open",
+      notes: null,
+      createdAt: now,
+      scheduledCloseAt: computeNextClosingDate(now),
+    });
+    manifestId = (result as any).insertId as number;
+  }
+
+  await db.insert(clientAccountManifestItemsTable).values({
+    manifestId,
+    shipmentId,
+    deliveryStatus: "pending",
+    addedAt: now,
+  });
 }
 
 // ─── GET /client-account-manifests?clientId=X ────────────────────────────────
