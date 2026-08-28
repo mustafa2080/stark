@@ -634,31 +634,14 @@ export default function ClientManifestViewPage() {
     (s, i) => s + (isShippingZeroedRow(i) ? 0 : Number(i.repExtraCost ?? 0)),
     0
   );
-  // ⚠️ الرصيد المستحق لازم يطابق بالظبط منطق totalDueFromClient فى صفحة الأدمن
-  // (client-account-manifest-detail.tsx) والباك إند (computeClosedManifestsForClient):
-  // 1) استبعاد أي بند rolledOver لسه معلّق عند شركة الشحن (returned و
-  //    returnReceived !== 1) تمامًا — ده اتحسب فعليًا فى بيانه القديم المقفول
-  //    وقت قفله، فلو اتحسب تاني هنا هيتكرر.
-  // 2) الأهلية المالية = مسلَّم فقط، أو مرتجع بسبب مالى من الثلاثة
-  //    (refused_paid/refused_unpaid/quality) — أي حالة تانية (جزئي/مؤجل/معلّق/
-  //    مرتجع بسبب غير مالي) تُستبعد بالكامل من الرقم، حتى لو ليها قيمة مستلمة.
-  const isRolledOverPendingAtShippingTop = (i: ManifestItem) => {
-    if (!(i as any).rolledOver) return false;
-    return i.deliveryStatus === "returned" && (i as any).returnReceived !== 1;
-  };
-  const itemsForDueCard = items.filter((i) => {
-    if (isRolledOverPendingAtShippingTop(i)) return false;
-    if (i.deliveryStatus === "delivered") return true;
-    if (i.deliveryStatus === "returned") {
-      return RETURN_REASONS_FINANCIAL.includes(String(i.returnReason ?? ""));
-    }
-    return false;
-  });
-  const totalDueFromClient = itemsForDueCard.reduce(
-    (s, i) => s + getCollectedAmount(i) - getChargeableShipping(i),
-    0
-  );
-  const dueOrdersCount = itemsForDueCard.length;
+  // ⚠️ تصحيح (2026-08-28، ٩): "الرصيد المستحق" لازم يبقى ببساطة إجمالي
+  // الإيرادات ناقص إجمالي تكلفة الشحن، من نفس مصدر الكارتين فوق (itemsForTopCards)
+  // — بدون فلترة إضافية بحالة أو سبب. قبل كده كان بيتحسب من مجموعة مختلفة
+  // (itemsForDueCard: مسلَّم + مرتجع بأسباب مالية بس) فيطلع أوطى من
+  // netAmount - shippingCost الفعليين الظاهرين فوقه، رغم إن الكارتين اللي
+  // فوقه كانوا بيشملوا كل الحالات (جزئي وغيره) بعد التصحيح اللي فات.
+  const totalDueFromClient = netAmount - shippingCost;
+  const dueOrdersCount = itemsForTopCards.length;
 
   return (
     <div className="flex flex-col gap-4 max-w-5xl mx-auto p-4" dir="rtl">
