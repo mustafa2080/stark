@@ -1091,6 +1091,10 @@ function InvoiceGroupDeliveryRow({
   const totalQty = group.reduce((s, o) => s + o.quantity, 0);
   // السعر الفعلي: لو partial_received أو partial_delivered احسب الجزء المستلم فقط
   const totalPrice = group.reduce((s, o) => {
+    if (o.deliveryStatus === "partial_delivered" && isShipmentManifest && o.partialQuantity != null) {
+      // shipment manifest: partialQuantity هنا قيمة مالية (مبلغ) مباشرة، مش كمية
+      return s + Number(o.partialQuantity);
+    }
     if ((o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") && o.partialQuantity != null) {
       return s + Number(o.unitPrice) * Number(o.partialQuantity);
     }
