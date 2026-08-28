@@ -560,16 +560,24 @@ export default function ClientManifestViewPage() {
   }
 
   const items = manifest.items ?? [];
-  // ⚠️ تصحيح (2026-08-28، ٤): كل المرتجع (returned) — سواء اتأكد استلامه في
-  // المخزن أو لسه عند مندوب الشحن — لازم يُستبعد تمامًا من جدول "الشحنات في
-  // البيان" والعدّادات (نسبة التسليم، مُسلَّم/مرتجع/إلخ)، ويظهر بس داخل
-  // حاوية "بضاعة لسه عند مندوب الشحن" الحمرا تحت. نفس بالظبط منطق
-  // ordersExcludingPendingShipping فى الأدمن (client-account-manifest
-  // -detail.tsx: filter deliveryStatus !== "returned"). قبل كده الجدول
-  // والعدّادات هنا كانوا بيحسبوا كل الـ items من غير استبعاد، فعدد الشحنات
-  // ونسبة التسليم كانوا يختلفوا جوهريًا عن الأدمن (23% بدل 100%، مرتجع 10
-  // بدل 0).
-  const itemsForTable = items.filter((i) => i.deliveryStatus !== "returned");
+  // ⚠️ تصحيح (2026-08-28، ٥): نفس بالظبط منطق ordersWithoutPendingReturns +
+  // ordersExcludingPendingShipping فى الأدمن مجتمعين:
+  // - returned/partial_delivered/partial_received اتأكد استلامه فى المخزن
+  //   (return_received === 1) → يُستبعد تمامًا من الجدول (راح المخزن خلاص،
+  //   مكانه الوحيد صفحة "المرتجعات" client-returns.tsx مش هنا).
+  // - returned بس (بغض النظر عن التأكيد) → يُستبعد من الجدول برضو، يظهر فى
+  //   الحاوية الحمرا لو لسه مش مؤكد.
+  // - partial_delivered/partial_received اللى لسه مش مؤكد (عند المندوب) →
+  //   يفضل ظاهر فى الجدول العادي (نفس الأدمن بالظبط)، وكمان فى الحاوية
+  //   الحمرا كتنبيه.
+  const itemsForTable = items.filter((i) => {
+    const isConfirmedReturnOrPartial =
+      (i.deliveryStatus === "returned" || i.deliveryStatus === "partial_delivered" || i.deliveryStatus === "partial_received")
+      && i.returnReceived === 1;
+    if (isConfirmedReturnOrPartial) return false;
+    if (i.deliveryStatus === "returned") return false;
+    return true;
+  });
   const groupedItems = groupManifestItems(itemsForTable);
 
   const manifestGroupPriority: Record<string, number> = {
