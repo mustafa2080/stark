@@ -165,16 +165,23 @@ export async function computeClosedManifestsForClient(clientId: number): Promise
     };
 
     const RETURN_REASONS_FINANCIAL = new Set(["refused_paid", "refused_unpaid", "quality"]);
+    // ⚠️ إصلاح (فرق 95 ج.م بين "إجمالي رصيد العميل" بالداشبورد و"الرصيد المستحق"
+    // في صفحة تفاصيل البيان — بيان CAM-105-001 #133، شحنة خالد ابراهيم المؤجلة
+    // SHP-2026-0061): صفحة تفاصيل البيان (netDueFromClientAllStatuses في
+    // client-account-manifests.ts) بتحسب بند "مؤجل" (delayed) بسعر شحن كامل
+    // مطروح من غير أي مبلغ متحصّل يقابله (0 - zonePrice)، فمينفعش نستبعده هنا
+    // بالكامل زي "postponed"/"pending" وإلا الرقمين يفضلوا مختلفين. "مؤجل" يتحسب
+    // زي أي بند تاني (collected=0، سعر الشحن بيتطرح) — بس "قيد الشحن في المخزن"
+    // (postponed) و"قيد الانتظار" (pending) لسه بيتصفّروا بالكامل لأنهم أصلاً
+    // برة تفاصيل البيان (EXCLUDED_SHIPMENT_STATUSES) فمفيش سعر شحن اتحدد لهم بعد.
     const isShippingZeroedRow = (item: any, st: string, shipment: any) => {
-      if (st === "postponed" || st === "delayed" || st === "pending") return true;
+      if (st === "postponed" || st === "pending") return true;
       if (st === "returned") {
         const reason = item.returnReason ?? shipment?.returnReason ?? null;
         if (!RETURN_REASONS_FINANCIAL.has(String(reason ?? ""))) return true;
       }
       return false;
     };
-
-    // نجمّع قيمة كل بيان على حدة (بدل إجمالي واحد بس) عشان نعرضها كحركة مستقلة في كشف الحساب
     const valueByManifest: Record<number, number> = {};
     const countByManifest: Record<number, number> = {};
     // ── قيمة "المستحق" فقط لكل بيان (بدون أي أثر مالي للمرتجعات) + عدد المرتجعات ─
@@ -455,8 +462,10 @@ export async function computeClientBalancesForAllClients(
     };
 
     const RETURN_REASONS_FINANCIAL = new Set(["refused_paid", "refused_unpaid", "quality"]);
+    // نفس إصلاح computeClosedManifestsForClient فوق — "مؤجل" (delayed) ما يتصفّرش
+    // بالكامل، لازم يفضل متطابق مع dueValue الفردي لكل عميل.
     const isShippingZeroedRow = (item: any, st: string, shipment: any) => {
-      if (st === "postponed" || st === "delayed" || st === "pending") return true;
+      if (st === "postponed" || st === "pending") return true;
       if (st === "returned") {
         const reason = item.returnReason ?? shipment?.returnReason ?? null;
         if (!RETURN_REASONS_FINANCIAL.has(String(reason ?? ""))) return true;
