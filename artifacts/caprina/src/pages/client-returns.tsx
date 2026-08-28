@@ -18,7 +18,7 @@ interface ReturnItem {
   shipmentId: number;
   manifestId: number;
   manifestNumber: string;
-  deliveryStatus: "returned" | "delayed" | "partial_delivered";
+  deliveryStatus: "returned" | "delayed" | "partial_delivered" | "partial_received";
   deliveryNote: string | null;
   returnReceived: number | null;
   returnReason: string | null;
@@ -90,9 +90,9 @@ export default function ClientReturnsPage() {
     staleTime: 15_000,
   });
 
-  // مرتجع كامل + المرتجع الجزئي بتاع الاستلام الجزئي (partial_delivered) — الـ delayed برا الصفحة دي خالص
+  // مرتجع كامل + المرتجع الجزئي (partial_delivered أو partial_received) — الـ delayed برا الصفحة دي خالص
   const all = (returns ?? []).filter(i =>
-    i.deliveryStatus === "returned" || i.deliveryStatus === "partial_delivered"
+    i.deliveryStatus === "returned" || i.deliveryStatus === "partial_delivered" || i.deliveryStatus === "partial_received"
   );
 
   // "تم الاستلام" = returnReceived === 1
@@ -383,6 +383,7 @@ const STATUS_META: Record<ReturnItem["deliveryStatus"], { label: string; color: 
   returned: { label: "مرتجع", color: "#dc2626", bg: "rgba(220,38,38,0.12)" },
   delayed: { label: "مؤجل", color: "#0d9488", bg: "rgba(13,148,136,0.12)" },
   partial_delivered: { label: "مرتجع عن استلام جزئي", color: "#f59e0b", bg: "rgba(245,158,11,0.12)" },
+  partial_received: { label: "مرتجع عن استلام جزئي", color: "#f59e0b", bg: "rgba(245,158,11,0.12)" },
 };
 
 function ReturnCard({ item }: { item: ReturnItem }) {
@@ -439,7 +440,7 @@ function ReturnCard({ item }: { item: ReturnItem }) {
             </div>
           )}
 
-          {item.deliveryStatus === "partial_delivered" && item.partialQuantity != null && (
+          {(item.deliveryStatus === "partial_delivered" || item.deliveryStatus === "partial_received") && item.partialQuantity != null && (
             <p className="text-xs text-muted-foreground">
               الكمية المتبقية عند مندوب الشحن: <span className="font-bold text-foreground">{item.partialQuantity}</span>
             </p>

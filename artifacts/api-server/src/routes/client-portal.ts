@@ -2046,7 +2046,7 @@ router.get("/client-portal/returns", async (req, res): Promise<void> => {
       .from(clientAccountManifestItemsTable)
       .where(and(
         inArray(clientAccountManifestItemsTable.manifestId, manifestIds),
-        inArray(clientAccountManifestItemsTable.deliveryStatus, ["returned", "delayed", "partial_delivered"]),
+        inArray(clientAccountManifestItemsTable.deliveryStatus, ["returned", "delayed", "partial_delivered", "partial_received"]),
       ));
 
     // ⚠️⚠️ إصلاح (2026-08-28): شحنة اترحّلت من بيان مقفول لبيان جديد بيبقى ليها
@@ -2077,8 +2077,9 @@ router.get("/client-portal/returns", async (req, res): Promise<void> => {
       // الشحنات المحذوفة (soft-deleted) مش موجودة في shipmentMap — نستبعد بنودها
       // عشان ما تظهرش في قائمة المرتجعات/المشاكل بالبورتال.
       .filter(i => shipmentMap[i.shipmentId])
-      // partial_delivered لسه في الشحن فقط (اللي اتسلمت بالكامل بالفعل مستبعدة)
-      .filter(i => i.deliveryStatus !== "partial_delivered" || i.returnReceived !== 1)
+      // partial_delivered/partial_received لسه في الشحن فقط (اللي اتأكد
+      // استلامها بالكامل بالفعل مستبعدة — returnReceived === 1)
+      .filter(i => (i.deliveryStatus !== "partial_delivered" && i.deliveryStatus !== "partial_received") || i.returnReceived !== 1)
       .map(item => {
         const sh = shipmentMap[item.shipmentId] ?? null;
         return {
