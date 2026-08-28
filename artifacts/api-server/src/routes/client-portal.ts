@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, desc, isNull, sql, or, inArray, ne } from "drizzle-orm";
+import { eq, and, desc, isNull, sql, or, inArray, ne, lt } from "drizzle-orm";
 import rateLimit from "express-rate-limit";
 import {
   db,
@@ -1901,6 +1901,27 @@ router.get("/client-portal/manifests/:id", async (req, res): Promise<void> => {
     // القيمة المستلمة/سعر الشحن يطابقوا الظاهر فعليًا في صفحة الأدمن.
     const RETURN_REASONS_WITH_VALUE = new Set(["refused_paid", "refused_unpaid", "quality"]);
 
+    // ─── بند "مُرحّل" (rolledOver) من بيان أقدم — نفس منطق الأدمن بالظبط ─────
+    // (client-account-manifests.ts): وجود بيان **أقدم** (id أصغر) بنفس الشحنة
+    // معناه إن البند ده وصل للبيان الحالي عن طريق الترحيل من بيان قديم اتقفل.
+    // الفرونت بيستخدمها لفلترة جدول "الشحنات في البيان" في البيان الجديد
+    // المُرحّل (يعرض بس مؤجل/قيد الانتظار من البنود دي) وتصفير قيمتها المالية.
+    const rolledOverShipmentIds = new Set<number>();
+    if (shipmentIds.length) {
+      const olderItemRows = await db
+        .select({ shipmentId: clientAccountManifestItemsTable.shipmentId })
+        .from(clientAccountManifestItemsTable)
+        .innerJoin(
+          clientAccountManifestsTable,
+          eq(clientAccountManifestItemsTable.manifestId, clientAccountManifestsTable.id)
+        )
+        .where(and(
+          inArray(clientAccountManifestItemsTable.shipmentId, shipmentIds),
+          lt(clientAccountManifestItemsTable.manifestId, id),
+        ));
+      olderItemRows.forEach(r => rolledOverShipmentIds.add(r.shipmentId));
+    }
+
     const enrichedItems = items.map(item => {
       const sh = shipmentMap[item.shipmentId] ?? null;
       // fallback: السبب/القيمة الحقيقية ممكن تكون مسجلة على مستوى الشحنة نفسها
@@ -1949,6 +1970,9 @@ router.get("/client-portal/manifests/:id", async (req, res): Promise<void> => {
         invoiceNumber: sh?.shipmentNumber ?? "",
         representativeName: sh?.assignedUserId ? (repNameMap[sh.assignedUserId] ?? null) : null,
         warehouseName: sh?.warehouseId ? (warehouseNameMap[sh.warehouseId] ?? null) : null,
+        // بند مُرحّل من بيان أقدم؟ الفرونت بيستخدمها لفلترة جدول "الشحنات في
+        // البيان" وتصفير قيمتها المالية في البيان الحالي (الجديد المُرحّل).
+        rolledOver: rolledOverShipmentIds.has(item.shipmentId),
       };
     });
 

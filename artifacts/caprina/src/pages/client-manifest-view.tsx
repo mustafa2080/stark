@@ -21,6 +21,9 @@ const formatCurrency = (n: number | string | null | undefined) =>
 const RETURN_REASONS_FINANCIAL = ["refused_paid", "refused_unpaid", "quality"];
 
 function getCollectedAmount(item: ManifestItem): number {
+  // ⚠️ تصحيح (2026-08-28، ١٢): بند مُرحّل (rolledOver) من بيان أقدم اتقفل خلاص —
+  // قيمته المالية اتحسبت هناك، فتفضل صفر هنا في البيان الجديد المُرحّل دايمًا.
+  if (item.rolledOver === true) return 0;
   if (item.deliveryStatus === "delivered") {
     const dvr = item.deliveredValueReceived;
     return dvr != null ? Number(dvr) : Number(item.totalPrice ?? 0);
@@ -44,6 +47,9 @@ function getCollectedAmount(item: ManifestItem): number {
 }
 
 function isShippingZeroedRow(item: ManifestItem): boolean {
+  // ⚠️ تصحيح (2026-08-28، ١٢): بند مُرحّل — سعر شحنه صفر دايمًا هنا، بغض النظر
+  // عن حالته أو سببه، لنفس سبب تصفير getCollectedAmount فوق.
+  if (item.rolledOver === true) return true;
   const st = item.deliveryStatus;
   if (st === "postponed" || st === "delayed" || st === "pending") return true;
   if (st === "returned") {
@@ -111,6 +117,7 @@ interface ManifestItem {
   unitPrice?: number | null;
   repExtraCost?: number | null;
   repExtraReason?: string | null;
+  rolledOver?: boolean;
 }
 
 interface ManifestDetail {
@@ -559,12 +566,20 @@ export default function ClientManifestViewPage() {
     );
   }
 
-  const items = manifest.items ?? [];
   // ⚠️ تصحيح (2026-08-28، ٦): بناءً على طلب صريح، جدول "الشحنات في البيان"
   // فى بورتال العميل بيعرض *كل* الأوردرات (بما فيها المرتجع/الجزئي، مؤكد
   // الاستلام أو لأ) — من غير أي استبعاد. البيان بيفضل زي ما كان لحظة قفله
   // بالظبط. حاوية "بضاعة لسه عند مندوب الشحن" اتشالت خالص (تحت)، فمفيش داعي
   // لاستبعاد أي حاجة من الجدول عشان تظهر هناك.
+  // ⚠️ تصحيح (2026-08-28، ١٢): استثناء واحد — بند "مُرحّل" (rolledOver) من
+  // بيان أقدم اتقفل خلاص يظهر هنا بس لو حالته النهائية لسه مؤجل/قيد الانتظار
+  // (يعني ده سبب ترحيله فعلًا: معلّق عند شركة الشحن). أي حالة نهائية تانية
+  // (مسلَّم/مرتجع/جزئي) للبند المُرحّل ظهرت قيمتها فعلاً في البيان القديم وقت
+  // قفله، فبتُستبعد من هنا عشان متتكررش. البند غير المُرحّل مش متأثر إطلاقًا.
+  const items = (manifest.items ?? []).filter((i) => {
+    if (i.rolledOver !== true) return true;
+    return i.deliveryStatus === "delayed" || i.deliveryStatus === "postponed" || i.deliveryStatus === "pending";
+  });
   const groupedItems = groupManifestItems(items);
 
   const manifestGroupPriority: Record<string, number> = {

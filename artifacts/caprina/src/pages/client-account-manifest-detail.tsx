@@ -4113,6 +4113,17 @@ export default function ShippingManifestPage() {
       // (in_shipping) فعليًا. الاستبعاد بـ dStatus === "pending" كان بيخفي
       // شحنات in_shipping غلط رغم وصولها للمخزن.
       if (shipmentStatus === "pending" || shipmentStatus === "waiting") return false;
+      // ⚠️ تصحيح (2026-08-28، ١٢): بند "مُرحّل" (rolledOver) من بيان أقدم اتقفل
+      // خلاص — قيمته المالية اتحسبت هناك بالفعل. في البيان الجديد المُرحّل ده،
+      // البند يظهر بس لو لسه فعليًا "مؤجل"/"قيد الانتظار" (يعني السبب الحقيقي
+      // لترحيله كان إنه معلّق عند شركة الشحن). أي حالة نهائية تانية (مسلَّم،
+      // مرتجع، جزئي) للبند المُرحّل تُستبعد من الجدول هنا — قيمتها ظهرت فعلاً
+      // في البيان القديم وقت قفله، وعرضها هنا كمان تكرار. البند غير المُرحّل
+      // مش متأثر بالشرط ده إطلاقًا.
+      if ((o as any).rolledOver === true) {
+        const dStatus = o.deliveryStatus;
+        if (dStatus !== "delayed" && dStatus !== "postponed" && dStatus !== "pending") return false;
+      }
       return true;
     });
     const groups = groupManifestOrders(ordersWithoutPendingReturns);
@@ -4575,6 +4586,10 @@ export default function ShippingManifestPage() {
   // رفض بعد المعاينة (دفع/غير مدفوع) أو تهرّب من الاستلام.
   const RETURN_REASONS_FINANCIAL = ["refused_paid", "refused_unpaid", "quality"];
   const getCollectedAmount = (o: ManifestOrder) => {
+    // ⚠️ تصحيح (2026-08-28، ١٢): بند مُرحّل (rolledOver) من بيان أقدم اتقفل —
+    // قيمته المالية اتحسبت هناك خلاص. طالما لسه ظاهر في الجدول هنا (يعني حالته
+    // النهائية لسه مؤجل/قيد الانتظار حسب الفلتر فوق)، قيمته المستلمة = صفر دايمًا.
+    if ((o as any).rolledOver === true) return 0;
     if (o.deliveryStatus === "delivered") {
       const dvr = (o as any).deliveredValueReceived;
       return dvr != null ? Number(dvr) : Number(o.totalPrice ?? 0);
@@ -4605,6 +4620,9 @@ export default function ShippingManifestPage() {
   // مؤجل/معلَّق/قيد الانتظار، أو مرتجع بسبب غير مالي = صفر — عشان الرقم هنا
   // يطابق بالظبط مجموع عمود "سعر الشحن" الظاهر فعليًا في الصفوف.
   const isShippingZeroedRowTop = (o: ManifestOrder) => {
+    // ⚠️ تصحيح (2026-08-28، ١٢): بند مُرحّل (rolledOver) — سعر شحنه صفر دايمًا
+    // هنا، بغض النظر عن حالته أو سببه، لنفس سبب تصفير getCollectedAmount فوق.
+    if ((o as any).rolledOver === true) return true;
     const st = o.deliveryStatus;
     if (st === "postponed" || st === "delayed" || st === "pending") return true;
     if (st === "returned") {
@@ -6033,7 +6051,16 @@ export default function ShippingManifestPage() {
         // أو سبب أو rolledOver — الكارتين بيعكسوا الجدول زي ما هو بالظبط.
         const ordersForTopCards = (manifest.orders ?? []).filter(o => {
           const shipmentStatus = (o as any).status;
-          return shipmentStatus !== "pending" && shipmentStatus !== "waiting";
+          if (shipmentStatus === "pending" || shipmentStatus === "waiting") return false;
+          // ⚠️ تصحيح (2026-08-28، ١٢): بند مُرحّل قيمته صفر دايمًا (getCollectedAmount/
+          // getChargeableShipping فوق)، فمنستبعدهوش من العدد كمان — إلا لو حالته
+          // مؤجل/قيد الانتظار (نفس شرط ordersWithoutPendingReturns فوق بالظبط)،
+          // عشان عدد الشحنات تحت الكارتين يطابق عدد الصفوف الظاهرة فعليًا في الجدول.
+          if ((o as any).rolledOver === true) {
+            const dStatus = o.deliveryStatus;
+            if (dStatus !== "delayed" && dStatus !== "postponed" && dStatus !== "pending") return false;
+          }
+          return true;
         });
         const netAmount = ordersForTopCards.reduce((s, o) => s + getCollectedAmount(o), 0);
         const displayedShippingCostSimple = ordersForTopCards.reduce(
