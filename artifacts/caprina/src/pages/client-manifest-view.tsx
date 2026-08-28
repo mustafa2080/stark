@@ -619,14 +619,15 @@ export default function ClientManifestViewPage() {
   const returnedDueItems = returnedItems.filter((i) =>
     RETURN_REASONS_FINANCIAL.includes(String(i.returnReason ?? ""))
   );
-  // ⚠️ نفس استبعاد rolledOver المعلّق عند شركة الشحن المطبّق تحت على كارت
-  // "الرصيد المستحق" — لازم يتطبّق هنا كمان على كارتي "إجمالي الإيرادات" و
-  // "إجمالي تكلفة الشحن"، وإلا البند اللي اتحسب فعليًا في بيانه القديم المقفول
-  // هيتحسب مرتين هنا كمان (نفس الباج اللي اتصلح فى client-account-manifest-detail.tsx).
-  const rolledOverPendingItems = items.filter(
-    (i) => (i as any).rolledOver && i.deliveryStatus === "returned" && (i as any).returnReceived !== 1
-  );
-  const itemsForTopCards = items.filter((i) => !rolledOverPendingItems.includes(i));
+  // ─── تصحيح بطلب صريح من المستخدم (2026-08-28، ٨) ──────────────────────────
+  // إجمالي الإيرادات = مجموع بسيط لعمود "القيمة المستلمة"، وإجمالي تكلفة
+  // الشحن = مجموع عمود "سعر الشحن"، لكل الصفوف الظاهرة فعليًا في جدول
+  // "الشحنات في البيان" (نفس الأدمن بالظبط — استبعاد قيد الانتظار/waiting
+  // الفعلية بس، بدون أي فلترة إضافية بحالة أو سبب أو rolledOver).
+  const itemsForTopCards = items.filter((i) => {
+    const shipmentStatus = (i as any).status;
+    return shipmentStatus !== "pending" && shipmentStatus !== "waiting";
+  });
   const netAmount = itemsForTopCards.reduce((s, i) => s + getCollectedAmount(i), 0);
   const shippingCost = itemsForTopCards.reduce((s, i) => s + getChargeableShipping(i), 0);
   const repExtraCostTotal = itemsForTopCards.reduce(
