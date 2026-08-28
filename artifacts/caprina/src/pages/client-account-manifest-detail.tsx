@@ -4094,38 +4094,16 @@ export default function ShippingManifestPage() {
   const filteredManifestOrders = useMemo(() => {
     const orders = manifest?.orders ?? [];
     // ─── منطق ظهور المرتجع/الجزئي في جدول "الشحنات في البيان" ─────────────────
-    // القرار الوحيد اللي بيحكم الإخفاء هو rolledOver — بغض النظر عن حالة
-    // البيان الحالي مفتوح أو مقفول:
-    // - مرتجع/جزئي أصلي (rolledOver = false, مش مؤكد الاستلام): يظهر في الجدول
-    //   وفي الحاوية الحمرا مع بعض دايمًا (مفتوح أو مقفول) — البيان المقفول
-    //   لازم يفضل زي ما كان لحظة قفله بالظبط، بما فيه المرتجع.
-    // - مرتجع/جزئي مُرحّل من بيان قديم مقفول (rolledOver = true, مش مؤكد
-    //   الاستلام): يختفي من الجدول دايمًا (مفتوح أو مقفول) ويفضل في الحاوية
-    //   الحمرا بس — حدثه المالي اتحسب في البيان القديم وقت قفله.
-    // (تصحيح 2026-08-27: شرط isClosed كان بيلخبط الحالتين في بعض — شيلناه
-    // خالص، rolledOver بس هو مصدر القرار.)
-    // المسلَّم (delivered) يفضل ظاهر في الجدول بحالة "مسلَّم" في كل الحالات.
+    // ⚠️ تصحيح (2026-08-28، ٧): بناءً على طلب صريح — البيان (مفتوح أو مقفول)
+    // لازم يعرض كل الأوردرات اللي فيه دايمًا، زي ما كانت لحظة إضافتها/قفله،
+    // من غير أي استبعاد إضافي بسبب rolledOver أو returnReceived. كان فيه هنا
+    // استبعاد لأي مرتجع/جزئي اتأكد استلامه (returnReceived === 1) بحجة إنه
+    // "راح المخزن خلاص"، وده كان بيخفي شحنات زي "كامل" (partial_delivered +
+    // returnReceived=1) من الجدول تمامًا. دلوقتي: بس "قيد الانتظار" (لسه
+    // مفيش نتيجة تسليم أصلًا وشحنتها لسه عند المخزن/المندوب بدري) هي اللي
+    // تُستبعد — أي حالة نهائية (مسلَّم، مرتجع، جزئي، مؤجل) تفضل ظاهرة دايمًا.
     const ordersWithoutPendingReturns = orders.filter(o => {
-      const rr = (o as any).returnReceived;
-      const isConfirmed = rr === 1 || rr === true;
-      const dStatus = o.deliveryStatus;
       const shipmentStatus = (o as any).status;
-      const isReturnedOrPartialByDelivery =
-        dStatus === "returned" || dStatus === "partial_received" || dStatus === "partial_delivered";
-      const isReturnedOrPartialByShipment =
-        shipmentStatus === "returned" || shipmentStatus === "partial_received";
-      // ─── (1) المرتجع/الجزئي اللي اتأكد استلامه (returnReceived === 1) ─────────
-      // راح المخزن خلاص → يتشال من جدول "الشحنات في البيان" دايمًا (مفتوح أو مقفول)
-      // ومش بيظهر في الحاوية الحمرا (فلترها returnReceived !== 1).
-      if ((isReturnedOrPartialByDelivery || isReturnedOrPartialByShipment) && isConfirmed) return false;
-      // ─── (2) المرتجع/الجزئي اللي لسه عند مندوب الشحن (returnReceived !== 1) ────
-      // مُرحّل من بيان قديم مقفول → يختفي من الجدول دايمًا (مفتوح أو مقفول)،
-      // لأن حدثه المالي اتحسب في البيان القديم. مش مُرحّل (أصلي في البيان
-      // الحالي) → يظهر في الجدول دايمًا (مفتوح أو مقفول) — البيان المقفول
-      // التاريخي يفضل زي ما كان لحظة قفله بالظبط، بما فيه المرتجع.
-      // ملحوظة: الكروت المالية والعدّادات فوق بتقرا من manifest.orders مباشرةً
-      // (مش من الجدول)، فالتغيير هنا في العرض بس ومابيأثرش على أي حساب مالي.
-      if (isReturnedOrPartialByDelivery && !isConfirmed && (o as any).rolledOver) return false;
       // ─── استبعاد الشحنات اللي حالتها الفعلية لسه "قيد الانتظار" ─────────────
       // (لسه محدش استلمها في المخزن) — البيان يعرض بس اللي وصلت لمرحلة
       // "قيد الشحن في المخزن" فيما فوق. المعيار الصح هو shipmentStatus (حالة
@@ -4134,20 +4112,7 @@ export default function ShippingManifestPage() {
       // لأي شحنة اتضافت حديثًا للبيان، حتى لو الشحنة نفسها بقت "قيد الشحن"
       // (in_shipping) فعليًا. الاستبعاد بـ dStatus === "pending" كان بيخفي
       // شحنات in_shipping غلط رغم وصولها للمخزن.
-      // ملحوظة مهمة (إصلاح): لو البند أصلاً مرتجع/جزئي لسه مش مؤكد الاستلام
-      // (isReturnedOrPartialByDelivery && !isConfirmed) — يبقى هو نفس البند
-      // اللي بيظهر في الحاوية الحمرا تحت (فلترها بيعتمد على deliveryStatus
-      // بس، من غير أي شرط على shipmentStatus). مينفعش نستبعده هنا بسبب
-      // shipmentStatus === "pending"/"waiting"، لأن shipmentsTable.status
-      // ممكن يفضل قديم/غير متزامن (مثلاً لو الباك اند محدّثش الحالة وقت
-      // تسجيل "مرتجع" على بند بيان حساب العميل). لو استبعدناه هنا، هيختفي من
-      // الجدول العادي بينما لسه ظاهر في الحاوية الحمرا تحت — فرق العدد اللي
-      // شفناه (محمد 3 و 5). الشرط ده لازم يفضل قاصر بس على الشحنات اللي مش
-      // مرتجع/جزئي غير مؤكد أصلاً.
-      if (
-        (shipmentStatus === "pending" || shipmentStatus === "waiting") &&
-        !(isReturnedOrPartialByDelivery && !isConfirmed)
-      ) return false;
+      if (shipmentStatus === "pending" || shipmentStatus === "waiting") return false;
       return true;
     });
     const groups = groupManifestOrders(ordersWithoutPendingReturns);
@@ -4519,13 +4484,20 @@ export default function ShippingManifestPage() {
     const rr = (o as any).returnReceived;
     return o.deliveryStatus === "returned" && (rr === 1 || rr === true || rr === "1");
   };
+  // ⚠️ تصحيح (2026-08-28، ٧): نفس بالظبط منطق ordersWithoutPendingReturns فوق —
+  // استبعاد "قيد الانتظار" بس (shipmentStatus)، عشان العدّادات هنا تطابق صفوف
+  // الجدول الفعلية بالظبط (بما فيها المرتجع والجزئي المؤكد).
   const ordersExcludingPendingShipping = (manifest.orders ?? []).filter(
-    (o) => o.deliveryStatus !== "returned"
+    (o) => {
+      const shipmentStatus = (o as any).status;
+      return shipmentStatus !== "pending" && shipmentStatus !== "waiting";
+    }
   );
 
   // ─── كل العدادات (مسلَّم/مرتجع/جزئي/مؤجل/بانتظار/إجمالي) لازم تطابق صفوف جدول الطلبيات في البيان ───
-  // ملاحظة: المرتجع (المؤكد أو اللي لسه عند الشحن) مستبعد تمامًا من هنا ومن
-  // كل الكروت والعدادات تحت — بيظهر بس داخل الحاوية الحمرا المنفصلة.
+  // (تصحيح 2026-08-28، ٧): المرتجع/الجزئي كلهم بقوا ظاهرين فى الجدول والعدّادات
+  // هنا عادي — الحاوية الحمرا "بضاعة لسه عند مندوب الشحن" تحت لسه موجودة زي
+  // تنبيه إضافي بس مش استبعاد.
   const groupedManifestOrders = groupManifestOrders(ordersExcludingPendingShipping);
   const allGroupedOrders = groupedManifestOrders;
   const manifestGroupPriority: Record<string, number> = {
