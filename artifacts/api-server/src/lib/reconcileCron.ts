@@ -1,5 +1,5 @@
 import { db, shipmentsTable, clientAccountManifestItemsTable, shipmentManifestItemsTable } from "@workspace/db";
-import { and, eq, isNull, ne, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { SHIPMENT_STATUS_TO_DELIVERY } from "./manifestSync.js";
 
 /**
@@ -13,16 +13,26 @@ import { SHIPMENT_STATUS_TO_DELIVERY } from "./manifestSync.js";
  * مسارات التحديث بتمر به أولاً) ويصلّح أي انحراف في deliveryStatus الخاص ببنود:
  *   1) بيان حساب العميل (client_account_manifest_items)
  *   2) بيان شركة الشحن / المندوب (shipment_manifest_items) — بنفس الحماية:
- *      بنسيب أي بند حالته "postponed" (اختيار يدوي من المندوب اللي الـ mapping
- *      العام مش بيميزه) عشان منمسحش اختيار المستخدم.
+ *      بنسيب أي بند حالته "postponed" أو "delayed" (اختيار يدوي من المندوب/الأدمن
+ *      لتأجيل الشحنة عن قصد، والـ mapping العام مش بيميزه عن حالات shipments.status
+ *      التانية زي in_transit/warehouse_ready) عشان منمسحش اختيار المستخدم.
+ *
+ * ⚠️ إصلاح (2026-08-28): "delayed" كان ناقص من قائمة الحماية دي، فأي شحنة
+ * اتأجّلت يدويًا (deliveryStatus = "delayed") كانت بترجع تلقائيًا لـ "pending"
+ * أول ما shipments.status يتغيّر لأي حالة تانية (زي in_transit) — حتى لو محدّش
+ * عدّل بند البيان نفسه يدويًا. ده كان بيسبب فرق في "الرصيد المستحق" بين صفحة
+ * البيان الفردي (اتحسبت وقت ما كانت لسه delayed) ورصيد العميل الإجمالي (اتحسب
+ * بعد ما الـ cron قلبها pending بصمت).
  *
  * ملاحظات مهمة:
  * - بنلمس deliveryStatus و deliveredAt فقط — مفيش أي حقول مالية (القيم المستلمة
  *   إدخالات يدوية من المندوب مش بتُشتق من الحالة).
  */
 
+const MANUAL_PROTECTED_STATUSES = ["postponed", "delayed"] as const;
+
 // شرط SQL: الحالة الفعلية للشحنة ليها mapping معروف، والبند مختلف عنه،
-// والبند مش "postponed" (محجوز لاختيار المندوب اليدوي)
+// والبند مش من الحالات المحمية (اختيار يدوي من المندوب/الأدمن)
 function mismatchCondition(itemStatusColumn: typeof clientAccountManifestItemsTable.deliveryStatus | typeof shipmentManifestItemsTable.deliveryStatus) {
   const colName = itemStatusColumn === clientAccountManifestItemsTable.deliveryStatus
     ? "client_account_manifest_items.delivery_status"
@@ -35,7 +45,7 @@ function mismatchCondition(itemStatusColumn: typeof clientAccountManifestItemsTa
     ` ELSE ${colName} END`;
   return and(
     isNull(shipmentsTable.deletedAt),
-    ne(itemStatusColumn, "postponed" as any),
+    sql`${itemStatusColumn} NOT IN (${sql.join(MANUAL_PROTECTED_STATUSES.map(s => sql`${s}`), sql`, `)})`,
     sql`${itemStatusColumn} <> ${sql.raw(caseExpr)}`,
   );
 }
