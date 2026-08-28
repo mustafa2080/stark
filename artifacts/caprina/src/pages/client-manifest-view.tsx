@@ -276,7 +276,15 @@ function buildClientManifestPrintHtml(manifest: ManifestDetail, groups: Manifest
 
   const netAmount = groups.reduce((s, g) => s + g.reduce((sum, i) => sum + getCollectedAmount(i), 0), 0);
   const shippingTotal = groups.reduce((s, g) => s + g.reduce((sum, i) => sum + getChargeableShipping(i), 0), 0);
-  const dueAmount = netAmount - shippingTotal;
+  // ⚠️ الرصيد المستحق لازم يستبعد المرتجعات بالكامل (حتى المالية منها زي
+  // refused_paid/refused_unpaid/quality) من القيمة المالية تمامًا — نفس بالظبط
+  // منطق dueValue فى computeClosedManifestsForClient (الباك إند، المرجع الوحيد
+  // الصحيح لكارت "رصيد العميل" وكشف الحساب فى صفحة الأدمن). المرتجعات تُعرض
+  // كعدد شحنات فقط (returnedCount) من غير أي أثر على الرقم المالي هنا.
+  const dueAmount = groups.reduce((s, g) => s + g.reduce((sum, i) => {
+    if (i.deliveryStatus === "returned") return sum;
+    return sum + getCollectedAmount(i) - getChargeableShipping(i);
+  }, 0), 0);
 
   const rowsHtml = groups
     .map((group, idx) => {
@@ -608,7 +616,15 @@ export default function ClientManifestViewPage() {
     0
   );
   const displayedShippingCost = shippingCost + repExtraCostTotal;
-  const totalDueFromClient = netAmount - displayedShippingCost;
+  // ⚠️ الرصيد المستحق لازم يستبعد المرتجعات بالكامل (حتى المالية منها زي
+  // refused_paid/refused_unpaid/quality) من القيمة المالية تمامًا — نفس بالظبط
+  // منطق dueValue فى computeClosedManifestsForClient (الباك إند، المرجع الوحيد
+  // الصحيح لكارت "رصيد العميل" وكشف الحساب فى صفحة الأدمن). المرتجعات لسه
+  // بتتعرض كعدد شحنات (returnedDueItems/dueOrdersCount) من غير أي أثر مالي هنا.
+  const totalDueFromClient = items.reduce((s, i) => {
+    if (i.deliveryStatus === "returned") return s;
+    return s + getCollectedAmount(i) - getChargeableShipping(i);
+  }, 0);
   const dueOrdersCount = deliveredItems.length + partialItems.length + returnedDueItems.length;
 
   return (
