@@ -560,7 +560,17 @@ export default function ClientManifestViewPage() {
   }
 
   const items = manifest.items ?? [];
-  const groupedItems = groupManifestItems(items);
+  // ⚠️ تصحيح (2026-08-28، ٤): كل المرتجع (returned) — سواء اتأكد استلامه في
+  // المخزن أو لسه عند مندوب الشحن — لازم يُستبعد تمامًا من جدول "الشحنات في
+  // البيان" والعدّادات (نسبة التسليم، مُسلَّم/مرتجع/إلخ)، ويظهر بس داخل
+  // حاوية "بضاعة لسه عند مندوب الشحن" الحمرا تحت. نفس بالظبط منطق
+  // ordersExcludingPendingShipping فى الأدمن (client-account-manifest
+  // -detail.tsx: filter deliveryStatus !== "returned"). قبل كده الجدول
+  // والعدّادات هنا كانوا بيحسبوا كل الـ items من غير استبعاد، فعدد الشحنات
+  // ونسبة التسليم كانوا يختلفوا جوهريًا عن الأدمن (23% بدل 100%، مرتجع 10
+  // بدل 0).
+  const itemsForTable = items.filter((i) => i.deliveryStatus !== "returned");
+  const groupedItems = groupManifestItems(itemsForTable);
 
   const manifestGroupPriority: Record<string, number> = {
     returned: 5,
