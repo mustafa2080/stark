@@ -1141,9 +1141,10 @@ router.delete("/client-account-manifests/:id/items/:shipmentId", async (req, res
 
 // ─── ترحيل الشحنات المعلقة تلقائيًا عند إغلاق بيان ────────────────────────────
 // لما بيان حساب عميل يتقفل، بيتفتح بيان جديد تلقائيًا لنفس العميل ويتجمع فيه:
-//   (أ) الشحنات "المعلّقة" اللي لسه من غير أي بيان خالص — دخلت warehouse_ready
-//       أو أبعد وقت ما كان البيان القديم مفتوح، لكن متضافتش له تلقائيًا (بعد
-//       إيقاف autoAddShipmentToClientAccountManifest)، فضلت مستنية لحد الإغلاق.
+//   (أ) الشحنات "المعلّقة" بتاعة العميل اللي لسه من غير أي بيان خالص — أي شحنة
+//       بغض النظر عن حالتها (تحديث 2026-08-29: اتشال شرط استبعاد waiting/pending
+//       القديم، عشان أي شحنة orphan تتضاف للبيان الجديد فور القفل بدل ما تفضل
+//       معلّقة لحد ما توصل warehouse_ready).
 //   (ب) شحنات البيان القديم اللي لسه "قيد الانتظار" (pending) أو "مؤجلة"
 //       (delayed) أو "مرتجعة ولسه محدّش استلمها" (returned + returnReceived != 1)
 //       — دي بتترحّل كـ"نسخة" (نفس الشحنة بتتضاف كبند جديد deliveryStatus="pending"
@@ -1198,9 +1199,9 @@ async function rolloverPendingItemsToNewManifest(
   }
   const pendingItemsToRoll = pendingItems.filter(i => nonDeletedPendingSet.has(i.shipmentId));
 
-  // ─── الشحنات "المعلّقة" بتاعة نفس العميل: وصلت warehouse_ready أو أبعد
-  // (بمعنى تانى: مش لسه waiting/pending)، ومفيهاش أي صف خالص في جدول بنود
-  // بيانات حساب العميل (بغض النظر عن أي بيان، مفتوح أو مقفول). ─────────────
+  // ─── الشحنات "المعلّقة" بتاعة نفس العميل: أي شحنة بغض النظر عن حالتها،
+  // ومفيهاش أي صف خالص في جدول بنود بيانات حساب العميل (بغض النظر عن أي بيان،
+  // مفتوح أو مقفول). ────────────────────────────────────────────────────────
   const tenantCondition = tenantId !== null
     ? or(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.tenantId))
     : undefined;
@@ -1212,9 +1213,7 @@ async function rolloverPendingItemsToNewManifest(
       isNull(shipmentsTable.deletedAt), // الشحنة المحذوفة مالهاش تترحّل كـ orphan
       tenantCondition,
     ));
-  const eligibleShipmentIds = clientShipments
-    .filter(s => !["waiting", "pending"].includes(s.status))
-    .map(s => s.id);
+  const eligibleShipmentIds = clientShipments.map(s => s.id);
 
   let orphanShipmentIds: number[] = [];
   if (eligibleShipmentIds.length) {
