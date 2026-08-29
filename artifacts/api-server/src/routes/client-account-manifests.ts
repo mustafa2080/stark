@@ -912,8 +912,16 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
       // "رفض ولم يدفع"/"تهرب من الاستلام": تكلفة المندوب الفعلية (zoneCost) بدل سعر
       // الشحن العادي — نفس useRepCost. غير كده: سعر الشحن العادي (zonePrice) + repExtraCost.
       const useRepCostForDue = isReturnedWithValue && (reason === "refused_unpaid" || reason === "quality");
-      const dueShippingBase = useRepCostForDue ? item.zoneCost : item.zonePrice;
-      netDueFromClientAllStatuses += collected - (dueShippingBase + (item.repExtraCost ?? 0));
+      // ⚠️ فيكس (فرق بين "الرصيد المستحق" هنا و"إجمالي رصيد العميل"/كشف الحساب):
+      // computeClosedManifestsForClient (المرجع الصحيح لرصيد العميل) بيصفّر سعر
+      // الشحن بالكامل لبند حالته "قيد الشحن في المخزن" (postponed) أو "قيد
+      // الانتظار" (pending) — عبر isShippingZeroedRow. هنا item.zonePrice مكنش
+      // بيتصفّر لنفس الحالتين، فسعر الشحن الكامل كان بيتخصم غلط من المستحق لأي
+      // بند لسه postponed/pending، فيقلل الرقم هنا عن رصيد العميل الفعلي.
+      const isShippingZeroedForDue = st === "postponed" || st === "pending";
+      const dueShippingBase = isShippingZeroedForDue ? 0 : (useRepCostForDue ? item.zoneCost : item.zonePrice);
+      const dueRepExtraCost = isShippingZeroedForDue ? 0 : (item.repExtraCost ?? 0);
+      netDueFromClientAllStatuses += collected - (dueShippingBase + dueRepExtraCost);
     }
     const netProfit = totalRevenue - totalCost - totalShippingCost - returnLosses;
     const netDueFromClient = netDueFromClientAllStatuses; // صافي المستحق من/على العميل — شامل كل الحالات
