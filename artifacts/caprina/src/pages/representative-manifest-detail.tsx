@@ -286,8 +286,13 @@ function OrderDeliveryRow({
         // shipment manifests: deliveryStatus, deliveryNote, partialQuantity, returnReceived, returnReason, returnValueReceived
         // لازم يشمل كل قيم SHIPMENT_DELIVERY_OPTIONS وإلا القيمة المختارة بتتحول
         // بصمت لـ "pending" قبل حتى ما توصل للباك إند (كانت مشكلة postponed).
-        const allowed = ["pending","delivered","partial_delivered","returned","delayed","postponed"] as const;
-        const safeStatus = allowed.includes(status as any) ? status as "pending"|"delivered"|"partial_delivered"|"returned"|"delayed"|"postponed" : "pending";
+        // ⚠️ إصلاح: "partial_received" (زرار "استلم جزئي" في DELIVERY_OPTIONS فوق —
+        // ده الاختيار الفعلي اللي المندوب بيدوس عليه، مش "partial_delivered") كانت
+        // ناقصة من هنا، فكانت بتترجم لـ"pending" بصمت مع partialQuantity=null، يعني
+        // القيمة المستلمة فعليًا (زي 1000ج.م) كانت بتتسجل في شيت المندوب لكن تضيع
+        // تمامًا من رصيد العميل المستحق (سبب فرق الخزنة الفعلية عن الرصيد المستحق).
+        const allowed = ["pending","delivered","partial_delivered","partial_received","returned","delayed","postponed"] as const;
+        const safeStatus = allowed.includes(status as any) ? status as "pending"|"delivered"|"partial_delivered"|"partial_received"|"returned"|"delayed"|"postponed" : "pending";
         return shipmentManifestsApi.updateItem(manifestId, order.shipmentId, {
           deliveryStatus: safeStatus,
           deliveryNote: finalNote,
