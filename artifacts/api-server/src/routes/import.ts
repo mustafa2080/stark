@@ -5,7 +5,6 @@ import { db, ordersTable, productsTable, productVariantsTable, shipmentsTable, s
 import { eq, and, ilike } from "drizzle-orm";
 import { getTenantId } from "../middlewares/requireTenant.js";
 import { generateShipmentNumber } from "./shipments.js";
-import { autoAddShipmentToClientAccountManifest } from "./client-account-manifests.js";
 
 const router: IRouter = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
@@ -644,14 +643,10 @@ router.post("/shipments/import/execute", async (req, res): Promise<void> => {
       });
       insertedCount++;
 
-      // إضافة تلقائية لبيان حساب العميل المفتوح (لو موجود)، أو فتح بيان جديد له
-      // — نفس آلية POST /shipments، عشان الشحنات المستوردة متفضلش معلّقة برة
-      // أي بيان حساب لحد ما حد يضيفها يدويًا.
-      if (s.clientId) {
-        const insertId = (insertResult as any)[0]?.insertId ?? (insertResult as any).insertId;
-        autoAddShipmentToClientAccountManifest(insertId, s.clientId, tenantId)
-          .catch((e) => console.error("[POST /import/shipments] auto-add manifest error", e));
-      }
+      // ⚠️ فيكس: الشحنات المستوردة بتتعمل بحالة "waiting" (قيد الانتظار) دايمًا،
+      // فمينفعش تتضاف للبيان المفتوح فورًا زي ما كان بيحصل هنا قبل كده — نفس
+      // منطق POST /shipments بالظبط: تفضل معلّقة لحد ما تتحول فعليًا لـ
+      // warehouse_ready (قيد الشحن في المخزن)، مش وقت الاستيراد.
     } catch (insertErr: any) {
       errors.push(`فشل إدخال شحنة "${s.receiverName}": ${insertErr.message}`);
     }

@@ -33,7 +33,6 @@ import { logAudit } from "../lib/audit.js";
 import { generateShipmentNumber, syncShipmentInventory } from "./shipments.js";
 import { pushNotification } from "../lib/notifications.js";
 import { computeClosedManifestsForClient } from "../lib/clientAccountBalance.js";
-import { autoAddShipmentToClientAccountManifest } from "./client-account-manifests.js";
 
 const router: IRouter = Router();
 const importUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
@@ -2688,10 +2687,11 @@ router.post("/client-portal/shipments/import/execute", async (req, res): Promise
         });
         imported++;
 
-        // إضافة تلقائية لبيان حساب العميل المفتوح (لو موجود)، أو فتح بيان جديد له
-        const insertId = (insertResult as any)[0]?.insertId ?? (insertResult as any).insertId;
-        autoAddShipmentToClientAccountManifest(insertId, client.id, tenantId)
-          .catch((e) => console.error("[client-portal import] auto-add manifest error", e));
+        // ⚠️ فيكس: الشحنات المستوردة من بورتال العميل بتتعمل بحالة "waiting"
+        // (قيد الانتظار) دايمًا، فمينفعش تتضاف للبيان المفتوح فورًا — نفس منطق
+        // POST /shipments بالظبط: تفضل معلّقة لحد ما تتحول فعليًا لـ warehouse_ready.
+        // (الكود القديم كان بينادي الدالة من غير شرط خالص فكانت كل شحنة مستوردة
+        // بتتضاف للبيان المفتوح وهي لسه قيد الانتظار.)
       } catch (e: any) {
         errors.push(`فشل استيراد شحنة "${s.receiverName}": ${e.message}`);
       }
