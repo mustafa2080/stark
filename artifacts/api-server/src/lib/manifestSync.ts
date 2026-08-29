@@ -96,11 +96,6 @@ export async function syncShipmentStatusToManifests(
   const partialQuantityPatch = (mapped === "partial_delivered" && options?.partialQuantity !== undefined)
     ? { partialQuantity: options.partialQuantity }
     : {};
-  console.log("[DEBUG manifestSync]", JSON.stringify({
-    shipmentId, newShipmentStatus, mapped,
-    optionsPartialQuantity: options?.partialQuantity,
-    partialQuantityPatch,
-  }));
   // نفس الفكرة للمرتجع (سبب يستلزم قيمة: refused_paid / refused_unpaid / quality). عمود decimal.
   const returnValuePatch = (mapped === "returned" && options?.returnValueReceived !== undefined)
     ? { returnValueReceived: options.returnValueReceived === null ? null : String(options.returnValueReceived) }

@@ -1006,9 +1006,15 @@ router.put("/shipments/:id", async (req, res): Promise<void> => {
       // الفيكس ده كنا بنعتمد على d.collectedAmount بس هنا، فكانت partialQuantity
       // في جدولي البيان (حساب العميل / شركة الشحن) بتفضل زي ما هي (صفر) رغم إن
       // المندوب كتب القيمة فعلاً وحفظها صح في shipmentsTable.partialQuantity.
-      const manifestFinancialValue = d.collectedAmount !== undefined
-        ? d.collectedAmount
-        : d.partialQuantity;
+      // ⚠️ فيكس تاني: في حالة "استلام جزئي" الفرونت بيبعت partialQuantity (القيمة
+      // الصح) + collectedAmount=0 مع بعض (متبقّية من تهيئة حقل مش ظاهر أصلاً في
+      // الحالة دي) — فلو اعتمدنا على collectedAmount!==undefined، الصفر ده كان
+      // بيكسب على partialQuantity الصح. في partial_received بنديله الأولوية دايمًا.
+      const manifestFinancialValue = updateData.status === "partial_received" && d.partialQuantity !== undefined
+        ? d.partialQuantity
+        : d.collectedAmount !== undefined
+          ? d.collectedAmount
+          : d.partialQuantity;
       await syncShipmentStatusToManifests(id, updateData.status, {
         returnReason: updateData.returnReason,
         // ⚠️ ملاحظة "مهامي" (سبب التأجيل/الإرجاع اللي المندوب بيكتبه) — كانت
@@ -1197,15 +1203,18 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
       // الفيكس ده كنا بنعتمد على d.collectedAmount بس هنا، فكانت partialQuantity
       // في جدولي البيان (حساب العميل / شركة الشحن) بتفضل زي ما هي (صفر) رغم إن
       // المندوب كتب القيمة فعلاً وحفظها صح في shipmentsTable.partialQuantity.
-      const manifestFinancialValue = d.collectedAmount !== undefined
-        ? d.collectedAmount
-        : d.partialQuantity;
-      console.log("[DEBUG PATCH-shipments]", JSON.stringify({
-        id, rawBody: req.body,
-        d_collectedAmount: d.collectedAmount,
-        d_partialQuantity: d.partialQuantity,
-        manifestFinancialValue,
-      }));
+      // ⚠️ فيكس تاني: في حالة "استلام جزئي" تحديدًا، الفرونت (ShipmentStatusEditor)
+      // بيبعت partialQuantity (القيمة اللي المندوب كتبها فعليًا في الحقل الظاهر)
+      // + collectedAmount = 0 في نفس الوقت (متبقّية من تهيئة الحقل بقيمة
+      // shipment.collectedAmount القديمة اللي مش ظاهرة أصلاً كحقل في حالة
+      // partial_received) — فلو اعتمدنا على collectedAmount!==undefined هنا،
+      // الصفر ده كان بيكسب على partialQuantity الصح. عشان كده في الحالة دي
+      // تحديدًا نديله الأولوية دايمًا.
+      const manifestFinancialValue = updateData.status === "partial_received" && d.partialQuantity !== undefined
+        ? d.partialQuantity
+        : d.collectedAmount !== undefined
+          ? d.collectedAmount
+          : d.partialQuantity;
       await syncShipmentStatusToManifests(id, updateData.status, {
         returnReason: updateData.returnReason,
         // ⚠️ ملاحظة "مهامي" (سبب التأجيل/الإرجاع اللي المندوب بيكتبه) — كانت

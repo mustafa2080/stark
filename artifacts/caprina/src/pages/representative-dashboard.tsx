@@ -94,8 +94,12 @@ function ShipmentStatusEditor({ shipment, onSaved }: { shipment: any; onSaved: (
       if (status === "partial_received") {
         body.partialQuantity = partialQty.trim() !== "" ? parseInt(partialQty) : null;
       }
+      // ⚠️ حقل "القيمة المستلمة فعليًا" (deliveredValueReceived) مش ظاهر أصلاً
+      // كـ input في حالة partial_received — بتتهيأ قيمته من shipment.collectedAmount
+      // القديمة، فلو اتبعت هنا كان بيكسب على partialQuantity الصح في الباك إند
+      // ويخلي البيان يعرض صفر. نبعته بس في حالة "delivered" اللي الحقل فعلاً ظاهر فيها.
       if (
-        (status === "delivered" || status === "partial_received") &&
+        status === "delivered" &&
         deliveredValueReceived.trim() !== "" &&
         !isNaN(Number(deliveredValueReceived))
       ) {
