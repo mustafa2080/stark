@@ -23,6 +23,8 @@ import { syncManifestItemToShipment, SHIPMENT_STATUS_TO_DELIVERY } from "../lib/
 import { syncShipmentInventory } from "./shipments.js";
 import { syncShipmentItemsInventory } from "../lib/inventory.js";
 import { computeClosedManifestsForClient } from "../lib/clientAccountBalance.js";
+import { computeClientManifestNetDue } from "../lib/manifestFinance.js";
+import { autoAddClientToTripSettlement } from "../lib/tripSettlementSync.js";
 
 const router: IRouter = Router();
 router.use(requireAuth);
@@ -1330,6 +1332,29 @@ router.patch("/client-account-manifests/:id", async (req, res): Promise<void> =>
         ...(body.status === "open"   ? { closedAt: null } : {}),
       })
       .where(eq(clientAccountManifestsTable.id, id));
+
+    // ── ترحيل تلقائي لـ "تسوية الرحلات والتحصيل" عند إغلاق بيان العميل ────────
+    // netDueFromClient بيتحسب فقط عند القراءة أصلاً (مش عمود مخزّن) — فبناخد
+    // snapshot ليه هنا في لحظة الإغلاق بالظبط، بنفس منطق GET /:id/stats.
+    if (isClosingNow) {
+      try {
+        const netDue = await computeClientManifestNetDue(id);
+        if (netDue !== 0) {
+          const [clientRow] = await db.select({ name: clientsTable.name })
+            .from(clientsTable).where(eq(clientsTable.id, currentManifest.clientId)).limit(1);
+          await autoAddClientToTripSettlement({
+            tenantId: currentManifest.tenantId ?? null,
+            sourceManifestId: id,
+            netDue,
+            clientId: currentManifest.clientId,
+            clientName: clientRow?.name ?? "عميل",
+          });
+        }
+      } catch (syncErr) {
+        console.error("[PATCH /client-account-manifests/:id] trip-settlement sync error:", syncErr);
+        // لا نوقف الـ response — البيان اتقفل بنجاح حتى لو الترحيل فشل
+      }
+    }
 
     let rollover: {
       rolledOver: number;

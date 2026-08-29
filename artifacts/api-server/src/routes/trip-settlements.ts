@@ -35,7 +35,7 @@ async function generateSettlementNumber(): Promise<string> {
   return `TS-${ymd}-${seq}`;
 }
 
-async function recomputeSettlementTotals(settlementId: number) {
+export async function recomputeSettlementTotals(settlementId: number) {
   const [{ repsTotal }] = await db
     .select({ repsTotal: sql<string>`COALESCE(SUM(${tripSettlementRepsTable.balance}),0)` })
     .from(tripSettlementRepsTable)
@@ -82,12 +82,45 @@ async function getConsecutiveNegativeStreak(clientRow: { id: number; clientId: n
   return streak;
 }
 
-async function recomputeRepBalance(repRowId: number) {
+export async function recomputeRepBalance(repRowId: number) {
   const [{ total }] = await db
     .select({ total: sql<string>`COALESCE(SUM(${tripSettlementRepPaymentsTable.amount}),0)` })
     .from(tripSettlementRepPaymentsTable)
     .where(eq(tripSettlementRepPaymentsTable.repRowId, repRowId));
   await db.update(tripSettlementRepsTable).set({ balance: String(Number(total) || 0) }).where(eq(tripSettlementRepsTable.id, repRowId));
+}
+
+// ─── جلب/فتح البيان الحالي المفتوح — مستخرجة كدالة مشتركة عشان تُستخدم من
+// GET /trip-settlements/current وكمان من الترحيل التلقائي (lib/tripSettlementSync.ts)
+// عند إغلاق بيان مندوب/عميل. actorId/actorName اختياريين (null للترحيل الآلي بدون يوزر).
+export async function getOrCreateOpenSettlement(
+  tenantId: number | null,
+  actorId: number | null = null,
+  actorName: string | null = "نظام تلقائي",
+): Promise<typeof tripSettlementsTable.$inferSelect> {
+  const tenantCond = tenantId !== null ? eq(tripSettlementsTable.tenantId, tenantId) : undefined;
+
+  let [open] = await db.select().from(tripSettlementsTable)
+    .where(tenantCond ? and(eq(tripSettlementsTable.status, "open"), tenantCond) : eq(tripSettlementsTable.status, "open"))
+    .orderBy(desc(tripSettlementsTable.id))
+    .limit(1);
+
+  if (!open) {
+    const settlementNumber = await generateSettlementNumber();
+    const now = new Date();
+    const [created] = await db.insert(tripSettlementsTable).values({
+      tenantId: tenantId ?? null,
+      settlementNumber,
+      status: "open",
+      createdByUserId: actorId,
+      createdByName: actorName,
+      createdAt: now,
+    });
+    const id = (created as any).insertId as number;
+    [open] = await db.select().from(tripSettlementsTable).where(eq(tripSettlementsTable.id, id));
+  }
+
+  return open;
 }
 
 // ─── قائمة المناديب الحقيقيين (role = representative) — للـ Select في الفرونت ─
@@ -138,29 +171,8 @@ router.get("/trip-settlements/clients-list", async (req, res): Promise<void> => 
 router.get("/trip-settlements/current", async (req, res): Promise<void> => {
   try {
     const tenantId = getTenantId(req);
-    const tenantCond = tenantId !== null ? eq(tripSettlementsTable.tenantId, tenantId) : undefined;
-
-    let [open] = await db.select().from(tripSettlementsTable)
-      .where(tenantCond ? and(eq(tripSettlementsTable.status, "open"), tenantCond) : eq(tripSettlementsTable.status, "open"))
-      .orderBy(desc(tripSettlementsTable.id))
-      .limit(1);
-
-    if (!open) {
-      const who = actor(req);
-      const settlementNumber = await generateSettlementNumber();
-      const now = new Date();
-      const [created] = await db.insert(tripSettlementsTable).values({
-        tenantId: tenantId ?? null,
-        settlementNumber,
-        status: "open",
-        createdByUserId: who.id,
-        createdByName: who.name,
-        createdAt: now,
-      });
-      const id = (created as any).insertId as number;
-      [open] = await db.select().from(tripSettlementsTable).where(eq(tripSettlementsTable.id, id));
-    }
-
+    const who = actor(req);
+    const open = await getOrCreateOpenSettlement(tenantId, who.id, who.name);
     res.json({ settlement: open });
   } catch (e) {
     console.error("[GET /trip-settlements/current]", e);

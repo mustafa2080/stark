@@ -44,6 +44,11 @@ export const tripSettlementRepsTable = mysqlTable("trip_settlement_reps", {
   status:        varchar("status", { length: 20 }).notNull().default("active"), // active | closed
   balance:       decimal("balance", { precision: 14, scale: 2 }).notNull().default("0"), // إجمالي وسائل الدفع
   notes:         text("notes"), // مصروفات فرع/سيارات...إلخ
+  // ── ترحيل تلقائي ──────────────────────────────────────────────────────────
+  // آيدي بيان شحن الشحنات (shipment_manifests) اللي اترحّل منه الصف ده تلقائيًا
+  // عند إغلاق الأدمن النهائي له. nullable — فاضي للصفوف المُدخلة يدويًا زي ما هي.
+  // بيُستخدم كمنع تكرار (لو حصل retry/سباق على نفس القفل).
+  sourceManifestId: int("source_manifest_id"),
   sortOrder:     int("sort_order").notNull().default(0),
   createdAt:     datetime("created_at").notNull(),
 });
@@ -76,6 +81,11 @@ export const tripSettlementClientsTable = mysqlTable("trip_settlement_clients", 
   notes:           text("notes"),
   rolledFromId:    int("rolled_from_id"),  // الصف الأصلي في البيان السابق (لو ده صف مُرحّل)
   isRolledOver:    tinyint("is_rolled_over").notNull().default(0), // اتم ترحيله لبيان جديد؟
+  // ── ترحيل تلقائي ──────────────────────────────────────────────────────────
+  // آيدي بيان حساب العميل (client_account_manifests) اللي اترحّل منه الصف ده
+  // تلقائيًا عند إغلاقه. nullable — فاضي للصفوف المُدخلة يدويًا. بيُستخدم كمنع
+  // تكرار (لو حصل retry/سباق على نفس القفل).
+  sourceManifestId: int("source_manifest_id"),
   sortOrder:       int("sort_order").notNull().default(0),
   createdAt:       datetime("created_at").notNull(),
 });

@@ -15,6 +15,7 @@ import {
   shipmentZonesTable,
   zoneCostsTable,
   parcelTypePricingTable,
+  usersTable,
 } from "@workspace/db";
 import { z } from "zod";
 import { requireAuth } from "../middlewares/requireAuth";
@@ -25,6 +26,7 @@ import { syncShipmentStatusToManifests } from "../lib/manifestSync.js";
 import { broadcastUrgentToCompany } from "./representative.js";
 import { pushNotification } from "../lib/notifications.js";
 import { computeManifestNetDue } from "../lib/manifestFinance.js";
+import { autoAddRepToTripSettlement } from "../lib/tripSettlementSync.js";
 import { invalidateSmartCache, invalidateChartsCache } from "./analytics.js";
 
 const router: IRouter = Router();
@@ -1306,6 +1308,8 @@ router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
     const [manifestBeforeUpdate] = await db.select({
       status: shipmentManifestsTable.status,
       closedByRole: shipmentManifestsTable.closedByRole,
+      closedByUserId: shipmentManifestsTable.closedByUserId,
+      tenantId: shipmentManifestsTable.tenantId,
     }).from(shipmentManifestsTable).where(eq(shipmentManifestsTable.id, id)).limit(1);
     const alreadyFinalClosed = manifestBeforeUpdate?.status === "closed" && manifestBeforeUpdate?.closedByRole === "admin";
 
@@ -1399,6 +1403,31 @@ router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
           const userId   = (req as any).user?.id   ?? null;
           const userName = (req as any).user?.displayName ?? null;
           await createTreasuryEntryOnClose(manifest, items, userId, userName);
+
+          // ── ترحيل تلقائي لـ "تسوية الرحلات والتحصيل" ──────────────────────
+          // نفس netDueToCompany اللي اترحّل للخزنة فوق بالظبط. المندوب هو اللي
+          // عمل القفل المؤقت الأصلي (closedByRole="representative") قبل ما
+          // الأدمن يأكّد القفل النهائي هنا — لازم نلتقطه من manifestBeforeUpdate
+          // (قبل ما التحديث فوق يكتب فوق closedByUserId باسم الأدمن).
+          try {
+            if (manifestBeforeUpdate?.closedByRole === "representative" && manifestBeforeUpdate.closedByUserId) {
+              const netDue = (await computeManifestNetDue(manifest, items)).net;
+              if (netDue > 0) {
+                const [repUser] = await db.select({ displayName: usersTable.displayName })
+                  .from(usersTable).where(eq(usersTable.id, manifestBeforeUpdate.closedByUserId)).limit(1);
+                await autoAddRepToTripSettlement({
+                  tenantId: manifest.tenantId ?? null,
+                  sourceManifestId: manifest.id,
+                  netDue,
+                  repUserId: manifestBeforeUpdate.closedByUserId,
+                  repName: repUser?.displayName ?? "مندوب",
+                });
+              }
+            }
+          } catch (syncErr) {
+            console.error("[PATCH /shipment-manifests/:id] trip-settlement sync error:", syncErr);
+            // لا نوقف الـ response — البيان اتقفل والخزنة اترحّلت بنجاح حتى لو ده فشل
+          }
 
           // ترحيل الشحنات المعلّقة لبيان جديد: مؤجل (صف جديد) + استلام جزئي (الباقي كصف جديد)
           // + مرتجع/جزئي لسه عند الشحن (يترحّل زي ما هو بدون تغيير لحد ما يُستلم)
