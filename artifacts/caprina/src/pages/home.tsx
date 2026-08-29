@@ -299,16 +299,16 @@ export function Navbar({ darkMode, toggleDarkMode }: { darkMode: boolean; toggle
 }
 
 // ─── Hero Section ─────────────────────────────────────────────────────────────
-function HeroSection() {
+function HeroSection({ darkMode }: { darkMode: boolean }) {
   const [, navigate] = useLocation();
   return (
-    <section id="hero" className="relative flex items-center justify-center overflow-hidden bg-black" dir="rtl"
+    <section id="hero" className={`relative flex items-center justify-center overflow-hidden ${darkMode ? "bg-black" : "bg-white"}`} dir="rtl"
       style={{ minHeight: "auto", paddingTop: "100px", paddingBottom: "32px" }}>
       {/* BG */}
-      <div className="absolute inset-0 bg-gradient-to-br from-black via-[#0d0d0d] to-[#1a1a1a]" />
-      <div className="absolute inset-0" style={{ opacity: 0.50 }}>
+      <div className={`absolute inset-0 bg-gradient-to-br ${darkMode ? "from-black via-[#0d0d0d] to-[#1a1a1a]" : "from-white via-gray-50 to-gray-100"}`} />
+      <div className="absolute inset-0" style={{ opacity: darkMode ? 0.50 : 0.18 }}>
         <img src="/tracking_opt.jpeg" alt="" className="w-full h-full object-cover object-center" />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-black/80" />
+        <div className={`absolute inset-0 bg-gradient-to-b ${darkMode ? "from-black/40 via-black/20 to-black/80" : "from-white/60 via-white/40 to-white/90"}`} />
       </div>
 
       {/* Content */}
@@ -318,22 +318,27 @@ function HeroSection() {
         {/* Badge */}
         <div
           className="inline-flex items-center gap-2 sm:gap-3 rounded-full px-4 sm:px-5 py-2 sm:py-2.5 mb-6 sm:mb-8"
-          style={{
+          style={darkMode ? {
             background: "rgba(255,255,255,0.07)",
             border: "1px solid rgba(255,255,255,0.18)",
             backdropFilter: "blur(12px)",
             boxShadow: "0 4px 24px rgba(0,0,0,0.3), 0 1px 0 rgba(255,255,255,0.08) inset",
+          } : {
+            background: "rgba(0,0,0,0.03)",
+            border: "1px solid rgba(0,0,0,0.10)",
+            backdropFilter: "blur(12px)",
+            boxShadow: "0 4px 24px rgba(0,0,0,0.06), 0 1px 0 rgba(255,255,255,0.6) inset",
           }}
         >
           <span className="flex items-center justify-center rounded-full w-6 h-6 sm:w-7 sm:h-7"
-            style={{ background: "rgba(255,255,255,0.12)" }}>
-            <Truck size={12} className="text-white sm:hidden" />
-            <Truck size={14} className="text-white hidden sm:block" />
+            style={{ background: darkMode ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.06)" }}>
+            <Truck size={12} className={`sm:hidden ${darkMode ? "text-white" : "text-black"}`} />
+            <Truck size={14} className={`hidden sm:block ${darkMode ? "text-white" : "text-black"}`} />
           </span>
-          <span className="text-white/90 text-xs sm:text-sm font-medium tracking-wide">
+          <span className={`text-xs sm:text-sm font-medium tracking-wide ${darkMode ? "text-white/90" : "text-black/80"}`}>
             شركة شحن محلية موثوقة منذ 2001
           </span>
-          <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+          <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
         </div>
 
         {/* Title */}
@@ -342,7 +347,9 @@ function HeroSection() {
             className="inline-block font-black stark-glow-text"
             style={{
               fontSize: "clamp(52px, 14vw, 112px)",
-              background: "linear-gradient(120deg, #c0c0c0 0%, #ffffff 20%, #f0f0f0 35%, #ffffff 50%, #d0d0ff 65%, #ffffff 80%, #b0b0b0 100%)",
+              background: darkMode
+                ? "linear-gradient(120deg, #c0c0c0 0%, #ffffff 20%, #f0f0f0 35%, #ffffff 50%, #d0d0ff 65%, #ffffff 80%, #b0b0b0 100%)"
+                : "linear-gradient(120deg, #1a1a1a 0%, #000000 20%, #262626 35%, #000000 50%, #1a1a2e 65%, #000000 80%, #262626 100%)",
               backgroundSize: "300% 300%",
               WebkitBackgroundClip: "text",
               WebkitTextFillColor: "transparent",
@@ -355,16 +362,18 @@ function HeroSection() {
           >
             STARK
           </span>
-          <span style={{ width: 1, height: "clamp(28px,5vw,48px)", background: "rgba(255,255,255,0.2)", display: "inline-block", borderRadius: 1, alignSelf: "center" }} />
+          <span style={{ width: 1, height: "clamp(28px,5vw,48px)", background: darkMode ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.15)", display: "inline-block", borderRadius: 1, alignSelf: "center" }} />
           <span
             className="inline-block font-light"
             style={{
               fontSize: "clamp(16px, 4vw, 28px)",
-              background: "linear-gradient(135deg, #b0b0b0 0%, #e0e0e0 35%, #909090 65%, #c8c8c8 100%)",
+              background: darkMode
+                ? "linear-gradient(135deg, #b0b0b0 0%, #e0e0e0 35%, #909090 65%, #c8c8c8 100%)"
+                : "linear-gradient(135deg, #4a4a4a 0%, #1a1a1a 35%, #5a5a5a 65%, #2a2a2a 100%)",
               WebkitBackgroundClip: "text",
               WebkitTextFillColor: "transparent",
               backgroundClip: "text",
-              filter: "drop-shadow(0 0 10px rgba(180,180,180,0.25))",
+              filter: darkMode ? "drop-shadow(0 0 10px rgba(180,180,180,0.25))" : "none",
               letterSpacing: "0.2em",
             }}
           >
@@ -373,7 +382,7 @@ function HeroSection() {
         </h1>
 
         {/* Subtitle */}
-        <p className="text-white/50 text-sm sm:text-base max-w-xs sm:max-w-md mx-auto leading-relaxed px-2">
+        <p className={`text-sm sm:text-base max-w-xs sm:max-w-md mx-auto leading-relaxed px-2 ${darkMode ? "text-white/50" : "text-gray-600"}`}>
           نوصل شحنتك لأي مكان في مصر بسرعة وأمان — 27 محافظة تحت خدمتك
         </p>
       </div>
@@ -435,24 +444,33 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
       <div className="w-full relative" style={{ zIndex: 1 }}>
         <div
           className="relative px-4 sm:px-8 pt-4 pb-8 sm:pb-10 text-center"
-          style={{
+          style={darkMode ? {
             background: "rgba(0,0,0,0.25)",
             backdropFilter: "blur(12px)",
             WebkitBackdropFilter: "blur(12px)",
             borderTop: "1px solid rgba(255,255,255,0.04)",
+          } : {
+            background: "rgba(255,255,255,0.6)",
+            backdropFilter: "blur(12px)",
+            WebkitBackdropFilter: "blur(12px)",
+            borderTop: "1px solid rgba(0,0,0,0.06)",
           }}
         >
           <div className="relative max-w-3xl mx-auto" style={{ zIndex: 2 }}>
             <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center mx-auto mb-3 sm:mb-4"
-              style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.15), rgba(255,255,255,0.05))", border: "1px solid rgba(255,255,255,0.2)", boxShadow: "0 0 20px rgba(255,255,255,0.1)" }}>
-              <Package size={24} className="text-white sm:hidden" />
-              <Package size={28} className="text-white hidden sm:block" />
+              style={darkMode
+                ? { background: "linear-gradient(135deg, rgba(255,255,255,0.15), rgba(255,255,255,0.05))", border: "1px solid rgba(255,255,255,0.2)", boxShadow: "0 0 20px rgba(255,255,255,0.1)" }
+                : { background: "linear-gradient(135deg, rgba(0,0,0,0.08), rgba(0,0,0,0.03))", border: "1px solid rgba(0,0,0,0.12)", boxShadow: "0 0 16px rgba(0,0,0,0.05)" }}>
+              <Package size={24} className={`sm:hidden ${darkMode ? "text-white" : "text-black"}`} />
+              <Package size={28} className={`hidden sm:block ${darkMode ? "text-white" : "text-black"}`} />
             </div>
             <h2 className="text-2xl sm:text-3xl font-black mb-2"
-              style={{ background: "linear-gradient(135deg, #ffffff 0%, #d0d0d0 50%, #a0a0a0 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text", filter: "drop-shadow(0 0 20px rgba(255,255,255,0.3))" }}>
+              style={darkMode
+                ? { background: "linear-gradient(135deg, #ffffff 0%, #d0d0d0 50%, #a0a0a0 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text", filter: "drop-shadow(0 0 20px rgba(255,255,255,0.3))" }
+                : { background: "linear-gradient(135deg, #000000 0%, #2a2a2a 50%, #444444 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text", filter: "none" }}>
               تتبع الشحنة
             </h2>
-            <p className="mb-6 sm:mb-8 text-xs sm:text-sm px-2" style={{ color: "rgba(200,200,200,0.75)", textShadow: "0 1px 8px rgba(0,0,0,0.5)" }}>
+            <p className="mb-6 sm:mb-8 text-xs sm:text-sm px-2" style={{ color: darkMode ? "rgba(200,200,200,0.75)" : "rgba(0,0,0,0.55)", textShadow: darkMode ? "0 1px 8px rgba(0,0,0,0.5)" : "none" }}>
               أدخل اسم الراسل ورقم هاتفك أنت لمعرفة حالة شحنتك
             </p>
 
@@ -466,15 +484,20 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
                 placeholder="اسم الراسل   مثال: CELIA"
                 disabled={isTracking}
                 dir="rtl"
-                className="w-full rounded-xl px-4 py-3.5 sm:py-3 focus:outline-none text-sm text-white placeholder-white/40 backdrop-blur-sm transition-all duration-300 disabled:opacity-50"
-                style={{
+                className={`w-full rounded-xl px-4 py-3.5 sm:py-3 focus:outline-none text-sm backdrop-blur-sm transition-all duration-300 disabled:opacity-50 ${darkMode ? "text-white placeholder-white/40" : "text-black placeholder-black/40"}`}
+                style={darkMode ? {
                   background: "rgba(255,255,255,0.12)",
                   border: "1.5px solid rgba(255,255,255,0.6)",
                   boxShadow: "0 0 25px rgba(255,255,255,0.18), 0 0 60px rgba(255,255,255,0.07), inset 0 1px 0 rgba(255,255,255,0.15)",
                   fontSize: "16px",
+                } : {
+                  background: "rgba(0,0,0,0.04)",
+                  border: "1.5px solid rgba(0,0,0,0.18)",
+                  boxShadow: "0 0 16px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.6)",
+                  fontSize: "16px",
                 }}
-                onFocus={e => { e.currentTarget.style.border = "1.5px solid rgba(255,255,255,0.9)"; e.currentTarget.style.boxShadow = "0 0 35px rgba(255,255,255,0.28), 0 0 80px rgba(255,255,255,0.1), inset 0 1px 0 rgba(255,255,255,0.2)"; }}
-                onBlur={e => { e.currentTarget.style.border = "1.5px solid rgba(255,255,255,0.6)"; e.currentTarget.style.boxShadow = "0 0 25px rgba(255,255,255,0.18), 0 0 60px rgba(255,255,255,0.07), inset 0 1px 0 rgba(255,255,255,0.15)"; }}
+                onFocus={e => { e.currentTarget.style.border = darkMode ? "1.5px solid rgba(255,255,255,0.9)" : "1.5px solid rgba(0,0,0,0.35)"; e.currentTarget.style.boxShadow = darkMode ? "0 0 35px rgba(255,255,255,0.28), 0 0 80px rgba(255,255,255,0.1), inset 0 1px 0 rgba(255,255,255,0.2)" : "0 0 20px rgba(0,0,0,0.07), inset 0 1px 0 rgba(255,255,255,0.6)"; }}
+                onBlur={e => { e.currentTarget.style.border = darkMode ? "1.5px solid rgba(255,255,255,0.6)" : "1.5px solid rgba(0,0,0,0.18)"; e.currentTarget.style.boxShadow = darkMode ? "0 0 25px rgba(255,255,255,0.18), 0 0 60px rgba(255,255,255,0.07), inset 0 1px 0 rgba(255,255,255,0.15)" : "0 0 16px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.6)"; }}
               />
               <input
                 type="tel"
@@ -484,15 +507,20 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
                 placeholder="رقم هاتفك أنت   مثال: 01012345678"
                 disabled={isTracking}
                 dir="ltr"
-                className="w-full rounded-xl px-4 py-3.5 sm:py-3 focus:outline-none text-sm text-white placeholder-white/40 backdrop-blur-sm transition-all duration-300 disabled:opacity-50"
-                style={{
+                className={`w-full rounded-xl px-4 py-3.5 sm:py-3 focus:outline-none text-sm backdrop-blur-sm transition-all duration-300 disabled:opacity-50 ${darkMode ? "text-white placeholder-white/40" : "text-black placeholder-black/40"}`}
+                style={darkMode ? {
                   background: "rgba(255,255,255,0.12)",
                   border: "1.5px solid rgba(255,255,255,0.6)",
                   boxShadow: "0 0 25px rgba(255,255,255,0.18), 0 0 60px rgba(255,255,255,0.07), inset 0 1px 0 rgba(255,255,255,0.15)",
                   fontSize: "16px",
+                } : {
+                  background: "rgba(0,0,0,0.04)",
+                  border: "1.5px solid rgba(0,0,0,0.18)",
+                  boxShadow: "0 0 16px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.6)",
+                  fontSize: "16px",
                 }}
-                onFocus={e => { e.currentTarget.style.border = "1.5px solid rgba(255,255,255,0.9)"; e.currentTarget.style.boxShadow = "0 0 35px rgba(255,255,255,0.28), 0 0 80px rgba(255,255,255,0.1), inset 0 1px 0 rgba(255,255,255,0.2)"; }}
-                onBlur={e => { e.currentTarget.style.border = "1.5px solid rgba(255,255,255,0.6)"; e.currentTarget.style.boxShadow = "0 0 25px rgba(255,255,255,0.18), 0 0 60px rgba(255,255,255,0.07), inset 0 1px 0 rgba(255,255,255,0.15)"; }}
+                onFocus={e => { e.currentTarget.style.border = darkMode ? "1.5px solid rgba(255,255,255,0.9)" : "1.5px solid rgba(0,0,0,0.35)"; e.currentTarget.style.boxShadow = darkMode ? "0 0 35px rgba(255,255,255,0.28), 0 0 80px rgba(255,255,255,0.1), inset 0 1px 0 rgba(255,255,255,0.2)" : "0 0 20px rgba(0,0,0,0.07), inset 0 1px 0 rgba(255,255,255,0.6)"; }}
+                onBlur={e => { e.currentTarget.style.border = darkMode ? "1.5px solid rgba(255,255,255,0.6)" : "1.5px solid rgba(0,0,0,0.18)"; e.currentTarget.style.boxShadow = darkMode ? "0 0 25px rgba(255,255,255,0.18), 0 0 60px rgba(255,255,255,0.07), inset 0 1px 0 rgba(255,255,255,0.15)" : "0 0 16px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.6)"; }}
               />
               <button
                 onClick={handleTrack}
@@ -511,20 +539,22 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
                 <div key={i} className="flex items-center gap-1 sm:gap-2">
                   <div className="flex flex-col items-center gap-1">
                     <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center backdrop-blur-sm transition-all duration-300 hover:scale-110"
-                      style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.12), rgba(255,255,255,0.04))", border: "1px solid rgba(255,255,255,0.18)", boxShadow: "0 0 12px rgba(255,255,255,0.06)" }}>
-                      <step.icon size={14} className="sm:hidden" style={{ color: "rgba(220,220,220,0.9)" }} />
-                      <step.icon size={18} className="hidden sm:block" style={{ color: "rgba(220,220,220,0.9)" }} />
+                      style={darkMode
+                        ? { background: "linear-gradient(135deg, rgba(255,255,255,0.12), rgba(255,255,255,0.04))", border: "1px solid rgba(255,255,255,0.18)", boxShadow: "0 0 12px rgba(255,255,255,0.06)" }
+                        : { background: "linear-gradient(135deg, rgba(0,0,0,0.06), rgba(0,0,0,0.02))", border: "1px solid rgba(0,0,0,0.12)", boxShadow: "0 0 8px rgba(0,0,0,0.04)" }}>
+                      <step.icon size={14} className="sm:hidden" style={{ color: darkMode ? "rgba(220,220,220,0.9)" : "rgba(40,40,40,0.85)" }} />
+                      <step.icon size={18} className="hidden sm:block" style={{ color: darkMode ? "rgba(220,220,220,0.9)" : "rgba(40,40,40,0.85)" }} />
                     </div>
-                    <span className="text-[10px] sm:text-xs" style={{ color: "rgba(180,180,180,0.8)", textShadow: "0 1px 4px rgba(0,0,0,0.5)" }}>{step.label}</span>
+                    <span className="text-[10px] sm:text-xs" style={{ color: darkMode ? "rgba(180,180,180,0.8)" : "rgba(60,60,60,0.75)", textShadow: darkMode ? "0 1px 4px rgba(0,0,0,0.5)" : "none" }}>{step.label}</span>
                   </div>
-                  {i < steps.length - 1 && <div className="w-4 sm:w-8 h-px mb-4" style={{ background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)" }} />}
+                  {i < steps.length - 1 && <div className="w-4 sm:w-8 h-px mb-4" style={{ background: darkMode ? "linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)" : "linear-gradient(90deg, transparent, rgba(0,0,0,0.15), transparent)" }} />}
                 </div>
               ))}
             </div>
 
             {/* CTA */}
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-6 sm:mt-8 px-2 sm:px-0">
-              <button onClick={() => navigate("/contract")} className="w-full sm:w-auto cursor-pointer border border-[#555] text-white font-bold px-8 py-3.5 sm:py-3 rounded-xl hover:border-white/50 transition-colors flex items-center justify-center gap-2 text-sm">
+              <button onClick={() => navigate("/contract")} className={`w-full sm:w-auto cursor-pointer font-bold px-8 py-3.5 sm:py-3 rounded-xl transition-colors flex items-center justify-center gap-2 text-sm ${darkMode ? "border border-[#555] text-white hover:border-white/50" : "border border-black/25 text-black hover:border-black/50"}`}>
                 <FileText size={16} /> تعاقد معنا
               </button>
             </div>
@@ -852,7 +882,7 @@ function FeaturesSection({ darkMode }: { darkMode: boolean }) {
 }
 
 // ─── Clients Section ──────────────────────────────────────────────────────────
-function ClientsSection() {
+function ClientsSection({ darkMode }: { darkMode: boolean }) {
   const [clients, setClients] = React.useState<{ id: number; name: string; avatar: string | null }[]>([]);
   const [count, setCount] = React.useState(0);
   const [visible, setVisible] = React.useState(false);
@@ -909,7 +939,7 @@ function ClientsSection() {
   const avatarColors = ["#1e3a5f","#2d1b4e","#1a3c2e","#3c1a1a","#2e2a10","#12303c"];
 
   return (
-    <section ref={sectionRef} className="relative py-16 sm:py-24 bg-[#050505] overflow-hidden" dir="rtl">
+    <section ref={sectionRef} className={`relative py-16 sm:py-24 overflow-hidden ${darkMode ? "bg-[#050505]" : "bg-white"}`} dir="rtl">
       <style>{`
         @keyframes clientsScrollLeft  { 0%{transform:translateX(0)}   100%{transform:translateX(-50%)} }
         @keyframes clientsScrollRight { 0%{transform:translateX(-50%)} 100%{transform:translateX(0)}   }
@@ -933,9 +963,9 @@ function ClientsSection() {
       {/* ── Ambient glow blobs ── */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         <div style={{ position:"absolute", top:"10%", left:"15%", width:500, height:500, borderRadius:"50%",
-          background:"radial-gradient(circle, rgba(255,255,255,0.025) 0%, transparent 70%)", filter:"blur(60px)" }} />
+          background: darkMode ? "radial-gradient(circle, rgba(255,255,255,0.025) 0%, transparent 70%)" : "radial-gradient(circle, rgba(0,0,0,0.03) 0%, transparent 70%)", filter:"blur(60px)" }} />
         <div style={{ position:"absolute", bottom:"5%", right:"10%", width:400, height:400, borderRadius:"50%",
-          background:"radial-gradient(circle, rgba(200,200,200,0.018) 0%, transparent 70%)", filter:"blur(50px)" }} />
+          background: darkMode ? "radial-gradient(circle, rgba(200,200,200,0.018) 0%, transparent 70%)" : "radial-gradient(circle, rgba(80,80,80,0.02) 0%, transparent 70%)", filter:"blur(50px)" }} />
       </div>
 
       <div className="relative z-10 max-w-6xl mx-auto px-4">
@@ -946,7 +976,9 @@ function ClientsSection() {
           style={{ opacity: visible ? 1 : 0, animation: visible ? "clientsFadeUp 0.6s ease both" : "none" }}
         >
           <div className="inline-flex items-center gap-2 rounded-full px-3 sm:px-4 py-1.5 mb-4 sm:mb-5 text-[11px] sm:text-xs font-bold tracking-widest"
-            style={{ color:"rgba(255,255,255,0.35)", border:"1px solid rgba(255,255,255,0.09)", background:"rgba(255,255,255,0.03)" }}>
+            style={darkMode
+              ? { color:"rgba(255,255,255,0.35)", border:"1px solid rgba(255,255,255,0.09)", background:"rgba(255,255,255,0.03)" }
+              : { color:"rgba(0,0,0,0.5)", border:"1px solid rgba(0,0,0,0.10)", background:"rgba(0,0,0,0.03)" }}>
             <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
             عملاؤنا الموثوقون
           </div>
@@ -957,11 +989,11 @@ function ClientsSection() {
               className="font-black leading-none"
               style={{
                 fontSize: "clamp(56px, 16vw, 120px)",
-                background: "linear-gradient(135deg, #ffffff 0%, #b0b0b0 50%, #606060 100%)",
+                background: darkMode ? "linear-gradient(135deg, #ffffff 0%, #b0b0b0 50%, #606060 100%)" : "linear-gradient(135deg, #000000 0%, #333333 50%, #555555 100%)",
                 WebkitBackgroundClip: "text",
                 WebkitTextFillColor: "transparent",
                 backgroundClip: "text",
-                filter: "drop-shadow(0 0 40px rgba(255,255,255,0.15))",
+                filter: darkMode ? "drop-shadow(0 0 40px rgba(255,255,255,0.15))" : "none",
                 letterSpacing: "-0.04em",
                 animation: visible ? "clientsCountPop 0.7s 0.3s cubic-bezier(0.34,1.56,0.64,1) both" : "none",
               }}
@@ -971,20 +1003,20 @@ function ClientsSection() {
             <span
               className="font-black pb-1.5 sm:pb-3 text-3xl sm:text-5xl"
               style={{
-                background: "linear-gradient(135deg,#ffffff 0%,#888 100%)",
+                background: darkMode ? "linear-gradient(135deg,#ffffff 0%,#888 100%)" : "linear-gradient(135deg,#000000 0%,#555 100%)",
                 WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", backgroundClip:"text",
               }}
             >+</span>
           </div>
           <h2
-            className="text-xl sm:text-2xl md:text-3xl font-black text-white mb-2"
+            className={`text-xl sm:text-2xl md:text-3xl font-black mb-2 ${darkMode ? "text-white" : "text-black"}`}
             style={{ letterSpacing:"-0.02em", opacity: visible ? 1 : 0, animation: visible ? "clientsFadeUp 0.6s 0.15s ease both" : "none" }}
           >
             عميل يثق في STARK يومياً
           </h2>
           <p
             className="text-xs sm:text-sm md:text-base px-2"
-            style={{ color:"rgba(255,255,255,0.3)", opacity: visible ? 1 : 0, animation: visible ? "clientsFadeUp 0.6s 0.25s ease both" : "none" }}
+            style={{ color: darkMode ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.45)", opacity: visible ? 1 : 0, animation: visible ? "clientsFadeUp 0.6s 0.25s ease both" : "none" }}
           >
             من القاهرة لأسوان — نوصل في 27 محافظة بكل احترافية
           </p>
@@ -999,18 +1031,22 @@ function ClientsSection() {
             <div
               key={i}
               className="relative rounded-xl sm:rounded-2xl px-3 sm:px-5 py-4 sm:py-5 text-center overflow-hidden group"
-              style={{
+              style={darkMode ? {
                 background:"linear-gradient(135deg,#111 0%,#0d0d0d 100%)",
                 border:"1px solid rgba(255,255,255,0.07)",
                 transition:"border-color 0.3s, box-shadow 0.3s",
+              } : {
+                background:"linear-gradient(135deg,#f9f9f9 0%,#f2f2f2 100%)",
+                border:"1px solid rgba(0,0,0,0.08)",
+                transition:"border-color 0.3s, box-shadow 0.3s",
               }}
-              onMouseEnter={e => { const el=e.currentTarget as HTMLDivElement; el.style.borderColor="rgba(255,255,255,0.18)"; el.style.boxShadow="0 0 28px rgba(255,255,255,0.04)"; }}
-              onMouseLeave={e => { const el=e.currentTarget as HTMLDivElement; el.style.borderColor="rgba(255,255,255,0.07)"; el.style.boxShadow="none"; }}
+              onMouseEnter={e => { const el=e.currentTarget as HTMLDivElement; el.style.borderColor = darkMode ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.16)"; el.style.boxShadow = darkMode ? "0 0 28px rgba(255,255,255,0.04)" : "0 0 20px rgba(0,0,0,0.05)"; }}
+              onMouseLeave={e => { const el=e.currentTarget as HTMLDivElement; el.style.borderColor = darkMode ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.08)"; el.style.boxShadow="none"; }}
             >
               <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500"
-                style={{ background:"linear-gradient(135deg,rgba(255,255,255,0.03),transparent 60%)" }} />
-              <div className="text-lg sm:text-2xl font-black text-white mb-1" style={{ letterSpacing:"-0.02em" }}>{s.value}</div>
-              <div className="text-[10px] sm:text-xs" style={{ color:"rgba(255,255,255,0.3)" }}>{s.label}</div>
+                style={{ background: darkMode ? "linear-gradient(135deg,rgba(255,255,255,0.03),transparent 60%)" : "linear-gradient(135deg,rgba(0,0,0,0.02),transparent 60%)" }} />
+              <div className={`text-lg sm:text-2xl font-black mb-1 ${darkMode ? "text-white" : "text-black"}`} style={{ letterSpacing:"-0.02em" }}>{s.value}</div>
+              <div className="text-[10px] sm:text-xs" style={{ color: darkMode ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.45)" }}>{s.label}</div>
             </div>
           ))}
         </div>
@@ -1019,7 +1055,7 @@ function ClientsSection() {
         <div
           style={{ opacity: visible ? 1 : 0, animation: visible ? "clientsFadeUp 0.6s 0.45s ease both" : "none" }}
         >
-          <p className="text-center text-[11px] sm:text-xs mb-4 sm:mb-6" style={{ color:"rgba(255,255,255,0.18)", letterSpacing:"0.12em" }}>— عملاؤنا —</p>
+          <p className="text-center text-[11px] sm:text-xs mb-4 sm:mb-6" style={{ color: darkMode ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.3)", letterSpacing:"0.12em" }}>— عملاؤنا —</p>
 
           <div
             className="relative overflow-hidden"
@@ -1037,14 +1073,14 @@ function ClientsSection() {
                     borderRadius:"50%",
                     margin:"0 8px",
                     background:`linear-gradient(135deg, ${avatarColors[i % avatarColors.length]} 0%, #0d0d0d 100%)`,
-                    border:"1px solid rgba(255,255,255,0.1)",
-                    boxShadow:"0 4px 20px rgba(0,0,0,0.5)",
+                    border: darkMode ? "1px solid rgba(255,255,255,0.1)" : "1px solid rgba(0,0,0,0.08)",
+                    boxShadow: darkMode ? "0 4px 20px rgba(0,0,0,0.5)" : "0 4px 16px rgba(0,0,0,0.15)",
                     overflow:"hidden",
                     transition:"transform 0.3s ease, box-shadow 0.3s ease",
                     cursor:"default",
                   }}
-                  onMouseEnter={e => { const el=e.currentTarget as HTMLDivElement; el.style.transform="scale(1.18)"; el.style.boxShadow="0 8px 32px rgba(0,0,0,0.8),0 0 0 2px rgba(255,255,255,0.18)"; }}
-                  onMouseLeave={e => { const el=e.currentTarget as HTMLDivElement; el.style.transform="scale(1)"; el.style.boxShadow="0 4px 20px rgba(0,0,0,0.5)"; }}
+                  onMouseEnter={e => { const el=e.currentTarget as HTMLDivElement; el.style.transform="scale(1.18)"; el.style.boxShadow = darkMode ? "0 8px 32px rgba(0,0,0,0.8),0 0 0 2px rgba(255,255,255,0.18)" : "0 8px 24px rgba(0,0,0,0.22),0 0 0 2px rgba(0,0,0,0.12)"; }}
+                  onMouseLeave={e => { const el=e.currentTarget as HTMLDivElement; el.style.transform="scale(1)"; el.style.boxShadow = darkMode ? "0 4px 20px rgba(0,0,0,0.5)" : "0 4px 16px rgba(0,0,0,0.15)"; }}
                 >
                   {item.avatar
                     ? <img src={item.avatar} alt={item.name} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
@@ -1289,13 +1325,13 @@ export default function HomePage() {
     <div className={`min-h-screen transition-colors duration-500 ${darkMode ? "bg-black" : "bg-gray-50"}`}>
       <style>{starkGlowStyle}</style>
       <Navbar darkMode={darkMode} toggleDarkMode={toggleDarkMode} />
-      <HeroSection />
+      <HeroSection darkMode={darkMode} />
       <TrackingSection darkMode={darkMode} />
       <AboutSection darkMode={darkMode} />
       <ShippingCycleSection darkMode={darkMode} />
       <ContractSection darkMode={darkMode} />
       <FeaturesSection darkMode={darkMode} />
-      <ClientsSection />
+      <ClientsSection darkMode={darkMode} />
       <ContactSection darkMode={darkMode} />
       <Footer />
       <SocialFloat darkMode={darkMode} />
