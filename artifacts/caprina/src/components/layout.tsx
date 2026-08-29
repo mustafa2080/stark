@@ -1,7 +1,6 @@
 ﻿import { Link, useLocation } from "wouter";
 import { useState, useMemo, useRef, useEffect } from "react";
-import { firstLogoBase64 } from "@/lib/first-logo";
-import { secondLogoBase64 } from "@/lib/second-logo";
+
 import { LayoutDashboard, Package, Plus, Boxes, Truck, FileText, Upload, Activity, BarChart3, Users, Shield, LogOut, ChevronDown, KeyRound, Warehouse, Megaphone, UserCheck, UserCog, Sun, Moon, Brain, Archive, Clock, MessageCircle, Menu, X, Download, DollarSign, Receipt, Wallet, ChevronLeft, Crown, Settings, PanelRightClose, PanelRightOpen, User, MapPin, Layers, Navigation, RotateCcw } from "lucide-react";
 import { BrandFull, BrandLogoMark } from "@/components/brand-logo";
 import { BrandSettingsDialog } from "@/components/brand-settings-dialog";
@@ -993,7 +992,7 @@ export default function Layout({ children }: LayoutProps) {
                   boxShadow: "0 0 10px hsl(var(--primary)/0.3)",
                   display: "flex", alignItems: "center", justifyContent: "center",
                 }}>
-                  <img src={firstLogoBase64} alt="Logo" style={{
+                  <img src="/first_logo.jpg" alt="Logo" style={{
                     width: "100%", height: "100%", objectFit: "cover",
                   }} />
                 </div>
@@ -1027,7 +1026,7 @@ export default function Layout({ children }: LayoutProps) {
                 overflow: "hidden",
               }}>
                 <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "radial-gradient(ellipse 100% 100% at 50% 50%, hsl(var(--primary)/0.08) 0%, transparent 70%)" }} />
-                <img src={firstLogoBase64} alt="Logo" style={{
+                <img src="/first_logo.jpg" alt="Logo" style={{
                   display: "block", width: "100%", height: "auto", maxHeight: "200px",
                   objectFit: "cover", objectPosition: "center", position: "relative", zIndex: 1,
                 }} />
@@ -1277,7 +1276,7 @@ export default function Layout({ children }: LayoutProps) {
             {/* ── وسط: brand logo + name (same style as desktop) ── */}
             <div className="flex-1 flex justify-start">
               <div className="brand-name-glow flex flex-row items-center gap-3">
-                <img src={firstLogoBase64} alt="STARK" className="w-10 h-10 rounded-xl object-cover shrink-0" />
+                <img src="/first_logo.jpg" alt="STARK" className="w-10 h-10 rounded-xl object-cover shrink-0" />
                 <div className="flex flex-col items-start gap-0">
                   <span className="text-base font-black tracking-[0.2em] uppercase brand-name-text">STARK</span>
                   <span className="block h-[2px] rounded-full" style={{

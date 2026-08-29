@@ -14,7 +14,6 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { ar } from "date-fns/locale";
-import * as XLSX from "xlsx";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
 import { clientReturnManifestsApi } from "@/lib/api";
@@ -330,8 +329,9 @@ export default function ClientReturnManifestDetailPage() {
     setTimeout(() => { win.print(); win.close(); }, 500);
   };
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     if (!manifest || !items.length) return;
+    const XLSX = await import("xlsx");
     const header = ["#", "رقم الشحنة", "الراسل", "المستلم", "الهاتف", "المحافظة", "سعر الشحنة", "سعر الشحن", "الإجمالي", "الحالة", "سبب المرتجع"];
     const rows = items.map((it, i) => [
       i + 1,

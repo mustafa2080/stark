@@ -1,6 +1,4 @@
 import React, { useState } from "react";
-import { trackingImg } from "../trackingImg";
-import { logoBase64 } from "@/lib/logo";
 import { useLocation } from "wouter";
 import { Package, MapPin, Phone, Mail, Menu, X, ChevronDown, Truck, CheckCircle, Clock, Shield, Star, Users, FileText, ArrowLeft, Sun, Moon, LayoutDashboard, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -120,7 +118,7 @@ export function Navbar({ darkMode, toggleDarkMode }: { darkMode: boolean; toggle
         {/* Logo */}
         <button onClick={() => scrollTo("home")} className="flex items-center gap-2 sm:gap-3 group">
           <div className="relative">
-            <img src={logoBase64} alt="STARK" className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl object-cover ring-2 ring-white/10 group-hover:ring-white/30 transition-all duration-300" />
+            <img src="/logo.jpg" alt="STARK" className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl object-cover ring-2 ring-white/10 group-hover:ring-white/30 transition-all duration-300" />
           </div>
           <span
             className="hidden sm:block font-black text-lg tracking-[0.25em] stark-glow-text-sm"
@@ -309,7 +307,7 @@ function HeroSection() {
       {/* BG */}
       <div className="absolute inset-0 bg-gradient-to-br from-black via-[#0d0d0d] to-[#1a1a1a]" />
       <div className="absolute inset-0" style={{ opacity: 0.50 }}>
-        <img src={trackingImg} alt="" className="w-full h-full object-cover object-center" />
+        <img src="/tracking_opt.jpeg" alt="" className="w-full h-full object-cover object-center" />
         <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-black/80" />
       </div>
 
@@ -570,7 +568,7 @@ function AboutSection({ darkMode }: { darkMode: boolean }) {
             </button>
           </div>
           <div className={`border rounded-2xl p-6 sm:p-8 text-center ${darkMode ? "bg-[#0d0d0d] border-[#222]" : "bg-gray-50 border-gray-200"}`}>
-            <img src={logoBase64} alt="STARK" className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl mx-auto mb-3 sm:mb-4 object-cover" />
+            <img src="/logo.jpg" alt="STARK" className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl mx-auto mb-3 sm:mb-4 object-cover" />
             <h3 className={`font-bold text-lg sm:text-xl mb-1 ${darkMode ? "text-white" : "text-black"}`}>
               <span className="stark-glow-text-sm" style={{ display: "inline-block", background: "linear-gradient(120deg, #c0c0c0 0%, #ffffff 35%, #d0d0ff 65%, #b0b0b0 100%)", backgroundSize: "300% 300%", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>STARK</span> للشحن
             </h3>
@@ -1100,7 +1098,7 @@ export function Footer() {
     <footer className="py-8 bg-[#050505] border-t border-[#1a1a1a]" dir="rtl">
       <div className="max-w-6xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <img src={logoBase64} alt="STARK" className="w-8 h-8 rounded-lg object-cover" />
+          <img src="/logo.jpg" alt="STARK" className="w-8 h-8 rounded-lg object-cover" />
           <span className="text-gray-400 text-sm"><span className="stark-glow-text-sm" style={{ display: "inline-block", background: "linear-gradient(120deg, #c0c0c0 0%, #ffffff 35%, #d0d0ff 65%, #b0b0b0 100%)", backgroundSize: "300% 300%", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>STARK</span> للشحن</span>
         </div>
         <p className="text-gray-600 text-xs">جميع الحقوق محفوظة © 2026</p>
