@@ -627,6 +627,34 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
       }
     }
 
+    // ─── منع حفظ حالة "استلام جزئي" بدون partialQuantity صحيح (> 0) — لازم تبقى
+    // القيمة جاية في الطلب الحالي أو موجودة بالفعل من قبل (زي زرار تحديث سريع
+    // بيحدّث حقل تاني بس على بند partial_delivered مسجّل قيمته من الأول). بدون
+    // الفحص ده، أي طلب مبيبعتش partialQuantity (أو بيبعتها 0/null) كان بيتسجّل
+    // بصمت partialQuantity=null، وده بيودّي لفقد المبلغ المُحصَّل فعليًا (زي ما
+    // حصل مع الشحنة 1850 — راجع نقاش 2026-08-29). ──────────────────────────────
+    if (body.deliveryStatus === "partial_delivered") {
+      if (body.partialQuantity !== undefined) {
+        const pq = Number(body.partialQuantity);
+        if (!body.partialQuantity || !Number.isFinite(pq) || pq <= 0) {
+          res.status(400).json({ error: "يجب إدخال قيمة صحيحة أكبر من صفر للمبلغ/الكمية المستلمة جزئيًا" });
+          return;
+        }
+      } else {
+        const [existingPartialItem] = await db.select({ partialQuantity: shipmentManifestItemsTable.partialQuantity })
+          .from(shipmentManifestItemsTable)
+          .where(and(
+            eq(shipmentManifestItemsTable.manifestId, manifestId),
+            eq(shipmentManifestItemsTable.shipmentId, shipmentId),
+          )).limit(1);
+        const existingPq = existingPartialItem?.partialQuantity != null ? Number(existingPartialItem.partialQuantity) : 0;
+        if (!existingPq || existingPq <= 0) {
+          res.status(400).json({ error: "يجب إدخال قيمة صحيحة أكبر من صفر للمبلغ/الكمية المستلمة جزئيًا" });
+          return;
+        }
+      }
+    }
+
     // ─── منع حفظ حالة "مرتجع" بدون سبب — لازم يبقى فيه سبب دايمًا، إما جاي في
     // الطلب الحالي أو موجود بالفعل من قبل (زي زرار "تم الاستلام" السريع اللي
     // بيحدّث returnReceived بس على مرتجع مسجّل سببه من الأول). ─────────────────
