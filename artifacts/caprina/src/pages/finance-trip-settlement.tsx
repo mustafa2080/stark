@@ -509,7 +509,7 @@ function AddRepDialog({ open, onOpenChange, onSubmit, pending }: any) {
         <div className="space-y-3 py-2">
           <Select value={selectedId} onValueChange={setSelectedId}>
             <SelectTrigger><SelectValue placeholder="اختر المندوب" /></SelectTrigger>
-            <SelectContent>
+            <SelectContent className="max-h-64 overflow-y-auto">
               {repsList.map(r => (
                 <SelectItem key={r.id} value={String(r.id)}>{r.name}</SelectItem>
               ))}
@@ -567,7 +567,7 @@ function AddClientDialog({ open, onOpenChange, onSubmit, pending }: any) {
         <div className="space-y-3 py-2">
           <Select value={selectedId} onValueChange={setSelectedId}>
             <SelectTrigger><SelectValue placeholder="اختر العميل" /></SelectTrigger>
-            <SelectContent>
+            <SelectContent className="max-h-64 overflow-y-auto">
               {clientsList.map(c => (
                 <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
               ))}
