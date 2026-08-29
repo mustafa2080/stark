@@ -768,6 +768,13 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
       updatedAt: now,
     };
     if (body.partialQuantity != null) shipmentPatch.partialQuantity = body.partialQuantity;
+    // القيمة المستلمة فعليًا (collectedAmount) لازم تتحدث تلقائيًا بنفس قيمة partialQuantity
+    // وقت "استلام جزئي" — قبل الفيكس ده كانت القيمة بتفضل صفر في shipments.collectedAmount
+    // رغم تسجيل partialQuantity صح، فشاشة "الطلبيات في البيان" بتاعة المندوب كانت بتعرض
+    // "القيمة المستلمة" = 0 دايمًا (راجع نقاش 2026-08-29 — شحنة SHP-2026-0064).
+    if (body.deliveryStatus === "partial_delivered" && body.partialQuantity != null) {
+      shipmentPatch.collectedAmount = String(body.partialQuantity);
+    }
     // returnReceived و returnReason بتاعين "مرتجع"/"استلام جزئي" — لازم ينعكسوا على جدول الشحنات
     // عشان صفحة الشحنات تعرض نفس التاج (ما زال عند شركة الشحن / في المخزن) من البيان
     if (body.deliveryStatus === "returned" || body.deliveryStatus === "partial_delivered") {
