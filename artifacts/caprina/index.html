@@ -37,6 +37,12 @@
     <link rel="icon" type="image/png" href="/icon-192.png" />
     <link rel="shortcut icon" href="/icon-192.png" />
 
+    <!-- Preload اللوجو المستخدم في SplashScreen/PageLoader — بيبدأ التحميل فورًا
+         بالتوازي مع الـ JS بدل ما يستنى الـ React يبدأ يشتغل الأول، عشان اللوجو
+         يكون جاهز لحظة ظهور شاشة التحميل بدون ومضة سوداء فاضية (خصوصًا وقت
+         hard refresh لما الكاش المحلي بيتمسح بالكامل) -->
+    <link rel="preload" as="image" href="/logo.jpg" fetchpriority="high" />
+
     <title>STARK — شركة الشحن الموثوقة في مصر</title>
 
     <!-- Fonts -->
