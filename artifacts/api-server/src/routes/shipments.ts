@@ -1200,6 +1200,12 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
       const manifestFinancialValue = d.collectedAmount !== undefined
         ? d.collectedAmount
         : d.partialQuantity;
+      console.log("[DEBUG PATCH-shipments]", JSON.stringify({
+        id, rawBody: req.body,
+        d_collectedAmount: d.collectedAmount,
+        d_partialQuantity: d.partialQuantity,
+        manifestFinancialValue,
+      }));
       await syncShipmentStatusToManifests(id, updateData.status, {
         returnReason: updateData.returnReason,
         // ⚠️ ملاحظة "مهامي" (سبب التأجيل/الإرجاع اللي المندوب بيكتبه) — كانت
