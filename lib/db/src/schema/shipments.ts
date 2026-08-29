@@ -163,7 +163,11 @@ export const shipmentItemsTable = mysqlTable("shipment_items", {
   notes:       text("notes"),
   createdAt:   datetime("created_at").notNull(),
   updatedAt:   datetime("updated_at").notNull(),
-});
+},
+(t) => [
+  index("idx_shipment_items_shipment_id").on(t.shipmentId),
+  index("idx_shipment_items_tenant_id").on(t.tenantId),
+]);
 
 export type InsertShipmentItem = typeof shipmentItemsTable.$inferInsert;
 export type ShipmentItem       = typeof shipmentItemsTable.$inferSelect;

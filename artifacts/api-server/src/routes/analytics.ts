@@ -55,7 +55,7 @@ async function getVariantsForTenant(tenantId: number | null) {
 }
 async function getManifestsForTenant(tenantId: number | null) {
   return tenantId !== null
-    ? db.select({ id: shippingManifestsTable.id, status: shippingManifestsTable.status, manualShippingCost: shippingManifestsTable.manualShippingCost, createdAt: shippingManifestsTable.createdAt }).from(shippingManifestsTable).where(sql.raw(`shipping_manifests.tenant_id = ${tenantId}`))
+    ? db.select({ id: shippingManifestsTable.id, status: shippingManifestsTable.status, manualShippingCost: shippingManifestsTable.manualShippingCost, createdAt: shippingManifestsTable.createdAt }).from(shippingManifestsTable).where(eq(shippingManifestsTable.tenantId, tenantId))
     : db.select({ id: shippingManifestsTable.id, status: shippingManifestsTable.status, manualShippingCost: shippingManifestsTable.manualShippingCost, createdAt: shippingManifestsTable.createdAt }).from(shippingManifestsTable);
 }
 
@@ -205,15 +205,24 @@ router.get("/analytics/profit", requirePermission("orders.financials"), async (r
   if (tenantId !== null) productsConditions.push(eq(productsTable.tenantId, tenantId));
 
   const manifestsConditions: any[] = [];
-  if (tenantId !== null) manifestsConditions.push(sql.raw(`shipping_manifests.tenant_id = ${tenantId}`));
+  if (tenantId !== null) manifestsConditions.push(eq(shippingManifestsTable.tenantId, tenantId));
 
-  const [allOrdersRaw, products, variants, manifests, manifestOrders] = await Promise.all([
+  const [allOrdersRaw, products, variants, manifests] = await Promise.all([
     db.select().from(ordersTable).where(and(...ordersBaseConditions)),
     getProductsForTenant(tenantId),
     getVariantsForTenant(tenantId),
     getManifestsForTenant(tenantId),
-    db.select({ manifestId: shippingManifestOrdersTable.manifestId, orderId: shippingManifestOrdersTable.orderId }).from(shippingManifestOrdersTable),
   ]);
+
+  // مفيش tenantId مباشر على shipping_manifest_orders، فبنفلترها عن طريق
+  // الـ manifest IDs بتاعة الـ tenant الحالي (اللي جبناها فوق أصلاً) بدل ما
+  // نجيب كل صفوف الجدول من كل الـ tenants في النظام
+  const tenantManifestIds = manifests.map(m => m.id);
+  const manifestOrders = tenantManifestIds.length > 0
+    ? await db.select({ manifestId: shippingManifestOrdersTable.manifestId, orderId: shippingManifestOrdersTable.orderId })
+        .from(shippingManifestOrdersTable)
+        .where(inArray(shippingManifestOrdersTable.manifestId, tenantManifestIds))
+    : [];
 
   // بناء map: orderId → تكلفة شحن موزعة (manualShippingCost ÷ عدد الطلبيات في البيان)
   const manifestOrderCount = new Map<number, number>();
@@ -868,10 +877,11 @@ router.get("/analytics/damaged-orders", requireAdmin, async (req, res): Promise<
   const conditions: any[] = [
     isNull(ordersTable.deletedAt),
     eq(ordersTable.status, "returned" as any),
+    eq(ordersTable.isDamaged, 1),
   ];
   if (tenantId !== null) conditions.push(eq(ordersTable.tenantId, tenantId));
 
-  const [allOrders, products, variants] = await Promise.all([
+  const [damagedOrders, products, variants] = await Promise.all([
     db.select().from(ordersTable).where(and(...conditions)).orderBy(desc(ordersTable.createdAt)),
     getProductsForTenant(tenantId),
     getVariantsForTenant(tenantId),
@@ -880,8 +890,6 @@ router.get("/analytics/damaged-orders", requireAdmin, async (req, res): Promise<
   const variantMap = new Map<number, number | null>(variants.map(v => [v.id, v.costPrice]));
   const productMap = new Map<number, number | null>(products.map(p => [p.id, p.costPrice]));
 
-  // فلتر التوالف فقط
-  const damagedOrders = allOrders.filter(o => o.isDamaged === 1);
 
   const result = damagedOrders.map(o => {
     const rc = resolveCost(o, variantMap, productMap);
@@ -1928,16 +1936,23 @@ router.get("/analytics/charts", async (req, res): Promise<void> => {
   if (tenantId !== null) chartsBaseConditions.push(eq(ordersTable.tenantId, tenantId));
 
   const manifestsChartConditions: any[] = [];
-  if (tenantId !== null) manifestsChartConditions.push(sql.raw(`shipping_manifests.tenant_id = ${tenantId}`));
+  if (tenantId !== null) manifestsChartConditions.push(eq(shippingManifestsTable.tenantId, tenantId));
 
-  const [allOrders, chartsManifests, chartsManifestOrders] = await Promise.all([
+  const [allOrders, chartsManifests] = await Promise.all([
     db.select().from(ordersTable).where(and(...chartsBaseConditions)),
     db.select({ id: shippingManifestsTable.id, manualShippingCost: shippingManifestsTable.manualShippingCost })
       .from(shippingManifestsTable)
       .where(manifestsChartConditions.length ? and(...manifestsChartConditions) : undefined),
-    db.select({ manifestId: shippingManifestOrdersTable.manifestId, orderId: shippingManifestOrdersTable.orderId })
-      .from(shippingManifestOrdersTable),
   ]);
+
+  // مفيش tenantId مباشر على shipping_manifest_orders، فبنفلترها عن طريق
+  // الـ manifest IDs بتاعة الـ tenant الحالي بدل ما نجيب كل صفوف الجدول
+  const chartsTenantManifestIds = chartsManifests.map(m => m.id);
+  const chartsManifestOrders = chartsTenantManifestIds.length > 0
+    ? await db.select({ manifestId: shippingManifestOrdersTable.manifestId, orderId: shippingManifestOrdersTable.orderId })
+        .from(shippingManifestOrdersTable)
+        .where(inArray(shippingManifestOrdersTable.manifestId, chartsTenantManifestIds))
+    : [];
 
   // بناء chartsManifestOrders و chartsManifests لاستخدامها لاحقاً في حساب الإيرادات
 

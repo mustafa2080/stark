@@ -1,4 +1,4 @@
-import { mysqlTable, int, varchar, decimal, text, datetime } from "drizzle-orm/mysql-core";
+import { mysqlTable, int, varchar, decimal, text, datetime, index } from "drizzle-orm/mysql-core";
 import { clientsTable } from "./clients";
 import { shipmentsTable } from "./shipments";
 
@@ -17,7 +17,12 @@ export const clientAccountManifestsTable = mysqlTable("client_account_manifests"
   closedAt:         datetime("closed_at"),
   scheduledCloseAt: datetime("scheduled_close_at"), // أقرب موعد إغلاق متوقع (أحد/أربعاء) — يُحسب وقت فتح البيان
   revenueDisbursementRequestedAt: datetime("revenue_disbursement_requested_at"), // وقت ما العميل ضغط "صرف الإيراد"
-});
+},
+(t) => [
+  index("idx_client_account_manifests_tenant_id").on(t.tenantId),
+  index("idx_client_account_manifests_status").on(t.status),
+  index("idx_client_account_manifests_client_id").on(t.clientId),
+]);
 
 // ─── الشحنات داخل بيان حساب العميل ────────────────────────────────────────────
 export const clientAccountManifestItemsTable = mysqlTable("client_account_manifest_items", {
@@ -36,7 +41,11 @@ export const clientAccountManifestItemsTable = mysqlTable("client_account_manife
   isUrgent:       int("is_urgent").default(0),
   urgentNote:     varchar("urgent_note", { length: 255 }),
   urgentAt:       datetime("urgent_at"),
-});
+},
+(t) => [
+  index("idx_cami_manifest_id").on(t.manifestId),
+  index("idx_cami_shipment_id").on(t.shipmentId),
+]);
 
 export type ClientAccountManifest     = typeof clientAccountManifestsTable.$inferSelect;
 export type ClientAccountManifestItem = typeof clientAccountManifestItemsTable.$inferSelect;

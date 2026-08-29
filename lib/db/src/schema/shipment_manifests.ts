@@ -1,4 +1,4 @@
-import { mysqlTable, int, varchar, decimal, text, datetime } from "drizzle-orm/mysql-core";
+import { mysqlTable, int, varchar, decimal, text, datetime, index } from "drizzle-orm/mysql-core";
 import { shippingCompaniesTable } from "./shipping_companies";
 import { shipmentsTable } from "./shipments";
 import { clientsTable } from "./clients";
@@ -26,7 +26,13 @@ export const shipmentManifestsTable = mysqlTable("shipment_manifests", {
   courierCostManual: decimal("courier_cost_manual", { precision: 10, scale: 2 }),
   createdAt:        datetime("created_at").notNull(),
   closedAt:         datetime("closed_at"),
-});
+},
+(t) => [
+  index("idx_shipment_manifests_tenant_id").on(t.tenantId),
+  index("idx_shipment_manifests_status").on(t.status),
+  index("idx_shipment_manifests_shipping_company_id").on(t.shippingCompanyId),
+  index("idx_shipment_manifests_client_id").on(t.clientId),
+]);
 
 // ─── الشحنات داخل البيان ──────────────────────────────────────────────────────
 export const shipmentManifestItemsTable = mysqlTable("shipment_manifest_items", {
@@ -52,7 +58,11 @@ export const shipmentManifestItemsTable = mysqlTable("shipment_manifest_items", 
   isUrgent:       int("is_urgent").default(0),        // 1 = مستعجل
   urgentNote:     varchar("urgent_note", { length: 255 }), // سبب الاستعجال (اختياري)
   urgentAt:       datetime("urgent_at"),               // وقت وضع الاستعجال
-});
+},
+(t) => [
+  index("idx_smi_manifest_id").on(t.manifestId),
+  index("idx_smi_shipment_id").on(t.shipmentId),
+]);
 
 export type ShipmentManifest     = typeof shipmentManifestsTable.$inferSelect;
 export type ShipmentManifestItem = typeof shipmentManifestItemsTable.$inferSelect;
