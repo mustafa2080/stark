@@ -1001,6 +1001,14 @@ router.put("/shipments/:id", async (req, res): Promise<void> => {
     // تتنفذ هنا في PUT بالظبط زي PATCH، وإلا أي تحديث حالة (زي "مرتجع") جاي من
     // صفحة الشحنات (اللي بتستخدم PUT) هيفضل مش منعكس على كارت البيان.
     if (updateData.status !== undefined) {
+      // ⚠️ فيكس: شاشة "استلام جزئي" في مهامي المندوب (ShipmentStatusEditor) بتبعت
+      // partialQuantity (قيمة مالية) مش collectedAmount للحالة دي تحديدًا — قبل
+      // الفيكس ده كنا بنعتمد على d.collectedAmount بس هنا، فكانت partialQuantity
+      // في جدولي البيان (حساب العميل / شركة الشحن) بتفضل زي ما هي (صفر) رغم إن
+      // المندوب كتب القيمة فعلاً وحفظها صح في shipmentsTable.partialQuantity.
+      const manifestFinancialValue = d.collectedAmount !== undefined
+        ? d.collectedAmount
+        : d.partialQuantity;
       await syncShipmentStatusToManifests(id, updateData.status, {
         returnReason: updateData.returnReason,
         // ⚠️ ملاحظة "مهامي" (سبب التأجيل/الإرجاع اللي المندوب بيكتبه) — كانت
@@ -1010,11 +1018,11 @@ router.put("/shipments/:id", async (req, res): Promise<void> => {
         // فعلاً (d.notes !== undefined) عشان منمسحش ملاحظة قديمة بالغلط لو
         // التحديث ده مالوش علاقة بالملاحظة أصلاً.
         deliveryNote: d.notes !== undefined ? d.notes : undefined,
-        deliveredValueReceived: d.collectedAmount !== undefined ? d.collectedAmount : undefined,
-        partialQuantity: d.collectedAmount !== undefined && d.collectedAmount !== null
-          ? Math.round(d.collectedAmount)
-          : d.collectedAmount,
-        returnValueReceived: d.collectedAmount !== undefined ? d.collectedAmount : undefined,
+        deliveredValueReceived: manifestFinancialValue !== undefined ? manifestFinancialValue : undefined,
+        partialQuantity: manifestFinancialValue !== undefined && manifestFinancialValue !== null
+          ? Math.round(manifestFinancialValue)
+          : manifestFinancialValue,
+        returnValueReceived: manifestFinancialValue !== undefined ? manifestFinancialValue : undefined,
       });
       invalidateSmartCache(tenantId);
       invalidateChartsCache(tenantId);
@@ -1184,6 +1192,14 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
       // الحالة النهائية (mapped) فمفيش تعارض ولا كتابة فوق حقل غلط.
       // partialQuantity في جدول البيان عمود int بيمثّل قيمة مالية (مش عدد قطع
       // زي partialQty بتاع "مهامي")، فبنقرّبها لأقرب رقم صحيح قبل التمرير.
+      // ⚠️ فيكس: شاشة "استلام جزئي" في مهامي المندوب (ShipmentStatusEditor) بتبعت
+      // partialQuantity (قيمة مالية) مش collectedAmount للحالة دي تحديدًا — قبل
+      // الفيكس ده كنا بنعتمد على d.collectedAmount بس هنا، فكانت partialQuantity
+      // في جدولي البيان (حساب العميل / شركة الشحن) بتفضل زي ما هي (صفر) رغم إن
+      // المندوب كتب القيمة فعلاً وحفظها صح في shipmentsTable.partialQuantity.
+      const manifestFinancialValue = d.collectedAmount !== undefined
+        ? d.collectedAmount
+        : d.partialQuantity;
       await syncShipmentStatusToManifests(id, updateData.status, {
         returnReason: updateData.returnReason,
         // ⚠️ ملاحظة "مهامي" (سبب التأجيل/الإرجاع اللي المندوب بيكتبه) — كانت
@@ -1193,11 +1209,11 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
         // فعلاً (d.notes !== undefined) عشان منمسحش ملاحظة قديمة بالغلط لو
         // التحديث ده مالوش علاقة بالملاحظة أصلاً.
         deliveryNote: d.notes !== undefined ? d.notes : undefined,
-        deliveredValueReceived: d.collectedAmount !== undefined ? d.collectedAmount : undefined,
-        partialQuantity: d.collectedAmount !== undefined && d.collectedAmount !== null
-          ? Math.round(d.collectedAmount)
-          : d.collectedAmount,
-        returnValueReceived: d.collectedAmount !== undefined ? d.collectedAmount : undefined,
+        deliveredValueReceived: manifestFinancialValue !== undefined ? manifestFinancialValue : undefined,
+        partialQuantity: manifestFinancialValue !== undefined && manifestFinancialValue !== null
+          ? Math.round(manifestFinancialValue)
+          : manifestFinancialValue,
+        returnValueReceived: manifestFinancialValue !== undefined ? manifestFinancialValue : undefined,
       });
       invalidateSmartCache(tenantId);
       invalidateChartsCache(tenantId);
