@@ -38,12 +38,22 @@ const starkGlowStyle = `
   100% { text-shadow: 0 0 3px rgba(255,255,255,0.08); }
 }
 .stark-glow-text {
-  animation: starkGlow 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   background-size: 300% 300% !important;
   animation: starkGlow 4s cubic-bezier(0.4,0,0.6,1) infinite, starkGradientShift 4s ease infinite;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
 }
 .stark-glow-text-sm {
   animation: starkGlowSm 4s cubic-bezier(0.4,0,0.6,1) infinite;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+}
+.gradient-text {
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
 }
 `;
 
@@ -364,7 +374,7 @@ function HeroSection({ darkMode }: { darkMode: boolean }) {
           </span>
           <span style={{ width: 1, height: "clamp(28px,5vw,48px)", background: darkMode ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.15)", display: "inline-block", borderRadius: 1, alignSelf: "center" }} />
           <span
-            className="inline-block font-light"
+            className="inline-block font-light gradient-text"
             style={{
               fontSize: "clamp(16px, 4vw, 28px)",
               background: darkMode
@@ -464,7 +474,7 @@ function TrackingSection({ darkMode }: { darkMode: boolean }) {
               <Package size={24} className={`sm:hidden ${darkMode ? "text-white" : "text-black"}`} />
               <Package size={28} className={`hidden sm:block ${darkMode ? "text-white" : "text-black"}`} />
             </div>
-            <h2 className="text-2xl sm:text-3xl font-black mb-2"
+            <h2 className="text-2xl sm:text-3xl font-black mb-2 gradient-text"
               style={darkMode
                 ? { background: "linear-gradient(135deg, #ffffff 0%, #d0d0d0 50%, #a0a0a0 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text", filter: "drop-shadow(0 0 20px rgba(255,255,255,0.3))" }
                 : { background: "linear-gradient(135deg, #000000 0%, #2a2a2a 50%, #444444 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text", filter: "none" }}>
@@ -986,7 +996,7 @@ function ClientsSection({ darkMode }: { darkMode: boolean }) {
           {/* Big animated counter */}
           <div className="flex items-end justify-center gap-2 sm:gap-3 mb-3">
             <span
-              className="font-black leading-none"
+              className="font-black leading-none gradient-text"
               style={{
                 fontSize: "clamp(56px, 16vw, 120px)",
                 background: darkMode ? "linear-gradient(135deg, #ffffff 0%, #b0b0b0 50%, #606060 100%)" : "linear-gradient(135deg, #000000 0%, #333333 50%, #555555 100%)",
@@ -1001,7 +1011,7 @@ function ClientsSection({ darkMode }: { darkMode: boolean }) {
               {count}
             </span>
             <span
-              className="font-black pb-1.5 sm:pb-3 text-3xl sm:text-5xl"
+              className="font-black pb-1.5 sm:pb-3 text-3xl sm:text-5xl gradient-text"
               style={{
                 background: darkMode ? "linear-gradient(135deg,#ffffff 0%,#888 100%)" : "linear-gradient(135deg,#000000 0%,#555 100%)",
                 WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", backgroundClip:"text",
