@@ -1151,9 +1151,15 @@ export default function Orders() {
   // paginatedRows = displayRows نفسها لأن التقسيم بيحصل في السيرفر (limit/offset)
   // مش في المتصفح؛ الفلاتر المحلية (بحث/فرز) بتشتغل على شحنات الصفحة الحالية بس.
   const totalPages = Math.max(1, Math.ceil((ordersTotal ?? 0) / PAGE_SIZE));
+  // ملحوظة مهمة: الشرط ده لازم يتفعّل بس لما يكون عندنا استجابة فعلية من
+  // السيرفر (ordersResponse !== undefined)، مش على أي تغيير في totalPages.
+  // لو سبنا الشرط يشتغل وordersResponse لسه مش راجع (يعني totalPages محسوب من
+  // بيانات الصفحة القديمة/الكاش)، الـ effect كان بيرجّع page لـ 1 فورًا بعد
+  // أي ضغطة "التالي" (لأن totalPages القديم بيبان أصغر من الصفحة الجديدة قبل
+  // ما نستنى رد السيرفر) — وده اللي كان يخلي المستخدم يحتاج يضغط مرتين.
   useEffect(() => {
-    if (page > totalPages) setPage(1);
-  }, [totalPages]);
+    if (ordersResponse !== undefined && page > totalPages) setPage(1);
+  }, [totalPages, ordersResponse]);
   const paginatedRows = displayRows;
   // أي تغيير في الفلاتر أو الحالة أو حجم الصفحة يرجّع للصفحة الأولى (السيرفر هيجيب من جديد)
   useEffect(() => {
