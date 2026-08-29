@@ -221,10 +221,26 @@ async function backfillEmployeeProfileIds() {
   }
 }
 
-seedDefaultAdmin();
-backfillEmployeeProfileIds();
-startSubscriptionCron(); // ← Cron الاشتراكات
-startReconciliationCron(); // ← Cron تسوية حالات الشحنات مع البيانات (كل 10 دقايق)
+// ⚠️ مهم (تحديث 2026-08-29): بعد الانتقال لـ PM2 cluster mode (2 instances)،
+// أي كود بيتنفذ عند الـ startup هنا (seed، migrations، cron jobs) هيشتغل مرتين
+// — مرة لكل instance — لو سبناه زي ما هو. ده مش خطر كبير للـ migrations نفسها
+// (كلها idempotent، بتستخدم IF NOT EXISTS/Duplicate column check) لكنه:
+//  (أ) بيضاعف الحمل على الداتابيز وقت كل restart من غير أي فايدة،
+//  (ب) بيخلي الـ cron jobs (subscriptionCron وreconciliationCron) تشتغل مرتين
+//      كل دورة — تحديثات مكررة (idempotent برضه، بس مضيعة موارد ومربكة في اللوج).
+// PM2 cluster mode بيدّي كل instance متغير NODE_APP_INSTANCE (بيبدأ من "0").
+// بنقصر الـ startup tasks دي على instance "0" بس، عشان تتنفذ مرة واحدة فعلياً
+// بغض النظر عن عدد الـ instances.
+const IS_PRIMARY_INSTANCE = (process.env.NODE_APP_INSTANCE ?? "0") === "0";
+
+if (IS_PRIMARY_INSTANCE) {
+  seedDefaultAdmin();
+  backfillEmployeeProfileIds();
+  startSubscriptionCron(); // ← Cron الاشتراكات
+  startReconciliationCron(); // ← Cron تسوية حالات الشحنات مع البيانات (كل 10 دقايق)
+} else {
+  logger.info("Skipping startup tasks (seed/migrations/cron) — not primary instance");
+}
 
 // ─── Process-level error guards ──────────────────────────────────────────────
 // من غيرهم أي استثناء غير متوقع بيسقط العملية كلها والسيرفر يقع لحد ما حد يعمله.
@@ -255,7 +271,7 @@ async function ensureAppSettingsTable() {
     logger.error({ err }, "Failed to ensure app_settings table");
   }
 }
-ensureAppSettingsTable();
+if (IS_PRIMARY_INSTANCE) ensureAppSettingsTable();
 
 // ─── Ensure color_hex column exists in product_variants (safe migration) ──────
 async function ensureVariantColorHex() {
@@ -270,7 +286,7 @@ async function ensureVariantColorHex() {
     }
   }
 }
-ensureVariantColorHex();
+if (IS_PRIMARY_INSTANCE) ensureVariantColorHex();
 
 // ─── Ensure invoice_number column exists in orders (safe migration) ───────────
 async function ensureOrdersInvoiceNumber() {
@@ -294,7 +310,7 @@ async function ensureOrdersInvoiceNumber() {
     // Index may already exist — ignore
   }
 }
-ensureOrdersInvoiceNumber();
+if (IS_PRIMARY_INSTANCE) ensureOrdersInvoiceNumber();
 
 // ─── Ensure shipping_manifests columns exist (safe migration) ─────────────────
 async function ensureShippingManifestColumns() {
@@ -313,7 +329,7 @@ async function ensureShippingManifestColumns() {
   }
   logger.info("shipping_manifests columns ensured");
 }
-ensureShippingManifestColumns();
+if (IS_PRIMARY_INSTANCE) ensureShippingManifestColumns();
 
 // ─── Ensure shipping_companies.logo column exists ─────────────────────────────
 async function ensureShippingCompanyLogo() {
@@ -328,7 +344,7 @@ async function ensureShippingCompanyLogo() {
     }
   }
 }
-ensureShippingCompanyLogo();
+if (IS_PRIMARY_INSTANCE) ensureShippingCompanyLogo();
 
 // ─── Ensure users.shipping_company_id column exists (للمندوبين) ──────────────
 async function ensureUsersShippingCompanyId() {
@@ -343,7 +359,7 @@ async function ensureUsersShippingCompanyId() {
     }
   }
 }
-ensureUsersShippingCompanyId();
+if (IS_PRIMARY_INSTANCE) ensureUsersShippingCompanyId();
 
 // ─── Ensure users.default_ad_source column exists (مصدر الإعلان الافتراضي للموظف) ──
 async function ensureUsersDefaultAdSource() {
@@ -358,7 +374,7 @@ async function ensureUsersDefaultAdSource() {
     }
   }
 }
-ensureUsersDefaultAdSource();
+if (IS_PRIMARY_INSTANCE) ensureUsersDefaultAdSource();
 
 // ─── Ensure clients.default_ad_source column exists (مصدر الطلب الافتراضي للعميل التجاري) ──
 async function ensureClientsDefaultAdSource() {
@@ -373,7 +389,7 @@ async function ensureClientsDefaultAdSource() {
     }
   }
 }
-ensureClientsDefaultAdSource();
+if (IS_PRIMARY_INSTANCE) ensureClientsDefaultAdSource();
 
 // ─── Ensure clients.whatsapp_group_link column exists (رابط جروب واتساب العميل التجاري) ──
 async function ensureClientsWhatsappGroupLink() {
@@ -388,7 +404,7 @@ async function ensureClientsWhatsappGroupLink() {
     }
   }
 }
-ensureClientsWhatsappGroupLink();
+if (IS_PRIMARY_INSTANCE) ensureClientsWhatsappGroupLink();
 
 // ─── Ensure client_account_closures.client_id column exists (ربط إقفال حساب العميل التجاري) ──
 async function ensureClientAccountClosuresClientId() {
@@ -403,7 +419,7 @@ async function ensureClientAccountClosuresClientId() {
     }
   }
 }
-ensureClientAccountClosuresClientId();
+if (IS_PRIMARY_INSTANCE) ensureClientAccountClosuresClientId();
 
 // ─── Ensure client_account_manifests.scheduled_close_at / revenue_disbursement_requested_at columns exist ──
 async function ensureClientAccountManifestsScheduleColumns() {
@@ -421,7 +437,7 @@ async function ensureClientAccountManifestsScheduleColumns() {
     }
   }
 }
-ensureClientAccountManifestsScheduleColumns();
+if (IS_PRIMARY_INSTANCE) ensureClientAccountManifestsScheduleColumns();
 
 // ─── Ensure trip_settlements (تسوية الرحلات والتحصيل) tables exist ──────────
 async function ensureTripSettlementTables() {
@@ -503,7 +519,7 @@ async function ensureTripSettlementTables() {
     }
   }
 }
-ensureTripSettlementTables();
+if (IS_PRIMARY_INSTANCE) ensureTripSettlementTables();
 
 // ─── Ensure client_account_manifests / client_account_manifest_items tables exist ──
 async function ensureClientAccountManifestsTables() {
@@ -551,7 +567,7 @@ async function ensureClientAccountManifestsTables() {
     logger.error({ err }, "Failed to ensure client_account_manifests tables");
   }
 }
-ensureClientAccountManifestsTables();
+if (IS_PRIMARY_INSTANCE) ensureClientAccountManifestsTables();
 
 // ─── Ensure client_return_manifests / client_return_manifest_items tables exist ──
 async function ensureClientReturnManifestsTables() {
@@ -591,7 +607,7 @@ async function ensureClientReturnManifestsTables() {
     logger.error({ err }, "Failed to ensure client_return_manifests tables");
   }
 }
-ensureClientReturnManifestsTables();
+if (IS_PRIMARY_INSTANCE) ensureClientReturnManifestsTables();
 
 
 // ─── Ensure employee_profiles.avatar column exists ────────────────────────────
@@ -607,7 +623,7 @@ async function ensureEmployeeProfileAvatar() {
     }
   }
 }
-ensureEmployeeProfileAvatar();
+if (IS_PRIMARY_INSTANCE) ensureEmployeeProfileAvatar();
 
 // ─── Ensure cash_registers.is_default column exists ──────────────────────────
 async function ensureCashRegisterIsDefault() {
@@ -630,6 +646,6 @@ async function ensureCashRegisterIsDefault() {
     }
   }
 }
-ensureCashRegisterIsDefault();
+if (IS_PRIMARY_INSTANCE) ensureCashRegisterIsDefault();
 
 export default app;

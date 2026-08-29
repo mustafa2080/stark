@@ -14,12 +14,14 @@ if (!process.env.DATABASE_URL) {
 // القيم دي قابلة للتعديل عبر متغيرات البيئة من غير الحاجة لتعديل الكود.
 export const pool = mysql.createPool({
   uri: process.env.DATABASE_URL,
-  // ملحوظة: السيرفر (2 CPU cores) بيشغّل starkvector-api و caprina-api مع
-  // بعض على نفس الجهاز، وكلاهما بيشارك نفس max_connections = 151 على مستوى
-  // المايسكول. بنفضّل fork mode بـ instance واحد (مش cluster) عشان مفيش
-  // core فاضي أصلاً، وconnectionLimit متحفظ عشان نسيب هامش لـ caprina وأي
-  // اتصالات تانية (phpMyAdmin, backups, cron).
-  connectionLimit: Number(process.env.DB_POOL_LIMIT ?? 10),
+  // ملحوظة (تحديث 2026-08-29): starkvector-api بقى شغال cluster mode بـ 2
+  // instances (كان fork instance واحد) — كل instance عنده pool منفصل خاص بيه،
+  // فالـ connectionLimit هنا هو *لكل instance*، مش إجمالي. مع caprina-api
+  // (instance واحد) شغالة على نفس الجهاز وبتشارك نفس max_connections = 151
+  // على مستوى المايسكول، الإجمالي التقريبي = (هنا × 2 لـ stark) + caprina.
+  // قللنا الـ default هنا من 10 لـ 8 لكل instance عشان الإجمالي (8×2 + 10 ≈ 26)
+  // يفضل بعيد عن الحد الأقصى ويسيب هامش لـ phpMyAdmin/backups/cron.
+  connectionLimit: Number(process.env.DB_POOL_LIMIT ?? 8),
   waitForConnections: true,   // الطلب يستنى في الطابور بدل ما يفشل فوراً لو كل الاتصالات مشغولة
   queueLimit: 0,               // 0 = طابور غير محدود (أفضل من رفض الطلب فجأة)
   enableKeepAlive: true,       // يمنع قطع الاتصال الخامل مع MariaDB/Hostinger
