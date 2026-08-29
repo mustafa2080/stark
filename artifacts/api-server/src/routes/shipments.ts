@@ -888,14 +888,12 @@ router.post("/shipments", async (req, res): Promise<void> => {
 
     res.status(201).json(newShipment[0]);
 
-    // إضافة تلقائية لبيان حساب العميل المفتوح فور إنشاء الشحنة — بس لو الحالة
-    // "قيد الشحن في المخزن" (warehouse_ready) بالظبط. أي حالة تانية (قيد الانتظار،
-    // مؤكدة، جاري النقل، إلخ) تفضل معلّقة من غير بيان لحد ما توصل فعليًا للمخزن —
-    // ⚠️ فيكس: الشرط القديم كان blacklist (بيستثني pending/waiting بس) فكان بيسمح
-    // بأي حالة تانية غير الاتنين دول (زي confirmed/in_transit) تتضاف فورًا للبيان
-    // المفتوح رغم إنها لسه مش وصلت المخزن. اتحول لـ whitelist على warehouse_ready
-    // فقط عشان يطابق النية الموصوفة في الكومنت الأصلي فعليًا.
-    if (newShipment[0] && newShipment[0].clientId && newShipment[0].status === "warehouse_ready") {
+    // إضافة تلقائية لبيان حساب العميل المفتوح فور إنشاء الشحنة — بغض النظر عن
+    // حالتها. الشحنة تدخل للبيان المفتوح (أو تفتح بيان جديد لو مفيش بيان مفتوح)
+    // فور إنشائها مباشرة، من غير أي شرط على status (بطلب صريح من مصطفى بتاريخ
+    // 2026-08-29 — إلغاء شرط الـ whitelist القديم اللي كان بيقصر الإضافة على
+    // warehouse_ready فقط).
+    if (newShipment[0] && newShipment[0].clientId) {
       autoAddShipmentToClientAccountManifest(
         insertId,
         newShipment[0].clientId,
