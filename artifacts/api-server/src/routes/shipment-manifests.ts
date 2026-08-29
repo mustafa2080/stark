@@ -711,6 +711,10 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
         : (bareNote.length > 0 ? bareNote : null);
     }
 
+    // 🔍 DEBUG مؤقت — نشيله بعد ما نتأكد من مصدر المشكلة (partialQuantity بيوصل صفر
+    // للمندوب رغم كل الفيكسات، محتاجين نشوف بالظبط الراوت ده بيستقبل إيه فعليًا)
+    console.log("[DEBUG partial-fix] PATCH items", { manifestId, shipmentId, rawBody: req.body, parsedBody: body });
+
     await db.update(shipmentManifestItemsTable)
       .set({
         deliveryStatus: body.deliveryStatus,
@@ -733,6 +737,16 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
         eq(shipmentManifestItemsTable.manifestId, manifestId),
         eq(shipmentManifestItemsTable.shipmentId, shipmentId),
       ));
+
+    // 🔍 DEBUG مؤقت — نتأكد إن الـ update فعلاً كتب partialQuantity في الصف الصح
+    const [debugAfterUpdate] = await db.select({
+      partialQuantity: shipmentManifestItemsTable.partialQuantity,
+      deliveryStatus: shipmentManifestItemsTable.deliveryStatus,
+    }).from(shipmentManifestItemsTable).where(and(
+      eq(shipmentManifestItemsTable.manifestId, manifestId),
+      eq(shipmentManifestItemsTable.shipmentId, shipmentId),
+    )).limit(1);
+    console.log("[DEBUG partial-fix] after shipmentManifestItems update:", debugAfterUpdate);
 
     // حدّث حالة الشحنة نفسها — partial_delivered (البيان) يقابل partial_received (شحنات) بنفس الاسم
     // عشان عمود "الحالة" في صفحة الشحنات يفضل واحد ثابت، والفرق (لسه عند الشحن / في المخزن) بييجي من returnReceived
