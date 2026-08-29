@@ -24,10 +24,13 @@ export const clientReturnManifestItemsTable = mysqlTable("client_return_manifest
   manifestId:     int("manifest_id").notNull().references(() => clientReturnManifestsTable.id, { onDelete: "cascade" }),
   shipmentId:     int("shipment_id").notNull().references(() => shipmentsTable.id),
   shipmentNumber: varchar("shipment_number", { length: 100 }).notNull(),
+  senderName:     varchar("sender_name", { length: 255 }),
   receiverName:   varchar("receiver_name", { length: 255 }),
   receiverPhone:  varchar("receiver_phone", { length: 50 }),
   receiverCity:   varchar("receiver_city", { length: 100 }),
   codAmount:      decimal("cod_amount", { precision: 10, scale: 2 }),
+  costPrice:      decimal("cost_price", { precision: 12, scale: 2 }),
+  shippingFee:    decimal("shipping_fee", { precision: 10, scale: 2 }),
   returnReason:   varchar("return_reason", { length: 100 }),
   addedAt:        datetime("added_at").notNull(),
 });

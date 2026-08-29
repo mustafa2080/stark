@@ -98,6 +98,8 @@ export const shipmentsTable = mysqlTable("shipments", {
   assignedUserId:    int("assigned_user_id"),    // المندوب المسؤول
   createdByUserId:   int("created_by_user_id"),
   createdByName:     varchar("created_by_name", { length: 255 }),
+  courierName:       varchar("courier_name", { length: 255 }),   // اسم مندوب شركة الشحن الخارجية
+  courierPhone:      varchar("courier_phone", { length: 50 }),   // رقم مندوب شركة الشحن الخارجية
 
   // ── ميتا ───────────────────────────────────────────────────────────────
   notes:           text("notes"),
