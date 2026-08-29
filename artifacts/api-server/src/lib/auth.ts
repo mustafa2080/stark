@@ -7,7 +7,7 @@ if (!_jwtSecret) {
   throw new Error("JWT_SECRET environment variable is required but was not set.");
 }
 const JWT_SECRET: string = _jwtSecret;
-const JWT_EXPIRES = "30d";
+const JWT_EXPIRES = "7d";
 
 export function signToken(user: SafeUser): string {
   return jwt.sign(
