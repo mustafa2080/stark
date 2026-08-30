@@ -620,11 +620,15 @@ export default function FinanceClients() {
   );
 
   // ── أفضل العملاء (حسب عدد الشحنات هذا الشهر) ───────────────────────────
+  // بنستثني الشحنات لسه "قيد الانتظار" (pending/waiting) — العدّاد ده المفروض
+  // يبدأ من أول ما الشحنة تدخل مرحلة "قيد الشحن في المخزن" فعليًا، زي باقي
+  // العدادات في الموقع، مش من لحظة إنشاء الأوردر.
   const monthlyShipmentsByClient = useMemo(() => {
     const now = new Date();
     const counts: Record<string, number> = {};
     recentShipments.forEach((s: any) => {
       if (!s.createdAt) return;
+      if (s.status === "pending" || s.status === "waiting") return;
       const d = new Date(s.createdAt);
       if (d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()) {
         const name = s.senderName ?? s.clientName ?? "";
