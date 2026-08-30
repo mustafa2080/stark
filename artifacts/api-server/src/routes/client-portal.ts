@@ -1659,17 +1659,18 @@ router.get("/client-portal/manifests", async (req, res): Promise<void> => {
 
     // ─── الأوردرات الجديدة الخاصة بالعميل = أي شحنة للعميل لسه مفيهاش أي صف
     // خالص في جدول بنود بيانات حساب العميل (مش في أي بيان، مفتوح أو مقفول)،
-    // وحالتها مش "ملغية". بتشمل الأوردرات الجديدة اللي لسه "قيد الانتظار"
-    // (waiting/pending) — لأن الأوردر أول ما يتعمل بيبقى قيد الانتظار، والعميل
-    // عايز يشوفه فورًا في كارت "الأوردرات الجديدة" لحد ما يتضاف للبيان. (ده
-    // أوسع من مجموعة الترحيل عند الإغلاق اللي بتنقل بس warehouse_ready أو أبعد.)
+    // ووصلت فعليًا "قيد الشحن في المخزن" (warehouse_ready) أو أبعد. شحنة لسه
+    // "قيد الانتظار" (pending/waiting) أو "مؤكدة" (confirmed) مالهاش علاقة
+    // بالبيان خالص ومتتحسبش هنا — نفس منطق NOT_COUNTED_STATUSES في
+    // finance-clients.ts ونفس شرط autoAddShipmentToClientAccountManifest.
+    const PORTAL_NOT_COUNTED_STATUSES = ["pending", "waiting", "confirmed", "cancelled"];
     let pendingShipmentsCount = 0;
     const clientShipmentRows = await db
       .select({ id: shipmentsTable.id, status: shipmentsTable.status })
       .from(shipmentsTable)
       .where(and(eq(shipmentsTable.clientId, user.clientId), isNull(shipmentsTable.deletedAt)));
     const eligibleShipmentIds = clientShipmentRows
-      .filter(s => s.status !== "cancelled")
+      .filter(s => !PORTAL_NOT_COUNTED_STATUSES.includes(s.status))
       .map(s => s.id);
     if (eligibleShipmentIds.length) {
       const existingItemRows = await db

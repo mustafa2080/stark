@@ -234,19 +234,19 @@ router.get("/client-account-manifests", async (req, res): Promise<void> => {
 
     // ─── الأوردرات الجديدة لكل عميل ظاهر في القائمة = أي شحنة للعميل لسه
     // مفيهاش أي صف خالص في جدول بنود بيانات حساب العميل (مش في أي بيان، مفتوح
-    // أو مقفول)، وحالتها مش "ملغية". دي بتشمل الأوردرات الجديدة اللي لسه "قيد
-    // الانتظار" (waiting/pending) — لأن الأوردر أول ما يتعمل بيبقى قيد الانتظار،
-    // والعميل عايز يشوفه فورًا في كارت "الأوردرات الجديدة" لحد ما يتضاف للبيان.
-    // ملاحظة: ده أوسع من مجموعة الترحيل في rolloverPendingItemsToNewManifest
-    // (اللي بتنقل بس اللي وصل warehouse_ready أو أبعد عند الإغلاق) — بس ده
-    // المطلوب: الكارت بيعرض كل الأوردرات الجديدة المستنية بره البيان.
+    // أو مقفول)، ووصلت فعليًا "قيد الشحن في المخزن" (warehouse_ready) أو أبعد.
+    // شحنة لسه "قيد الانتظار" (pending/waiting) أو "مؤكدة" (confirmed) مالهاش
+    // علاقة بالبيان خالص ومتتحسبش هنا خالص — نفس منطق NOT_COUNTED_STATUSES في
+    // finance-clients.ts ونفس شرط autoAddShipmentToClientAccountManifest، عشان
+    // الحاوية دي متعرضش رقم لشحنة لسه ماوصلتش المخزن أصلًا.
+    const NOT_COUNTED_STATUSES = ["pending", "waiting", "confirmed", "cancelled"];
     const pendingCountByClient: Record<number, number> = {};
     if (clientIds.length) {
       const clientShipmentRows = await db
         .select({ id: shipmentsTable.id, clientId: shipmentsTable.clientId, status: shipmentsTable.status })
         .from(shipmentsTable)
         .where(and(inArray(shipmentsTable.clientId, clientIds), isNull(shipmentsTable.deletedAt)));
-      const eligible = clientShipmentRows.filter(s => s.status !== "cancelled");
+      const eligible = clientShipmentRows.filter(s => !NOT_COUNTED_STATUSES.includes(s.status));
       const eligibleIds = eligible.map(s => s.id);
       let alreadyInManifest = new Set<number>();
       if (eligibleIds.length) {
