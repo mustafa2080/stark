@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, clientsTable, saleOrdersTable, saleOrderItemsTable, shipmentsTable, warehousesTable, usersTable, clientAccountManifestItemsTable, clientAccountManifestsTable, pickupRequestsTable, shipmentZonesTable, shipmentManifestsTable, shipmentManifestItemsTable } from "@workspace/db";
-import { eq, desc, and, sql, or, like, isNull, inArray, notInArray, ne } from "drizzle-orm";
+import { eq, desc, and, sql, or, like, isNull, inArray, ne } from "drizzle-orm";
 import { getTenantId } from "../middlewares/requireTenant.js";
 import { hashPassword } from "../lib/auth.js";
 import { computeClosedManifestsForClient, computeClientBalancesForAllClients, computeNetRevenueDueForAllClients } from "../lib/clientAccountBalance.js";
@@ -1068,12 +1068,16 @@ router.get("/finance/clients/:id/shipments", async (req, res): Promise<void> => 
     if (!client) { res.status(404).json({ error: "العميل غير موجود" }); return; }
 
     // جلب الشحنات بالـ clientId أو بالاسم (استبعاد المحذوفة)
-    // ⚠️ استبعاد الشحنات "قيد الانتظار" (pending/waiting) — دي لسه معلقة ومكانش
-    // اتأكد عليها في المخزن، فمينفعش تتحسب ضمن إجمالي شحنات العميل ولا تدخل بيان
-    // إلا لما تتحول لـ "قيد الشحن في المخزن" (warehouse_ready/picked_up) أو أبعد
+    // ⚠️ تحديث 2026-08-30 بطلب صريح من مصطفى: مبقاش فيه استبعاد لحالة "قيد
+    // الانتظار" (pending/waiting) هنا — كارت "إجمالي الشحنات" في تاب الداشبورد
+    // (بيعتمد على .length من الـ endpoint ده) لازم يطابق عدد الشحنات الفعلي في
+    // كارت البيان (بيان حساب العميل)، واللي بيحسب كل شحنة معلّقة/orphan بغض
+    // النظر عن حالتها (نفس منطق autoAddShipmentToClientAccountManifest —
+    // الشحنة الجديدة تفضل معلّقة لحد إغلاق البيان، مش لازم توصل warehouse_ready
+    // عشان "تتحسب"). قبل كده كان فيه notInArray(status, ["pending","waiting"])
+    // وده كان يخلي الرقم هنا أصغر من عدد شحنات البيان الفعلي.
     const shipConds: any[] = [
       isNull(shipmentsTable.deletedAt),
-      notInArray(shipmentsTable.status, ["pending", "waiting"]),
     ];
     const idCond   = eq(shipmentsTable.clientId, id);
     const nameCond = eq(shipmentsTable.senderName, client.name);
