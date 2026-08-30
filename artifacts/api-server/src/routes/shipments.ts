@@ -955,16 +955,17 @@ router.post("/shipments", async (req, res): Promise<void> => {
 
     res.status(201).json(newShipment[0]);
 
-    // إضافة تلقائية فور إنشاء الشحنة — بغض النظر عن حالتها (status). القرار
-    // الحقيقي بقى جوه autoAddShipmentToClientAccountManifest نفسها: لو فيه
-    // بيان مفتوح بالفعل للعميل، الدالة بتسيب الشحنة معلّقة (orphan) من غير ما
-    // تضيفها؛ لو مفيش بيان مفتوح، بتفتح واحد جديد وتضيفها فورًا. (تحديث
-    // 2026-08-30 بطلب صريح من مصطفى — الشرط مبقاش على warehouse_ready خالص.)
+    // إضافة تلقائية فور إنشاء الشحنة — بس لو وصلت warehouse_ready أو أبعد.
+    // لسه pending/waiting/confirmed → autoAddShipmentToClientAccountManifest
+    // بترفض تتصرف خالص (no-op)، الشحنة متتحسبش ولا تدخل أي بيان. من warehouse_ready
+    // فأعلى: لو فيه بيان مفتوح تفضل معلّقة (orphan) لحد قفله؛ لو مفيش بيان مفتوح
+    // يتفتح واحد جديد فورًا. (تحديث 2026-08-30 بطلب صريح من مصطفى — نسخة نهائية.)
     if (newShipment[0] && newShipment[0].clientId) {
       autoAddShipmentToClientAccountManifest(
         insertId,
         newShipment[0].clientId,
         tenantId,
+        newShipment[0].status,
       ).catch((e) => console.error("[POST /shipments] auto-add manifest error", e));
     }
 
@@ -1112,6 +1113,7 @@ router.put("/shipments/:id", async (req, res): Promise<void> => {
         id,
         existingShipment.clientId,
         tenantId,
+        updateData.status,
       );
     }
 
@@ -1172,7 +1174,7 @@ router.patch("/shipments/bulk-status", async (req, res): Promise<void> => {
 
     if (toAutoAdd.length > 0) {
       for (const r of toAutoAdd) {
-        await autoAddShipmentToClientAccountManifest(r.id, r.clientId, tenantId);
+        await autoAddShipmentToClientAccountManifest(r.id, r.clientId, tenantId, status);
       }
     }
 
@@ -1311,6 +1313,7 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
         id,
         existingShipment.clientId,
         tenantId,
+        updateData.status,
       );
     }
 

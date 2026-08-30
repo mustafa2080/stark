@@ -54,27 +54,38 @@ async function generateManifestNumber(clientId: number): Promise<string> {
   return `CAM-${clientId}-${seq}`;
 }
 
-// ─── إضافة تلقائية فور إنشاء الشحنة — بس لو مفيش بيان مفتوح بالفعل ──────────
-// ⚠️ بالتصميم (تحديث 2026-08-30 بطلب صريح من مصطفى): القرار مش على حالة
-// الشحنة (status) خالص — القرار على وجود بيان مفتوح من عدمه:
-//   • فيه بيان مفتوح للعميل بالفعل → الشحنة الجديدة (أيًا كانت حالتها) تفضل
-//     "معلّقة" (من غير manifestId/orphan) — ومتتضافش للبيان المفتوح الحالي.
-//     بتتلمّ تلقائيًا مع فتح البيان التالي (rolloverPendingItemsToNewManifest
-//     بتلقطها كـ orphan وقت القفل).
-//   • مفيش بيان مفتوح خالص → يتفتح بيان جديد للعميل وتتضاف له الشحنة فورًا.
-// (تاريخ التعديلات: 2026-08-29 كانت الإضافة فورية دايمًا حتى مع بيان مفتوح؛
-// 2026-08-30 الصبح رجعنا شرط warehouse_ready غلط؛ الصح انه مفيش شرط status
-// خالص — بس شرط "فيه بيان مفتوح ولا لأ".)
+// ─── إضافة تلقائية للبيان لما الشحنة توصل warehouse_ready (أو تتعمل بيه) ─────
+// ⚠️ بالتصميم (تحديث 2026-08-30 بطلب صريح من مصطفى — نسخة نهائية): تفرقة
+// واضحة بين حالتين:
+//   • الشحنة لسه "قيد الانتظار" (pending/waiting) أو "مؤكدة" (confirmed) —
+//     يعني لسه معندهاش وصلت "قيد الشحن في المخزن" (warehouse_ready) — دي
+//     أصلًا **مالهاش علاقة بالبيان خالص**: متتحسبش كعدد، ومتدخلش أي بيان لا
+//     مفتوح ولا مقفول. النداء ده بيتجاهلها تمامًا (no-op).
+//   • الشحنة وصلت warehouse_ready أو أبعد → القرار هنا على وجود بيان مفتوح:
+//       - فيه بيان مفتوح للعميل بالفعل → تفضل "معلّقة" (orphan) وتستنى قفل
+//         البيان، فتتلقط تلقائيًا مع فتح البيان الجديد
+//         (rolloverPendingItemsToNewManifest).
+//       - مفيش بيان مفتوح خالص → يتفتح بيان جديد وتتضاف له فورًا.
+// (تاريخ التعديلات: 2026-08-29 كانت الإضافة فورية بغض النظر عن الحالة حتى مع
+// بيان مفتوح؛ 2026-08-30 الصبح رجعنا شرط warehouse_ready بس مع "لو فيه بيان
+// مفتوح سيبها"؛ ثم جربنا إلغاء شرط الـ status خالص فحسبنا pending كـ orphan
+// غلط؛ النسخة دي هي الصح: pending/waiting/confirmed تتجاهل بالكامل، ومن
+// warehouse_ready فأعلى بس هي اللي تدخل في حساب البيان.)
 //
 // idempotent: بتتأكد الأول إن الشحنة مالهاش صف بالفعل في clientAccountManifestItemsTable
 // (بأي بيان، مفتوح أو مقفول) قبل ما تضيف — فمينفعش تتكرر لو اتنادت أكتر من مرة
 // لنفس الشحنة (زي إعادة المزامنة sync-warehouse-ready).
+const STATUSES_BEFORE_WAREHOUSE = new Set(["pending", "waiting", "confirmed"]);
+
 export async function autoAddShipmentToClientAccountManifest(
   shipmentId: number,
   clientId: number | null | undefined,
   tenantId: number | null,
+  shipmentStatus?: string | null,
 ): Promise<void> {
   if (!clientId) return;
+  // لسه ما وصلتش warehouse_ready → متتحسبش ولا تتضاف خالص (no-op).
+  if (shipmentStatus && STATUSES_BEFORE_WAREHOUSE.has(shipmentStatus)) return;
 
   // الشحنة مضافة بالفعل لبيان (أي بيان) → متتضافش تاني.
   const [existingItem] = await db
@@ -1202,9 +1213,10 @@ async function rolloverPendingItemsToNewManifest(
   }
   const pendingItemsToRoll = pendingItems.filter(i => nonDeletedPendingSet.has(i.shipmentId));
 
-  // ─── الشحنات "المعلّقة" بتاعة نفس العميل: أي شحنة بغض النظر عن حالتها،
-  // ومفيهاش أي صف خالص في جدول بنود بيانات حساب العميل (بغض النظر عن أي بيان،
-  // مفتوح أو مقفول). ────────────────────────────────────────────────────────
+  // ─── الشحنات "المعلّقة" بتاعة نفس العميل: أي شحنة وصلت warehouse_ready أو
+  // أبعد (لسه pending/waiting/confirmed تُستبعد تمامًا — دي مالهاش علاقة
+  // بالبيان خالص)، ومفيهاش أي صف خالص في جدول بنود بيانات حساب العميل (بغض
+  // النظر عن أي بيان، مفتوح أو مقفول). ─────────────────────────────────────
   const tenantCondition = tenantId !== null
     ? or(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.tenantId))
     : undefined;
@@ -1216,7 +1228,9 @@ async function rolloverPendingItemsToNewManifest(
       isNull(shipmentsTable.deletedAt), // الشحنة المحذوفة مالهاش تترحّل كـ orphan
       tenantCondition,
     ));
-  const eligibleShipmentIds = clientShipments.map(s => s.id);
+  const eligibleShipmentIds = clientShipments
+    .filter(s => !STATUSES_BEFORE_WAREHOUSE.has(s.status))
+    .map(s => s.id);
 
   let orphanShipmentIds: number[] = [];
   if (eligibleShipmentIds.length) {
@@ -1586,7 +1600,9 @@ router.post("/client-account-manifests/sync-warehouse-ready", async (req, res): 
         .limit(1);
       if (beforeCount.length) { skipped.push({ id: s.id, shipmentNumber: s.shipmentNumber, reason: "already_in_manifest" }); continue; }
       try {
-        await autoAddShipmentToClientAccountManifest(s.id, s.clientId, tenantId);
+        // status هنا دايمًا warehouse_ready بحكم شرط الـ cond فوق — بعتها صراحة
+        // للتوثيق فقط، مش شرط فعلي مؤثر.
+        await autoAddShipmentToClientAccountManifest(s.id, s.clientId, tenantId, "warehouse_ready");
         added++;
       } catch (err: any) {
         skipped.push({ id: s.id, shipmentNumber: s.shipmentNumber, reason: `error: ${err?.message ?? err}` });
@@ -1641,7 +1657,7 @@ router.post("/client-account-manifests/sync-orphan-shipments", async (req, res):
       if (!openManifest.length) { noOpenManifest++; skipped.push({ id: s.id, shipmentNumber: s.shipmentNumber, reason: "no_open_manifest_for_client" }); continue; }
 
       try {
-        await autoAddShipmentToClientAccountManifest(s.id, s.clientId, tenantId);
+        await autoAddShipmentToClientAccountManifest(s.id, s.clientId, tenantId, s.status);
         added++;
       } catch (err: any) {
         skipped.push({ id: s.id, shipmentNumber: s.shipmentNumber, reason: `error: ${err?.message ?? err}` });
