@@ -955,15 +955,12 @@ router.post("/shipments", async (req, res): Promise<void> => {
 
     res.status(201).json(newShipment[0]);
 
-    // إضافة تلقائية لبيان حساب العميل المفتوح — بس لو الشحنة الجديدة اتعملت
-    // وهي بالفعل بحالة "قيد الشحن في المخزن" (warehouse_ready) أو أبعد.
-    // ⚠️ رجّعنا الشرط القديم (تحديث 2026-08-30 بطلب صريح من مصطفى) بعد تجربة
-    // إلغائه بالأمس (2026-08-29): الشحنة الجديدة لازم تفضل "معلّقة" (من غير
-    // manifestId) لحد ما توصل warehouse_ready — مش تدخل البيان المفتوح فورًا
-    // وقت الإنشاء أيًا كانت حالتها. الإضافة الفعلية بتحصل من الـ PATCH path
-    // تحت (لما status يتغيّر لـ warehouse_ready) — هنا بس بنغطي الحالة النادرة
-    // اللي الشحنة بتتعمل مباشرة بالحالة دي.
-    if (newShipment[0] && newShipment[0].clientId && newShipment[0].status === "warehouse_ready") {
+    // إضافة تلقائية فور إنشاء الشحنة — بغض النظر عن حالتها (status). القرار
+    // الحقيقي بقى جوه autoAddShipmentToClientAccountManifest نفسها: لو فيه
+    // بيان مفتوح بالفعل للعميل، الدالة بتسيب الشحنة معلّقة (orphan) من غير ما
+    // تضيفها؛ لو مفيش بيان مفتوح، بتفتح واحد جديد وتضيفها فورًا. (تحديث
+    // 2026-08-30 بطلب صريح من مصطفى — الشرط مبقاش على warehouse_ready خالص.)
+    if (newShipment[0] && newShipment[0].clientId) {
       autoAddShipmentToClientAccountManifest(
         insertId,
         newShipment[0].clientId,

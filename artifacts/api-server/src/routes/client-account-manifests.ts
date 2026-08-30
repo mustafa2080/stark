@@ -54,13 +54,17 @@ async function generateManifestNumber(clientId: number): Promise<string> {
   return `CAM-${clientId}-${seq}`;
 }
 
-// ─── إضافة تلقائية للبيان لما الشحنة توصل warehouse_ready (أو تتعمل بيه) ─────
-// ⚠️ بالتصميم (تحديث 2026-08-30 بطلب صريح من مصطفى): الشحنة الجديدة تفضل
-// "معلّقة" (من غير manifestId) لحد ما توصل لحالة "قيد الشحن في المخزن"
-// (warehouse_ready) أو أبعد — ساعتها بس بتتضاف فورًا لبيان العميل المفتوح، أو
-// يتفتح لها بيان جديد لو مفيش بيان مفتوح أصلاً. (بالأمس 2026-08-29 كان اتجرب
-// إلغاء الشرط ده عشان أي شحنة تدخل البيان فورًا بغض النظر عن حالتها — رجعناه
-// بعد يوم واحد لأنه رجّع مشكلة الشحنات المعلّقة اللي كانت هي سبب الإصلاح الأصلي).
+// ─── إضافة تلقائية فور إنشاء الشحنة — بس لو مفيش بيان مفتوح بالفعل ──────────
+// ⚠️ بالتصميم (تحديث 2026-08-30 بطلب صريح من مصطفى): القرار مش على حالة
+// الشحنة (status) خالص — القرار على وجود بيان مفتوح من عدمه:
+//   • فيه بيان مفتوح للعميل بالفعل → الشحنة الجديدة (أيًا كانت حالتها) تفضل
+//     "معلّقة" (من غير manifestId/orphan) — ومتتضافش للبيان المفتوح الحالي.
+//     بتتلمّ تلقائيًا مع فتح البيان التالي (rolloverPendingItemsToNewManifest
+//     بتلقطها كـ orphan وقت القفل).
+//   • مفيش بيان مفتوح خالص → يتفتح بيان جديد للعميل وتتضاف له الشحنة فورًا.
+// (تاريخ التعديلات: 2026-08-29 كانت الإضافة فورية دايمًا حتى مع بيان مفتوح؛
+// 2026-08-30 الصبح رجعنا شرط warehouse_ready غلط؛ الصح انه مفيش شرط status
+// خالص — بس شرط "فيه بيان مفتوح ولا لأ".)
 //
 // idempotent: بتتأكد الأول إن الشحنة مالهاش صف بالفعل في clientAccountManifestItemsTable
 // (بأي بيان، مفتوح أو مقفول) قبل ما تضيف — فمينفعش تتكرر لو اتنادت أكتر من مرة
@@ -84,7 +88,8 @@ export async function autoAddShipmentToClientAccountManifest(
     ? or(eq(clientAccountManifestsTable.tenantId, tenantId), isNull(clientAccountManifestsTable.tenantId))
     : undefined;
 
-  // فيه بيان مفتوح بالفعل لنفس العميل؟ نضيف الشحنة له.
+  // فيه بيان مفتوح بالفعل لنفس العميل؟ الشحنة تفضل معلّقة (orphan) وتستنى
+  // لحد ما البيان ده يتقفل ويتفتح بيان جديد يلمّها.
   const [openManifest] = await db
     .select({ id: clientAccountManifestsTable.id })
     .from(clientAccountManifestsTable)
@@ -94,26 +99,22 @@ export async function autoAddShipmentToClientAccountManifest(
       tenantCondition,
     ))
     .limit(1);
+  if (openManifest) return;
 
+  // مفيش بيان مفتوح → نفتح واحد جديد للعميل ده (نفس منطق POST /client-account-manifests)
+  // ونضيف الشحنة له فورًا.
   const now = new Date();
-  let manifestId: number;
-
-  if (openManifest) {
-    manifestId = openManifest.id;
-  } else {
-    // مفيش بيان مفتوح → نفتح واحد جديد للعميل ده (نفس منطق POST /client-account-manifests).
-    const manifestNumber = await generateManifestNumber(clientId);
-    const [result] = await db.insert(clientAccountManifestsTable).values({
-      tenantId: tenantId ?? null,
-      manifestNumber,
-      clientId,
-      status: "open",
-      notes: null,
-      createdAt: now,
-      scheduledCloseAt: computeNextClosingDate(now),
-    });
-    manifestId = (result as any).insertId as number;
-  }
+  const manifestNumber = await generateManifestNumber(clientId);
+  const [result] = await db.insert(clientAccountManifestsTable).values({
+    tenantId: tenantId ?? null,
+    manifestNumber,
+    clientId,
+    status: "open",
+    notes: null,
+    createdAt: now,
+    scheduledCloseAt: computeNextClosingDate(now),
+  });
+  const manifestId = (result as any).insertId as number;
 
   await db.insert(clientAccountManifestItemsTable).values({
     manifestId,
