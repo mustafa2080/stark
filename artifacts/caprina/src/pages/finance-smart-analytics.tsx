@@ -32,7 +32,7 @@ const fmtS = (v: number) => {
 const CAT_LABELS: Record<string, string> = {
   shipping_fees: "مصاريف شحن", warehouse_rent: "إيجار مخزن", salary: "مرتبات",
   marketing: "تسويق", packaging: "تغليف", utilities: "خدمات", maintenance: "صيانة",
-  returns_loss: "خسائر مرتجعات", other: "أخرى",
+  returns_loss: "خسائر مرتجعات", other: "أخرى", client_payment: "دفعة عميل",
 };
 
 const MONTH_AR: Record<string, string> = {
