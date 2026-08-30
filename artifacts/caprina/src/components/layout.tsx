@@ -1507,38 +1507,38 @@ export default function Layout({ children }: LayoutProps) {
           // ── حساب الأدمن/الفريق: identity ذهبي (نفس هوية باقي الحسابات) ──
           const ADMIN_ACCENT = "232,185,63";
 
-          // قائمة المرشحين بترتيب الأولوية
-          const BOTTOM_CANDIDATES: Array<{
-            section: string; href: string; icon: any;
-            label: string; exact?: boolean;
-            permCheck?: string;
-          }> = [
-            { section: "section_dashboard",         href: "/",               icon: LayoutDashboard, label: "الرئيسية", exact: true },
-            { section: "section_orders",            href: "/shipments-list", icon: Package,         label: "الطلبات"  },
-            { section: "section_new_order",         href: "/orders/new",     icon: Plus,            label: "جديد"     },
-            { section: "section_inventory",         href: "/inventory",      icon: Boxes,           label: "الأنواع" },
-            { section: "section_invoices",          href: "/invoices",       icon: FileText,        label: "فواتير الشحن" },
-            { section: "section_finance",           href: "/finance",        icon: DollarSign,      label: "الماليات", permCheck: "finance.view" },
-            { section: "section_smart_analytics",   href: "/smart",          icon: Brain,           label: "ذكاء"    },
-            { section: "section_shipping",          href: "/shipping",       icon: Truck,           label: "الشحن"   },
-            { section: "section_shipping_followup", href: "/shipping-followup", icon: Clock,        label: "متابعة"  },
-            { section: "section_shipments_analytics", href: "/shipments-intelligence", icon: Brain, label: "تحليل ذكي" },
-            { section: "section_team_management",   href: "/team",           icon: UserCog,         label: "الفريق"  },
-            { section: "section_users",             href: "/users",          icon: Users,           label: "المستخدمين" },
-            { section: "section_movements",         href: "/movements",      icon: Activity,        label: "الحركات" },
-            { section: "section_import",            href: "/import",         icon: Upload,          label: "استيراد" },
-            { section: "section_ads_analytics",     href: "/ads-analytics",  icon: Megaphone,       label: "الإعلانات" },
+          // ✅ نفس مصدر الحقيقة بتاع السايدبار الديسكتوب (visibleNav ← ALL_NAV مفلترة
+          // بنفس صلاحيات المستخدم) — عشان أي قسم ظاهر في السايدبار يبقى ظاهر
+          // في "المزيد" بالموبايل تلقائيًا وبدون تكرار/نسيان قوائم يدوية منفصلة.
+          const seenHrefs = new Set<string>();
+          const allowed: BottomNavItem[] = visibleNav
+            .filter((item) => {
+              // بعض الصفحات (زي سجل العمليات) مكررة في ALL_NAV بأكتر من مسمى
+              // — نعرضها مرة واحدة بس في شريط الموبايل
+              if (seenHrefs.has(item.href)) return false;
+              seenHrefs.add(item.href);
+              return true;
+            })
+            .map((item) => ({
+              id: item.href + item.label,
+              href: item.href,
+              icon: item.icon,
+              label: item.label,
+              exact: item.exact,
+            }));
+
+          // ترتيب أولوية لأهم 4 أقسام تظهر مباشرة في الشريط السفلي (الباقي في "المزيد")
+          const QUICK_ACCESS_ORDER = [
+            "/", "/my-dashboard", "/operations-center", "/shipments-list",
+            "/shipments/new", "/finance", "/shipping-followup", "/inventory",
           ];
-
-          // فلتر حسب الصلاحيات — نفس منطق الـ sidebar
-          const allowed: BottomNavItem[] = BOTTOM_CANDIDATES.filter(c => {
-            if (isAdmin) return true;
-            const sectionOk = can(c.section);
-            const permOk = c.permCheck ? can(c.permCheck) : true;
-            return sectionOk && permOk;
-          }).map(c => ({ id: c.section, href: c.href, icon: c.icon, label: c.label, exact: c.exact }));
-
-          const visible = allowed.slice(0, 4);
+          const visible = [...allowed]
+            .sort((a, b) => {
+              const ai = QUICK_ACCESS_ORDER.indexOf(a.href!);
+              const bi = QUICK_ACCESS_ORDER.indexOf(b.href!);
+              return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+            })
+            .slice(0, 4);
 
           return (
             <ProfessionalBottomNav
