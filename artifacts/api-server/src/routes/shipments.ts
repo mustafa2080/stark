@@ -370,7 +370,7 @@ router.post("/shipments/track/:number/rating", async (req, res): Promise<void> =
 router.get("/shipments", async (req, res): Promise<void> => {
   try {
     const tenantId = getTenantId(req);
-    const { status, search, customerName, senderNames, limit = "50", offset = "0", shippingCompanyId, clientId } = req.query as Record<string, string>;
+    const { status, search, customerName, senderNames, receiverNames, creatorNames, statuses, phones, limit = "50", offset = "0", shippingCompanyId, clientId } = req.query as Record<string, string>;
 
     const conditions: any[] = [];
     if (tenantId !== null) conditions.push(eq(shipmentsTable.tenantId, tenantId));
@@ -421,6 +421,38 @@ router.get("/shipments", async (req, res): Promise<void> => {
       const names = senderNames.split("||").map(s => s.trim()).filter(Boolean);
       if (names.length) {
         conditions.push(inArray(shipmentsTable.senderName, names));
+      }
+    }
+    // باقي فلاتر أعمدة الجدول (Excel-style checkboxes) — نفس فكرة senderNames بالظبط:
+    // بتتفلتر من السيرفر عشان تشمل كل الشحنات المطابقة في الداتابيز مش بس الصفحة
+    // المحمّلة حاليًا في المتصفح (كانت المشكلة الأصلية اللي اتكشفت مع senderNames فقط)
+    if (receiverNames) {
+      const names = receiverNames.split("||").map(s => s.trim()).filter(Boolean);
+      if (names.length) {
+        conditions.push(inArray(shipmentsTable.receiverName, names));
+      }
+    }
+    if (creatorNames) {
+      const names = creatorNames.split("||").map(s => s.trim()).filter(Boolean);
+      if (names.length) {
+        conditions.push(inArray(shipmentsTable.createdByName, names));
+      }
+    }
+    if (statuses) {
+      // قيم الحالة ممكن تيجي كأكواد خام؛ بنوسّعها بنفس مجموعات المرادفات فوق
+      // عشان نضمن تطابق الحالات القديمة/الجديدة في الداتابيز
+      const vals = statuses.split("||").map(s => s.trim()).filter(Boolean);
+      if (vals.length) {
+        const expanded = new Set<string>();
+        vals.forEach(v => (STATUS_GROUPS[v] ?? [v]).forEach(g => expanded.add(g)));
+        conditions.push(inArray(shipmentsTable.status, [...expanded]));
+      }
+    }
+    if (phones) {
+      // عمود "الهاتف" في الجدول بيعرض هاتف الراسل أو المستلم (أيهما موجود) — فبنطابق الاتنين
+      const vals = phones.split("||").map(s => s.trim()).filter(Boolean);
+      if (vals.length) {
+        conditions.push(or(inArray(shipmentsTable.senderPhone, vals), inArray(shipmentsTable.receiverPhone, vals)));
       }
     }
     if (search) {
@@ -684,6 +716,41 @@ router.get("/shipments/archived", async (req, res): Promise<void> => {
   } catch (e) {
     console.error("[GET /shipments/archived]", e);
     res.status(500).json({ error: "خطأ في جلب الشحنات المؤرشفة" });
+  }
+});
+
+// ─── GET /shipments/filter-options ─────────────────────────────────────────────
+// قيم فلاتر الأعمدة (Excel-style checkboxes) على مستوى كل الشحنات في الداتابيز
+// مش بس الصفحة المحمّلة حاليًا في المتصفح — عشان اليوزر يقدر يفلتر بحد موجود
+// في صفحة تانية غير اللي واقف فيها دلوقتي. لازم يتعرّف قبل GET /shipments/:id.
+router.get("/shipments/filter-options", async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const cond = tenantId !== null
+      ? and(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.deletedAt))
+      : isNull(shipmentsTable.deletedAt);
+
+    const [senders, receivers, creators, statusRows, senderPhones, receiverPhones] = await Promise.all([
+      db.selectDistinct({ v: shipmentsTable.senderName }).from(shipmentsTable).where(cond),
+      db.selectDistinct({ v: shipmentsTable.receiverName }).from(shipmentsTable).where(cond),
+      db.selectDistinct({ v: shipmentsTable.createdByName }).from(shipmentsTable).where(cond),
+      db.selectDistinct({ v: shipmentsTable.status }).from(shipmentsTable).where(cond),
+      db.selectDistinct({ v: shipmentsTable.senderPhone }).from(shipmentsTable).where(cond),
+      db.selectDistinct({ v: shipmentsTable.receiverPhone }).from(shipmentsTable).where(cond),
+    ]);
+
+    const clean = (rows: { v: string | null }[]) => [...new Set(rows.map(r => r.v).filter(Boolean))] as string[];
+
+    res.json({
+      senderNames:   clean(senders),
+      receiverNames: clean(receivers),
+      creatorNames:  clean(creators),
+      statuses:      clean(statusRows),
+      phones:        [...new Set([...clean(senderPhones), ...clean(receiverPhones)])],
+    });
+  } catch (e) {
+    console.error("[GET /shipments/filter-options]", e);
+    res.status(500).json({ error: "خطأ في جلب خيارات الفلاتر" });
   }
 });
 

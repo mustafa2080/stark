@@ -977,7 +977,7 @@ export default function Orders() {
   // بدل ما اليوزر يفضل واقف في صفحة بعيدة ملهاش نتايج
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, customerSearch, totalSearch, status, dateFrom, dateTo, filterShippingCo, colFilters]);
+  }, [debouncedSearch, customerSearch, totalSearch, status, dateFrom, dateTo, filterShippingCo, colFilters, pageSize]);
 
 
   // mutation لتحديث حالة الشحنة
@@ -1052,17 +1052,61 @@ export default function Orders() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // ── خيارات فلاتر الأعمدة (Excel-style) على مستوى كل الشحنات في الداتابيز ──
+  // مش بس الصفحة المحمّلة حاليًا؛ ده اللي بيخلي اليوزر يقدر يفلتر بحد موجود
+  // في صفحة تانية غير اللي هو واقف فيها دلوقتي (شوف /shipments/filter-options)
+  const { data: filterOptions } = useQuery({
+    queryKey: ["shipments-filter-options"],
+    queryFn: () => apiFetch<{
+      senderNames: string[]; receiverNames: string[]; creatorNames: string[];
+      statuses: string[]; phones: string[];
+    }>("/shipments/filter-options"),
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
+  });
+
+  // خريطة label عربي → أكواد الحالة الخام (ممكن أكتر من كود لنفس الـ label، زي
+  // delivered/received اللي الاتنين بيترجموا لـ "استلم") — مستخدمة لتحويل
+  // فلتر عمود الحالة (المخزّن كـ label) لأكواد قبل ما نبعتها للسيرفر
+  const statusLabelToCodes = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    for (const code of filterOptions?.statuses ?? []) {
+      const label = statusLabels[code] ?? code;
+      (map[label] ??= []).push(code);
+    }
+    return map;
+  }, [filterOptions]);
+
   // فلتر عمود "الراسل" (customer) بيتبعت للسيرفر زي customerName بالظبط — عشان يشمل
   // كل الشحنات المطابقة في الداتابيز مش بس الصفحة المحمّلة حاليًا في المتصفح
   const senderNamesFilterKey = [...colFilters.customer].sort().join("||");
+  // باقي فلاتر الأعمدة (Excel-style checkboxes) — بتتبعت للسيرفر بنفس فكرة الراسل
+  // بالظبط عشان تشمل كل الشحنات المطابقة في الداتابيز مش بس الصفحة الحالية
+  const receiverNamesFilterKey = [...colFilters.product].sort().join("||");
+  const creatorNamesFilterKey = [...colFilters.creator].sort().join("||");
+  const phonesFilterKey = [...colFilters.phone].sort().join("||");
+  // فلتر عمود "الحالة" مخزّن كـ labels عربي (نفس getColVal) — بنحوّله لأكواد
+  // الحالة الخام قبل ما نبعته للسيرفر (statusLabelToCodes تحت)
+  const statusesFilterKey = [...colFilters.status]
+    .flatMap(label => statusLabelToCodes[label] ?? [])
+    .sort()
+    .join("||");
 
   const { data: ordersResponse, isLoading } = useQuery({
     // ── Pagination server-side حقيقي: كل صفحة = طلب API جديد بـ limit/offset مختلفين ──
-    queryKey: ["shipments-list", debouncedSearch, debouncedCustomerSearch, status, dateFrom, dateTo, senderNamesFilterKey, page],
+    // مهم: PAGE_SIZE لازم يكون في الـ queryKey — من غيره لما اليوزر يغيّر حجم الصفحة
+    // (100 → 200) وهو واقف في نفس رقم الصفحة (1)، الـ queryKey مش بيتغيّر فـ react-query
+    // بيرجّع الداتا المخزّنة (cached) القديمة اللي كانت بـ limit=100 القديم بدل ما يعمل
+    // fetch جديد بالـ limit الجديد — ده كان السبب الحقيقي وراء "اختيار 200 بيفضل يعرض 100"
+    queryKey: ["shipments-list", debouncedSearch, debouncedCustomerSearch, status, dateFrom, dateTo, senderNamesFilterKey, receiverNamesFilterKey, creatorNamesFilterKey, statusesFilterKey, phonesFilterKey, PAGE_SIZE, page],
     queryFn: () => apiFetch<any>(`/shipments?${new URLSearchParams({
       ...(debouncedSearch ? { search: debouncedSearch } : {}),
       ...(debouncedCustomerSearch ? { customerName: debouncedCustomerSearch } : {}),
       ...(senderNamesFilterKey ? { senderNames: senderNamesFilterKey } : {}),
+      ...(receiverNamesFilterKey ? { receiverNames: receiverNamesFilterKey } : {}),
+      ...(creatorNamesFilterKey ? { creatorNames: creatorNamesFilterKey } : {}),
+      ...(statusesFilterKey ? { statuses: statusesFilterKey } : {}),
+      ...(phonesFilterKey ? { phones: phonesFilterKey } : {}),
       ...(status !== "all" ? { status } : {}),
       ...(dateFrom ? { dateFrom } : {}),
       ...(dateTo ? { dateTo } : {}),
@@ -1115,9 +1159,21 @@ export default function Orders() {
   }, []);
 
   const getColOptions = useCallback((col: ColKey): string[] => {
+    // للأعمدة اللي عندها خيارات من كل الشحنات في الداتابيز (مش بس الصفحة الحالية) —
+    // استخدم filterOptions لو وصلت، عشان اليوزر يقدر يفلتر بحد موجود في صفحة تانية
+    if (filterOptions) {
+      let vals: string[] | null = null;
+      if (col === "customer") vals = filterOptions.senderNames;
+      else if (col === "product") vals = filterOptions.receiverNames;
+      else if (col === "creator") vals = filterOptions.creatorNames;
+      else if (col === "phone") vals = filterOptions.phones;
+      else if (col === "status") vals = [...new Set(filterOptions.statuses.map(code => statusLabels[code] ?? code))];
+      if (vals) return [...new Set(vals)].filter(Boolean).sort((a, b) => a.localeCompare(b, "ar"));
+    }
+    // fallback (id/date/total، أو لحد ما filterOptions توصل): من الصفحة المحمّلة حاليًا فقط
     const vals = [...new Set(filtered.map(o => getColVal(col, o)))].filter(Boolean);
     return vals.sort((a, b) => a.localeCompare(b, "ar"));
-  }, [filtered, getColVal]);
+  }, [filtered, getColVal, filterOptions]);
 
   const toggleColFilter = useCallback((col: ColKey, val: string) => {
     setColFilters(prev => {
