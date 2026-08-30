@@ -4552,7 +4552,7 @@ const SI_STATUS_META: Record<string, { label: string; color: string }> = {
 const SI_RETURN_REASON_LABELS: Record<string, string> = {
   refused_paid:     "رفض بعد المعاينة (دفع الشحن)",
   refused_unpaid:   "رفض بعد المعاينة (بدون دفع)",
-  quality:          "تهرب من الاستلام",
+  quality:          "تهرب من الاستلام بعد الوصول",
   unaware:          "لا يعلم عن الشحنة",
   cancel_requested: "طلب إلغاء",
   no_answer:        "لا يوجد رد",

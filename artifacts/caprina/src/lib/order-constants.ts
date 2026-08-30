@@ -1,7 +1,7 @@
 export const RETURN_REASONS: { value: string; label: string }[] = [
   { value: "refused_paid",       label: "العميل رفض الاستلام بعد المعاينة ودفع تكلفة الشحن" },
   { value: "refused_unpaid",     label: "العميل رفض الاستلام بعد المعاينة ولم يدفع تكلفة الشحن" },
-  { value: "quality",            label: "العميل تهرب من الاستلام" },
+  { value: "quality",            label: "العميل تهرب من الاستلام بعد الوصول" },
   { value: "unaware",            label: "لا يعلم عن الشحنة" },
   { value: "cancel_requested",   label: "طلب إلغاء" },
   { value: "no_answer",          label: "لا يوجد رد" },
