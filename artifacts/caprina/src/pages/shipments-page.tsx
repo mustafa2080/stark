@@ -2426,8 +2426,8 @@ export default function Orders() {
 
       {displayRows.length > 0 && (
         <p className="text-xs text-muted-foreground text-left">
-          إجمالي {displayRows.length} شحنة
-          {orders && displayRows.length !== orders.length && ` (من ${orders.length})`}
+          إجمالي {ordersTotal ?? displayRows.length} شحنة
+          {displayRows.length !== (ordersTotal ?? displayRows.length) && ` (المعروض حاليًا: ${displayRows.length})`}
           {bulkSelectMode && selectedIds.size > 0 && ` — محدد: ${selectedInvoiceCount}`}
         </p>
       )}
