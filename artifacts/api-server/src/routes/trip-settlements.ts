@@ -41,14 +41,19 @@ export async function recomputeSettlementTotals(settlementId: number) {
     .from(tripSettlementRepsTable)
     .where(eq(tripSettlementRepsTable.settlementId, settlementId));
 
+  // ⚠️ إجمالي تراكمي ثابت (بطلب صريح من المستخدم): بيشمل كل صفوف العملاء
+  // (معلّق + مسدد "خالص") — عشان الكارت العلوي مايتصفرش/ينقصش عند الضغط
+  // على "سداد الرصيد". قبل كده كان بيحسب pending بس، فكان الرقم بينزل فور
+  // ما عميل يتسدد (مشكلة تصغّر رصيد الكارت بعد السداد).
   const [{ clientsTotal }] = await db
     .select({ clientsTotal: sql<string>`COALESCE(SUM(${tripSettlementClientsTable.balance}),0)` })
     .from(tripSettlementClientsTable)
-    .where(and(eq(tripSettlementClientsTable.settlementId, settlementId), eq(tripSettlementClientsTable.status, "pending")));
+    .where(eq(tripSettlementClientsTable.settlementId, settlementId));
 
   const repsNum = Number(repsTotal) || 0;
   const clientsNum = Number(clientsTotal) || 0;
-  // "السالب" = إجمالي أرصدة المناديب - إجمالي أرصدة العملاء المتبقية (غير المسددة)
+  // "السالب" = إجمالي أرصدة المناديب - إجمالي أرصدة العملاء (تراكمي ثابت،
+  // مش بيتأثر بالسداد) — عشان يفضل مقياس دائم للمتابعة المالية.
   const net = repsNum - clientsNum;
 
   await db.update(tripSettlementsTable)

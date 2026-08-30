@@ -255,7 +255,7 @@ export default function FinanceTripSettlement() {
               <p className="text-lg font-black text-blue-500">{fmt(Number(settlement.totalRepsBalance ?? 0))}</p>
             </Card>
             <Card className="p-3 text-center">
-              <p className="text-[11px] text-muted-foreground mb-1">إجمالي العملاء (معلق)</p>
+              <p className="text-[11px] text-muted-foreground mb-1">إجمالي العملاء</p>
               <p className="text-lg font-black text-amber-500">{fmt(Number(settlement.totalClientsBalance ?? 0))}</p>
             </Card>
             <Card className={`p-3 text-center col-span-2 md:col-span-1 ${netBalance < 0 ? "bg-rose-500/10 border-rose-500/30" : "bg-emerald-500/10 border-emerald-500/30"}`}>
