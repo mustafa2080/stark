@@ -3,7 +3,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -530,7 +529,6 @@ export default function FinanceClients() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [, navigate] = useLocation();
-  const isMobile = useIsMobile();
   const [search, setSearch] = useState("");
   const [showColFilters, setShowColFilters] = useState(false);
   const [activeTab, setActiveTab] = useState<"clients"|"invoices"|"orders">("clients");
@@ -1136,217 +1134,124 @@ export default function FinanceClients() {
         {/* Table Headers */}
         {activeTab === "clients" && (
           <>
-            {/* ── رأس الجدول (ديسكتوب فقط) ── */}
-            <div className="hidden sm:grid grid-cols-7 gap-2 px-4 py-2 border-b border-border bg-muted/5">
-              {/* اسم العميل */}
-              <div className="col-span-2 flex items-center gap-1">
-                {showColFilters ? (
-                  <ColumnFilter label="اسم العميل" options={nameOptions} selected={filterName} onChange={v => { setFilterName(v); setPage(1); }} />
-                ) : <span className="text-[10px] font-bold text-muted-foreground">اسم العميل</span>}
-              </div>
-              {/* الحالة */}
-              <div className="flex items-center gap-1">
-                {showColFilters ? (
-                  <ColumnFilter label="الحالة" options={statusOptions} selected={filterStatus} onChange={v => { setFilterStatus(v); setPage(1); }} />
-                ) : <span className="text-[10px] font-bold text-muted-foreground">الحالة</span>}
-              </div>
-              {/* المحافظة */}
-              <div className="flex items-center gap-1">
-                {showColFilters ? (
-                  <ColumnFilter label="المحافظة" options={regionOptions} selected={filterCity} onChange={v => { setFilterCity(v); setPage(1); }} />
-                ) : <span className="text-[10px] font-bold text-muted-foreground">المحافظة</span>}
-              </div>
-              {/* تحقيق الهدف */}
-              <div className="flex items-center gap-1">
-                <span className="text-[10px] font-bold text-muted-foreground">تحقيق الهدف</span>
-              </div>
-              {/* شروط الدفع */}
-              <div className="flex items-center gap-1">
-                {showColFilters ? (
-                  <ColumnFilter label="شروط الدفع" options={paymentTermsOptions} selected={filterPaymentTerms} onChange={v => { setFilterPaymentTerms(v); setPage(1); }} />
-                ) : <span className="text-[10px] font-bold text-muted-foreground">شروط الدفع</span>}
-              </div>
-              {/* إجراءات */}
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold text-muted-foreground">إجراءات</span>
-                {showColFilters && activeFiltersCount > 0 && (
-                  <button onClick={() => { setFilterCity([]); setFilterStatus([]); setFilterPaymentTerms([]); setFilterName([]); }}
-                    className="text-[9px] text-destructive hover:underline flex items-center gap-0.5">
-                    <X className="w-2.5 h-2.5" />مسح
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* ── فلاتر الأعمدة (موبايل) — نفس الفلاتر بس فوق قائمة الكروت ── */}
-            {showColFilters && (
-              <div className="sm:hidden flex flex-wrap items-center gap-1.5 px-3 py-2 border-b border-border bg-muted/5">
-                <ColumnFilter label="اسم العميل" options={nameOptions} selected={filterName} onChange={v => { setFilterName(v); setPage(1); }} />
-                <ColumnFilter label="الحالة" options={statusOptions} selected={filterStatus} onChange={v => { setFilterStatus(v); setPage(1); }} />
-                <ColumnFilter label="المحافظة" options={regionOptions} selected={filterCity} onChange={v => { setFilterCity(v); setPage(1); }} />
-                <ColumnFilter label="شروط الدفع" options={paymentTermsOptions} selected={filterPaymentTerms} onChange={v => { setFilterPaymentTerms(v); setPage(1); }} />
-                {activeFiltersCount > 0 && (
-                  <button onClick={() => { setFilterCity([]); setFilterStatus([]); setFilterPaymentTerms([]); setFilterName([]); }}
-                    className="text-[9px] text-destructive hover:underline flex items-center gap-0.5 mr-auto">
-                    <X className="w-2.5 h-2.5" />مسح الكل
-                  </button>
-                )}
-              </div>
-            )}
-
-            {loadingClients ? (
-              <div className="py-10 text-center text-muted-foreground text-sm animate-pulse">جاري التحميل...</div>
-            ) : (pageData as Client[]).length === 0 ? (
-              <div className="py-10 text-center text-muted-foreground text-sm">لا يوجد عملاء</div>
-            ) : isMobile ? (
-              /* ── قائمة كروت (موبايل) ── */
-              <div className="sm:hidden divide-y divide-border/50">
-                {(pageData as Client[]).map(c => {
-                  const orders = c.totalOrders ?? 0;
-                  const target = parseFloat(c.creditLimit ?? "0") || 100;
-                  const pct = Math.min((orders / target) * 100, 100);
-                  const color = pct >= 75 ? "bg-emerald-500 text-emerald-400" : pct >= 50 ? "bg-amber-500 text-amber-400" : "bg-primary text-primary";
-                  const [barColor, textColor] = color.split(" ");
-                  return (
-                    <div key={c.id} className="px-3 py-3 hover:bg-muted/10 active:bg-muted/20 transition-colors cursor-pointer" onClick={() => navigate(`/finance/clients/${c.id}`)}>
-                      {/* الصف العلوي: الاسم + الحالة */}
-                      <div className="flex items-start justify-between gap-2 mb-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <ClientAvatar avatar={c.avatar} name={c.name} size="sm" />
-                          <div className="min-w-0">
-                            <p className="text-xs font-bold truncate">{c.name}</p>
-                            {c.phone && <p className="text-[10px] text-muted-foreground truncate">{c.phone}</p>}
-                            <TierBadge type={c.clientType} />
-                          </div>
-                        </div>
-                        <Badge variant="outline" className={`text-[9px] border shrink-0 ${c.isActive ? "border-emerald-700 bg-emerald-900/20 text-emerald-400" : "border-border text-muted-foreground"}`}>
-                          {c.isActive ? "نشط" : "موقف"}
-                        </Badge>
+            {/* ── جدول حقيقي بأعمدة — نفس الجدول على كل الشاشات، مع تمرير أفقي على الموبايل ── */}
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[720px] border-collapse">
+                <thead>
+                  <tr className="border-b border-border bg-muted/5">
+                    <th className="text-right px-3 py-2 min-w-[180px]">
+                      {showColFilters ? (
+                        <ColumnFilter label="اسم العميل" options={nameOptions} selected={filterName} onChange={v => { setFilterName(v); setPage(1); }} />
+                      ) : <span className="text-[10px] font-bold text-muted-foreground">اسم العميل</span>}
+                    </th>
+                    <th className="text-right px-3 py-2 min-w-[80px]">
+                      {showColFilters ? (
+                        <ColumnFilter label="الحالة" options={statusOptions} selected={filterStatus} onChange={v => { setFilterStatus(v); setPage(1); }} />
+                      ) : <span className="text-[10px] font-bold text-muted-foreground">الحالة</span>}
+                    </th>
+                    <th className="text-right px-3 py-2 min-w-[90px]">
+                      {showColFilters ? (
+                        <ColumnFilter label="المحافظة" options={regionOptions} selected={filterCity} onChange={v => { setFilterCity(v); setPage(1); }} />
+                      ) : <span className="text-[10px] font-bold text-muted-foreground">المحافظة</span>}
+                    </th>
+                    <th className="text-right px-3 py-2 min-w-[130px]">
+                      <span className="text-[10px] font-bold text-muted-foreground">تحقيق الهدف</span>
+                    </th>
+                    <th className="text-right px-3 py-2 min-w-[100px]">
+                      {showColFilters ? (
+                        <ColumnFilter label="شروط الدفع" options={paymentTermsOptions} selected={filterPaymentTerms} onChange={v => { setFilterPaymentTerms(v); setPage(1); }} />
+                      ) : <span className="text-[10px] font-bold text-muted-foreground">شروط الدفع</span>}
+                    </th>
+                    <th className="text-right px-3 py-2 min-w-[90px]">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="text-[10px] font-bold text-muted-foreground">إجراءات</span>
+                        {showColFilters && activeFiltersCount > 0 && (
+                          <button onClick={() => { setFilterCity([]); setFilterStatus([]); setFilterPaymentTerms([]); setFilterName([]); }}
+                            className="text-[9px] text-destructive hover:underline flex items-center gap-0.5">
+                            <X className="w-2.5 h-2.5" />مسح
+                          </button>
+                        )}
                       </div>
-
-                      {/* المحافظة + شروط الدفع */}
-                      <div className="grid grid-cols-2 gap-2 mb-2">
-                        <div className="min-w-0">
-                          <p className="text-[9px] text-muted-foreground mb-0.5 flex items-center gap-0.5"><MapPin className="w-2.5 h-2.5" />المحافظة</p>
-                          <p className="text-xs font-semibold truncate">{c.region ?? "—"}</p>
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-[9px] text-muted-foreground mb-0.5">شروط الدفع</p>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loadingClients ? (
+                    <tr><td colSpan={6} className="py-10 text-center text-muted-foreground text-sm animate-pulse">جاري التحميل...</td></tr>
+                  ) : (pageData as Client[]).length === 0 ? (
+                    <tr><td colSpan={6} className="py-10 text-center text-muted-foreground text-sm">لا يوجد عملاء</td></tr>
+                  ) : (pageData as Client[]).map(c => {
+                    const orders = c.totalOrders ?? 0;
+                    const target = parseFloat(c.creditLimit ?? "0") || 100;
+                    const pct = Math.min((orders / target) * 100, 100);
+                    const color = pct >= 75 ? "bg-emerald-500 text-emerald-400" : pct >= 50 ? "bg-amber-500 text-amber-400" : "bg-primary text-primary";
+                    const [barColor, textColor] = color.split(" ");
+                    return (
+                      <tr key={c.id} className="border-b border-border/50 hover:bg-muted/10 transition-colors cursor-pointer" onClick={() => navigate(`/finance/clients/${c.id}`)}>
+                        {/* اسم العميل */}
+                        <td className="px-3 py-3">
+                          <div className="flex items-center gap-2">
+                            <ClientAvatar avatar={c.avatar} name={c.name} size="sm" />
+                            <div className="min-w-0">
+                              <p className="text-xs font-bold truncate">{c.name}</p>
+                              {c.phone && <p className="text-[10px] text-muted-foreground truncate">{c.phone}</p>}
+                              <TierBadge type={c.clientType} />
+                            </div>
+                          </div>
+                        </td>
+                        {/* الحالة */}
+                        <td className="px-3 py-3">
+                          <Badge variant="outline" className={`text-[9px] border ${c.isActive ? "border-emerald-700 bg-emerald-900/20 text-emerald-400" : "border-border text-muted-foreground"}`}>
+                            {c.isActive ? "نشط" : "موقف"}
+                          </Badge>
+                        </td>
+                        {/* المحافظة */}
+                        <td className="px-3 py-3">
+                          <span className="text-xs text-muted-foreground">{c.region ?? "—"}</span>
+                        </td>
+                        {/* نسبة تحقيق الهدف */}
+                        <td className="px-3 py-3">
+                          <p className={`text-[10px] font-bold ${textColor}`}>{pct.toFixed(1)}%</p>
+                          <div className="w-full bg-muted/30 rounded-full h-1 mt-0.5 overflow-hidden">
+                            <div className={`h-1 rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
+                          </div>
+                          <p className="text-[9px] text-muted-foreground mt-0.5">{orders} / {target} أوردر</p>
+                        </td>
+                        {/* شروط الدفع */}
+                        <td className="px-3 py-3">
                           {c.paymentTerms ? (
                             <Badge variant="outline" className="text-[9px] border-border text-muted-foreground">{c.paymentTerms}</Badge>
                           ) : (
                             <span className="text-xs text-muted-foreground">—</span>
                           )}
-                        </div>
-                      </div>
-
-                      {/* تحقيق الهدف */}
-                      <div className="mb-2">
-                        <div className="flex items-center justify-between mb-0.5">
-                          <p className="text-[9px] text-muted-foreground">تحقيق الهدف</p>
-                          <p className={`text-[10px] font-bold ${textColor}`}>{pct.toFixed(1)}%</p>
-                        </div>
-                        <div className="w-full bg-muted/30 rounded-full h-1 overflow-hidden">
-                          <div className={`h-1 rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
-                        </div>
-                        <p className="text-[9px] text-muted-foreground mt-0.5">{orders} / {target} أوردر</p>
-                      </div>
-
-                      {/* إجراءات */}
-                      <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-border/40">
-                        <Button
-                          variant="outline" size="sm"
-                          className="h-7 text-[10px] gap-1 border-border hover:border-primary/50 hover:bg-primary/10 hover:text-primary transition-colors"
-                          onClick={e => { e.stopPropagation(); openEdit(c); }}
-                        >
-                          <Edit2 className="w-3 h-3" />تعديل
-                        </Button>
-                        <Button
-                          variant="outline" size="sm"
-                          className="h-7 text-[10px] gap-1 border-border hover:border-destructive/50 hover:bg-destructive/10 hover:text-destructive transition-colors"
-                          onClick={e => { e.stopPropagation(); setDeleteClient(c); }}
-                        >
-                          <Trash2 className="w-3 h-3" />حذف
-                        </Button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              /* ── جدول (ديسكتوب) ── */
-              <div className="hidden sm:block">
-                {(pageData as Client[]).map(c => {
-                  return (
-                    <div key={c.id} className="grid grid-cols-7 gap-2 px-4 py-3 border-b border-border/50 hover:bg-muted/10 transition-colors items-center cursor-pointer" onClick={() => navigate(`/finance/clients/${c.id}`)}>
-                      {/* اسم العميل */}
-                      <div className="col-span-2 flex items-center gap-2">
-                        <ClientAvatar avatar={c.avatar} name={c.name} size="sm" />
-                        <div>
-                          <p className="text-xs font-bold">{c.name}</p>
-                          {c.phone && <p className="text-[10px] text-muted-foreground">{c.phone}</p>}
-                          <TierBadge type={c.clientType} />
-                        </div>
-                      </div>
-                      {/* الحالة */}
-                      <div>
-                        <Badge variant="outline" className={`text-[9px] border ${c.isActive ? "border-emerald-700 bg-emerald-900/20 text-emerald-400" : "border-border text-muted-foreground"}`}>
-                          {c.isActive ? "نشط" : "موقف"}
-                        </Badge>
-                      </div>
-                      {/* المحافظة */}
-                      <span className="text-xs text-muted-foreground">{c.region ?? "—"}</span>
-                      {/* نسبة تحقيق الهدف */}
-                      <div>
-                        {(() => {
-                          const orders = c.totalOrders ?? 0;
-                          const target = parseFloat(c.creditLimit ?? "0") || 100;
-                          const pct = Math.min((orders / target) * 100, 100);
-                          const color = pct >= 75 ? "bg-emerald-500 text-emerald-400" : pct >= 50 ? "bg-amber-500 text-amber-400" : "bg-primary text-primary";
-                          const [barColor, textColor] = color.split(" ");
-                          return (
-                            <div>
-                              <p className={`text-[10px] font-bold ${textColor}`}>{pct.toFixed(1)}%</p>
-                              <div className="w-full bg-muted/30 rounded-full h-1 mt-0.5 overflow-hidden">
-                                <div className={`h-1 rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
-                              </div>
-                              <p className="text-[9px] text-muted-foreground mt-0.5">{orders} / {target} أوردر</p>
-                            </div>
-                          );
-                        })()}
-                      </div>
-                      {/* شروط الدفع */}
-                      <div>
-                        {c.paymentTerms ? (
-                          <Badge variant="outline" className="text-[9px] border-border text-muted-foreground">{c.paymentTerms}</Badge>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
-                        )}
-                      </div>
-                      {/* إجراءات */}
-                      <div className="flex items-center gap-1.5">
-                        <Button
-                          variant="outline" size="icon"
-                          className="h-7 w-7 rounded-full border-border hover:border-primary/50 hover:bg-primary/10 hover:text-primary transition-colors"
-                          onClick={e => { e.stopPropagation(); openEdit(c); }}
-                          title="تعديل"
-                        >
-                          <Edit2 className="w-3 h-3" />
-                        </Button>
-                        <Button
-                          variant="outline" size="icon"
-                          className="h-7 w-7 rounded-full border-border hover:border-destructive/50 hover:bg-destructive/10 hover:text-destructive transition-colors"
-                          onClick={e => { e.stopPropagation(); setDeleteClient(c); }}
-                          title="حذف"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </Button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+                        </td>
+                        {/* إجراءات */}
+                        <td className="px-3 py-3">
+                          <div className="flex items-center gap-1.5">
+                            <Button
+                              variant="outline" size="icon"
+                              className="h-7 w-7 rounded-full border-border hover:border-primary/50 hover:bg-primary/10 hover:text-primary transition-colors"
+                              onClick={e => { e.stopPropagation(); openEdit(c); }}
+                              title="تعديل"
+                            >
+                              <Edit2 className="w-3 h-3" />
+                            </Button>
+                            <Button
+                              variant="outline" size="icon"
+                              className="h-7 w-7 rounded-full border-border hover:border-destructive/50 hover:bg-destructive/10 hover:text-destructive transition-colors"
+                              onClick={e => { e.stopPropagation(); setDeleteClient(c); }}
+                              title="حذف"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </>
         )}
 
