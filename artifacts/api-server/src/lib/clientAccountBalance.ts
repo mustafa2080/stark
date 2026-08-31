@@ -212,12 +212,16 @@ export async function computeClosedManifestsForClient(clientId: number): Promise
     // "pending" بالكامل من visibleItems قبل أي حساب (EXCLUDED_SHIPMENT_STATUSES) —
     // هنا كان بيتحسب البند عادي طالما فيه shipment مرتبط، فالرقمين يختلفوا لأي شحنة
     // لسه فعليًا "قيد الانتظار"/"في المخزن" رغم إنها مضافة لبيان مقفول.
-    const EXCLUDED_SHIPMENT_STATUSES = new Set(["waiting", "pending"]);
-
+    // ⚠️ إصلاح (2026-08-31، طلب المستخدم): الرقم الصح هو اللي في صفحة تفاصيل
+    // البيان (netDueFromClientAllStatuses)، واللي أصلاً مبيستبعدش أي بند بناءً
+    // على shipment.status خالص. الاستبعاد الكامل هنا (EXCLUDED_SHIPMENT_STATUSES)
+    // كان بيشيل بند "مؤجل" (shipment.status="pending"/"waiting" لسه، رغم إن
+    // deliveryStatus="delayed") من dueValue تمامًا، فيفرق الرقم عن صفحة البيان
+    // الفردي بمقدار سعر شحن البند ده بالظبط. التصفير الصحيح لحالة postponed/pending
+    // بتاعة deliveryStatus نفسها متكفّل بيه isShippingZeroedRow/isDueEligible تحت.
     for (const item of items) {
       const shipment = shipmentMap[item.shipmentId];
       if (!shipment) continue;
-      if (EXCLUDED_SHIPMENT_STATUSES.has(shipment.status)) continue;
       const st = item.deliveryStatus;
       const reason = (item as any).returnReason ?? (shipment as any)?.returnReason ?? null;
       const isReturnedWithValue = st === "returned" && RETURN_REASONS_FINANCIAL.has(String(reason ?? ""));
@@ -497,15 +501,13 @@ export async function computeClientBalancesForAllClients(
     const isRolledOverItemAll = (item: typeof items[number]) =>
       minManifestIdByShipmentAll[item.shipmentId] < item.manifestId;
 
-    // ⚠️ نفس إصلاح computeClosedManifestsForClient فوق — استبعاد أي بند حالته
-    // الفعلية (shipment.status) "waiting" أو "pending" بالكامل، عشان يفضل مطابق
-    // تمامًا لـ netDueFromClientAllStatuses (client-account-manifests.ts).
-    const EXCLUDED_SHIPMENT_STATUSES_ALL = new Set(["waiting", "pending"]);
-
+    // ⚠️ إصلاح (2026-08-31، طلب المستخدم) — نفس إصلاح computeClosedManifestsForClient
+    // فوق: الاستبعاد الكامل بناءً على shipment.status ("waiting"/"pending") كان
+    // بيشيل بند "مؤجل" من dueValue تمامًا فيفرق عن صفحة البيان الفردي
+    // (netDueFromClientAllStatuses) اللي مبتستبعدش على أساس shipment.status خالص.
     for (const item of items) {
       const shipment = shipmentMap[item.shipmentId];
       if (!shipment) continue;
-      if (EXCLUDED_SHIPMENT_STATUSES_ALL.has(shipment.status)) continue;
       const clientId = manifestClientMap[item.manifestId];
       if (clientId == null) continue;
       const clientType = clientTypeMap[clientId] ?? "normal";
