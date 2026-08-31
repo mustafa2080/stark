@@ -288,7 +288,12 @@ export async function computeClosedManifestsForClient(clientId: number): Promise
       // هنا dueShippingBase كان بيتحسب دايمًا من غير أي تصفير لـ postponed/pending،
       // فبند من الحالتين دول كان بيتخصم منه سعر شحن كامل هنا بينما صفحة البيان
       // الفردي بتصفّره لصفر، فرصيد العميل يطلع أقل من الرصيد المستحق الفعلي.
-      const isShippingZeroedForDue = st === "postponed" || st === "pending";
+      // ⚠️⚠️ إصلاح (2026-08-31، طلب مصطفى — رقية العرابي، بيان CAM-83-001، فرق
+      // 540 ج.م): مصدر الحقيقة الحالي للرقم المعروض فعليًا (manifestFinanceCalc.ts
+      // بالفرونت إند) بيصفّر سعر الشحن بالكامل لحالة "مؤجل" (delayed) بالإضافة
+      // لـ postponed/pending — قاعدة مصطفى: شحنة لسه مؤجلة (لسه عند شركة الشحن)
+      // مالهاش رسوم شحن مستحقة أصلاً. لازم نفس التصفير هنا بالظبط.
+      const isShippingZeroedForDue = st === "postponed" || st === "pending" || st === "delayed";
       const dueShippingBase = isShippingZeroedForDue ? 0 : (useRepCostForDue ? getZoneCost(shipment) : zoneShippingForItem);
       const dueRepExtraCostForItem = isShippingZeroedForDue ? 0 : repExtraCostForItem;
       const dueRowValue = collected - (dueShippingBase + dueRepExtraCostForItem);
@@ -604,7 +609,10 @@ export async function computeClientBalancesForAllClients(
       // فوق): dueShippingBase لازم يتصفّر بالكامل لبند حالته postponed/pending، زي
       // بالظبط isShippingZeroedForDue في netDueFromClientAllStatuses (manifestFinance.ts).
       // "مؤجل" (delayed) مش من ضمنهم فبيتحسب بسعر شحن كامل عادي.
-      const isShippingZeroedForDueAll = st === "postponed" || st === "pending";
+      // ⚠️⚠️ إصلاح (2026-08-31، طلب مصطفى): نفس إصلاح computeClosedManifestsForClient
+      // فوق بالظبط — "مؤجل" (delayed) لازم يتصفّر شحنه زي postponed/pending،
+      // مطابقة لـ manifestFinanceCalc.ts (الفرونت إند، مصدر الحقيقة الحالي).
+      const isShippingZeroedForDueAll = st === "postponed" || st === "pending" || st === "delayed";
       const dueShippingBaseAll = isShippingZeroedForDueAll ? 0 : (useRepCostForDueAll ? getZoneCostAll(shipment) : zoneShippingForItem);
       const dueRepExtraCostForItemAll = isShippingZeroedForDueAll ? 0 : repExtraCostForItemAll;
       const dueRowValueAll = collected - (dueShippingBaseAll + dueRepExtraCostForItemAll);

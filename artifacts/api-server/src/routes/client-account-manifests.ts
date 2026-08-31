@@ -884,7 +884,11 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
       // الانتظار" (pending) — عبر isShippingZeroedRow. هنا item.zonePrice مكنش
       // بيتصفّر لنفس الحالتين، فسعر الشحن الكامل كان بيتخصم غلط من المستحق لأي
       // بند لسه postponed/pending، فيقلل الرقم هنا عن رصيد العميل الفعلي.
-      const isShippingZeroedForDue = st === "postponed" || st === "pending";
+      const isShippingZeroedForDue = st === "postponed" || st === "pending" || st === "delayed";
+      // ⚠️⚠️ إصلاح (2026-08-31، طلب مصطفى — رقية العرابي، بيان CAM-83-001):
+      // نفس إصلاح manifestFinance.ts — "مؤجل" (delayed) لازم يتصفّر شحنه زي
+      // postponed/pending بالظبط، مطابقة لـ manifestFinanceCalc.ts (الفرونت
+      // إند، مصدر الحقيقة الحالي للرقم المعروض فعليًا في صفحة تفاصيل البيان).
       const dueShippingBase = isShippingZeroedForDue ? 0 : (useRepCostForDue ? item.zoneCost : item.zonePrice);
       const dueRepExtraCost = isShippingZeroedForDue ? 0 : (item.repExtraCost ?? 0);
       netDueFromClientAllStatuses += collected - (dueShippingBase + dueRepExtraCost);

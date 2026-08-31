@@ -396,7 +396,15 @@ export async function computeClientManifestNetDue(manifestId: number): Promise<n
     }
 
     const useRepCostForDue = isReturnedWithValueDue && (reason === "refused_unpaid" || reason === "quality");
-    const isShippingZeroedForDue = st === "postponed" || st === "pending";
+    // ⚠️⚠️ إصلاح (2026-08-31، طلب مصطفى — رقية العرابي، بيان CAM-83-001، فرق 540
+    // ج.م بين الرصيد المستحق هنا و13,350 الظاهر فعليًا في صفحة تفاصيل البيان):
+    // مصدر الحقيقة الحالي للرقم المعروض للمستخدم هو lib/manifestFinanceCalc.ts
+    // (فرونت إند)، اللي بيصفّر سعر الشحن بالكامل لحالة "مؤجل" (delayed) بالظافة
+    // لـ postponed/pending — قاعدة مصطفى: "الصافي المستحق = القيمة المستلمة ناقص
+    // رسوم الشحن المستحقة فقط، وشحنة لسه مؤجلة (لسه عند شركة الشحن، محصّلش
+    // عليها حاجة) مالهاش رسوم شحن مستحقة أصلاً". هنا كان بيتحسب delayed زي أي
+    // حالة تانية (سعر شحن كامل مخصوم)، فلازم نفس التصفير هنا بالظبط.
+    const isShippingZeroedForDue = st === "postponed" || st === "pending" || st === "delayed";
     const dueShippingBase = isShippingZeroedForDue ? 0 : (useRepCostForDue ? item.zoneCost : item.zonePrice);
     const dueRepExtraCost = isShippingZeroedForDue ? 0 : item.repExtraCost;
     netDueFromClientAllStatuses += collected - (dueShippingBase + dueRepExtraCost);
