@@ -1,0 +1,12 @@
+فيكس: netDueFromClient (بيان العميل الفردي) كان بيرجع null دايمًا
+
+السبب: اللوب الخاص بحساب netDueFromClientAllStatuses كان بيلف على
+visibleItems (صفوف الداتابيز الخام) بدل enrichedItems، وحقول
+zonePrice/totalPrice/zoneCost/repExtraCost بتتحسب فقط جوه enrichedItems.
+النتيجة: undefined - undefined = NaN لكل بند، والمجموع النهائي NaN،
+فـ JSON.stringify كان بيحوّله null في الريسبونس.
+
+الفيكس: تغيير مصدر اللوب لـ enrichedItems (فيها كل الحقول المطلوبة
+زيادة على باقي حقول الـ item الأصلية). النتيجة الصحيحة دلوقتي بتطابق
+computeClosedManifestsForClient / computeClientBalancesForAllClients
+(نفس مصدر الحقيقة لرصيد العميل في الداشبورد وكشف الحساب).
