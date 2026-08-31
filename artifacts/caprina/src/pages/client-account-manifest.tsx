@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, type CSSProperties } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { apiFetch } from "@/lib/api";
@@ -575,7 +575,7 @@ export default function ClientAccountManifestsPage() {
                 className="profile-card-enter profile-card-hover flex flex-col items-center gap-2 p-3 rounded-2xl hover:bg-white/5 transition-colors text-center"
                 style={{ animationDelay: `${Math.min(idx, 24) * 30}ms` }}
               >
-                <div className="relative">
+                <div className="relative" style={{ "--float-delay": `${(idx % 5) * 0.35}s` } as CSSProperties}>
                   <span
                     className={`profile-avatar-glow absolute inset-0 rounded-full blur-md pointer-events-none ${
                       isOpen ? "bg-emerald-500/40" : "bg-muted-foreground/30"

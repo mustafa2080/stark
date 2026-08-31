@@ -672,15 +672,41 @@ html.login-active #root {
 
 .profile-avatar-wrap {
   transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  animation: avatarFloat 3.6s ease-in-out infinite;
+  animation-delay: var(--float-delay, 0s);
 }
 .profile-card-hover:hover .profile-avatar-wrap {
+  animation-play-state: paused;
   transform: scale(1.08);
 }
 .profile-card-hover:hover .profile-avatar-glow {
   opacity: 1;
   transform: scale(1.35);
+  animation-play-state: paused;
 }
 .profile-avatar-glow {
-  opacity: 0;
+  opacity: 0.3;
   transition: opacity 0.35s ease, transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  animation: glowBreathe 3.6s ease-in-out infinite;
+  animation-delay: var(--float-delay, 0s);
+}
+
+@keyframes avatarFloat {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes glowBreathe {
+  0%, 100% {
+    opacity: 0.22;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(1.15);
+  }
 }
