@@ -350,7 +350,10 @@ export default function ClientAccountManifestsPage() {
     })
     .filter((c) => {
       if (manifestStatusFilter === "open") return !!c.hasOpenManifest;
-      if (manifestStatusFilter === "closed") return !c.hasOpenManifest;
+      // "بيانات مغلقة" = عنده بيان واحد على الأقل (latestManifestId موجود)
+      // ومفيش عنده بيان مفتوح دلوقتي — عميل مالوش أي بيان خالص لا يُعتبر
+      // "بيانات مغلقة" ولازم ميتفلترش معاه.
+      if (manifestStatusFilter === "closed") return !c.hasOpenManifest && !!c.latestManifestId;
       return true;
     })
     .sort((a, b) => {
