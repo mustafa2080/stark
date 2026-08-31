@@ -265,16 +265,17 @@ export async function computeClosedManifestsForClient(clientId: number): Promise
       const dueShippingBase = useRepCostForDue ? getZoneCost(shipment) : zoneShippingForItem;
       const dueRowValue = collected - (dueShippingBase + repExtraCostForItem);
 
-      // ⚠️⚠️ إصلاح (2026-08-29): "المُرحّل" (rolledOver) كان بيتستبعد بس لو
-      // deliveryStatus="returned" — فأي شحنة لسه pending/delayed اترحّلت أكتر
-      // من مرة (نسخة في بيان 139، ونسخة تانية في بيان 140 مقفول برضه) كانت
-      // بتتحسب في كل نسخها/بياناتها المقفولة مع بعض، فسعر شحنها بيتخصم أكتر من
-      // مرة في "إجمالي رصيد العميل"/كشف الحساب — بينما صفحة البيان الفردي
-      // بتحسب بيان واحد بس فمتأثرتش. الاستبعاد لازم يبقى عام: أي بند مُرحّل
-      // (فيه نسخة أحدث لنفس الشحنة) يتستبعد من dueValue بغض النظر عن حالته،
-      // ويتحسب بس في آخر نسخة (البيان الأحدث) عشان يطابق تمامًا "الرصيد
-      // المستحق" الظاهر في صفحة البيان الفردي.
-      const isDueEligible = !isRolledOverItem(item) && (st !== "returned" || isReturnedWithValue);
+      // ⚠️⚠️ إصلاح (2026-08-31، فرق 125 ج.م بين "الرصيد المستحق" في صفحة تفاصيل
+      // البيان و"رصيد العميل"/كشف الحساب — العميل JESY، بيان CAM-101-001، شحنة
+      // "ام ريان" المؤجلة SHP26080098): إصلاح 2026-08-29 اللي فات كان بيستبعد
+      // أي بند "مُرحّل" (rolledOver) من dueValue بغض النظر عن حالته، لكن صفحة
+      // البيان الفردي (netDueFromClientAllStatuses في manifestFinance.ts) بتقيّد
+      // استبعاد rolledOver بحالة "returned" بس (`item.rolledOver && st ===
+      // "returned"`) — أي بند مؤجل/معلّق غير returned بيتحسب عادي فيها حتى لو
+      // rolledOver=true. فالاستبعاد العام هنا كان يشيل بند "مؤجل" من كشف
+      // الحساب بينما صفحة البيان الفردي بتحسبه، فيفرق الرقمين. لازم الشرط هنا
+      // يطابق نفس تقييد "returned بس" بالظبط عشان الرقمين يفضلوا متطابقين.
+      const isDueEligible = (st !== "returned" || isReturnedWithValue) && !(isRolledOverItem(item) && st === "returned");
       if (isDueEligible) {
         dueValueByManifest[item.manifestId] = (dueValueByManifest[item.manifestId] ?? 0) + dueRowValue;
       }
@@ -547,11 +548,12 @@ export async function computeClientBalancesForAllClients(
       const dueShippingBaseAll = useRepCostForDueAll ? getZoneCostAll(shipment) : zoneShippingForItem;
       const dueRowValueAll = collected - (dueShippingBaseAll + repExtraCostForItemAll);
 
-      // ⚠️⚠️ إصلاح (2026-08-29): نفس إصلاح computeClosedManifestsForClient —
-      // استبعاد أي بند "مُرحّل" (فيه نسخة أحدث لنفس الشحنة) بغض النظر عن حالته،
-      // مش بس لو returned. شحنة pending/delayed اترحّلت أكتر من مرة كانت
-      // بتتحسب في كل بياناتها المقفولة مع بعض بدل آخر نسخة بس.
-      const isDueEligibleAll = !isRolledOverItemAll(item) && (st !== "returned" || isReturnedWithValue);
+      // ⚠️⚠️ إصلاح (2026-08-31): نفس إصلاح computeClosedManifestsForClient فوق —
+      // استبعاد "مُرحّل" (rolledOver) لازم يتقيّد بحالة returned بس، زي بالظبط
+      // netDueFromClientAllStatuses (صفحة البيان الفردي)، مش أي حالة. الاستبعاد
+      // العام السابق كان يشيل بنود مؤجل/معلّق مُرحّلة من "رصيد العميل" رغم إن
+      // صفحة البيان الفردي بتحسبها عادي، فيفرق الرقمين.
+      const isDueEligibleAll = (st !== "returned" || isReturnedWithValue) && !(isRolledOverItemAll(item) && st === "returned");
       if (isDueEligibleAll) {
         result[clientId].totalManifestsValue += dueRowValueAll;
       }
