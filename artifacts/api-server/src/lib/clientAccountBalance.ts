@@ -206,22 +206,20 @@ export async function computeClosedManifestsForClient(clientId: number): Promise
     const isRolledOverItem = (item: typeof items[number]) =>
       minManifestIdByShipment[item.shipmentId] < item.manifestId;
 
-    // ⚠️ إصلاح (فرق 95 ج.م بين "إجمالي رصيد العميل" بالداشبورد و"الرصيد المستحق" في
-    // صفحة تفاصيل البيان): netDueFromClientAllStatuses (client-account-manifests.ts)
-    // بيستبعد أي بند حالته الفعلية (shipment.status، مش deliveryStatus) "waiting" أو
-    // "pending" بالكامل من visibleItems قبل أي حساب (EXCLUDED_SHIPMENT_STATUSES) —
-    // هنا كان بيتحسب البند عادي طالما فيه shipment مرتبط، فالرقمين يختلفوا لأي شحنة
-    // لسه فعليًا "قيد الانتظار"/"في المخزن" رغم إنها مضافة لبيان مقفول.
-    // ⚠️ إصلاح (2026-08-31، طلب المستخدم): الرقم الصح هو اللي في صفحة تفاصيل
-    // البيان (netDueFromClientAllStatuses)، واللي أصلاً مبيستبعدش أي بند بناءً
-    // على shipment.status خالص. الاستبعاد الكامل هنا (EXCLUDED_SHIPMENT_STATUSES)
-    // كان بيشيل بند "مؤجل" (shipment.status="pending"/"waiting" لسه، رغم إن
-    // deliveryStatus="delayed") من dueValue تمامًا، فيفرق الرقم عن صفحة البيان
-    // الفردي بمقدار سعر شحن البند ده بالظبط. التصفير الصحيح لحالة postponed/pending
-    // بتاعة deliveryStatus نفسها متكفّل بيه isShippingZeroedRow/isDueEligible تحت.
+    // ⚠️⚠️ إصلاح نهائي (2026-08-31، رقية العرابي، فرق 540 ج.م بين "الرصيد المستحق" في
+    // صفحة تفاصيل البيان و"إجمالي رصيد العميل"/كشف الحساب): computeClientManifestNetDue
+    // (manifestFinance.ts، مصدر رقم صفحة البيان الفردي) بيستبعد تمامًا أي بند
+    // shipment.status = "waiting"/"pending" من visibleItems قبل أي حساب
+    // (EXCLUDED_SHIPMENT_STATUSES) — هنا مكانش فيه استبعاد زيه خالص، فأي شحنة
+    // "مؤجل" (delivery_status=delayed) لسه فعليًا shipment.status="waiting"/
+    // "pending" (يعني لسه في المخزن ومفيش سعر شحن نهائي متحدد لها) كانت بتتحسب
+    // هنا بسعر شحن كامل مخصوم من غير مقابل، بينما صفحة البيان الفردي بتستبعدها
+    // بالكامل. لازم نفس الاستبعاد هنا بالظبط عشان الرقمين يفضلوا متطابقين تمامًا.
+    const EXCLUDED_SHIPMENT_STATUSES = new Set(["waiting", "pending"]);
     for (const item of items) {
       const shipment = shipmentMap[item.shipmentId];
       if (!shipment) continue;
+      if (EXCLUDED_SHIPMENT_STATUSES.has(shipment.status)) continue;
       const st = item.deliveryStatus;
       const reason = (item as any).returnReason ?? (shipment as any)?.returnReason ?? null;
       const isReturnedWithValue = st === "returned" && RETURN_REASONS_FINANCIAL.has(String(reason ?? ""));
@@ -519,13 +517,17 @@ export async function computeClientBalancesForAllClients(
     const isRolledOverItemAll = (item: typeof items[number]) =>
       minManifestIdByShipmentAll[item.shipmentId] < item.manifestId;
 
-    // ⚠️ إصلاح (2026-08-31، طلب المستخدم) — نفس إصلاح computeClosedManifestsForClient
-    // فوق: الاستبعاد الكامل بناءً على shipment.status ("waiting"/"pending") كان
-    // بيشيل بند "مؤجل" من dueValue تمامًا فيفرق عن صفحة البيان الفردي
-    // (netDueFromClientAllStatuses) اللي مبتستبعدش على أساس shipment.status خالص.
+    // ⚠️⚠️ إصلاح (2026-08-31، رقية العرابي، فرق 540 ج.م): نفس إصلاح
+    // computeClosedManifestsForClient فوق بالظبط — computeClientManifestNetDue
+    // (مصدر رقم صفحة البيان الفردي) بيستبعد فعليًا shipment.status="waiting"/
+    // "pending" (EXCLUDED_SHIPMENT_STATUSES)، فلازم نفس الاستبعاد هنا عشان
+    // الرقمين يتطابقوا (التعليق القديم اللي كان هنا غلط: كان بيفترض إن صفحة
+    // البيان الفردي مبتستبعدش على أساس shipment.status، وده عكس الصح).
+    const EXCLUDED_SHIPMENT_STATUSES_ALL = new Set(["waiting", "pending"]);
     for (const item of items) {
       const shipment = shipmentMap[item.shipmentId];
       if (!shipment) continue;
+      if (EXCLUDED_SHIPMENT_STATUSES_ALL.has(shipment.status)) continue;
       const clientId = manifestClientMap[item.manifestId];
       if (clientId == null) continue;
       const clientType = clientTypeMap[clientId] ?? "normal";
