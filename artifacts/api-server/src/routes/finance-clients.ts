@@ -352,19 +352,42 @@ router.get("/finance/clients", async (req, res): Promise<void> => {
     // بيدي رقم غير مرتبط ببيان العميل الفعلي (ممكن يجيب قيمة من بيان مندوب
     // تاني خالص)، فبقى بيتحسب هنا فقط من computeNetRevenueDueForAllClients تحت.
 
-    // ── هل عند العميل بيان حساب مفتوح حالياً؟ — لعرض "بروفايل" (view=profile)
-    // وفلتر حالة البيان في صفحة حسابات العملاء. Query واحدة لكل العملاء دفعة
-    // واحدة (مش N+1) — طلب المدير: تمييز العملاء اللي لسه بياناتهم مفتوحة.
+    // ── هل عند العميل بيان حساب مفتوح حالياً؟ + آخر بيان يتوجّه له عرض "بروفايل" ──
+    // (view=profile) وفلتر حالة البيان في صفحة حسابات العملاء. Query واحدة لكل
+    // العملاء دفعة واحدة (مش N+1) — طلب المدير: تمييز العملاء اللي لسه بياناتهم
+    // مفتوحة، والضغط على البروفايل يوديه مباشرة لأحدث بيان مفتوح (أو أحدث بيان
+    // مقفول لو مفيش بيان مفتوح خالص).
     let openManifestClientIds = new Set<number>();
+    const latestManifestIdMap: Record<number, number> = {};
     if (ids.length) {
-      const openManifestRows = await db
-        .selectDistinct({ clientId: clientAccountManifestsTable.clientId })
+      const manifestRows = await db
+        .select({
+          id: clientAccountManifestsTable.id,
+          clientId: clientAccountManifestsTable.clientId,
+          status: clientAccountManifestsTable.status,
+          createdAt: clientAccountManifestsTable.createdAt,
+        })
         .from(clientAccountManifestsTable)
-        .where(and(
-          eq(clientAccountManifestsTable.status, "open"),
-          inArray(clientAccountManifestsTable.clientId, ids),
-        ));
-      openManifestClientIds = new Set(openManifestRows.map(r => r.clientId));
+        .where(inArray(clientAccountManifestsTable.clientId, ids))
+        .orderBy(desc(clientAccountManifestsTable.createdAt));
+
+      // منطق الاختيار لكل عميل: أول ما نلاقي بيان "مفتوح" (الأحدث بينهم لأن
+      // الترتيب تنازلي) بنثبّته ومنسيبوش يتغيّر. لو لحد آخر الصفوف مفيش أي
+      // بيان مفتوح، بيفضل أحدث بيان (أياً كانت حالته) لأنه أول صف شفناه للعميل.
+      const hasOpenForClient = new Set<number>();
+      for (const row of manifestRows) {
+        if (row.status === "open") {
+          openManifestClientIds.add(row.clientId);
+          if (!hasOpenForClient.has(row.clientId)) {
+            hasOpenForClient.add(row.clientId);
+            latestManifestIdMap[row.clientId] = row.id;
+          }
+        } else if (!(row.clientId in latestManifestIdMap)) {
+          // أول ظهور لهذا العميل في الترتيب التنازلي = أحدث بيان له، ولسه
+          // مالقيناش بيان مفتوح ليه لغاية دلوقتي.
+          latestManifestIdMap[row.clientId] = row.id;
+        }
+      }
     }
 
     // ── رصيد العميل والمتبقي — نفس منطق computeClientBalancesForAllClients ────
@@ -403,6 +426,7 @@ router.get("/finance/clients", async (req, res): Promise<void> => {
         accountRemaining: acct.balance,
         netRevenueDue: netRevenueDue.toFixed(2),
         hasOpenManifest: openManifestClientIds.has(c.id),
+        latestManifestId: latestManifestIdMap[c.id] ?? null,
       };
     });
 

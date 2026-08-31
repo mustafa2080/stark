@@ -40,6 +40,7 @@ type Client = {
   notes: string | null; isActive: boolean; createdAt: string; avatar: string | null;
   warehouseId: number | null;
   hasOpenManifest?: boolean;
+  latestManifestId?: number | null;
 };
 
 const emptyForm = {
@@ -555,7 +556,11 @@ export default function ClientAccountManifestsPage() {
               <button
                 key={client.id}
                 type="button"
-                onClick={() => navigate(`/finance/clients/${client.id}`)}
+                onClick={() => navigate(
+                  client.latestManifestId
+                    ? `/finance/client-account-sheet/manifest/${client.latestManifestId}`
+                    : `/finance/clients/${client.id}`
+                )}
                 className="flex flex-col items-center gap-2 p-3 rounded-2xl hover:bg-white/5 transition-colors text-center"
               >
                 <div className="relative">
