@@ -198,13 +198,33 @@ export async function computeClosedManifestsForClient(clientId: number): Promise
     // جزئي/مؤجل/قيد انتظار) كمستحق، وده كان يخلي "رصيد العميل"/كشف الحساب يختلفوا
     // عن "الرصيد المستحق" الظاهر في صفحة البيان الفردي. مصدر الحقيقة لـ rolledOver
     // هنا (بدون عمود DB): أقدم manifestId لنفس الشحنة ضمن كل بيانات العميل المقفولة.
-    const minManifestIdByShipment: Record<number, number> = {};
-    for (const item of items) {
-      const cur = minManifestIdByShipment[item.shipmentId];
-      if (cur === undefined || item.manifestId < cur) minManifestIdByShipment[item.shipmentId] = item.manifestId;
+    //
+    // ⚠️⚠️ إصلاح جوهري (2026-08-31، الفرق الحقيقي 13,350 مقابل 12,810 —
+    // رقية العرابي، بيان CAM-83-001): مصدر rolledOver هنا كان بيتحسب من
+    // "items" بس، وهي محمّلة أصلاً بفلتر status="closed" + clientId=هذا
+    // العميل فقط (شوف allManifests فوق). يعني أي شحنة كانت جزء من بيان سابق
+    // *لسه مفتوح* (لسه ما اتقفلش) أو بيان سابق لعميل تاني، مبيتحسبش هنا خالص
+    // فتترجم غلط كـ"مش مُرحّلة". لكن computeClientManifestNetDue
+    // (manifestFinance.ts، مصدر الحقيقة لصفحة البيان الفردي) بيحسب rolledOver
+    // بكويري مباشر lt(manifestId, currentManifestId) لنفس الشحنة — من غير أي
+    // فلتر status أو clientId خالص. لازم نفس الكويري بالظبط هنا لكل بيان على
+    // حدة عشان الرقمين يفضلوا متطابقين.
+    const rolledOverShipmentIdsByManifest: Record<number, Set<number>> = {};
+    if (shipmentIds.length && manifestIds.length) {
+      const olderItemRows = await db
+        .select({ shipmentId: clientAccountManifestItemsTable.shipmentId, manifestId: clientAccountManifestItemsTable.manifestId })
+        .from(clientAccountManifestItemsTable)
+        .where(inArray(clientAccountManifestItemsTable.shipmentId, shipmentIds));
+      for (const currentManifestId of manifestIds) {
+        const set = new Set<number>();
+        for (const row of olderItemRows) {
+          if (row.manifestId < currentManifestId) set.add(row.shipmentId);
+        }
+        rolledOverShipmentIdsByManifest[currentManifestId] = set;
+      }
     }
     const isRolledOverItem = (item: typeof items[number]) =>
-      minManifestIdByShipment[item.shipmentId] < item.manifestId;
+      rolledOverShipmentIdsByManifest[item.manifestId]?.has(item.shipmentId) ?? false;
 
     // ⚠️⚠️ إصلاح نهائي (2026-08-31، رقية العرابي، فرق 540 ج.م بين "الرصيد المستحق" في
     // صفحة تفاصيل البيان و"إجمالي رصيد العميل"/كشف الحساب): computeClientManifestNetDue
@@ -509,13 +529,29 @@ export async function computeClientBalancesForAllClients(
     // ⚠️⚠️ إصلاح (2026-08-28): نفس إصلاح computeClosedManifestsForClient بالظبط —
     // مصدر الحقيقة لـ rolledOver هنا (بدون عمود DB): أقدم manifestId لنفس الشحنة
     // ضمن كل البيانات المقفولة المحمّلة (لكل العملاء دفعة واحدة).
-    const minManifestIdByShipmentAll: Record<number, number> = {};
-    for (const item of items) {
-      const cur = minManifestIdByShipmentAll[item.shipmentId];
-      if (cur === undefined || item.manifestId < cur) minManifestIdByShipmentAll[item.shipmentId] = item.manifestId;
+    //
+    // ⚠️⚠️ إصلاح جوهري (2026-08-31): نفس إصلاح computeClosedManifestsForClient
+    // فوق بالظبط — مصدر rolledOver هنا كان بيتحسب من "items" بس، اللي محمّلة
+    // بفلتر status="closed" بس (لكل العملاء المطلوبين، شوف allManifests فوق).
+    // أي شحنة كانت جزء من بيان سابق لسه *مفتوح* مبيتحسبش هنا. لازم نفس كويري
+    // manifestFinance.ts (lt(manifestId, currentManifestId) بدون فلتر status)
+    // لكل بيان على حدة عشان الرقمين يفضلوا متطابقين تمامًا.
+    const rolledOverShipmentIdsByManifestAll: Record<number, Set<number>> = {};
+    if (shipmentIds.length && manifestIds.length) {
+      const olderItemRowsAll = await db
+        .select({ shipmentId: clientAccountManifestItemsTable.shipmentId, manifestId: clientAccountManifestItemsTable.manifestId })
+        .from(clientAccountManifestItemsTable)
+        .where(inArray(clientAccountManifestItemsTable.shipmentId, shipmentIds));
+      for (const currentManifestId of manifestIds) {
+        const set = new Set<number>();
+        for (const row of olderItemRowsAll) {
+          if (row.manifestId < currentManifestId) set.add(row.shipmentId);
+        }
+        rolledOverShipmentIdsByManifestAll[currentManifestId] = set;
+      }
     }
     const isRolledOverItemAll = (item: typeof items[number]) =>
-      minManifestIdByShipmentAll[item.shipmentId] < item.manifestId;
+      rolledOverShipmentIdsByManifestAll[item.manifestId]?.has(item.shipmentId) ?? false;
 
     // ⚠️⚠️ إصلاح (2026-08-31، رقية العرابي، فرق 540 ج.م): نفس إصلاح
     // computeClosedManifestsForClient فوق بالظبط — computeClientManifestNetDue
