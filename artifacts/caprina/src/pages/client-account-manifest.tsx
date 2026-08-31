@@ -553,7 +553,12 @@ export default function ClientAccountManifestsPage() {
         // (مفتوح/مغلق). الضغط على البروفايل يودّي مباشرة لصفحة حساب العميل،
         // وفيها زرار الإغلاق نفسه (بطلب المدير: ما يحتاجش يتنقل لأكتر من صفحة).
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-4">
-          {filteredClients.map((client) => {
+          {filteredClients
+            // عرض "بروفايل" خاص بالعملاء اللي عندهم بيان حساب فعلاً (مفتوح أو
+            // مغلق) — العميل اللي مالوش أي بيان خالص (latestManifestId=null)
+            // لا يظهر هنا حتى مع فلتر "كل البيانات"، لأن مفيش بيان يوديه له.
+            .filter((client) => !!client.latestManifestId)
+            .map((client) => {
             const isOpen = !!client.hasOpenManifest;
             return (
               <button
