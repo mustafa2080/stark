@@ -18,7 +18,7 @@ import {
   Plus, Users, Edit2, Trash2, Phone, MapPin, ToggleLeft, ToggleRight,
   FileSpreadsheet, TrendingUp, ImagePlus, X as XIcon, Camera, Target,
   ChevronDown, Lock, Unlock, Truck, Package, Search, SlidersHorizontal, X,
-  LayoutGrid, List, Check, Wallet, FileText, CircleUserRound, FolderOpen, FolderLock,
+  LayoutGrid, List, Check, Wallet, FileText, CircleUserRound,
 } from "lucide-react";
 
 const fmtDate = (iso: string) => {
@@ -326,6 +326,12 @@ export default function ClientAccountManifestsPage() {
   // على العملاء اللي لسه بياناتهم مفتوحة (بيتفعّل بوضوح في عرض "بروفايل"،
   // ومتاح أيضاً في باقي الأوضاع). "all" = بدون فلترة حسب حالة البيان.
   const [manifestStatusFilter, setManifestStatusFilter] = useState<"all" | "open" | "closed">("all");
+  // ─── فلتر "عميل غير صفري" — طلب مصطفى (2026-08-31): تسهيل الوصول السريع
+  // للعملاء اللي عندهم رصيد مستحق (accountBalance ≠ 0) عشان يتعمل لهم إغلاق
+  // على طول من غير ما حد يدوّر عليهم يدوياً وسط كل العملاء. "all" = بدون
+  // فلترة حسب الرصيد. نفس accountBalance الظاهر في كارت العميل بالضبط
+  // (computeClosedManifestsForClient بالباك إند).
+  const [balanceFilter, setBalanceFilter] = useState<"all" | "nonzero">("all");
 
   const { data: clients, isLoading } = useQuery<Client[]>({
     queryKey: ["finance-clients"],
@@ -354,6 +360,13 @@ export default function ClientAccountManifestsPage() {
       // ومفيش عنده بيان مفتوح دلوقتي — عميل مالوش أي بيان خالص لا يُعتبر
       // "بيانات مغلقة" ولازم ميتفلترش معاه.
       if (manifestStatusFilter === "closed") return !c.hasOpenManifest && !!c.latestManifestId;
+      return true;
+    })
+    .filter((c) => {
+      // "عميل غير صفري" = رصيده الحالي (accountBalance) مختلف عن صفر، بأي
+      // اتجاه (مستحق له أو عليه) — بنقارن بهامش صغير (0.01) بدل == 0 بالظبط
+      // عشان أي فروقات تقريب عشرية بسيطة متتسببش في ظهور عميل رصيده فعلياً صفر.
+      if (balanceFilter === "nonzero") return Math.abs(c.accountBalance ?? 0) >= 0.01;
       return true;
     })
     .sort((a, b) => {
@@ -528,6 +541,15 @@ export default function ClientAccountManifestsPage() {
             <SelectItem value="closed">بيانات مغلقة</SelectItem>
           </SelectContent>
         </Select>
+        {/* فلتر "عميل غير صفري" — عرض العملاء اللي عندهم رصيد مستحق فقط، لتسهيل
+            متابعة إغلاق حساباتهم. */}
+        <Select value={balanceFilter} onValueChange={(v: any) => setBalanceFilter(v)}>
+          <SelectTrigger className="w-full sm:w-[150px] text-sm"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">كل الأرصدة</SelectItem>
+            <SelectItem value="nonzero">عميل غير صفري</SelectItem>
+          </SelectContent>
+        </Select>
         <Select value={statusFilter} onValueChange={(v: any) => setStatusFilter(v)}>
           <SelectTrigger className="w-full sm:w-[130px] text-sm"><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -584,16 +606,21 @@ export default function ClientAccountManifestsPage() {
                   <div className="profile-avatar-wrap relative">
                     <ClientAvatar avatar={client.avatar} name={client.name} size="lg" />
                   </div>
-                  <span
-                    title={isOpen ? "بيان مفتوح" : "بيان مغلق"}
-                    className={`status-dot-pulse absolute -top-1 -left-1 w-5 h-5 rounded-full flex items-center justify-center border-2 border-background transition-transform duration-300 group-hover:scale-110 ${
-                      isOpen ? "bg-emerald-500 text-emerald-500" : "bg-muted-foreground/60 text-muted-foreground/60"
-                    }`}
-                  >
-                    {isOpen ? <FolderOpen className="w-3 h-3 text-white" /> : <FolderLock className="w-3 h-3 text-white" />}
-                  </span>
                 </div>
                 <p className="text-xs font-bold truncate max-w-full">{client.name}</p>
+                {/* شارة مستطيلة واضحة بدل الأيقونة الدائرية القديمة (كانت مش
+                    ظاهرة خالص) — نص Open/Close صريح حسب حالة أحدث بيان حساب
+                    للعميل (hasOpenManifest). */}
+                <span
+                  title={isOpen ? "بيان مفتوح" : "بيان مغلق"}
+                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold tracking-wide leading-none border ${
+                    isOpen
+                      ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/40"
+                      : "bg-muted-foreground/10 text-muted-foreground border-muted-foreground/30"
+                  }`}
+                >
+                  {isOpen ? "Open" : "Close"}
+                </span>
               </button>
             );
           })}
