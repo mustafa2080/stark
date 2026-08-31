@@ -640,3 +640,47 @@ html.login-active #root {
     transform: translateY(0);
   }
 }
+
+/* ─── Client account sheet — profile view avatar animations ───────────────
+   دخول متتابع للبطاقات لما الصفحة تفتح + نبضة هادية مستمرة على مؤشر الحالة
+   (بيان مفتوح/مغلق) + تكبير وتوهج ناعم عند الـ hover على الدايرة نفسها. */
+@keyframes profileCardIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.profile-card-enter {
+  animation: profileCardIn 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes statusDotPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 currentColor;
+  }
+  50% {
+    box-shadow: 0 0 0 4px transparent;
+  }
+}
+.status-dot-pulse {
+  animation: statusDotPulse 2.4s ease-in-out infinite;
+}
+
+.profile-avatar-wrap {
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.profile-card-hover:hover .profile-avatar-wrap {
+  transform: scale(1.08);
+}
+.profile-card-hover:hover .profile-avatar-glow {
+  opacity: 1;
+  transform: scale(1.35);
+}
+.profile-avatar-glow {
+  opacity: 0;
+  transition: opacity 0.35s ease, transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}

@@ -558,7 +558,7 @@ export default function ClientAccountManifestsPage() {
             // مغلق) — العميل اللي مالوش أي بيان خالص (latestManifestId=null)
             // لا يظهر هنا حتى مع فلتر "كل البيانات"، لأن مفيش بيان يوديه له.
             .filter((client) => !!client.latestManifestId)
-            .map((client) => {
+            .map((client, idx) => {
             const isOpen = !!client.hasOpenManifest;
             return (
               <button
@@ -572,14 +572,22 @@ export default function ClientAccountManifestsPage() {
                     ? `/finance/client-account-sheet/manifest/${client.latestManifestId}?from=client-account-sheet`
                     : `/finance/clients/${client.id}`
                 )}
-                className="flex flex-col items-center gap-2 p-3 rounded-2xl hover:bg-white/5 transition-colors text-center"
+                className="profile-card-enter profile-card-hover flex flex-col items-center gap-2 p-3 rounded-2xl hover:bg-white/5 transition-colors text-center"
+                style={{ animationDelay: `${Math.min(idx, 24) * 30}ms` }}
               >
                 <div className="relative">
-                  <ClientAvatar avatar={client.avatar} name={client.name} size="lg" />
+                  <span
+                    className={`profile-avatar-glow absolute inset-0 rounded-full blur-md pointer-events-none ${
+                      isOpen ? "bg-emerald-500/40" : "bg-muted-foreground/30"
+                    }`}
+                  />
+                  <div className="profile-avatar-wrap relative">
+                    <ClientAvatar avatar={client.avatar} name={client.name} size="lg" />
+                  </div>
                   <span
                     title={isOpen ? "بيان مفتوح" : "بيان مغلق"}
-                    className={`absolute -top-1 -left-1 w-5 h-5 rounded-full flex items-center justify-center border-2 border-background ${
-                      isOpen ? "bg-emerald-500" : "bg-muted-foreground/60"
+                    className={`status-dot-pulse absolute -top-1 -left-1 w-5 h-5 rounded-full flex items-center justify-center border-2 border-background transition-transform duration-300 group-hover:scale-110 ${
+                      isOpen ? "bg-emerald-500 text-emerald-500" : "bg-muted-foreground/60 text-muted-foreground/60"
                     }`}
                   >
                     {isOpen ? <FolderOpen className="w-3 h-3 text-white" /> : <FolderLock className="w-3 h-3 text-white" />}
