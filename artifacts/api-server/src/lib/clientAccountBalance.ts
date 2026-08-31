@@ -275,7 +275,14 @@ export async function computeClosedManifestsForClient(clientId: number): Promise
       // rolledOver=true. فالاستبعاد العام هنا كان يشيل بند "مؤجل" من كشف
       // الحساب بينما صفحة البيان الفردي بتحسبه، فيفرق الرقمين. لازم الشرط هنا
       // يطابق نفس تقييد "returned بس" بالظبط عشان الرقمين يفضلوا متطابقين.
-      const isDueEligible = (st !== "returned" || isReturnedWithValue) && !(isRolledOverItem(item) && st === "returned");
+      // ⚠️⚠️ إصلاح (2026-08-31، طلب المستخدم — رقية العرابي، فرق 13,350 مقابل
+      // 12,810): استبعاد "مُرحّل" هنا كان بيتجاهل item.returnReceived، فبند
+      // مُرحّل حالته returned واتأكد استلامه فعليًا من شركة الشحن (returnReceived=1)
+      // كان بيتستبعد هنا رغم إن صفحة البيان الفردي (netDueFromClientAllStatuses)
+      // بتحسبه عادي طالما returnReceived=1. لازم الاستبعاد يتقيّد بنفس الشرط
+      // بالظبط: مُرحّل + returned + لسه مش مستلم (returnReceived !== 1) بس.
+      const isRolledOverPending = isRolledOverItem(item) && st === "returned" && (item as any).returnReceived !== 1;
+      const isDueEligible = (st !== "returned" || isReturnedWithValue) && !isRolledOverPending;
       if (isDueEligible) {
         dueValueByManifest[item.manifestId] = (dueValueByManifest[item.manifestId] ?? 0) + dueRowValue;
       }
@@ -553,7 +560,12 @@ export async function computeClientBalancesForAllClients(
       // netDueFromClientAllStatuses (صفحة البيان الفردي)، مش أي حالة. الاستبعاد
       // العام السابق كان يشيل بنود مؤجل/معلّق مُرحّلة من "رصيد العميل" رغم إن
       // صفحة البيان الفردي بتحسبها عادي، فيفرق الرقمين.
-      const isDueEligibleAll = (st !== "returned" || isReturnedWithValue) && !(isRolledOverItemAll(item) && st === "returned");
+      // ⚠️⚠️ إصلاح (2026-08-31): نفس إصلاح computeClosedManifestsForClient فوق —
+      // الاستبعاد لازم يتقيّد بـ returnReceived !== 1 بالظبط، وإلا بند مُرحّل
+      // اتأكد استلامه فعليًا (returnReceived=1) بيتستبعد هنا غلط رغم إن صفحة
+      // البيان الفردي بتحسبه عادي.
+      const isRolledOverPendingAll = isRolledOverItemAll(item) && st === "returned" && (item as any).returnReceived !== 1;
+      const isDueEligibleAll = (st !== "returned" || isReturnedWithValue) && !isRolledOverPendingAll;
       if (isDueEligibleAll) {
         result[clientId].totalManifestsValue += dueRowValueAll;
       }
