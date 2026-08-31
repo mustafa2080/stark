@@ -2306,29 +2306,23 @@ function ClientStatementDialog({ client, clientId, orders, from, to, onFromChang
   const totalUnpaid = Math.max(0, totalAmount - totalPaid);
 
   const handlePrint = () => {
-    const stMapAr: Record<string, string> = {
-      draft: "مسودة", confirmed: "مؤكد", processing: "قيد التجهيز",
-      delivered: "مسلَّم", closed: "مغلق",
-    };
     const rangeLabel = from || to
       ? `الفترة من ${from ? format(new Date(from), "yyyy/MM/dd") : "بداية التعاملات"} إلى ${to ? format(new Date(to), "yyyy/MM/dd") : "تاريخه"}`
       : "كافة الفترات";
 
-    const rows = filtered.map((o, i) => {
-      const tot = parseFloat(o.totalAmount ?? "0");
-      const pd  = o.paymentStatus === "paid" ? tot : parseFloat(o.paidAmount ?? "0");
-      const unp = Math.max(0, tot - pd);
-      return `
+    // ── نفس البيانات الظاهرة فعليًا على الشاشة: الحركة المالية الموحّدة ──
+    const mustaqSum   = (txnSummary?.manifestsTotal ?? 0) + (txnSummary?.saleOrdersTotal ?? totalAmount);
+    const paidSum     = (txnSummary?.paymentsTotal ?? 0) + (txnSummary?.saleOrdersPaidTotal ?? totalPaid);
+    const netBalance  = txnSummary?.netBalance ?? totalUnpaid;
+
+    const rows = transactions.map((t, i) => `
         <tr>
           <td class="c-idx">${i + 1}</td>
-          <td class="c-num">${o.soNumber}</td>
-          <td>${format(new Date(o.createdAt), "yyyy/MM/dd")}</td>
-          <td>${stMapAr[o.status] ?? o.status}</td>
-          <td class="c-num">${fmt(tot)}</td>
-          <td class="c-num pos">${fmt(pd)}</td>
-          <td class="c-num ${unp > 0 ? "neg" : ""}">${fmt(unp)}</td>
-        </tr>`;
-    }).join("");
+          <td>${format(new Date(t.date), "yyyy/MM/dd")}</td>
+          <td class="c-label">${t.label}</td>
+          <td class="c-num ${t.direction === "paid" ? "pos" : ""}">${t.direction === "paid" ? "−" : "+"}${fmt(t.amount)}</td>
+          <td class="c-num ${t.runningBalance > 0 ? "neg" : "pos"}">${fmt(Math.abs(t.runningBalance))}</td>
+        </tr>`).join("");
 
     const html = `<!DOCTYPE html><html dir="rtl" lang="ar">
 <head><meta charset="UTF-8">
@@ -2364,8 +2358,15 @@ function ClientStatementDialog({ client, clientId, orders, from, to, onFromChang
   tbody tr:nth-child(even) { background:#f8fafc; }
   .c-idx { color:#94a3b8; font-size:10px; width: 26px; }
   .c-num { font-variant-numeric: tabular-nums; font-weight:700; }
+  .c-label { text-align:right; }
   td.pos { color:#059669; }
   td.neg { color:#dc2626; font-weight:900; }
+
+  .net-bar { display:flex; justify-content:space-between; align-items:center; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:10px 16px; margin-bottom:14px; }
+  .net-bar .lbl { font-size:11px; font-weight:800; color:#64748b; }
+  .net-bar .val { font-size:16px; font-weight:900; }
+  .net-bar .val.due { color:#b91c1c; }
+  .net-bar .val.credit { color:#047857; }
 
   tfoot td { background:#1e3a5f; color:#fff; font-weight:900; font-size:12px; padding:10px 6px; border:1px solid #1e3a5f; }
   tfoot td.neg-total { background:#b91c1c; }
@@ -2402,29 +2403,32 @@ function ClientStatementDialog({ client, clientId, orders, from, to, onFromChang
   </div>
 
   <div class="summary">
-    <div class="stat blue"><div class="lbl">إجمالي الأوامر</div><div class="val">${filtered.length}</div></div>
-    <div class="stat amber"><div class="lbl">إجمالي المشتريات</div><div class="val">${fmt(totalAmount)}</div></div>
-    <div class="stat green"><div class="lbl">إجمالي المدفوع</div><div class="val">${fmt(totalPaid)}</div></div>
-    <div class="stat red"><div class="lbl">المتبقي (المديونية)</div><div class="val">${fmt(totalUnpaid)}</div></div>
+    <div class="stat blue"><div class="lbl">عدد الحركات</div><div class="val">${transactions.length}</div></div>
+    <div class="stat amber"><div class="lbl">إجمالي المستحق</div><div class="val">${fmt(mustaqSum)}</div></div>
+    <div class="stat green"><div class="lbl">المدفوع</div><div class="val">${fmt(paidSum)}</div></div>
+    <div class="stat red"><div class="lbl">المتبقي</div><div class="val">${fmt(netBalance)}</div></div>
+  </div>
+
+  <div class="net-bar">
+    <span class="lbl">الرصيد الصافي</span>
+    <span class="val ${netBalance > 0 ? "due" : "credit"}">${fmt(Math.abs(netBalance))} ج.م ${netBalance > 0 ? "(مستحق)" : netBalance < 0 ? "(له)" : ""}</span>
   </div>
 
   <table>
     <thead>
       <tr>
-        <th>م</th><th>رقم الأمر</th><th>التاريخ</th><th>الحالة</th>
-        <th>الإجمالي</th><th>المدفوع</th><th>المتبقي</th>
+        <th>م</th><th>التاريخ</th><th>الحركة</th>
+        <th>المبلغ</th><th>الرصيد بعدها</th>
       </tr>
     </thead>
     <tbody>
-      ${filtered.length ? rows : `<tr class="empty-row"><td colspan="7">لا توجد أوامر في هذه الفترة</td></tr>`}
+      ${transactions.length ? rows : `<tr class="empty-row"><td colspan="5">لا توجد حركات مالية مسجّلة لهذا العميل حتى الآن</td></tr>`}
     </tbody>
-    ${filtered.length ? `
+    ${transactions.length ? `
     <tfoot>
       <tr>
-        <td colspan="4">الإجمالي</td>
-        <td>${fmt(totalAmount)}</td>
-        <td>${fmt(totalPaid)}</td>
-        <td class="${totalUnpaid > 0 ? "neg-total" : ""}">${fmt(totalUnpaid)}</td>
+        <td colspan="3">الرصيد الصافي</td>
+        <td colspan="2" class="${netBalance > 0 ? "neg-total" : ""}">${fmt(Math.abs(netBalance))} ج.م ${netBalance > 0 ? "(مستحق)" : netBalance < 0 ? "(له)" : ""}</td>
       </tr>
     </tfoot>` : ""}
   </table>
@@ -2473,9 +2477,9 @@ function ClientStatementDialog({ client, clientId, orders, from, to, onFromChang
       };
 
       ws.columns = [
-        { key: "idx", width: 6 }, { key: "soNumber", width: 20 }, { key: "createdAt", width: 14 },
-        { key: "status", width: 16 }, { key: "total", width: 16 },
-        { key: "paid", width: 16 }, { key: "unpaid", width: 16 },
+        { key: "idx", width: 6 }, { key: "date", width: 14 }, { key: "label", width: 34 },
+        { key: "amount", width: 18 }, { key: "balance", width: 18 },
+        { key: "col6", width: 8 }, { key: "col7", width: 8 },
       ];
 
       // ══ سطر 1-2: هيدر الشركة ══
@@ -2550,9 +2554,14 @@ function ClientStatementDialog({ client, clientId, orders, from, to, onFromChang
       }
       ws.getRow(8).height = 10;
 
+      // ── نفس البيانات الظاهرة فعليًا على الشاشة: الحركة المالية الموحّدة ──
+      const mustaqSum   = (txnSummary?.manifestsTotal ?? 0) + (txnSummary?.saleOrdersTotal ?? totalAmount);
+      const paidSum     = (txnSummary?.paymentsTotal ?? 0) + (txnSummary?.saleOrdersPaidTotal ?? totalPaid);
+      const netBalance  = txnSummary?.netBalance ?? totalUnpaid;
+
       // ══ سطر 9-10: بطاقات الملخص ══
-      const smLabels = ["إجمالي الأوامر", "إجمالي المشتريات", "إجمالي المدفوع", "المتبقي (المديونية)"];
-      const smVals   = [filtered.length, totalAmount, totalPaid, totalUnpaid];
+      const smLabels = ["عدد الحركات", "إجمالي المستحق", "المدفوع", "المتبقي"];
+      const smVals   = [transactions.length, mustaqSum, paidSum, netBalance];
       const smFmts   = ['#,##0', '#,##0" ج.م"', '#,##0" ج.م"', '#,##0" ج.م"'];
       const smFG     = [BLUE, AMBER, GREEN, RED];
       const smBG     = [BLUE_BG, AMBER_BG, GREEN_BG, RED_BG];
@@ -2584,7 +2593,7 @@ function ClientStatementDialog({ client, clientId, orders, from, to, onFromChang
 
       // ══ سطر 12: رأس الجدول ══
       const hdr = ws.getRow(12);
-      hdr.values = ["م", "رقم الأمر", "التاريخ", "الحالة", "الإجمالي", "المدفوع", "المتبقي"];
+      hdr.values = ["م", "التاريخ", "الحركة", "المبلغ", "الرصيد بعدها"];
       hdr.eachCell(cell => {
         cell.font = { name: "Arial", size: 10, bold: true, color: { argb: "FFFFFFFF" } };
         cell.alignment = { horizontal: "center", vertical: "middle" };
@@ -2593,16 +2602,15 @@ function ClientStatementDialog({ client, clientId, orders, from, to, onFromChang
       });
       hdr.height = 24;
 
-      // ══ صفوف الأوامر ══
-      filtered.forEach((o, i) => {
-        const tot = parseFloat(o.totalAmount ?? "0");
-        const pd  = o.paymentStatus === "paid" ? tot : parseFloat(o.paidAmount ?? "0");
-        const unp = Math.max(0, tot - pd);
+      // ══ صفوف الحركات (نفس بيانات الشاشة: بيانات شحن + سدادات + أوامر بيع) ══
+      transactions.forEach((t, i) => {
         const rowBG = i % 2 === 0 ? "FFFFFFFF" : ROW_ALT;
+        const isPaid = t.direction === "paid";
+        const balDue = t.runningBalance > 0;
 
         const row = ws.addRow([
-          i + 1, o.soNumber, format(new Date(o.createdAt), "yyyy/MM/dd"),
-          stMap[o.status] ?? o.status, tot, pd, unp,
+          i + 1, format(new Date(t.date), "yyyy/MM/dd"), t.label,
+          (isPaid ? -1 : 1) * t.amount, Math.abs(t.runningBalance),
         ]);
         row.eachCell(cell => {
           cell.font = { name: "Arial", size: 10, color: { argb: INK } };
@@ -2611,40 +2619,42 @@ function ClientStatementDialog({ client, clientId, orders, from, to, onFromChang
           bAll(cell, LINE);
         });
         row.getCell(1).font = { name: "Arial", size: 9, color: { argb: MUTED } };
-        row.getCell(2).font = { name: "Arial", size: 10, bold: true, color: { argb: NAVY } };
+        row.getCell(3).alignment = { horizontal: "right", vertical: "middle" };
+        row.getCell(3).font = {
+          name: "Arial", size: 10,
+          color: { argb: isPaid ? GREEN : t.type === "manifest" ? BLUE : AMBER },
+        };
+        row.getCell(4).numFmt = '#,##0;-#,##0';
+        row.getCell(4).font = { name: "Arial", size: 10, bold: true, color: { argb: isPaid ? GREEN : INK } };
         row.getCell(5).numFmt = '#,##0';
-        row.getCell(6).numFmt = '#,##0';
-        row.getCell(6).font = { name: "Arial", size: 10, bold: true, color: { argb: GREEN } };
-        row.getCell(7).numFmt = '#,##0';
-        row.getCell(7).font = unp > 0
+        row.getCell(5).font = balDue
           ? { name: "Arial", size: 10, bold: true, color: { argb: RED } }
-          : { name: "Arial", size: 10, color: { argb: MUTED } };
+          : { name: "Arial", size: 10, bold: true, color: { argb: GREEN } };
         row.height = 20;
       });
 
-      if (filtered.length === 0) {
+      if (transactions.length === 0) {
         ws.mergeCells(`A13:G13`);
         const emptyCell = ws.getCell("A13");
-        emptyCell.value = "لا توجد أوامر في هذه الفترة";
+        emptyCell.value = "لا توجد حركات مالية مسجّلة لهذا العميل حتى الآن";
         emptyCell.font = { name: "Arial", size: 10, color: { argb: MUTED } };
         emptyCell.alignment = { horizontal: "center", vertical: "middle" };
         ws.getRow(13).height = 40;
       }
 
-      // ══ صف الإجمالي ══
-      const totRow = ws.addRow(["", "", "", "الإجمالي", totalAmount, totalPaid, totalUnpaid]);
-      ws.mergeCells(`A${totRow.number}:D${totRow.number}`);
+      // ══ صف الرصيد الصافي ══
+      const totRow = ws.addRow(["", "", "الرصيد الصافي" + (netBalance > 0 ? " (مستحق)" : netBalance < 0 ? " (له)" : ""), "", Math.abs(netBalance)]);
+      ws.mergeCells(`A${totRow.number}:C${totRow.number}`);
+      ws.mergeCells(`D${totRow.number}:E${totRow.number}`);
       totRow.eachCell(cell => {
         cell.font = { name: "Arial", size: 11, bold: true, color: { argb: "FFFFFFFF" } };
         cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: NAVY } };
         cell.alignment = { horizontal: "center", vertical: "middle" };
         bAll(cell, NAVY_D);
       });
-      totRow.getCell(5).numFmt = '#,##0';
-      totRow.getCell(6).numFmt = '#,##0';
-      totRow.getCell(7).numFmt = '#,##0';
-      if (totalUnpaid > 0) {
-        totRow.getCell(7).fill = { type: "pattern", pattern: "solid", fgColor: { argb: RED } };
+      totRow.getCell(5).numFmt = '#,##0" ج.م"';
+      if (netBalance > 0) {
+        totRow.getCell(5).fill = { type: "pattern", pattern: "solid", fgColor: { argb: RED } };
       }
       totRow.height = 26;
 
