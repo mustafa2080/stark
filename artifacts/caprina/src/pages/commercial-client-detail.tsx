@@ -804,10 +804,7 @@ export default function CommercialClientDetailPage() {
             variant="outline"
             size="icon"
             className="h-8 w-8 rounded-full border-border shrink-0"
-            onClick={() => {
-              if (window.history.length > 1) window.history.back();
-              else navigate("/finance/clients");
-            }}
+            onClick={() => navigate("/finance/clients")}
           >
             <ArrowRight className="h-4 w-4" />
           </Button>
