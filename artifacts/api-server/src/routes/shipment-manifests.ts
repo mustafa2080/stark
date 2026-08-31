@@ -1405,22 +1405,39 @@ router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
           await createTreasuryEntryOnClose(manifest, items, userId, userName);
 
           // ── ترحيل تلقائي لـ "تسوية الرحلات والتحصيل" ──────────────────────
-          // نفس netDueToCompany اللي اترحّل للخزنة فوق بالظبط. المندوب هو اللي
-          // عمل القفل المؤقت الأصلي (closedByRole="representative") قبل ما
-          // الأدمن يأكّد القفل النهائي هنا — لازم نلتقطه من manifestBeforeUpdate
-          // (قبل ما التحديث فوق يكتب فوق closedByUserId باسم الأدمن).
+          // نفس netDueToCompany اللي اترحّل للخزنة فوق بالظبط. يشتغل في حالتين:
+          // (أ) المندوب عمل القفل المؤقت (closedByRole="representative") قبل ما
+          //     الأدمن يأكّد القفل النهائي هنا — لازم نلتقطه من manifestBeforeUpdate
+          //     (قبل ما التحديث فوق يكتب فوق closedByUserId باسم الأدمن).
+          // (ب) الأدمن قفل البيان مباشرة من غير ما يمر بقفل مؤقت من المندوب —
+          //     هنا مفيش closedByUserId نعتمد عليه، فبنجيب المندوب من
+          //     usersTable (role="representative") — عندنا شركة شحن واحدة
+          //     بس (stark) فمفيش لبس في تحديد مين المندوب.
           try {
-            if (manifestBeforeUpdate?.closedByRole === "representative" && manifestBeforeUpdate.closedByUserId) {
-              const netDue = (await computeManifestNetDue(manifest, items)).net;
-              if (netDue > 0) {
+            const netDue = (await computeManifestNetDue(manifest, items)).net;
+            if (netDue > 0) {
+              let repUserId: number | null = null;
+              let repName = "مندوب";
+              if (manifestBeforeUpdate?.closedByRole === "representative" && manifestBeforeUpdate.closedByUserId) {
+                repUserId = manifestBeforeUpdate.closedByUserId;
                 const [repUser] = await db.select({ displayName: usersTable.displayName })
-                  .from(usersTable).where(eq(usersTable.id, manifestBeforeUpdate.closedByUserId)).limit(1);
+                  .from(usersTable).where(eq(usersTable.id, repUserId)).limit(1);
+                repName = repUser?.displayName ?? "مندوب";
+              } else {
+                const [repUser] = await db.select({ id: usersTable.id, displayName: usersTable.displayName })
+                  .from(usersTable).where(eq(usersTable.role, "representative")).limit(1);
+                if (repUser) {
+                  repUserId = repUser.id;
+                  repName = repUser.displayName ?? "مندوب";
+                }
+              }
+              if (repUserId) {
                 await autoAddRepToTripSettlement({
                   tenantId: manifest.tenantId ?? null,
                   sourceManifestId: manifest.id,
                   netDue,
-                  repUserId: manifestBeforeUpdate.closedByUserId,
-                  repName: repUser?.displayName ?? "مندوب",
+                  repUserId,
+                  repName,
                 });
               }
             }
