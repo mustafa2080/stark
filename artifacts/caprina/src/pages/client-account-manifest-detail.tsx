@@ -15,6 +15,15 @@ import {
 } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { applyManifestDeliveryTemplate, buildWhatsAppLink } from "@/lib/whatsapp";
+import {
+  getCollectedAmount,
+  getShipmentAmount,
+  getChargeableShipping,
+  isShippingZeroed,
+  ordersEligibleForFinance,
+  computeManifestFinanceTotals,
+  computeRowFinance,
+} from "@/lib/manifestFinanceCalc";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -2724,40 +2733,11 @@ function CloseConfirmDialog({
               <p className="text-muted-foreground mb-1">صافي المستحق من الشركة</p>
               {(() => {
                 // نفس منطق "الرصيد المستحق" في الصفحة الرئيسية بالظبط (totalDueFromClient)،
-                // عشان الرقمين ما يختلفوش تاني: getCollectedAmount + تصفير الشحن بنفس الشرط.
+                // عشان الرقمين ما يختلفوش تاني — القيمة المستلمة وتصفير الشحن دلوقتي
+                // موحّدين مع lib/manifestFinanceCalc.ts (getCollectedAmount/isShippingZeroed
+                // عن طريق getChargeableShipping). الفلترة بس (استثناء "لسه عند شركة
+                // الشحن") مختلفة لغرض هذا الديالوج تحديدًا فضلت محلية.
                 const RETURN_REASONS_FINANCIAL_LOCAL = ["refused_paid", "refused_unpaid", "quality"];
-                const getCollectedAmountLocal = (o: any) => {
-                  if (o.deliveryStatus === "delivered") {
-                    const dvr = o.deliveredValueReceived;
-                    return dvr != null ? Number(dvr) : Number(o.totalPrice ?? 0);
-                  }
-                  if (o.deliveryStatus === "partial_delivered") {
-                    return o.partialQuantity == null ? 0 : Number(o.partialQuantity);
-                  }
-                  if (o.deliveryStatus === "partial_received") {
-                    return o.partialQuantity == null ? 0 : Math.round(Number(o.partialQuantity));
-                  }
-                  if (
-                    o.deliveryStatus === "returned" &&
-                    RETURN_REASONS_FINANCIAL_LOCAL.includes(String(o.returnReason ?? ""))
-                  ) {
-                    const rvr = o.returnValueReceived;
-                    return rvr != null ? Number(rvr) : 0;
-                  }
-                  return 0;
-                };
-                const isShippingZeroedRowLocal = (o: any) => {
-                  const st = o.deliveryStatus;
-                  if (st === "postponed" || st === "delayed" || st === "pending") return true;
-                  if (st === "returned") {
-                    // سعر الشحن مستحق دايمًا للأسباب المالية التلاتة (العميل/تكلفة
-                    // المندوب مسؤول عنها بغض النظر عن وجود تحصيل فعلي أو لا) —
-                    // القيمة المستلمة (getCollectedAmountLocal) هي وحدها اللي بتفضل
-                    // صفر لو مفيش returnValueReceived.
-                    if (!RETURN_REASONS_FINANCIAL_LOCAL.includes(String(o?.returnReason ?? ""))) return true;
-                  }
-                  return false;
-                };
                 // نفس استثناء "لسه عند مندوب الشحن" (مرتجع/جزئي ومحدّش استلمها في
                 // المخزن بعد) المطبّق في كارت "الرصيد المستحق" بعد الإغلاق — عشان
                 // رقم الديالوج قبل الإغلاق يطابق بالظبط رقم الكارت بعد الإغلاق.
@@ -2784,19 +2764,11 @@ function CloseConfirmDialog({
                   }
                   return false;
                 });
-                const netAmount = orders.reduce((sum, o) => sum + getCollectedAmountLocal(o), 0);
-                // في حالتين تحديدًا (رفض بعد المعاينة ولم يدفع، أو تهرب من الاستلام) نستخدم
-                // تكلفة المندوب الفعلية (zoneCost) بدل سعر شحن العميل — نفس منطق الجدول
-                // التفصيلي وكارت "إجمالي تكلفة الشحن" بالظبط، عشان الرقم هنا يفضل متطابق.
-                const getShippingValueLocal = (o: any) => {
-                  const rr = String((o as any)?.returnReason ?? "");
-                  const useRepCost = o.deliveryStatus === "returned" && (rr === "refused_unpaid" || rr === "quality");
-                  return useRepCost ? Number((o as any)?.zoneCost ?? 0) : Number((o as any).shippingCost ?? 0);
-                };
-                const displayedShippingCost = orders.reduce((sum, o) => {
-                  if (isShippingZeroedRowLocal(o)) return sum;
-                  return sum + getShippingValueLocal(o) + Number((o as any).repExtraCost ?? 0);
-                }, 0);
+                // (2026-08-31): getCollectedAmount/getChargeableShipping موحّدة مع
+                // lib/manifestFinanceCalc.ts — الفلترة (orders) فوق فضلت محلية لغرض
+                // هذا الديالوج بس (استثناء "لسه عند شركة الشحن")، والحساب نفسه مشترك.
+                const netAmount = orders.reduce((sum, o) => sum + getCollectedAmount(o), 0);
+                const displayedShippingCost = orders.reduce((sum, o) => sum + getChargeableShipping(o), 0);
                 const due = netAmount - displayedShippingCost;
                 return (
                   <>
@@ -2925,45 +2897,9 @@ function ExportDialog({
 
   const safeOrders = manifest.orders ?? [];
 
-  const deliveredGross = safeOrders
-    .filter(o => o.deliveryStatus === "delivered")
-    .reduce((sum, o) => {
-      const dvr = (o as any).deliveredValueReceived;
-      const actual = dvr != null ? Number(dvr) : Number(o.totalPrice ?? 0);
-      return sum + actual;
-    }, 0);
-  const partialGross = safeOrders
-    .filter(o => o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered")
-    .reduce((sum, o) => {
-      if (o.partialQuantity == null) return sum;
-      if (o.deliveryStatus === "partial_delivered") {
-        return sum + Number(o.partialQuantity);
-      }
-      if (o.quantity <= 0) return sum;
-      const unitPrice = (o as any).unitPrice != null
-        ? Number((o as any).unitPrice)
-        : Number(o.totalPrice) / Number(o.quantity);
-      return sum + Math.round(unitPrice * Number(o.partialQuantity));
-    }, 0);
-  const totalCollected = deliveredGross + partialGross;
-  // رسوم الشحن الفعلية: بتُحسب على الطلبات اللي فعلاً دخلت ضمن totalCollected (مُسلَّم + جزئي — الجزء المُباع اتحصّل فورًا وقت التسليم بغض النظر عن رجوع الباقي المرتجع لمخزن الشحن)
-  // + المرتجع بأحد الأسباب المالية الثلاثة المعتمدة (رفض بعد المعاينة مدفوع/غير مدفوع، أو
-  // تهرب من الاستلام) — نفس شرط isShippingZeroedRow المستخدم في باقي الصفحة بالظبط.
-  const RETURN_REASONS_WITH_SHIPPING_EXCEL = ["refused_paid", "refused_unpaid", "quality"];
-  const collectedOrdersForShipping = safeOrders.filter(o =>
-    o.deliveryStatus === "delivered" ||
-    o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered" ||
-    (o.deliveryStatus === "returned" && RETURN_REASONS_WITH_SHIPPING_EXCEL.includes(String((o as any).returnReason ?? "")))
-  );
-  // في حالتين تحديدًا (رفض بعد المعاينة ولم يدفع، أو تهرب من الاستلام) نستخدم تكلفة
-  // المندوب الفعلية (zoneCost) بدل سعر شحن العميل — نفس منطق باقي الصفحة بالظبط.
-  const getShippingValueForExcel = (o: any) => {
-    const rr = String(o?.returnReason ?? "");
-    const useRepCost = o.deliveryStatus === "returned" && (rr === "refused_unpaid" || rr === "quality");
-    return useRepCost ? Number(o?.zoneCost ?? 0) : Number(o?.shippingCost ?? 0);
-  };
-  const effectiveShipping = collectedOrdersForShipping.reduce((sum, o) => sum + getShippingValueForExcel(o), 0);
-  const netDue = totalCollected - effectiveShipping;
+  // (2026-08-31): موحّدة مع lib/manifestFinanceCalc.ts — نفس مصدر أرقام الشاشة
+  // بالظبط (كان قبل كده حساب منفصل بمنطق partial مختلف وأدى لتضارب بين الإكسيل والشاشة).
+  const { totalCollected, effectiveShipping, netDue } = computeManifestFinanceTotals(safeOrders);
 
   // ── Excel Export — styled workbook with RTL layout ────────────────────────
   const exportExcel = async () => {
@@ -3114,28 +3050,9 @@ function ExportDialog({
     groupedOrders.forEach((group, idx) => {
       const rep = group[0];
       const invoiceNum = (rep as any).invoiceNumber?.trim() || `S-${rep.id}`;
-      const cod = group.reduce((sum, order) => sum + order.totalPrice, 0);
-      // في حالتين تحديدًا (رفض بعد المعاينة ولم يدفع، أو تهرب من الاستلام) نستخدم تكلفة
-      // المندوب الفعلية (zoneCost) بدل سعر شحن العميل — نفس منطق باقي الصفحة بالظبط.
-      const fee = group.reduce((sum, order) => {
-        const rr = String((order as any)?.returnReason ?? "");
-        const useRepCost = order.deliveryStatus === "returned" && (rr === "refused_unpaid" || rr === "quality");
-        return sum + (useRepCost ? Number((order as any)?.zoneCost ?? 0) : Number((order as any).shippingCost ?? 0));
-      }, 0);
-      const shipmentTotal = cod + fee;
-      const receivedValue = group.reduce((sum, order) => {
-        if (order.deliveryStatus === "delivered") {
-          const dvr = (order as any).deliveredValueReceived;
-          return sum + (dvr != null ? Number(dvr) : Number(order.totalPrice ?? 0));
-        }
-        if (order.deliveryStatus === "partial_delivered" || order.deliveryStatus === "partial_received") {
-          return sum + Number(order.partialQuantity ?? 0);
-        }
-        if (order.deliveryStatus === "returned") {
-          return sum + Number((order as any).returnValueReceived ?? 0);
-        }
-        return sum;
-      }, 0);
+      // (2026-08-31): موحّدة مع lib/manifestFinanceCalc.ts — بيصحح خطأ partial_delivered/
+      // partial_received اللي كان بيحسب الكمية كأنها فلوس، وبيوحّد شرط الإرجاع المالي.
+      const { shipmentTotal, fee, receivedValue } = computeRowFinance(group);
       const statuses = [...new Set(group.map((order) => order.deliveryStatus))];
       const deliveryStatus = statuses.length === 1 ? statuses[0] : "pending";
       const deliveryLabel = statuses.length === 1
@@ -4508,12 +4425,9 @@ export default function ShippingManifestPage() {
   // ⚠️ تصحيح (2026-08-28، ٧): نفس بالظبط منطق ordersWithoutPendingReturns فوق —
   // استبعاد "قيد الانتظار" بس (shipmentStatus)، عشان العدّادات هنا تطابق صفوف
   // الجدول الفعلية بالظبط (بما فيها المرتجع والجزئي المؤكد).
-  const ordersExcludingPendingShipping = (manifest.orders ?? []).filter(
-    (o) => {
-      const shipmentStatus = (o as any).status;
-      return shipmentStatus !== "pending" && shipmentStatus !== "waiting";
-    }
-  );
+  // (2026-08-31): منتقلة لـ lib/manifestFinanceCalc.ts (ordersEligibleForFinance)
+  // — نفس المنطق بالظبط، مصدر واحد مشترك مع الإكسيل.
+  const ordersExcludingPendingShipping = ordersEligibleForFinance(manifest.orders);
 
   // ─── كل العدادات (مسلَّم/مرتجع/جزئي/مؤجل/بانتظار/إجمالي) لازم تطابق صفوف جدول الطلبيات في البيان ───
   // (تصحيح 2026-08-28، ٧): المرتجع/الجزئي كلهم بقوا ظاهرين فى الجدول والعدّادات
@@ -4569,97 +4483,12 @@ export default function ShippingManifestPage() {
     }
   };
 
-  const deliveredGross = ordersExcludingPendingShipping
-    .filter(o => o.deliveryStatus === "delivered")
-    .reduce((sum, o) => {
-      const dvr = (o as any).deliveredValueReceived;
-      const actual = dvr != null ? Number(dvr) : Number(o.totalPrice ?? 0);
-      return sum + actual;
-    }, 0);
-
-  const partialGross = ordersExcludingPendingShipping
-    .filter(o => o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered")
-    .reduce((sum, o) => {
-      if (o.partialQuantity == null) return sum;
-      if (o.deliveryStatus === "partial_delivered") {
-        return sum + Number(o.partialQuantity);
-      }
-      if (o.quantity <= 0) return sum;
-      const unitPrice = (o as any).unitPrice != null
-        ? Number((o as any).unitPrice)
-        : Number(o.totalPrice) / Number(o.quantity);
-      return sum + Math.round(unitPrice * Number(o.partialQuantity));
-    }, 0);
-
-  const RETURN_REASONS_WITH_SHIPPING = ["refused_paid", "refused_unpaid", "quality", "unaware", "cancel_requested", "no_answer", "out_of_coverage"];
-  // الأسباب المالية الثلاثة فقط اللي بيظهر لها القيمة المستلمة وسعر الشحن في جدول "نظرة العميل":
-  // رفض بعد المعاينة (دفع/غير مدفوع) أو تهرّب من الاستلام.
-  const RETURN_REASONS_FINANCIAL = ["refused_paid", "refused_unpaid", "quality"];
-  const getCollectedAmount = (o: ManifestOrder) => {
-    // ⚠️ تصحيح (2026-08-28، ١٢): بند مُرحّل (rolledOver) من بيان أقدم اتقفل —
-    // قيمته المالية اتحسبت هناك خلاص. طالما لسه ظاهر في الجدول هنا (يعني حالته
-    // النهائية لسه مؤجل/قيد الانتظار حسب الفلتر فوق)، قيمته المستلمة = صفر دايمًا.
-    if ((o as any).rolledOver === true) return 0;
-    if (o.deliveryStatus === "delivered") {
-      const dvr = (o as any).deliveredValueReceived;
-      return dvr != null ? Number(dvr) : Number(o.totalPrice ?? 0);
-    }
-    if (o.deliveryStatus === "partial_delivered") {
-      return o.partialQuantity == null ? 0 : Number(o.partialQuantity);
-    }
-    if (o.deliveryStatus === "partial_received") {
-      // partialQuantity هنا فعليًا مبلغ الفلوس المُستلم (collectedAmount)، مش عدد قطع — تترجع كقيمة مباشرة.
-      return o.partialQuantity == null ? 0 : Math.round(Number(o.partialQuantity));
-    }
-    if (
-      o.deliveryStatus === "returned" &&
-      RETURN_REASONS_FINANCIAL.includes(String((o as any).returnReason ?? ""))
-    ) {
-      // القيمة المستلمة بتظهر لمجرد إن المندوب دخّل تحصيل فعلي (returnValueReceived)،
-      // بغض النظر عن تأكيد استلام البضاعة نفسها في المخزن (returnReceived).
-      const rvr = (o as any).returnValueReceived;
-      return rvr != null ? Number(rvr) : 0;
-    }
-    return 0;
-  };
-  // إجمالي سعر الشحنة = قيمة الفاتورة الأصلية للشحنة دايمًا، بدون أي شرط تصفير أو
-  // تأثر بحالة التسليم/الاسترجاع أو بالقيمة المستلمة فعليًا (deliveredValueReceived).
-  const getShipmentAmount = (o: ManifestOrder) =>
-    Number(o.totalPrice ?? (o as any).total ?? 0);
-  // نفس شرط تصفير سعر الشحن المستخدم في الجدول التفصيلي (isShippingZeroedRow):
-  // مؤجل/معلَّق/قيد الانتظار، أو مرتجع بسبب غير مالي = صفر — عشان الرقم هنا
-  // يطابق بالظبط مجموع عمود "سعر الشحن" الظاهر فعليًا في الصفوف.
-  const isShippingZeroedRowTop = (o: ManifestOrder) => {
-    // ⚠️ تصحيح (2026-08-28، ١٢): بند مُرحّل (rolledOver) — سعر شحنه صفر دايمًا
-    // هنا، بغض النظر عن حالته أو سببه، لنفس سبب تصفير getCollectedAmount فوق.
-    if ((o as any).rolledOver === true) return true;
-    const st = o.deliveryStatus;
-    if (st === "postponed" || st === "delayed" || st === "pending") return true;
-    if (st === "returned") {
-      // سعر الشحن مستحق دايمًا للأسباب المالية التلاتة (العميل/تكلفة المندوب
-      // مسؤول عنها بغض النظر عن وجود تحصيل فعلي أو لا) — القيمة المستلمة
-      // (getCollectedAmount) هي وحدها اللي بتفضل صفر لو مفيش returnValueReceived.
-      // ملحوظة: الباك اند (rolledOverShipmentIds) بيمنع الـ fallback القديم من
-      // بيان المندوب للبنود المُرحّلة، فمفيش خطر تكرار حساب الشحن بعد rollover.
-      if (!RETURN_REASONS_FINANCIAL.includes(String((o as any).returnReason ?? ""))) return true;
-    }
-    return false;
-  };
-  const getChargeableShipping = (o: ManifestOrder) => {
-    if (isShippingZeroedRowTop(o)) return 0;
-    // في حالتين تحديدًا (رفض بعد المعاينة ولم يدفع، أو تهرب من الاستلام) العميل مش
-    // هيتحمّل سعر الشحن العادي بتاعه — بنعرض بدلها تكلفة المندوب الفعلية (zoneCost)
-    // — نفس منطق useRepCost المستخدم في باقي الصفحة (الملخصات/الطباعة/الإكسل).
-    const rr = String((o as any)?.returnReason ?? "");
-    const useRepCost = o.deliveryStatus === "returned" && (rr === "refused_unpaid" || rr === "quality");
-    const shipping = useRepCost ? Number((o as any)?.zoneCost ?? 0) : Number((o as any).shippingCost ?? 0);
-    return shipping + Number((o as any).repExtraCost ?? 0);
-  };
-
-  const totalCollected = ordersExcludingPendingShipping.reduce((sum, o) => sum + getCollectedAmount(o), 0);
-  const effectiveShipping = ordersExcludingPendingShipping.reduce((sum, o) => sum + getChargeableShipping(o), 0);
-  // إجمالي المستحق = مجموع "القيمة المستلمة" مباشرة لكل شحنات البيان، بدون طرح تكلفة الشحن.
-  const netDue = totalCollected;
+  // (2026-08-31): كل حسابات المالية (getCollectedAmount, getShipmentAmount,
+  // getChargeableShipping, totalCollected, effectiveShipping, netDue) منقولة
+  // لـ lib/manifestFinanceCalc.ts — مصدر واحد مشترك بين الشاشة والإكسيل والـ PDF.
+  // ⚠️ تصحيح جوهري (2026-08-31): netDue كان بالغلط = totalCollected بس (بدون
+  // خصم رسوم الشحن) — دلوقتي دايمًا = totalCollected - effectiveShipping.
+  const { totalCollected, effectiveShipping, netDue } = computeManifestFinanceTotals(manifest.orders);
   // عدد الطلبيات الجديدة المضافة للبيان ولسه ماتحركتش (قيد الانتظار) — نفس منطق "عدد الأوردرات الجديدة" في نموذج تقفيل الرحلة
   const newOrdersCount = groupedPendingCount;
   const returnedNotArrived = (manifest.orders ?? []).filter(
@@ -4750,36 +4579,9 @@ export default function ShippingManifestPage() {
             const singleStatus = isSingleStatus ? (statuses[0] as DeliveryStatus) : "pending";
             const { label, cls } = statusLabel(singleStatus);
             const totalQty = group.reduce((sum, o) => sum + (o.quantity ?? 0), 0);
-            const cod = group.reduce((sum, o) => sum + Number(o.totalPrice ?? 0), 0);
-            // في حالتين تحديدًا (رفض بعد المعاينة ولم يدفع، أو تهرب من الاستلام) نستخدم
-            // تكلفة المندوب الفعلية (zoneCost) بدل سعر شحن العميل — نفس منطق باقي الصفحة.
-            const fee = group.reduce((sum, o) => {
-              const rr = String((o as any)?.returnReason ?? "");
-              const useRepCost = o.deliveryStatus === "returned" && (rr === "refused_unpaid" || rr === "quality");
-              return sum + (useRepCost ? Number((o as any)?.zoneCost ?? 0) : Number((o as any).shippingCost ?? 0));
-            }, 0);
-            const extraFee = group.reduce((sum, o) => sum + Number((o as any).repExtraCost ?? 0), 0);
+            // (2026-08-31): موحّدة مع lib/manifestFinanceCalc.ts — نفس أرقام الشاشة والإكسيل بالظبط.
+            const { cod, fee, extraFee, receivedValue } = computeRowFinance(group);
             const extraReasons = [...new Set(group.map((o) => (o as any).repExtraReason).filter(Boolean))].join(" + ");
-            const receivedValue = group.reduce((sum, o) => {
-              if (o.deliveryStatus === "delivered") {
-                const dvr = (o as any).deliveredValueReceived;
-                return sum + (dvr != null ? Number(dvr) : Number(o.totalPrice ?? 0));
-              }
-              if (o.deliveryStatus === "partial_delivered") {
-                return sum + (o.partialQuantity != null ? Number(o.partialQuantity) : 0);
-              }
-              if (o.deliveryStatus === "partial_received") {
-                if (o.partialQuantity != null && o.quantity > 0) {
-                  const unitPrice = (o as any).unitPrice != null ? Number((o as any).unitPrice) : Number(o.totalPrice) / Number(o.quantity);
-                  return sum + Math.round(unitPrice * Number(o.partialQuantity));
-                }
-                return sum;
-              }
-              if (o.deliveryStatus === "returned") {
-                return sum + Number((o as any).returnValueReceived ?? 0);
-              }
-              return sum;
-            }, 0);
             const notes = [...new Set(group.map((o) => o.deliveryNote).filter(Boolean))].join(" | ");
             return (
               <tr key={group.map((o) => o.id).join("-")} className={idx % 2 === 1 ? "mp-row-alt" : ""}>
@@ -4823,7 +4625,7 @@ export default function ShippingManifestPage() {
         </div>
         <div className="mp-total-card mp-total-highlight">
           <div className="mp-total-lbl">الصافي المستحق</div>
-          <div className="mp-total-val mp-total-green">{Number((totalCollected || 0) - Number(effectiveShipping)).toLocaleString("ar-EG")} ج.م</div>
+          <div className="mp-total-val mp-total-green">{Number(netDue || 0).toLocaleString("ar-EG")} ج.م</div>
         </div>
         {manifest.invoicePrice != null && (
           <div className="mp-total-card">
@@ -4870,36 +4672,9 @@ export default function ShippingManifestPage() {
               const statuses = [...new Set(group.map((o) => o.deliveryStatus))];
               const isSingleStatus = statuses.length === 1;
               const singleStatus = isSingleStatus ? (statuses[0] as DeliveryStatus) : "pending";
-              const cod = group.reduce((sum, o) => sum + Number(o.totalPrice ?? 0), 0);
-              // في حالتين تحديدًا (رفض بعد المعاينة ولم يدفع، أو تهرب من الاستلام) نستخدم
-              // تكلفة المندوب الفعلية (zoneCost) بدل سعر شحن العميل — نفس منطق باقي الصفحة.
-              const fee = group.reduce((sum, o) => {
-                const rr = String((o as any)?.returnReason ?? "");
-                const useRepCost = o.deliveryStatus === "returned" && (rr === "refused_unpaid" || rr === "quality");
-                return sum + (useRepCost ? Number((o as any)?.zoneCost ?? 0) : Number((o as any).shippingCost ?? 0));
-              }, 0);
-              const extraFee = group.reduce((sum, o) => sum + Number((o as any).repExtraCost ?? 0), 0);
+              // (2026-08-31): موحّدة مع lib/manifestFinanceCalc.ts — نفس أرقام باقي الجداول بالظبط.
+              const { cod, fee, extraFee, receivedValue } = computeRowFinance(group);
               const extraReasons = [...new Set(group.map((o) => (o as any).repExtraReason).filter(Boolean))].join(" + ");
-              const receivedValue = group.reduce((sum, o) => {
-                if (o.deliveryStatus === "delivered") {
-                  const dvr = (o as any).deliveredValueReceived;
-                  return sum + (dvr != null ? Number(dvr) : Number(o.totalPrice ?? 0));
-                }
-                if (o.deliveryStatus === "partial_delivered") {
-                  return sum + (o.partialQuantity != null ? Number(o.partialQuantity) : 0);
-                }
-                if (o.deliveryStatus === "partial_received") {
-                  if (o.partialQuantity != null && o.quantity > 0) {
-                    const unitPrice = (o as any).unitPrice != null ? Number((o as any).unitPrice) : Number(o.totalPrice) / Number(o.quantity);
-                    return sum + Math.round(unitPrice * Number(o.partialQuantity));
-                  }
-                  return sum;
-                }
-                if (o.deliveryStatus === "returned") {
-                  return sum + Number((o as any).returnValueReceived ?? 0);
-                }
-                return sum;
-              }, 0);
               const statusText =
                 singleStatus === "delivered" ? "استلم" :
                 singleStatus === "returned" ? "مرتجع" :
@@ -5221,33 +4996,15 @@ export default function ShippingManifestPage() {
             // الانتظار / مرتجع بسبب مش من الأسباب المالية الثلاثة / مرتجع بسبب مالي لكن
             // القيمة المستلمة الفعلية = صفر). غير كده (مسلَّم، جزئي، أو مرتجع بسبب مالي
             // وله قيمة مستلمة فعلية) تتحسب القيمة الفعلية وسعر الشحن معاها.
-            // شرط تصفير "القيمة المستلمة" فقط - مؤجَّل/قيد الانتظار/مرتجع بسبب غير مالي
-            // أو مرتجع بسبب مالي بس القيمة المستلمة الفعلية = صفر
-            const isCollectedZeroedRow = (order: ManifestOrder) => {
-              const st = order.deliveryStatus;
-              if (st === "postponed" || st === "delayed" || st === "pending") return true;
-              if (st === "returned") {
-                if (!RETURN_REASONS_FINANCIAL.includes(String((order as any).returnReason ?? ""))) return true;
-                if (getCollectedAmount(order) === 0) return true;
-              }
-              return false;
-            };
-            // شرط تصفير "سعر الشحن" منفصل - الشحن مستحق طالما مسلَّم/جزئي أو مرتجع بسبب مالي،
-            // بغض النظر عن قيمة المستلم الفعلية (ممكن تكون صفر والشحن برضو مستحق - refused_unpaid مثلًا).
-            // ملحوظة: الباك اند (rolledOverShipmentIds) بيمنع الـ fallback القديم من بيان
-            // المندوب للبنود المُرحّلة، فمفيش خطر تكرار حساب الشحن بعد rollover.
-            const isShippingZeroedRow = (order: ManifestOrder) => {
-              const st = order.deliveryStatus;
-              if (st === "postponed" || st === "delayed" || st === "pending") return true;
-              if (st === "returned") {
-                if (!RETURN_REASONS_FINANCIAL.includes(String((order as any).returnReason ?? ""))) return true;
-              }
-              return false;
-            };
-            const shippingDisplay = group.reduce((sum, order) => sum + (isShippingZeroedRow(order) ? 0 : getChargeableShipping(order)), 0);
-            const extraFee = group.reduce((sum, order) => sum + (isShippingZeroedRow(order) ? 0 : Number((order as any).repExtraCost ?? 0)), 0);
+            // "القيمة المستلمة" و"سعر الشحن" الموحّدين من lib/manifestFinanceCalc.ts:
+            // getCollectedAmount بيرجّع صفر تلقائيًا فى كل حالات التصفير (مؤجَّل/قيد
+            // الانتظار/مرتجع بسبب غير مالي/مرتجع بسبب مالي بلا تحصيل فعلي)، وكذلك
+            // getChargeableShipping بيستخدم isShippingZeroed جواه فمفيش داعي لتكرار
+            // الشرط هنا تاني - استخدام الدوال المشتركة مباشرة كافي.
+            const shippingDisplay = group.reduce((sum, order) => sum + getChargeableShipping(order), 0);
+            const extraFee = group.reduce((sum, order) => sum + (isShippingZeroed(order) ? 0 : Number((order as any).repExtraCost ?? 0)), 0);
             const extraReasons = [...new Set(group.map((o) => (o as any).repExtraReason).filter(Boolean))].join(" + ");
-            const collected = group.reduce((sum, order) => sum + (isCollectedZeroedRow(order) ? 0 : getCollectedAmount(order)), 0);
+            const collected = group.reduce((sum, order) => sum + getCollectedAmount(order), 0);
             const key = group.map((order) => order.id).join("-");
             return (
               <div key={`client-look-${key}`}>
@@ -5964,6 +5721,10 @@ export default function ShippingManifestPage() {
         // (اللي بيفضل true دايمًا طالما فيه صف قديم لنفس الشحنة، حتى لو الشحنة
         // اتسلّمت فعلاً في البيان الجديد). استبعادها هنا مطلقًا كان بيصفّر
         // شحنات مُسلَّمة فعليًا بقيمة حقيقية (زي محمد 6 هنا).
+        // أسباب الإرجاع المالية الثلاثة المعتمدة فى كل الصفحة (نفس RETURN_REASONS_FINANCIAL
+        // فى lib/manifestFinanceCalc.ts) — معرّفة محليًا هنا لاستخدامها قبل تعريف
+        // RETURN_REASONS_DUE_LOCAL تحت (نفس القيمة بالظبط).
+        const RETURN_REASONS_FINANCIAL = ["refused_paid", "refused_unpaid", "quality"];
         const ordersForPnl = (manifest.orders ?? []).filter(o => {
           // ─── مرتجع لسه معلَّق عند شركة الشحن (returnReceived !== 1) ───────────
           // لو مُرحَّل من بيان قديم مقفول → يتصفّر هنا (اتحسب أصلاً في البيان
@@ -5996,7 +5757,7 @@ export default function ShippingManifestPage() {
           RETURN_REASONS_DUE_LOCAL.includes(String((o as any).returnReason ?? ""))
         );
         const returnedWithShippingOrders = returnedOrders.filter(o =>
-          RETURN_REASONS_WITH_SHIPPING.includes(String((o as any).returnReason ?? ""))
+          RETURN_REASONS_FINANCIAL.includes(String((o as any).returnReason ?? ""))
         );
         const deliveredCOD = deliveredOrders.reduce((s, o) => s + getCollectedAmount(o), 0);
         const partialCOD = partialOrders.reduce((s, o) => s + getCollectedAmount(o), 0);
