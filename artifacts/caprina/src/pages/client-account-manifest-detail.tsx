@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef, type ElementType } from "react";
 import { createPortal } from "react-dom";
 import ExcelJS from "exceljs";
-import { useParams, Link } from "wouter";
+import { useParams, useSearch, Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   shipmentManifestsApi,
@@ -3869,6 +3869,11 @@ function ClientMoneyCard({ label, value, tone, className = "" }: {
 export default function ShippingManifestPage() {
   const params = useParams();
   const id = Number(params.id);
+  // زرار الرجوع: لو دخلنا البيان من صفحة "حسابات العملاء" (عرض بروفايل)
+  // بيرجّع لنفس الصفحة دي بالظبط بدل صفحة حساب العميل العامة — طلب المدير.
+  // أي مصدر تاني (بدون ?from=client-account-sheet) يفضل زي ما هو.
+  const search = useSearch();
+  const cameFromClientAccountSheet = new URLSearchParams(search).get("from") === "client-account-sheet";
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { canViewFinancials, isAdmin } = useAuth();
@@ -4649,7 +4654,7 @@ export default function ShippingManifestPage() {
       {/* ─── Header ─── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <Link href={`/finance/clients/${manifest.clientId}`}>
+          <Link href={cameFromClientAccountSheet ? "/finance/client-account-sheet" : `/finance/clients/${manifest.clientId}`}>
             <Button
               variant="outline"
               size="icon"

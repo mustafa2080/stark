@@ -561,7 +561,10 @@ export default function ClientAccountManifestsPage() {
                 type="button"
                 onClick={() => navigate(
                   client.latestManifestId
-                    ? `/finance/client-account-sheet/manifest/${client.latestManifestId}`
+                    // from=client-account-sheet: عشان زرار الرجوع جوه صفحة
+                    // تفاصيل البيان يرجّع هنا بالظبط (صفحة حسابات العملاء)
+                    // مش لصفحة حساب العميل العامة — طلب المدير.
+                    ? `/finance/client-account-sheet/manifest/${client.latestManifestId}?from=client-account-sheet`
                     : `/finance/clients/${client.id}`
                 )}
                 className="flex flex-col items-center gap-2 p-3 rounded-2xl hover:bg-white/5 transition-colors text-center"
