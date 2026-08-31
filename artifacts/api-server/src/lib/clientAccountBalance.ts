@@ -262,8 +262,18 @@ export async function computeClosedManifestsForClient(clientId: number): Promise
       // اللي بتتخصم بدلها، نفس useRepCost بالفرونت (getChargeableShipping)
       // بالظبط. "رفض ودفع" لوحده بيتخصم منه سعر الشحن العادي على العميل.
       const useRepCostForDue = isReturnedWithValue && (reason === "refused_unpaid" || reason === "quality");
-      const dueShippingBase = useRepCostForDue ? getZoneCost(shipment) : zoneShippingForItem;
-      const dueRowValue = collected - (dueShippingBase + repExtraCostForItem);
+      // ⚠️⚠️ إصلاح (2026-08-31، فرق 540 ج.م بين "الرصيد المستحق" في صفحة تفاصيل
+      // البيان و"رصيد العميل"/كشف الحساب — العميلة رقية العرابي، بيان CAM-83-001،
+      // 6 شحنات "مؤجل"): netDueFromClientAllStatuses (manifestFinance.ts) بيصفّر
+      // dueShippingBase بالكامل لبند حالته postponed/pending فقط (isShippingZeroedForDue)
+      // — بند "مؤجل" (delayed) مش من ضمنهم فبيتحسب بسعر شحن كامل زي أي حالة تانية.
+      // هنا dueShippingBase كان بيتحسب دايمًا من غير أي تصفير لـ postponed/pending،
+      // فبند من الحالتين دول كان بيتخصم منه سعر شحن كامل هنا بينما صفحة البيان
+      // الفردي بتصفّره لصفر، فرصيد العميل يطلع أقل من الرصيد المستحق الفعلي.
+      const isShippingZeroedForDue = st === "postponed" || st === "pending";
+      const dueShippingBase = isShippingZeroedForDue ? 0 : (useRepCostForDue ? getZoneCost(shipment) : zoneShippingForItem);
+      const dueRepExtraCostForItem = isShippingZeroedForDue ? 0 : repExtraCostForItem;
+      const dueRowValue = collected - (dueShippingBase + dueRepExtraCostForItem);
 
       // ⚠️⚠️ إصلاح (2026-08-31، فرق 125 ج.م بين "الرصيد المستحق" في صفحة تفاصيل
       // البيان و"رصيد العميل"/كشف الحساب — العميل JESY، بيان CAM-101-001، شحنة
@@ -552,8 +562,14 @@ export async function computeClientBalancesForAllClients(
       // بيتحمّل سعر الشحن العادي بتاعه — تكلفة المندوب الفعلية (zoneCost) هي اللي
       // بتتخصم بدلها، نفس useRepCost بالفرونت بالظبط. + استبعاد المُرحّل المعلّق.
       const useRepCostForDueAll = isReturnedWithValue && (reason === "refused_unpaid" || reason === "quality");
-      const dueShippingBaseAll = useRepCostForDueAll ? getZoneCostAll(shipment) : zoneShippingForItem;
-      const dueRowValueAll = collected - (dueShippingBaseAll + repExtraCostForItemAll);
+      // ⚠️⚠️ إصلاح (2026-08-31، فرق 540 ج.م — نفس إصلاح computeClosedManifestsForClient
+      // فوق): dueShippingBase لازم يتصفّر بالكامل لبند حالته postponed/pending، زي
+      // بالظبط isShippingZeroedForDue في netDueFromClientAllStatuses (manifestFinance.ts).
+      // "مؤجل" (delayed) مش من ضمنهم فبيتحسب بسعر شحن كامل عادي.
+      const isShippingZeroedForDueAll = st === "postponed" || st === "pending";
+      const dueShippingBaseAll = isShippingZeroedForDueAll ? 0 : (useRepCostForDueAll ? getZoneCostAll(shipment) : zoneShippingForItem);
+      const dueRepExtraCostForItemAll = isShippingZeroedForDueAll ? 0 : repExtraCostForItemAll;
+      const dueRowValueAll = collected - (dueShippingBaseAll + dueRepExtraCostForItemAll);
 
       // ⚠️⚠️ إصلاح (2026-08-31): نفس إصلاح computeClosedManifestsForClient فوق —
       // استبعاد "مُرحّل" (rolledOver) لازم يتقيّد بحالة returned بس، زي بالظبط
