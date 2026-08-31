@@ -899,12 +899,7 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
     // استبعاد أي بند مُرحّل (rolledOver) لسه معلّق (اتحسب فعليًا وقت قفل بيانه الأصلي).
     const RETURN_REASONS_DUE = new Set(["refused_paid", "refused_unpaid", "quality"]);
     let netDueFromClientAllStatuses = 0;
-    // ⚠️ فيكس (2026-08-31): كان بيلف على visibleItems (الخام من DB)، اللي معهوش
-    // zonePrice/totalPrice/zoneCost/repExtraCost أصلاً — دي بتتحسب فقط جوه
-    // enrichedItems (الـ .map() فوق). النتيجة: undefined - undefined = NaN لكل
-    // بند، فالمجموع النهائي كان NaN → JSON.stringify بيحوّله null، والـ endpoint
-    // كان بيرجّع netDueFromClient: null بالكامل بدل رقم صحيح.
-    for (const item of enrichedItems as any[]) {
+    for (const item of visibleItems as any[]) {
       const shipment = shipmentMap[item.shipmentId];
       if (!shipment) continue;
       const st = item.deliveryStatus;
