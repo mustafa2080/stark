@@ -747,10 +747,15 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
         // نفس مصدر الحقيقة الموحّد: تكلفة المنطقة (zone_costs) أولاً، وإلا سعر shipment_zones
         // — لكن للمرتجع بلا سبب خالص، سعر الشحن = صفر.
         zonePrice:     zoneShippingForItem,
-        // الإجمالي لازم يستخدم نفس سعر المنطقة الفعلي (getZoneShipping) اللي بيتعرض في
-        // عمود "سعر المنطقة" — مش shippingFee الخام اللي ممكن يبقى صفر لو محدّش دخلها يدويًا.
-        totalPrice:    Number(sh?.codAmount ?? sh?.totalAmount ?? 0) + zoneShippingForItem,
-        unitPrice:     Number(sh?.codAmount ?? sh?.totalAmount ?? 0) + zoneShippingForItem,
+        // ⚠️⚠️⚠️ إصلاح (2026-08-31، طلب مصطفى — فرق 30 ج.م، العميل JESY، شحنات
+        // 1981/1982/1983): totalAmount المسجّل في جدول shipments وقت إنشاء
+        // الشحنة هو مصدر الحقيقة الصحيح، مش (codAmount + zoneShippingForItem
+        // الحالي) — لو سعر الـ zone اتغيّر بعد إنشاء الشحنة (مثلاً 95 وقتها، 85
+        // دلوقتي)، إعادة البناء كانت بتدّي نتيجة أقل من totalAmount الحقيقي.
+        // نفس المنطق المتفق عليه فعليًا في computeManifestNetDue (فوق فى نفس
+        // المشروع، manifestFinance.ts).
+        totalPrice:    Number(sh?.totalAmount ?? ((sh?.codAmount ?? 0) + zoneShippingForItem)),
+        unitPrice:     Number(sh?.totalAmount ?? ((sh?.codAmount ?? 0) + zoneShippingForItem)),
         shippingCost:  zoneShippingForItem,
         // تكلفة المندوب الحقيقية (zone_costs.deliveryCost) — سعر توصيل واحد لكل منطقة
         // بدون تصنيف عميل، دي المفروض تتطرح من سعر الشحن عشان نطلع صافي الإيراد الفعلي.

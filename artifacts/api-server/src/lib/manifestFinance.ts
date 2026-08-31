@@ -360,7 +360,13 @@ export async function computeClientManifestNetDue(manifestId: number): Promise<n
           ? rawItem.returnValueReceived
           : (rolledOver ? null : (shipmentReturnValueMap[rawItem.shipmentId] ?? null)))
       : null;
-    const totalPrice = Number(sh.codAmount ?? sh.totalAmount ?? 0) + zoneShippingForItem;
+    // ⚠️⚠️⚠️ إصلاح (2026-08-31، طلب مصطفى — فرق 30 ج.م، العميل JESY): نفس إصلاح
+    // computeClosedManifestsForClient/computeClientBalancesForAllClients في
+    // clientAccountBalance.ts بالظبط، وبما إن التعليق فوق الدالة دي بيقول إنها
+    // لازم تطابق stats.netDueFromClient بالظبط — totalAmount المسجّل في جدول
+    // shipments هو مصدر الحقيقة الصحيح لما deliveredValueReceived يكون NULL،
+    // مش قيمة مُعاد بناؤها من (codAmount + zoneShippingForItem الحالي).
+    const totalPrice = Number(sh.totalAmount ?? ((sh.codAmount ?? 0) + zoneShippingForItem));
     const repExtraCost = (zoneShippingForItem > 0 && sh.parcelType) ? (parcelPricingMap[sh.parcelType]?.basePrice ?? 0) : 0;
 
     const item = {

@@ -268,7 +268,17 @@ export async function computeClosedManifestsForClient(clientId: number): Promise
       const reason = (item as any).returnReason ?? (shipment as any)?.returnReason ?? null;
       const isReturnedWithValue = st === "returned" && RETURN_REASONS_FINANCIAL.has(String(reason ?? ""));
       const zoneShippingForItem = (st !== "returned" || isReturnedWithValue) ? getZoneShipping(shipment) : 0;
-      const totalPrice = Number(shipment.codAmount ?? shipment.totalAmount ?? 0) + zoneShippingForItem;
+      // ⚠️⚠️⚠️ إصلاح (2026-08-31، طلب مصطفى — فرق 30 ج.م، العميل JESY، شحنات
+      // 1981/1982/1983): لما deliveredValueReceived يكون NULL، كان totalPrice
+      // بيتحسب من (codAmount + zoneShippingForItem الحالي من shipment_zones)
+      // بدل من shipment.totalAmount المسجّل فعليًا وقت إنشاء الشحنة. لو سعر
+      // الـ zone الحالي (مثلاً 85) اختلف عن shippingFee اللي اتحسب بيه
+      // totalAmount وقت الإنشاء (مثلاً 95)، القيمة الافتراضية للتحصيل كانت
+      // بتطلع أقل من totalAmount الحقيقي بمقدار الفرق (10 ج.م × 3 شحنات = 30).
+      // totalAmount المسجّل في جدول shipments هو مصدر الحقيقة الصحيح هنا (نفس
+      // ما بيحصل في كل الحالات التانية اللي فيها قيمة تحصيل مسجّلة صراحة) —
+      // مش قيمة مُعاد بناؤها بسعر شحن ممكن يكون اتغيّر بعد إنشاء الشحنة.
+      const totalPrice = Number(shipment.totalAmount ?? ((shipment.codAmount ?? 0) + zoneShippingForItem));
 
       let collected = 0;
       if (st === "delivered") {
@@ -617,7 +627,12 @@ export async function computeClientBalancesForAllClients(
       const reason = (item as any).returnReason ?? (shipment as any)?.returnReason ?? null;
       const isReturnedWithValue = st === "returned" && RETURN_REASONS_FINANCIAL.has(String(reason ?? ""));
       const zoneShippingForItem = (st !== "returned" || isReturnedWithValue) ? getZoneShipping(shipment, clientType) : 0;
-      const totalPrice = Number(shipment.codAmount ?? shipment.totalAmount ?? 0) + zoneShippingForItem;
+      // ⚠️⚠️⚠️ إصلاح (2026-08-31، طلب مصطفى — فرق 30 ج.م، نفس إصلاح
+      // computeClosedManifestsForClient فوق بالظبط): totalAmount المسجّل في
+      // جدول shipments هو مصدر الحقيقة الصحيح لما deliveredValueReceived يكون
+      // NULL، مش قيمة مُعاد بناؤها من (codAmount + zoneShippingForItem الحالي)
+      // اللي ممكن يختلف عن shippingFee وقت إنشاء الشحنة.
+      const totalPrice = Number(shipment.totalAmount ?? ((shipment.codAmount ?? 0) + zoneShippingForItem));
 
       let collected = 0;
       if (st === "delivered") {
