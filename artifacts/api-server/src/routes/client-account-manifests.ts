@@ -294,27 +294,32 @@ router.get("/client-account-manifests", async (req, res): Promise<void> => {
 });
 
 // ─── GET /client-account-manifests/clients-with-balance ──────────────────────
-// قائمة كل العملاء التجاريين (اللي عندهم بيانات حساب عميل) مع رصيد كل واحد محسوب
+// قائمة كل العملاء التجاريين (كل صفوف جدول clients، زي صفحة "العملاء التجاريون")
+// مع رصيد كل واحد محسوب من بياناته (لو عنده) — أو صفر لو لسه مفيش له بيانات
 // تُستخدم في القائمة المنسدلة لصفحة "سداد حساب عميل" بالمصروفات
 router.get("/client-account-manifests/clients-with-balance", async (req, res): Promise<void> => {
   try {
     const tenantId = getTenantId(req);
 
-    // كل العملاء اللي عندهم بيان حساب عميل واحد على الأقل
-    const manifestConds: any[] = [];
+    // كل العملاء التجاريين بالكامل — نفس مصدر صفحة "العملاء التجاريون" (GET /finance/clients)
+    const clientConds: any[] = [];
+    if (tenantId !== null) clientConds.push(eq(clientsTable.tenantId, tenantId));
+    const clients = await db
+      .select({ id: clientsTable.id, name: clientsTable.name, phone: clientsTable.phone })
+      .from(clientsTable)
+      .where(clientConds.length ? and(...clientConds) : undefined);
+
+    if (!clients.length) { res.json({ clients: [] }); return; }
+
+    const clientIds = clients.map(c => c.id);
+
+    // بيانات حساب العميل (لو موجودة) — تُستخدم لحساب الرصيد فقط، مش لتحديد مين يظهر بالقائمة
+    const manifestConds: any[] = [inArray(clientAccountManifestsTable.clientId, clientIds)];
     if (tenantId !== null) manifestConds.push(eq(clientAccountManifestsTable.tenantId, tenantId));
     const allManifests = await db
       .select({ id: clientAccountManifestsTable.id, clientId: clientAccountManifestsTable.clientId, status: clientAccountManifestsTable.status })
       .from(clientAccountManifestsTable)
-      .where(manifestConds.length ? and(...manifestConds) : undefined);
-
-    const clientIds = Array.from(new Set(allManifests.map(m => m.clientId).filter(Boolean)));
-    if (!clientIds.length) { res.json({ clients: [] }); return; }
-
-    const clients = await db
-      .select({ id: clientsTable.id, name: clientsTable.name, phone: clientsTable.phone })
-      .from(clientsTable)
-      .where(inArray(clientsTable.id, clientIds));
+      .where(and(...manifestConds));
 
     const allManifestIds = allManifests.map(m => m.id);
 
