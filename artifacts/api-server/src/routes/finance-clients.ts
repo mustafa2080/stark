@@ -400,20 +400,6 @@ router.get("/finance/clients", async (req, res): Promise<void> => {
     // "صافي الإيراد المستحق")، مجمّع على مستوى العميل بالكامل.
     const netRevenueDueMap = await computeNetRevenueDueForAllClients(ids);
 
-    // ── اسم مستخدم تسجيل الدخول لبوابة العميل (لو عنده حساب) ──────────────
-    // usersTable.clientId هو الرابط الصريح لحساب العميل التجاري. الباسورد نفسه
-    // مش بيترجع أبداً — passwordHash مخزن مشفّر (one-way) ومفيش داعي نجيبه أصلاً.
-    let loginUsernameMap: Record<number, string | null> = {};
-    if (ids.length) {
-      const loginRows = await db
-        .select({ clientId: usersTable.clientId, username: usersTable.username })
-        .from(usersTable)
-        .where(inArray(usersTable.clientId, ids));
-      for (const row of loginRows) {
-        if (row.clientId != null) loginUsernameMap[row.clientId] = row.username;
-      }
-    }
-
     const enriched = clients.map(c => {
       const stat = statsMap[c.id] ?? { totalOrders: 0, totalSales: 0, totalPaid: 0 };
       const acct = accountBalances[c.id] ?? { totalManifestsValue: 0, totalPaid: 0, balance: 0 };
@@ -441,8 +427,6 @@ router.get("/finance/clients", async (req, res): Promise<void> => {
         netRevenueDue: netRevenueDue.toFixed(2),
         hasOpenManifest: openManifestClientIds.has(c.id),
         latestManifestId: latestManifestIdMap[c.id] ?? null,
-        // يوزر بوابة العميل (null لو العميل لسه ملوش حساب دخول)
-        loginUsername: loginUsernameMap[c.id] ?? null,
       };
     });
 
