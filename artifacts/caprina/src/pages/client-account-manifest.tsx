@@ -18,7 +18,7 @@ import {
   Plus, Users, Edit2, Trash2, Phone, MapPin, ToggleLeft, ToggleRight,
   FileSpreadsheet, TrendingUp, ImagePlus, X as XIcon, Camera, Target,
   ChevronDown, Lock, Unlock, Truck, Package, Search, SlidersHorizontal, X,
-  LayoutGrid, List, Check, Wallet, FileText,
+  LayoutGrid, List, Check, Wallet, FileText, CircleUserRound, FolderOpen, FolderLock,
 } from "lucide-react";
 
 const fmtDate = (iso: string) => {
@@ -39,6 +39,7 @@ type Client = {
   accountBalance?: number; accountRemaining?: number;
   notes: string | null; isActive: boolean; createdAt: string; avatar: string | null;
   warehouseId: number | null;
+  hasOpenManifest?: boolean;
 };
 
 const emptyForm = {
@@ -319,7 +320,11 @@ export default function ClientAccountManifestsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [sortBy, setSortBy] = useState<"recent" | "sales" | "name">("recent");
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [viewMode, setViewMode] = useState<"grid" | "list" | "profile">("grid");
+  // ─── فلتر حالة بيان حساب العميل (مفتوح/مغلق) — طلب المدير: تسهيل التركيز
+  // على العملاء اللي لسه بياناتهم مفتوحة (بيتفعّل بوضوح في عرض "بروفايل"،
+  // ومتاح أيضاً في باقي الأوضاع). "all" = بدون فلترة حسب حالة البيان.
+  const [manifestStatusFilter, setManifestStatusFilter] = useState<"all" | "open" | "closed">("all");
 
   const { data: clients, isLoading } = useQuery<Client[]>({
     queryKey: ["finance-clients"],
@@ -340,6 +345,11 @@ export default function ClientAccountManifestsPage() {
     .filter((c) => {
       if (statusFilter === "active") return c.isActive;
       if (statusFilter === "inactive") return !c.isActive;
+      return true;
+    })
+    .filter((c) => {
+      if (manifestStatusFilter === "open") return !!c.hasOpenManifest;
+      if (manifestStatusFilter === "closed") return !c.hasOpenManifest;
       return true;
     })
     .sort((a, b) => {
@@ -487,6 +497,15 @@ export default function ClientAccountManifestsPage() {
             <List className="w-4 h-4" />
             {viewMode === "list" && <Check className="w-3.5 h-3.5" />}
           </button>
+          <button
+            type="button"
+            onClick={() => setViewMode("profile")}
+            title="عرض بروفايل"
+            className={`h-8 flex items-center gap-1 px-3 rounded-full transition-colors ${viewMode === "profile" ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            <CircleUserRound className="w-4 h-4" />
+            {viewMode === "profile" && <Check className="w-3.5 h-3.5" />}
+          </button>
         </div>
         <div className="relative flex-1">
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -497,6 +516,14 @@ export default function ClientAccountManifestsPage() {
             className="w-full rounded-xl bg-white/5 border border-white/10 pr-9 pl-3 py-2 text-sm outline-none focus:border-primary/50 transition-colors"
           />
         </div>
+        <Select value={manifestStatusFilter} onValueChange={(v: any) => setManifestStatusFilter(v)}>
+          <SelectTrigger className="w-full sm:w-[130px] text-sm"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">كل البيانات</SelectItem>
+            <SelectItem value="open">بيانات مفتوحة</SelectItem>
+            <SelectItem value="closed">بيانات مغلقة</SelectItem>
+          </SelectContent>
+        </Select>
         <Select value={statusFilter} onValueChange={(v: any) => setStatusFilter(v)}>
           <SelectTrigger className="w-full sm:w-[130px] text-sm"><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -517,7 +544,37 @@ export default function ClientAccountManifestsPage() {
 
       {isLoading ? (
         <div className="p-8 text-center text-muted-foreground text-sm">جاري التحميل...</div>
-      ) : filteredClients.length ? (
+      ) : filteredClients.length ? viewMode === "profile" ? (
+        // ─── عرض بروفايل — دايرة بصورة/لوجو العميل + الاسم + مؤشر حالة البيان
+        // (مفتوح/مغلق). الضغط على البروفايل يودّي مباشرة لصفحة حساب العميل،
+        // وفيها زرار الإغلاق نفسه (بطلب المدير: ما يحتاجش يتنقل لأكتر من صفحة).
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-4">
+          {filteredClients.map((client) => {
+            const isOpen = !!client.hasOpenManifest;
+            return (
+              <button
+                key={client.id}
+                type="button"
+                onClick={() => navigate(`/finance/clients/${client.id}`)}
+                className="flex flex-col items-center gap-2 p-3 rounded-2xl hover:bg-white/5 transition-colors text-center"
+              >
+                <div className="relative">
+                  <ClientAvatar avatar={client.avatar} name={client.name} size="lg" />
+                  <span
+                    title={isOpen ? "بيان مفتوح" : "بيان مغلق"}
+                    className={`absolute -top-1 -left-1 w-5 h-5 rounded-full flex items-center justify-center border-2 border-background ${
+                      isOpen ? "bg-emerald-500" : "bg-muted-foreground/60"
+                    }`}
+                  >
+                    {isOpen ? <FolderOpen className="w-3 h-3 text-white" /> : <FolderLock className="w-3 h-3 text-white" />}
+                  </span>
+                </div>
+                <p className="text-xs font-bold truncate max-w-full">{client.name}</p>
+              </button>
+            );
+          })}
+        </div>
+      ) : (
         <div className={viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 gap-4" : "flex flex-col gap-2.5"}>
           {filteredClients.map((client, idx) => {
             const palettes = [

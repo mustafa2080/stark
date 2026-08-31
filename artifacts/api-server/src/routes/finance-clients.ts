@@ -352,6 +352,21 @@ router.get("/finance/clients", async (req, res): Promise<void> => {
     // بيدي رقم غير مرتبط ببيان العميل الفعلي (ممكن يجيب قيمة من بيان مندوب
     // تاني خالص)، فبقى بيتحسب هنا فقط من computeNetRevenueDueForAllClients تحت.
 
+    // ── هل عند العميل بيان حساب مفتوح حالياً؟ — لعرض "بروفايل" (view=profile)
+    // وفلتر حالة البيان في صفحة حسابات العملاء. Query واحدة لكل العملاء دفعة
+    // واحدة (مش N+1) — طلب المدير: تمييز العملاء اللي لسه بياناتهم مفتوحة.
+    let openManifestClientIds = new Set<number>();
+    if (ids.length) {
+      const openManifestRows = await db
+        .selectDistinct({ clientId: clientAccountManifestsTable.clientId })
+        .from(clientAccountManifestsTable)
+        .where(and(
+          eq(clientAccountManifestsTable.status, "open"),
+          inArray(clientAccountManifestsTable.clientId, ids),
+        ));
+      openManifestClientIds = new Set(openManifestRows.map(r => r.clientId));
+    }
+
     // ── رصيد العميل والمتبقي — نفس منطق computeClientBalancesForAllClients ────
     // (بيانات حساب عميل مقفولة clientAccountManifestsTable + clientAccountPaymentsTable)
     // رصيد العميل = إجمالي قيمة البيانات المقفولة (لا يتغير بالسداد)
@@ -387,6 +402,7 @@ router.get("/finance/clients", async (req, res): Promise<void> => {
         accountBalance: acct.totalManifestsValue,
         accountRemaining: acct.balance,
         netRevenueDue: netRevenueDue.toFixed(2),
+        hasOpenManifest: openManifestClientIds.has(c.id),
       };
     });
 
