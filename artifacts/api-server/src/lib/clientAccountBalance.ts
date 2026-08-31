@@ -198,27 +198,51 @@ export async function computeClosedManifestsForClient(clientId: number): Promise
     // جزئي/مؤجل/قيد انتظار) كمستحق، وده كان يخلي "رصيد العميل"/كشف الحساب يختلفوا
     // عن "الرصيد المستحق" الظاهر في صفحة البيان الفردي. مصدر الحقيقة لـ rolledOver
     // هنا (بدون عمود DB): أقدم manifestId لنفس الشحنة ضمن كل بيانات العميل المقفولة.
+    // ⚠️⚠️⚠️ إصلاح جذري (2026-08-31، طلب مصطفى — فرق 30 ج.م، العميل JESY، شحنة
+    // "ام ريان" SHP26080098 / shipment_id=1977): كانت شحنة واحدة بتتحسب في 3
+    // بيانات مختلفة بالتتابع (اتلمّت في CAM-101-001 وهي لسه "مؤجل" (delayed) ثم
+    // اتقفل البيان، بعدين اتلمّت تاني في CAM-101-002 واتقفل هو كمان، وأخيرًا في
+    // CAM-101-003 لسه مفتوح). الشرط القديم كان بيستبعد الشحنة من أي بيان لاحق
+    // بمجرد وجودها في بيان أقدم (`row.manifestId < currentManifestId`) — بدون
+    // النظر لحالتها هناك. المشكلة: لو حالتها في البيان الأقدم كانت لسه معلّقة
+    // (مؤجل/قيد شحن/قيد انتظار) وقت قفله، قيمتها المالية هناك اتحسبت بصفر
+    // (isShippingZeroedForDue/isShippingZeroedRow)، مش القيمة الحقيقية. فلو
+    // استبعدناها بالكامل من البيان اللاحق (لما توصل لحالة نهائية زي "مسلَّم")،
+    // قيمتها بتختفي تمامًا من كشف الحساب الموحّد — لا في البيان الأول (كانت صفر)
+    // ولا في البيان اللاحق (اتستبعدت كمُرحّلة). النتيجة: كشف الحساب أقل من
+    // الرصيد الحقيقي بقيمة الشحنة دي، رغم إن صفحة كل بيان فردي على حدة صحيحة
+    // (لأنها بتشوف بيانها بس).
     //
-    // ⚠️⚠️ إصلاح جوهري (2026-08-31، الفرق الحقيقي 13,350 مقابل 12,810 —
-    // رقية العرابي، بيان CAM-83-001): مصدر rolledOver هنا كان بيتحسب من
-    // "items" بس، وهي محمّلة أصلاً بفلتر status="closed" + clientId=هذا
-    // العميل فقط (شوف allManifests فوق). يعني أي شحنة كانت جزء من بيان سابق
-    // *لسه مفتوح* (لسه ما اتقفلش) أو بيان سابق لعميل تاني، مبيتحسبش هنا خالص
-    // فتترجم غلط كـ"مش مُرحّلة". لكن computeClientManifestNetDue
-    // (manifestFinance.ts، مصدر الحقيقة لصفحة البيان الفردي) بيحسب rolledOver
-    // بكويري مباشر lt(manifestId, currentManifestId) لنفس الشحنة — من غير أي
-    // فلتر status أو clientId خالص. لازم نفس الكويري بالظبط هنا لكل بيان على
-    // حدة عشان الرقمين يفضلوا متطابقين.
+    // الإصلاح: شحنة تُعتبر "مُرحّلة فعليًا" (تُستبعد من البيان اللاحق) بس لو
+    // حالتها في البيان الأقدم كانت حالة نهائية اتحسبت فيها قيمة مالية حقيقية:
+    // "مسلَّم" (delivered)، أو "جزئي" (partial_delivered/partial_received)، أو
+    // "مرتجع" بسبب مالي (refused_paid/refused_unpaid/quality). لو حالتها هناك
+    // كانت لسه معلّقة (postponed/pending/delayed) أو مرتجع بسبب غير مالي، فهي
+    // لسه محسوبة بصفر هناك ومينفعش تُستبعد من البيان الحالي — لازم تتحسب فيه
+    // عادي أول ما توصل لحالة نهائية فعلية.
+    const FINALIZED_DUE_STATUSES = new Set(["delivered", "partial_delivered", "partial_received"]);
+    const isFinalizedOlderRow = (deliveryStatus: string, returnReason: string | null): boolean => {
+      if (FINALIZED_DUE_STATUSES.has(deliveryStatus)) return true;
+      if (deliveryStatus === "returned" && RETURN_REASONS_FINANCIAL.has(String(returnReason ?? ""))) return true;
+      return false;
+    };
     const rolledOverShipmentIdsByManifest: Record<number, Set<number>> = {};
     if (shipmentIds.length && manifestIds.length) {
       const olderItemRows = await db
-        .select({ shipmentId: clientAccountManifestItemsTable.shipmentId, manifestId: clientAccountManifestItemsTable.manifestId })
+        .select({
+          shipmentId: clientAccountManifestItemsTable.shipmentId,
+          manifestId: clientAccountManifestItemsTable.manifestId,
+          deliveryStatus: clientAccountManifestItemsTable.deliveryStatus,
+          returnReason: clientAccountManifestItemsTable.returnReason,
+        })
         .from(clientAccountManifestItemsTable)
         .where(inArray(clientAccountManifestItemsTable.shipmentId, shipmentIds));
       for (const currentManifestId of manifestIds) {
         const set = new Set<number>();
         for (const row of olderItemRows) {
-          if (row.manifestId < currentManifestId) set.add(row.shipmentId);
+          if (row.manifestId < currentManifestId && isFinalizedOlderRow(row.deliveryStatus, row.returnReason)) {
+            set.add(row.shipmentId);
+          }
         }
         rolledOverShipmentIdsByManifest[currentManifestId] = set;
       }
@@ -298,23 +322,21 @@ export async function computeClosedManifestsForClient(clientId: number): Promise
       const dueRepExtraCostForItem = isShippingZeroedForDue ? 0 : repExtraCostForItem;
       const dueRowValue = collected - (dueShippingBase + dueRepExtraCostForItem);
 
-      // ⚠️⚠️ إصلاح (2026-08-31، فرق 125 ج.م بين "الرصيد المستحق" في صفحة تفاصيل
-      // البيان و"رصيد العميل"/كشف الحساب — العميل JESY، بيان CAM-101-001، شحنة
-      // "ام ريان" المؤجلة SHP26080098): إصلاح 2026-08-29 اللي فات كان بيستبعد
-      // أي بند "مُرحّل" (rolledOver) من dueValue بغض النظر عن حالته، لكن صفحة
-      // البيان الفردي (netDueFromClientAllStatuses في manifestFinance.ts) بتقيّد
-      // استبعاد rolledOver بحالة "returned" بس (`item.rolledOver && st ===
-      // "returned"`) — أي بند مؤجل/معلّق غير returned بيتحسب عادي فيها حتى لو
-      // rolledOver=true. فالاستبعاد العام هنا كان يشيل بند "مؤجل" من كشف
-      // الحساب بينما صفحة البيان الفردي بتحسبه، فيفرق الرقمين. لازم الشرط هنا
-      // يطابق نفس تقييد "returned بس" بالظبط عشان الرقمين يفضلوا متطابقين.
-      // ⚠️⚠️ إصلاح (2026-08-31، طلب المستخدم — رقية العرابي، فرق 13,350 مقابل
-      // 12,810): استبعاد "مُرحّل" هنا كان بيتجاهل item.returnReceived، فبند
-      // مُرحّل حالته returned واتأكد استلامه فعليًا من شركة الشحن (returnReceived=1)
-      // كان بيتستبعد هنا رغم إن صفحة البيان الفردي (netDueFromClientAllStatuses)
-      // بتحسبه عادي طالما returnReceived=1. لازم الاستبعاد يتقيّد بنفس الشرط
-      // بالظبط: مُرحّل + returned + لسه مش مستلم (returnReceived !== 1) بس.
-      const isRolledOverPending = isRolledOverItem(item) && st === "returned" && (item as any).returnReceived !== 1;
+      // ⚠️⚠️⚠️ إصلاح جذري (2026-08-31، طلب مصطفى — فرق 30 ج.م، العميل JESY، شحنة
+      // "ام ريان" SHP26080098 / shipment_id=1977): الإصلاحات السابقة (فرق 125،
+      // فرق 13,350) كانت بتقيّد استبعاد "مُرحّل" بحالة "returned" بس في البيان
+      // *الحالي*، عشان تطابق منطق قديم في manifestFinance.ts. لكن ده كان بيخلي
+      // isRolledOverPending ترجع false تلقائيًا لأي بند حالته الحالية delivered/
+      // delayed/إلخ (مش returned) — يعني عمليًا الاستبعاد مكانش بيتفعّل خالص لأي
+      // بند غير مرتجع، والشحنة كانت بتضيع من كل البيانات (اتحسبت بصفر في البيان
+      // الأقدم وقت ما كانت معلّقة، واتستبعدت من كتير من محاولات الإصلاح التالية).
+      //
+      // isRolledOverItem بقى شرطها دلوقتي دقيق فعليًا (اتحقق من *حالة البند في
+      // البيان الأقدم نفسه*، مش من حالته الحالية) — فمعناها الحقيقي بقى "الشحنة
+      // دي اتحسبت بقيمة مالية حقيقية في بيان أقدم بالفعل". طالما كده، تُستبعد من
+      // البيان الحالي بالكامل بغض النظر عن حالتها الحالية هنا (مسلَّم/مؤجل/مرتجع)
+      // — لأنها فعلاً محسوبة قبل كده ومحسبناش تاني هيبقى ازدواج، مش نقص.
+      const isRolledOverPending = isRolledOverItem(item);
       const isDueEligible = (st !== "returned" || isReturnedWithValue) && !isRolledOverPending;
       if (isDueEligible) {
         dueValueByManifest[item.manifestId] = (dueValueByManifest[item.manifestId] ?? 0) + dueRowValue;
@@ -541,16 +563,34 @@ export async function computeClientBalancesForAllClients(
     // أي شحنة كانت جزء من بيان سابق لسه *مفتوح* مبيتحسبش هنا. لازم نفس كويري
     // manifestFinance.ts (lt(manifestId, currentManifestId) بدون فلتر status)
     // لكل بيان على حدة عشان الرقمين يفضلوا متطابقين تمامًا.
+    // ⚠️⚠️⚠️ إصلاح جذري (2026-08-31، طلب مصطفى — فرق 30 ج.م، نفس إصلاح
+    // computeClosedManifestsForClient فوق بالظبط): rolledOver لازم يتقيّد بحالة
+    // البند في البيان *الأقدم نفسه* (delivered/returned بقيمة)، مش أي وجود في
+    // بيان أقدم بغض النظر عن حالته. لازم نجيب deliveryStatus وreturnReason
+    // كمان هنا عشان نطبّق نفس isFinalizedOlderRow.
+    const FINALIZED_DUE_STATUSES_ALL = new Set(["delivered", "partial_delivered", "partial_received"]);
+    const isFinalizedOlderRowAll = (deliveryStatus: string, returnReason: string | null): boolean => {
+      if (FINALIZED_DUE_STATUSES_ALL.has(deliveryStatus)) return true;
+      if (deliveryStatus === "returned" && RETURN_REASONS_FINANCIAL.has(String(returnReason ?? ""))) return true;
+      return false;
+    };
     const rolledOverShipmentIdsByManifestAll: Record<number, Set<number>> = {};
     if (shipmentIds.length && manifestIds.length) {
       const olderItemRowsAll = await db
-        .select({ shipmentId: clientAccountManifestItemsTable.shipmentId, manifestId: clientAccountManifestItemsTable.manifestId })
+        .select({
+          shipmentId: clientAccountManifestItemsTable.shipmentId,
+          manifestId: clientAccountManifestItemsTable.manifestId,
+          deliveryStatus: clientAccountManifestItemsTable.deliveryStatus,
+          returnReason: clientAccountManifestItemsTable.returnReason,
+        })
         .from(clientAccountManifestItemsTable)
         .where(inArray(clientAccountManifestItemsTable.shipmentId, shipmentIds));
       for (const currentManifestId of manifestIds) {
         const set = new Set<number>();
         for (const row of olderItemRowsAll) {
-          if (row.manifestId < currentManifestId) set.add(row.shipmentId);
+          if (row.manifestId < currentManifestId && isFinalizedOlderRowAll(row.deliveryStatus, row.returnReason)) {
+            set.add(row.shipmentId);
+          }
         }
         rolledOverShipmentIdsByManifestAll[currentManifestId] = set;
       }
@@ -617,16 +657,16 @@ export async function computeClientBalancesForAllClients(
       const dueRepExtraCostForItemAll = isShippingZeroedForDueAll ? 0 : repExtraCostForItemAll;
       const dueRowValueAll = collected - (dueShippingBaseAll + dueRepExtraCostForItemAll);
 
-      // ⚠️⚠️ إصلاح (2026-08-31): نفس إصلاح computeClosedManifestsForClient فوق —
-      // استبعاد "مُرحّل" (rolledOver) لازم يتقيّد بحالة returned بس، زي بالظبط
-      // netDueFromClientAllStatuses (صفحة البيان الفردي)، مش أي حالة. الاستبعاد
-      // العام السابق كان يشيل بنود مؤجل/معلّق مُرحّلة من "رصيد العميل" رغم إن
-      // صفحة البيان الفردي بتحسبها عادي، فيفرق الرقمين.
-      // ⚠️⚠️ إصلاح (2026-08-31): نفس إصلاح computeClosedManifestsForClient فوق —
-      // الاستبعاد لازم يتقيّد بـ returnReceived !== 1 بالظبط، وإلا بند مُرحّل
-      // اتأكد استلامه فعليًا (returnReceived=1) بيتستبعد هنا غلط رغم إن صفحة
-      // البيان الفردي بتحسبه عادي.
-      const isRolledOverPendingAll = isRolledOverItemAll(item) && st === "returned" && (item as any).returnReceived !== 1;
+      // ⚠️⚠️⚠️ إصلاح جذري (2026-08-31، طلب مصطفى — فرق 30 ج.م، نفس إصلاح
+      // computeClosedManifestsForClient فوق بالظبط): isRolledOverItemAll بقى
+      // شرطها دلوقتي دقيق فعليًا (اتحقق من *حالة البند في البيان الأقدم نفسه*،
+      // مش من حالته الحالية) — فمعناها الحقيقي بقى "الشحنة دي اتحسبت بقيمة
+      // مالية حقيقية في بيان أقدم بالفعل". طالما كده، تُستبعد من البيان الحالي
+      // بالكامل بغض النظر عن حالتها الحالية هنا (مسلَّم/مؤجل/مرتجع) — لأنها
+      // فعلاً محسوبة قبل كده ومحسبناش تاني هيبقى ازدواج، مش نقص. القيد القديم
+      // (st === "returned" بس) كان بيخلي الاستبعاد ميتفعّلش خالص لأي بند غير
+      // مرتجع، فالشحنة كانت بتضيع من كل البيانات.
+      const isRolledOverPendingAll = isRolledOverItemAll(item);
       const isDueEligibleAll = (st !== "returned" || isReturnedWithValue) && !isRolledOverPendingAll;
       if (isDueEligibleAll) {
         result[clientId].totalManifestsValue += dueRowValueAll;
