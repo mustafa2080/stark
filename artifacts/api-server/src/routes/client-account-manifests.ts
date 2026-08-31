@@ -22,7 +22,7 @@ import { getTenantId } from "../middlewares/requireTenant.js";
 import { syncManifestItemToShipment, SHIPMENT_STATUS_TO_DELIVERY } from "../lib/manifestSync.js";
 import { syncShipmentInventory } from "./shipments.js";
 import { syncShipmentItemsInventory } from "../lib/inventory.js";
-import { computeClosedManifestsForClient } from "../lib/clientAccountBalance.js";
+import { computeClosedManifestsForClient, computeClientBalancesForAllClients } from "../lib/clientAccountBalance.js";
 import { computeClientManifestNetDue } from "../lib/manifestFinance.js";
 import { autoAddClientToTripSettlement } from "../lib/tripSettlementSync.js";
 
@@ -313,70 +313,17 @@ router.get("/client-account-manifests/clients-with-balance", async (req, res): P
 
     const clientIds = clients.map(c => c.id);
 
-    // بيانات حساب العميل (لو موجودة) — تُستخدم لحساب الرصيد فقط، مش لتحديد مين يظهر بالقائمة
-    const manifestConds: any[] = [inArray(clientAccountManifestsTable.clientId, clientIds)];
-    if (tenantId !== null) manifestConds.push(eq(clientAccountManifestsTable.tenantId, tenantId));
-    const allManifests = await db
-      .select({ id: clientAccountManifestsTable.id, clientId: clientAccountManifestsTable.clientId, status: clientAccountManifestsTable.status })
-      .from(clientAccountManifestsTable)
-      .where(and(...manifestConds));
-
-    const allManifestIds = allManifests.map(m => m.id);
-
-    const itemsByManifest = allManifestIds.length
-      ? await db.select().from(clientAccountManifestItemsTable).where(inArray(clientAccountManifestItemsTable.manifestId, allManifestIds))
-      : [];
-    const shipmentIds = Array.from(new Set(itemsByManifest.map(i => i.shipmentId)));
-    const shipments = shipmentIds.length
-      ? await db.select().from(shipmentsTable).where(and(inArray(shipmentsTable.id, shipmentIds), isNull(shipmentsTable.deletedAt)))
-      : [];
-    const shipmentMap: Record<number, any> = {};
-    shipments.forEach(s => { shipmentMap[s.id] = s; });
-
-    const manifestClientMap: Record<number, number> = {};
-    allManifests.forEach(m => { manifestClientMap[m.id] = m.clientId; });
-
-    // تجميع صافي المستحق لكل عميل من كل الـ items بتاعة كل بيانات العميل (كل الحالات)
-    const balanceByClient: Record<number, number> = {};
-    for (const item of itemsByManifest) {
-      const cId = manifestClientMap[item.manifestId];
-      if (!cId) continue;
-      const shipment = shipmentMap[item.shipmentId];
-      if (!shipment) continue;
-      const cod      = Number(shipment.codAmount ?? shipment.totalAmount ?? 0);
-      const shipping = Number(shipment.shippingFee ?? 0);
-      let delta = 0;
-
-      if (item.deliveryStatus === "delivered") {
-        const dvr = (item as any).deliveredValueReceived;
-        const actualCod = dvr != null ? Number(dvr) : cod;
-        delta = actualCod - shipping;
-      } else if (
-        (item.deliveryStatus === "partial_delivered" || item.deliveryStatus === "partial_received") &&
-        item.partialQuantity != null
-      ) {
-        // ⚠️ partial_received كانت متفوّتة هنا قبل كده — نفس الفرق اللي كان بيظهر
-        // بين رصيد العميل الإجمالي وصفحة بيان العميل التفصيلية.
-        const pq = item.deliveryStatus === "partial_received"
-          ? Math.round(Number(item.partialQuantity))
-          : Number(item.partialQuantity);
-        delta = pq - shipping;
-      }
-      balanceByClient[cId] = (balanceByClient[cId] ?? 0) + delta;
-    }
-
-    // خصم السدادات السابقة (سداد حساب عميل) من رصيد كل عميل
-    const paymentConds: any[] = [inArray(clientAccountPaymentsTable.clientId, clientIds)];
-    const payments = await db
-      .select({ clientId: clientAccountPaymentsTable.clientId, amount: clientAccountPaymentsTable.amount })
-      .from(clientAccountPaymentsTable)
-      .where(and(...paymentConds));
-    for (const p of payments) {
-      balanceByClient[p.clientId] = (balanceByClient[p.clientId] ?? 0) - Number(p.amount ?? 0);
-    }
+    // ⚠️ إصلاح (2026-08-31): الرصيد هنا لازم يطابق بالظبط "الرصيد المستحق" في
+    // صفحة بيان العميل — بنفس مصدر الحقيقة الوحيد المعتمد
+    // (computeClientBalancesForAllClients، بنفس منطق computeClosedManifestsForClient
+    // للعميل الفردي بالظبط). قبل كده كان فيه حساب يدوي منفصل هنا بيتجاهل شرط
+    // status="closed" وتصفير المؤجل/المعلَّق/المرتجع بسبب غير مالي، وبيستخدم
+    // shippingFee الثابت بدل سعر المنطقة الفعلي حسب تصنيف العميل — فكان الرقم
+    // يختلف عن صفحة البيان الفردي.
+    const balances = await computeClientBalancesForAllClients(clientIds);
 
     const result = clients
-      .map(c => ({ id: c.id, name: c.name, phone: c.phone, balance: balanceByClient[c.id] ?? 0 }))
+      .map(c => ({ id: c.id, name: c.name, phone: c.phone, balance: balances[c.id]?.balance ?? 0 }))
       .sort((a, b) => a.name.localeCompare(b.name, "ar"));
 
     res.json({ clients: result });
