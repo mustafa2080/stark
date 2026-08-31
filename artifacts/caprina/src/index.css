@@ -710,3 +710,30 @@ html.login-active #root {
     transform: scale(1.15);
   }
 }
+
+/* ─── "غمزة" كوميدية خفيفة على الأفاتار ───────────────────────────────
+   انضغاط أفقي سريع (زي رمشة عين) + هزة راس بسيطة، بتتكرر كل فترة طويلة
+   نسبياً (5.5s) عشان تبقى مفاجأة لطيفة مش حركة مستمرة تلخبط العين.
+   كل أفاتار عندها تأخير مختلف (--float-delay) فالصف كله مش بيغمز مع بعض. */
+@keyframes avatarWink {
+  0%, 92%, 100% {
+    transform: scaleX(1) rotate(0deg);
+  }
+  94% {
+    transform: scaleX(0.82) rotate(-4deg);
+  }
+  96% {
+    transform: scaleX(1.06) rotate(3deg);
+  }
+  98% {
+    transform: scaleX(0.96) rotate(-1deg);
+  }
+}
+.profile-avatar-wrap :where(img, .client-avatar-fallback) {
+  animation: avatarWink 5.5s ease-in-out infinite;
+  animation-delay: var(--float-delay, 0s);
+  transform-origin: center;
+}
+.profile-card-hover:hover .profile-avatar-wrap :where(img, .client-avatar-fallback) {
+  animation-play-state: paused;
+}

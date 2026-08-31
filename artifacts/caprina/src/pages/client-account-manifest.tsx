@@ -100,7 +100,7 @@ function ClientAvatar({ avatar, name, size = "md" }: { avatar?: string | null; n
   }
   const [bg, fg] = getAvatarColor(name || "؟");
   return (
-    <div className={`${dims} rounded-full flex items-center justify-center font-bold shrink-0 border border-border/20`}
+    <div className={`${dims} client-avatar-fallback rounded-full flex items-center justify-center font-bold shrink-0 border border-border/20`}
       style={{ background: bg, color: fg }}>
       {name ? getInitials(name) : "؟"}
     </div>
