@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { format, startOfMonth } from "date-fns";
+import { format, subDays } from "date-fns";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { apiFetch as _apiFetch } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -84,7 +84,7 @@ export default function FinanceCashPage() {
   const [thresholdOpen, setThresholdOpen] = useState(false);
   const [selectedReg, setSelectedReg] = useState<CashRegister | null>(null);
 
-  const [ledgerFrom, setLedgerFrom] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
+  const [ledgerFrom, setLedgerFrom] = useState(format(subDays(new Date(), 30), "yyyy-MM-dd"));
   const [ledgerTo,   setLedgerTo]   = useState(format(new Date(), "yyyy-MM-dd"));
   const [ledgerType, setLedgerType] = useState("all");
   const [ledgerDirection, setLedgerDirection] = useState("all");
@@ -162,10 +162,10 @@ export default function FinanceCashPage() {
   const pagination   = ledgerData?.pagination;
 
   const hasActiveFilters = ledgerType !== "all" || ledgerDirection !== "all" || ledgerSearch !== "" ||
-    ledgerFrom !== format(startOfMonth(new Date()), "yyyy-MM-dd") || ledgerTo !== format(new Date(), "yyyy-MM-dd");
+    ledgerFrom !== format(subDays(new Date(), 30), "yyyy-MM-dd") || ledgerTo !== format(new Date(), "yyyy-MM-dd");
 
   const clearFilters = () => {
-    setLedgerFrom(format(startOfMonth(new Date()), "yyyy-MM-dd"));
+    setLedgerFrom(format(subDays(new Date(), 30), "yyyy-MM-dd"));
     setLedgerTo(format(new Date(), "yyyy-MM-dd"));
     setLedgerType("all"); setLedgerDirection("all"); setLedgerSearch(""); setLedgerPage(1);
   };
