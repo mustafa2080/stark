@@ -670,6 +670,45 @@ html.login-active #root {
   animation: statusDotPulse 2.4s ease-in-out infinite;
 }
 
+/* ─── نقطة "online" خضرا بتنور/بتعمل نبضة — بيان مفتوح ────────────────────────
+   Ring أخضر بيتمدد ويخفت حواليها بشكل مستمر (زي مؤشر الأونلاين في واتساب)،
+   والنقطة نفسها بتعمل نبضة توهج خفيفة. نقطة "offline" (بيان مغلق) بتفضل
+   رمادية وثابتة من غير أي حركة — انظر .status-dot-offline تحت. */
+@keyframes onlineDotPing {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.55;
+  }
+  70%, 100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+@keyframes onlineDotGlow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.55);
+  }
+  50% {
+    box-shadow: 0 0 6px 1.5px rgba(16, 185, 129, 0.85);
+  }
+}
+.status-dot-online {
+  position: relative;
+  animation: onlineDotGlow 1.8s ease-in-out infinite;
+}
+.status-dot-online::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: rgb(16, 185, 129);
+  animation: onlineDotPing 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+.status-dot-offline {
+  box-shadow: none;
+  animation: none;
+}
+
 .profile-avatar-wrap {
   transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
   animation: avatarFloat 3.6s ease-in-out infinite;

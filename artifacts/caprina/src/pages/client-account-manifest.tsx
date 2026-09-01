@@ -622,15 +622,22 @@ export default function ClientAccountManifestsPage() {
                 <p className="text-xs font-bold truncate max-w-full">{client.name}</p>
                 {/* شارة مستطيلة واضحة بدل الأيقونة الدائرية القديمة (كانت مش
                     ظاهرة خالص) — نص Open/Close صريح حسب حالة أحدث بيان حساب
-                    للعميل (hasOpenManifest). */}
+                    للعميل (hasOpenManifest)، مع نقطة "online" خضرا بتنور
+                    وبتعمل نبضة لما البيان يكون مفتوح، ونقطة رمادية ثابتة
+                    "offline" لما يكون مغلق — طلب مصطفى (2026-09-01). */}
                 <span
                   title={isOpen ? "بيان مفتوح" : "بيان مغلق"}
-                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold tracking-wide leading-none border ${
+                  className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold tracking-wide leading-none border ${
                     isOpen
                       ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/40"
                       : "bg-muted-foreground/10 text-muted-foreground border-muted-foreground/30"
                   }`}
                 >
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full ${
+                      isOpen ? "status-dot-online" : "status-dot-offline bg-muted-foreground/50"
+                    }`}
+                  />
                   {isOpen ? "Open" : "Close"}
                 </span>
               </button>
