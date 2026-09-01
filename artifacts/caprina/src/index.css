@@ -676,19 +676,10 @@ html.login-active #root {
    ::after منفصلة بره حدود النقطة) هو اللي بيتمدد ويخفت حواليها، من غير ما
    يغطيها أو يقلل وضوحها. نقطة "offline" (بيان مغلق) لونها رمادي ثابت،
    مكتوب في الـ className مباشرة (bg-zinc-500) من غير أي أنيميشن. */
-@keyframes onlineDotGlow {
-  0%, 100% {
-    box-shadow: 0 0 3px 0.5px rgba(16, 185, 129, 0.6);
-  }
-  50% {
-    box-shadow: 0 0 7px 2px rgba(16, 185, 129, 0.95);
-  }
-}
 .status-dot-online {
   position: relative;
   overflow: hidden;
   background-color: #10b981 !important;
-  animation: onlineDotGlow 1.8s ease-in-out infinite;
 }
 
 /* ─── نص "Open" نفسه بيعمل نبضة توهج احترافية (بدل نص ثابت) ──────────────────
