@@ -624,7 +624,7 @@ export default function ClientAccountManifestsPage() {
                       الداكن) عشان النقطة تتقطع بوضوح عن الأفاتار خلفها. */}
                   <span
                     title={isOpen ? "بيان مفتوح" : "بيان مغلق"}
-                    className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-[#0a0a0a] ${
+                    className={`absolute bottom-0 right-0 block w-3.5 h-3.5 rounded-full border-2 border-[#0a0a0a] ${
                       isOpen ? "status-dot-online" : "bg-zinc-500"
                     }`}
                   />

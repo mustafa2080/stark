@@ -678,6 +678,7 @@ html.login-active #root {
    مكتوب في الـ className مباشرة (bg-zinc-500) من غير أي أنيميشن. */
 .status-dot-online {
   position: relative;
+  display: inline-block !important;
   overflow: hidden;
   background-color: #10b981 !important;
 }
