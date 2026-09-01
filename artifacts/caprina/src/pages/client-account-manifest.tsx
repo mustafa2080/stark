@@ -619,12 +619,13 @@ export default function ClientAccountManifestsPage() {
                     <ClientAvatar avatar={client.avatar} name={client.name} size="lg" />
                   </div>
                   {/* نقطة online/offline على حافة الدايرة نفسها (زي واتساب) —
-                      بدل ما تكون جنب نص Open/Close تحت. حدود بلون الخلفية
-                      عشان تتقطع بوضوح عن الأفاتار خلفها. */}
+                      بدل ما تكون جنب نص Open/Close تحت. حدود سودا صريحة
+                      (مش border-background اللي بيطلع شبه شفاف على الثيم
+                      الداكن) عشان النقطة تتقطع بوضوح عن الأفاتار خلفها. */}
                   <span
                     title={isOpen ? "بيان مفتوح" : "بيان مغلق"}
-                    className={`absolute bottom-0.5 right-0.5 w-3 h-3 rounded-full border-2 border-background ${
-                      isOpen ? "status-dot-online bg-emerald-500" : "status-dot-offline bg-muted-foreground/60"
+                    className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-[#0a0a0a] ${
+                      isOpen ? "status-dot-online" : "bg-zinc-500"
                     }`}
                   />
                 </div>

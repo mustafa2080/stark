@@ -671,11 +671,11 @@ html.login-active #root {
 }
 
 /* ─── نقطة "online" خضرا بتنور/بتعمل نبضة — بيان مفتوح ────────────────────────
-   النقطة الأساسية (bg-emerald-500 من الـ className) لازم تفضل خضرا صريحة
-   وثابتة طول الوقت — مفيش أي تعديل على opacity بتاعها هي نفسها. الـ ping
-   ring (طبقة ::after منفصلة بره حدود النقطة) هو اللي بيتمدد ويخفت حواليها،
-   من غير ما يغطيها أو يقلل وضوحها. نقطة "offline" (بيان مغلق) بتفضل رمادية
-   وثابتة من غير أي حركة — انظر .status-dot-offline تحت. */
+   اللون الأخضر مكتوب هنا مباشرة (مش معتمد على bg-emerald-500 من Tailwind)
+   عشان يفضل صريح ومضمون 100% مهما كان ترتيب الكلاسات. الـ ping ring (طبقة
+   ::after منفصلة بره حدود النقطة) هو اللي بيتمدد ويخفت حواليها، من غير ما
+   يغطيها أو يقلل وضوحها. نقطة "offline" (بيان مغلق) لونها رمادي ثابت،
+   مكتوب في الـ className مباشرة (bg-zinc-500) من غير أي أنيميشن. */
 @keyframes onlineDotPing {
   0% {
     transform: scale(1);
@@ -696,7 +696,7 @@ html.login-active #root {
 }
 .status-dot-online {
   position: relative;
-  background-color: rgb(16, 185, 129) !important;
+  background-color: #10b981 !important;
   animation: onlineDotGlow 1.8s ease-in-out infinite;
 }
 .status-dot-online::after {
@@ -704,13 +704,9 @@ html.login-active #root {
   position: absolute;
   inset: 0;
   border-radius: 9999px;
-  background: rgb(16, 185, 129);
+  background-color: #10b981;
   animation: onlineDotPing 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   pointer-events: none;
-}
-.status-dot-offline {
-  box-shadow: none;
-  animation: none;
 }
 
 /* ─── نص "Open" نفسه بيعمل نبضة توهج احترافية (بدل نص ثابت) ──────────────────
