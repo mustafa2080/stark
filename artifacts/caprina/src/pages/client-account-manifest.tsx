@@ -618,27 +618,33 @@ export default function ClientAccountManifestsPage() {
                   <div className="profile-avatar-wrap relative">
                     <ClientAvatar avatar={client.avatar} name={client.name} size="lg" />
                   </div>
+                  {/* نقطة online/offline على حافة الدايرة نفسها (زي واتساب) —
+                      بدل ما تكون جنب نص Open/Close تحت. حدود بلون الخلفية
+                      عشان تتقطع بوضوح عن الأفاتار خلفها. */}
+                  <span
+                    title={isOpen ? "بيان مفتوح" : "بيان مغلق"}
+                    className={`absolute bottom-0.5 right-0.5 w-3 h-3 rounded-full border-2 border-background ${
+                      isOpen ? "status-dot-online bg-emerald-500" : "status-dot-offline bg-muted-foreground/60"
+                    }`}
+                  />
                 </div>
                 <p className="text-xs font-bold truncate max-w-full">{client.name}</p>
                 {/* شارة مستطيلة واضحة بدل الأيقونة الدائرية القديمة (كانت مش
                     ظاهرة خالص) — نص Open/Close صريح حسب حالة أحدث بيان حساب
-                    للعميل (hasOpenManifest)، مع نقطة "online" خضرا بتنور
-                    وبتعمل نبضة لما البيان يكون مفتوح، ونقطة رمادية ثابتة
-                    "offline" لما يكون مغلق — طلب مصطفى (2026-09-01). */}
+                    للعميل (hasOpenManifest)، مع نبضة توهج احترافية على النص
+                    نفسه لما يكون "Open" (إحساس بيان لسه شغال/نشط)، وثابت
+                    تمامًا لما يكون "Close" — طلب مصطفى (2026-09-01). */}
                 <span
                   title={isOpen ? "بيان مفتوح" : "بيان مغلق"}
-                  className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold tracking-wide leading-none border ${
+                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold tracking-wide leading-none border ${
                     isOpen
                       ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/40"
                       : "bg-muted-foreground/10 text-muted-foreground border-muted-foreground/30"
                   }`}
                 >
-                  <span
-                    className={`w-1.5 h-1.5 rounded-full ${
-                      isOpen ? "status-dot-online" : "status-dot-offline bg-muted-foreground/50"
-                    }`}
-                  />
-                  {isOpen ? "Open" : "Close"}
+                  <span className={isOpen ? "status-text-online" : "status-text-offline"}>
+                    {isOpen ? "Open" : "Close"}
+                  </span>
                 </span>
               </button>
             );

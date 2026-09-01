@@ -709,6 +709,28 @@ html.login-active #root {
   animation: none;
 }
 
+/* ─── نص "Open" نفسه بيعمل نبضة توهج احترافية (بدل نص ثابت) ──────────────────
+   بيان مفتوح = لسه شغال/نشط، فالنص بيتنفس بتغيّر خفيف في الشفافية ودرجة
+   السطوع (text-shadow) بدل حركة صريحة — إحساس "بيفكر" هادئ ومحترف، مش وامض
+   صارخ. نص "Close" بيفضل ثابت تمامًا (.status-text-offline). */
+@keyframes openTextBreathe {
+  0%, 100% {
+    opacity: 0.75;
+    text-shadow: 0 0 0 rgba(16, 185, 129, 0);
+  }
+  50% {
+    opacity: 1;
+    text-shadow: 0 0 8px rgba(16, 185, 129, 0.65);
+  }
+}
+.status-text-online {
+  animation: openTextBreathe 1.8s ease-in-out infinite;
+}
+.status-text-offline {
+  animation: none;
+  opacity: 0.85;
+}
+
 .profile-avatar-wrap {
   transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
   animation: avatarFloat 3.6s ease-in-out infinite;
