@@ -496,11 +496,12 @@ export default function TrackResultPage() {
   const cfg = shipment ? (STATUS_CONFIG[shipment.status] ?? STATUS_CONFIG.pending) : null;
   const StatusIcon = cfg?.icon ?? Package;
 
-  // الحالات اللي فيها "مكان الشحنة الحالي" له معنى (مرتجعة أو مؤجلة) —
-  // في باقي الحالات (استلمت/جزئي/الخ) العميل مش محتاج يعرف مكانها الحالي.
-  const showCurrentLocation = !!shipment && ["returned", "returned_to_warehouse", "delayed"].includes(shipment.status);
-  // سبب الإرجاع/التأجيل — بيظهر فقط في نفس حالات الاستثناء دي
-  const showReturnReason = showCurrentLocation && !!shipment?.returnReason;
+  // الحالات اللي فيها "مكان الشحنة الحالي" له معنى: مرتجعة/مؤجلة (مخزن أو مندوب)،
+  // أو وهي قيد الشحن فعليًا مع المندوب — العميل يستحق يعرف مين المندوب يتواصل معاه.
+  // في باقي الحالات (استلمت/جزئي/قبل الشحن) العميل مش محتاج يعرف مكانها الحالي.
+  const showCurrentLocation = !!shipment && ["returned", "returned_to_warehouse", "delayed", "picked_up", "in_shipping", "in_transit", "with_courier", "out_for_delivery"].includes(shipment.status);
+  // سبب الإرجاع/التأجيل — بيظهر فقط في حالة الاستثناء الفعلية (مرتجع/مؤجل)
+  const showReturnReason = ["returned", "returned_to_warehouse", "delayed"].includes(shipment?.status ?? "") && !!shipment?.returnReason;
   // ملاحظة المندوب — بتظهر في كل الحالات (مرتجع/مؤجل/استلام/استلام جزئي) طالما موجودة
   const showReturnNote = !!shipment?.returnNote;
   const showReturnInfo = showReturnReason || showReturnNote;
@@ -810,7 +811,7 @@ export default function TrackResultPage() {
               </div>
             )}
 
-            {/* ── مكان الشحنة الحالي — يظهر بس لو الشحنة مرتجعة أو مؤجلة، عشان
+            {/* ── مكان الشحنة الحالي — يظهر في حالة مرتجع/مؤجل أو وهي قيد الشحن فعليًا، عشان
                 العميل يعرف يتواصل مع مين (الفرع لو في مخزن، أو المندوب لو معاه) ── */}
             {showCurrentLocation && (shipment.warehouseName || shipment.courierName) && (
               <div className="pt-1 grid grid-cols-1 sm:grid-cols-2 gap-3" style={{ borderTop: `1px solid ${cfg.color}18` }}>

@@ -263,8 +263,9 @@ export default function TrackClientPage() {
                       </div>
                     )}
 
-                    {/* ── مكان الشحنة الحالي (ديناميكي) — بس في حالة مرتجع/مؤجل ── */}
-                    {["returned", "returned_to_warehouse", "delayed"].includes(shipment.status) && (shipment.warehouseName || shipment.courierName) && (
+                    {/* ── مكان الشحنة الحالي (ديناميكي) — في حالة مرتجع/مؤجل (مخزن أو مندوب)
+                         أو وهي قيد الشحن فعليًا مع المندوب (مندوب بس، مفيش مخزن أصلًا) ── */}
+                    {["returned", "returned_to_warehouse", "delayed", "picked_up", "in_shipping", "in_transit", "with_courier", "out_for_delivery"].includes(shipment.status) && (shipment.warehouseName || shipment.courierName) && (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-3 border-t" style={{ borderColor: `${c}18` }}>
                         {shipment.warehouseName && (
                           <div className="rounded-2xl p-3"
