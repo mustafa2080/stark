@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -558,6 +558,23 @@ function AddClientDialog({ open, onOpenChange, onSubmit, pending }: any) {
   const isCustom = selectedId === "custom";
   const finalName = isCustom ? customName : (clientsList.find(c => c.id === Number(selectedId))?.name ?? "");
 
+  // ─── جلب الرصيد الحقيقي تلقائيًا عند اختيار عميل من القائمة ─────────────────
+  // نفس مصدر الحقيقة الموحّد (computeClosedManifestsForClient) المستخدم في
+  // صفحة "العملاء التجاريون" وكشف الحساب — لمنع الفرق بين الرصيدين اللي كان
+  // بيحصل لما المستخدم يكتب الرصيد يدويًا وينسى/يغلط في الرقم. الحقل يفضل
+  // قابل للتعديل بعد التعبئة التلقائية لو محتاج تصحيح يدوي.
+  const selectedClientId = !isCustom && selectedId ? Number(selectedId) : null;
+  const { data: realBalanceData, isFetching: isFetchingBalance } = useQuery({
+    queryKey: ["trip-settlement-client-real-balance", selectedClientId],
+    queryFn: () => api.get(`/client-account-manifests/balance/${selectedClientId}`),
+    enabled: open && !!selectedClientId,
+  });
+  useEffect(() => {
+    if (selectedClientId && realBalanceData && typeof realBalanceData.balance === "number") {
+      setBalance(String(realBalanceData.balance));
+    }
+  }, [selectedClientId, realBalanceData]);
+
   function reset() { setSelectedId(""); setCustomName(""); setAlix("0"); setVcash("0"); setCash("0"); setBalance("0"); setNotes(""); }
 
   return (
@@ -582,7 +599,14 @@ function AddClientDialog({ open, onOpenChange, onSubmit, pending }: any) {
             <Input type="number" placeholder="V.CASH" value={vcash} onChange={e => setVcash(e.target.value)} />
             <Input type="number" placeholder="CASH" value={cash} onChange={e => setCash(e.target.value)} />
           </div>
-          <Input type="number" placeholder="الرصيد المستحق (سالب لو عليه، موجب لو له)" value={balance} onChange={e => setBalance(e.target.value)} />
+          <div className="space-y-1">
+            <Input type="number" placeholder="الرصيد المستحق (سالب لو عليه، موجب لو له)" value={balance} onChange={e => setBalance(e.target.value)} />
+            {selectedClientId && (
+              <p className="text-[11px] text-muted-foreground">
+                {isFetchingBalance ? "جارِ جلب الرصيد الفعلي..." : "الرصيد اتحط تلقائيًا من رصيد العميل الفعلي — ممكن تعدّله لو محتاج."}
+              </p>
+            )}
+          </div>
           <Textarea placeholder="ملاحظات" value={notes} onChange={e => setNotes(e.target.value)} />
         </div>
         <DialogFooter>
