@@ -671,38 +671,42 @@ html.login-active #root {
 }
 
 /* ─── نقطة "online" خضرا بتنور/بتعمل نبضة — بيان مفتوح ────────────────────────
-   Ring أخضر بيتمدد ويخفت حواليها بشكل مستمر (زي مؤشر الأونلاين في واتساب)،
-   والنقطة نفسها بتعمل نبضة توهج خفيفة. نقطة "offline" (بيان مغلق) بتفضل
-   رمادية وثابتة من غير أي حركة — انظر .status-dot-offline تحت. */
+   النقطة الأساسية (bg-emerald-500 من الـ className) لازم تفضل خضرا صريحة
+   وثابتة طول الوقت — مفيش أي تعديل على opacity بتاعها هي نفسها. الـ ping
+   ring (طبقة ::after منفصلة بره حدود النقطة) هو اللي بيتمدد ويخفت حواليها،
+   من غير ما يغطيها أو يقلل وضوحها. نقطة "offline" (بيان مغلق) بتفضل رمادية
+   وثابتة من غير أي حركة — انظر .status-dot-offline تحت. */
 @keyframes onlineDotPing {
   0% {
-    transform: scale(0.9);
-    opacity: 0.55;
+    transform: scale(1);
+    opacity: 0.6;
   }
-  70%, 100% {
-    transform: scale(2.4);
+  100% {
+    transform: scale(2.2);
     opacity: 0;
   }
 }
 @keyframes onlineDotGlow {
   0%, 100% {
-    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.55);
+    box-shadow: 0 0 3px 0.5px rgba(16, 185, 129, 0.6);
   }
   50% {
-    box-shadow: 0 0 6px 1.5px rgba(16, 185, 129, 0.85);
+    box-shadow: 0 0 7px 2px rgba(16, 185, 129, 0.95);
   }
 }
 .status-dot-online {
   position: relative;
+  background-color: rgb(16, 185, 129) !important;
   animation: onlineDotGlow 1.8s ease-in-out infinite;
 }
-.status-dot-online::before {
+.status-dot-online::after {
   content: "";
   position: absolute;
   inset: 0;
   border-radius: 9999px;
   background: rgb(16, 185, 129);
   animation: onlineDotPing 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  pointer-events: none;
 }
 .status-dot-offline {
   box-shadow: none;
