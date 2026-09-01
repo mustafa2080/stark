@@ -429,6 +429,12 @@ interface Shipment {
   courierName?: string | null;
   courierPhone?: string | null;
   courierLogo?: string | null;
+  // فرع العميل الأصلي (اللي صدرت منه الشحنة) — ثابت بغض النظر عن مكان الشحنة الحالي
+  originWarehouseName?: string | null;
+  originWarehouseCity?: string | null;
+  // ملاحظة/سبب المندوب وقت الإرجاع أو التأجيل
+  returnReason?: string | null;
+  returnNote?: string | null;
 }
 
 // ─── Status config ─────────────────────────────────────────────────────────────
@@ -489,6 +495,12 @@ export default function TrackResultPage() {
 
   const cfg = shipment ? (STATUS_CONFIG[shipment.status] ?? STATUS_CONFIG.pending) : null;
   const StatusIcon = cfg?.icon ?? Package;
+
+  // الحالات اللي فيها "مكان الشحنة الحالي" له معنى (مرتجعة أو مؤجلة) —
+  // في باقي الحالات (استلمت/جزئي/الخ) العميل مش محتاج يعرف مكانها الحالي.
+  const showCurrentLocation = !!shipment && ["returned", "returned_to_warehouse", "delayed"].includes(shipment.status);
+  // ملاحظة/سبب المندوب — بتظهر فقط في نفس حالات الاستثناء دي
+  const showReturnInfo = showCurrentLocation && !!(shipment?.returnNote || shipment?.returnReason);
 
   const [darkMode, setDarkMode] = useState(true);
 
@@ -757,8 +769,47 @@ export default function TrackResultPage() {
               </div>
             )}
 
-            {/* ── مخزن و مندوب ── */}
-            {(shipment.warehouseName || shipment.courierName) && (
+            {/* ── تنبيه بخصوص الشحنة (سبب وملاحظة المندوب وقت الإرجاع/التأجيل) ── */}
+            {showReturnInfo && (
+              <div className="rounded-2xl p-3.5 relative overflow-hidden"
+                style={{
+                  background: `linear-gradient(135deg, ${cfg.color}14 0%, rgba(255,255,255,0.02) 100%)`,
+                  border: `1px solid ${cfg.color}33`,
+                }}>
+                <p className="text-xs mb-1.5 flex items-center gap-1.5 font-bold" style={{ color: cfg.color }}>
+                  <AlertTriangle size={11} /> تنبيه بخصوص الشحنة
+                </p>
+                {shipment.returnReason && (
+                  <p className="text-sm font-semibold break-words leading-relaxed mb-1.5" style={{ color: "rgba(255,255,255,0.85)", overflowWrap: "anywhere", wordBreak: "break-word" }}>
+                    {shipment.returnReason}
+                  </p>
+                )}
+                {shipment.returnNote && (
+                  <p className="text-sm break-words leading-relaxed" style={{ color: "rgba(255,255,255,0.55)", overflowWrap: "anywhere", wordBreak: "break-word" }}>
+                    {shipment.returnNote}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* ── الشحنة صادرة من (فرع العميل الأصلي) — ثابت دايمًا بغض النظر عن الحالة ── */}
+            {shipment.originWarehouseName && (
+              <div className="pt-1" style={{ borderTop: `1px solid ${cfg.color}18` }}>
+                <div className="rounded-2xl p-3.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                  <p className="text-xs mb-1.5 flex items-center gap-1.5" style={{ color: "rgba(255,255,255,0.3)" }}>
+                    <Warehouse size={10} />الشحنة صادرة من
+                  </p>
+                  <p className="text-sm font-bold text-white">
+                    {shipment.originWarehouseName}
+                    {shipment.originWarehouseCity && <span className="text-xs mr-1" style={{ color: "rgba(255,255,255,0.4)" }}>({shipment.originWarehouseCity})</span>}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* ── مكان الشحنة الحالي — يظهر بس لو الشحنة مرتجعة أو مؤجلة، عشان
+                العميل يعرف يتواصل مع مين (الفرع لو في مخزن، أو المندوب لو معاه) ── */}
+            {showCurrentLocation && (shipment.warehouseName || shipment.courierName) && (
               <div className="pt-1 grid grid-cols-1 sm:grid-cols-2 gap-3" style={{ borderTop: `1px solid ${cfg.color}18` }}>
                 {shipment.warehouseName && (
                   <div className="rounded-2xl p-3.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
@@ -766,12 +817,12 @@ export default function TrackResultPage() {
                       <Warehouse size={10} />مكان الشحنة
                     </p>
                     <p className="text-sm font-bold text-white">
-                      {shipment.warehouseName}
+                      شحنتك حاليًا في مخزن {shipment.warehouseName}
                       {shipment.warehouseCity && <span className="text-xs mr-1" style={{ color: "rgba(255,255,255,0.4)" }}>({shipment.warehouseCity})</span>}
                     </p>
                   </div>
                 )}
-                {shipment.courierName && (
+                {!shipment.warehouseName && shipment.courierName && (
                   <div className="rounded-2xl p-3.5 relative overflow-hidden"
                     style={{
                       background: `linear-gradient(135deg, ${cfg.color}0e 0%, rgba(0,0,0,0.25) 100%)`,
@@ -779,7 +830,7 @@ export default function TrackResultPage() {
                       boxShadow: `inset 0 1px 0 rgba(255,255,255,0.08)`,
                     }}>
                     <p className="text-xs mb-2 flex items-center gap-1.5" style={{ color: `${cfg.color}88` }}>
-                      <UserCheck size={10} />مندوب التوصيل
+                      <UserCheck size={10} />شحنتك حاليًا مع المندوب
                     </p>
                     <div className="flex items-center gap-3">
                       {shipment.courierLogo ? (

@@ -51,9 +51,12 @@ publicShipmentsRouter.get("/shipments/track/:number", async (req, res): Promise<
         shipment:        shipmentsTable,
         warehouseName:   warehousesTable.name,
         warehouseCity:   warehousesTable.city,
-        courierName:     sql<string>`COALESCE(${shippingCompaniesTable.name}, ${manifestShippingCompanyTable.name})`,
-        courierPhone:    sql<string>`COALESCE(${shippingCompaniesTable.phone}, ${manifestShippingCompanyTable.phone})`,
+        courierName:     sql<string>`COALESCE(${shippingCompaniesTable.name}, ${manifestShippingCompanyTable.name}, ${usersTable.displayName})`,
+        courierPhone:    sql<string>`COALESCE(${shippingCompaniesTable.phone}, ${manifestShippingCompanyTable.phone}, ${usersTable.phone})`,
         courierLogo:     sql<string>`COALESCE(${shippingCompaniesTable.logo}, ${manifestShippingCompanyTable.logo})`,
+        // فرع العميل الأصلي (اللي صدرت منه الشحنة) — مستقل عن مكان الشحنة الحالي
+        originWarehouseName: clientWarehouseTable.name,
+        originWarehouseCity: clientWarehouseTable.city,
       })
       .from(shipmentsTable)
       .leftJoin(warehousesTable,        eq(shipmentsTable.warehouseId,        warehousesTable.id))
@@ -61,6 +64,9 @@ publicShipmentsRouter.get("/shipments/track/:number", async (req, res): Promise<
       .leftJoin(shipmentManifestItemsTable, eq(shipmentManifestItemsTable.shipmentId, shipmentsTable.id))
       .leftJoin(shipmentManifestsTable, eq(shipmentManifestsTable.id, shipmentManifestItemsTable.manifestId))
       .leftJoin(manifestShippingCompanyTable, eq(manifestShippingCompanyTable.id, shipmentManifestsTable.shippingCompanyId))
+      .leftJoin(usersTable,             eq(shipmentsTable.assignedUserId,     usersTable.id))
+      .leftJoin(clientsTable,           eq(shipmentsTable.clientId,           clientsTable.id))
+      .leftJoin(clientWarehouseTable,   eq(clientsTable.warehouseId,          clientWarehouseTable.id))
       .where(
         and(
           isNull(shipmentsTable.deletedAt),
@@ -76,8 +82,8 @@ publicShipmentsRouter.get("/shipments/track/:number", async (req, res): Promise<
       res.status(404).json({ error: "لم يتم العثور على الشحنة" });
       return;
     }
-    const { shipment, warehouseName, warehouseCity, courierName, courierPhone, courierLogo } = rows[0];
-    res.json({ ...shipment, warehouseName, warehouseCity, courierName, courierPhone, courierLogo });
+    const { shipment, warehouseName, warehouseCity, courierName, courierPhone, courierLogo, originWarehouseName, originWarehouseCity } = rows[0];
+    res.json({ ...shipment, warehouseName, warehouseCity, courierName, courierPhone, courierLogo, originWarehouseName, originWarehouseCity });
   } catch (e) {
     console.error("[GET /shipments/track]", e);
     res.status(500).json({ error: "خطأ في البحث عن الشحنة" });
