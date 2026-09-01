@@ -61,8 +61,10 @@ export default function FinanceTripSettlement() {
   const [showArchive, setShowArchive] = useState(false);
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
   const [settleTarget, setSettleTarget] = useState<ClientRow | null>(null);
+  const [settlePaymentMethod, setSettlePaymentMethod] = useState("");
   const [addRepOpen, setAddRepOpen] = useState(false);
   const [addClientOpen, setAddClientOpen] = useState(false);
+  const [clientFilter, setClientFilter] = useState<"all" | "paid" | "pending">("all");
   const [payTarget, setPayTarget] = useState<Rep | null>(null);
 
   // ── جلب البيان الحالي (لو viewingId === "current") أو بيان مؤرشف محدد ──────
@@ -89,6 +91,11 @@ export default function FinanceTripSettlement() {
   const settlement: Settlement | undefined = detail?.settlement;
   const reps: Rep[] = detail?.reps ?? [];
   const clients: ClientRow[] = detail?.clients ?? [];
+  const filteredClients = clients.filter(c => {
+    if (clientFilter === "paid") return c.status === "paid";
+    if (clientFilter === "pending") return c.status !== "paid";
+    return true;
+  });
   const isOpen = settlement?.status === "open";
 
   function invalidateAll() {
@@ -133,8 +140,9 @@ export default function FinanceTripSettlement() {
   });
 
   const settleClient = useMutation({
-    mutationFn: (id: number) => api.post(`/trip-settlements/clients/${id}/settle`),
-    onSuccess: () => { invalidateAll(); setSettleTarget(null); toast({ title: "تم السداد وترحيله لحساب العميل" }); },
+    mutationFn: ({ id, paymentMethod }: { id: number; paymentMethod?: string }) =>
+      api.post(`/trip-settlements/clients/${id}/settle`, { paymentMethod }),
+    onSuccess: () => { invalidateAll(); setSettleTarget(null); setSettlePaymentMethod(""); toast({ title: "تم السداد وترحيله لحساب العميل" }); },
     onError: () => toast({ title: "خطأ في السداد", variant: "destructive" }),
   });
 
@@ -359,9 +367,32 @@ export default function FinanceTripSettlement() {
                   </Button>
                 )}
               </div>
+              <div className="flex items-center gap-1.5 mb-3">
+                {([
+                  { key: "all", label: "الكل" },
+                  { key: "pending", label: "لسه لم يتم السداد" },
+                  { key: "paid", label: "خالص" },
+                ] as const).map(f => (
+                  <button
+                    key={f.key}
+                    onClick={() => setClientFilter(f.key)}
+                    className={`text-[11px] px-2.5 py-1 rounded-md border transition-colors ${
+                      clientFilter === f.key
+                        ? "bg-pink-500/15 text-pink-400 border-pink-500/30"
+                        : "text-muted-foreground border-border hover:border-border/80"
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
               <div className="space-y-2">
-                {clients.length === 0 && <p className="text-xs text-muted-foreground text-center py-6">لا يوجد عملاء في هذه الرحلة</p>}
-                {clients.map(c => {
+                {filteredClients.length === 0 && (
+                  <p className="text-xs text-muted-foreground text-center py-6">
+                    {clients.length === 0 ? "لا يوجد عملاء في هذه الرحلة" : "لا يوجد عملاء مطابقين للفلتر"}
+                  </p>
+                )}
+                {filteredClients.map(c => {
                   const bal = Number(c.balance);
                   return (
                     <div key={c.id} className="group rounded-lg border border-border px-3 py-2 hover:border-border/80 transition-colors">
@@ -434,7 +465,7 @@ export default function FinanceTripSettlement() {
         pending={addPayment.isPending} />
 
       {/* مودال تأكيد سداد الرصيد */}
-      <Dialog open={!!settleTarget} onOpenChange={(o) => !o && setSettleTarget(null)}>
+      <Dialog open={!!settleTarget} onOpenChange={(o) => { if (!o) { setSettleTarget(null); setSettlePaymentMethod(""); } }}>
         <DialogContent dir="rtl">
           <DialogHeader>
             <DialogTitle>تأكيد سداد الرصيد</DialogTitle>
@@ -444,17 +475,25 @@ export default function FinanceTripSettlement() {
               سيتم خصم مبلغ <span className="font-black text-emerald-500">{settleTarget && fmt(Math.abs(Number(settleTarget.balance)))}</span> من
               المصروفات وترحيله لحساب العميل <span className="font-bold">{settleTarget?.clientName}</span>.
             </p>
+            <div className="space-y-1">
+              <Input
+                placeholder="طريقة السداد (كاش، فودافون كاش، تحويل بنكي...) — اختياري"
+                value={settlePaymentMethod}
+                onChange={e => setSettlePaymentMethod(e.target.value)}
+              />
+              <p className="text-[11px] text-muted-foreground">هتظهر للعميل في كشف حسابه ببوابة العميل.</p>
+            </div>
             <div className="flex items-center gap-2 text-xs text-amber-500 bg-amber-500/10 border border-amber-500/20 rounded-lg p-2">
               <AlertTriangle className="w-4 h-4 shrink-0" />
               هذا الإجراء لا يمكن التراجع عنه يدويًا بعد التأكيد.
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSettleTarget(null)}>إلغاء</Button>
+            <Button variant="outline" onClick={() => { setSettleTarget(null); setSettlePaymentMethod(""); }}>إلغاء</Button>
             <Button
               className="bg-emerald-600 hover:bg-emerald-700"
               disabled={settleClient.isPending}
-              onClick={() => settleTarget && settleClient.mutate(settleTarget.id)}
+              onClick={() => settleTarget && settleClient.mutate({ id: settleTarget.id, paymentMethod: settlePaymentMethod.trim() || undefined })}
             >
               تأكيد السداد
             </Button>

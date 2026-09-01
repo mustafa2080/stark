@@ -416,6 +416,9 @@ router.post("/trip-settlements/clients/:clientRowId/settle", async (req, res): P
     if (!row) { res.status(404).json({ error: "غير موجود" }); return; }
     if (row.status === "paid") { res.status(400).json({ error: "الرصيد ده اتسدد بالفعل" }); return; }
 
+    const bodyParsed = z.object({ paymentMethod: z.string().trim().max(200).nullish() }).safeParse(req.body ?? {});
+    const paymentMethod = bodyParsed.success ? (bodyParsed.data.paymentMethod || null) : null;
+
     const [settlement] = await db.select().from(tripSettlementsTable).where(eq(tripSettlementsTable.id, row.settlementId));
     const tenantId = getTenantId(req);
     const who = actor(req);
@@ -489,7 +492,9 @@ router.post("/trip-settlements/clients/:clientRowId/settle", async (req, res): P
         clientId: row.clientId,
         amount: String(amount),
         expenseId,
-        notes: `سداد رصيد — تسوية رحلة ${settlement?.settlementNumber ?? row.settlementId}`,
+        notes: paymentMethod
+          ? `سداد رصيد — تسوية رحلة ${settlement?.settlementNumber ?? row.settlementId} (${paymentMethod})`
+          : `سداد رصيد — تسوية رحلة ${settlement?.settlementNumber ?? row.settlementId}`,
         createdByUserId: who.id,
         createdByName: who.name,
         createdAt: now,
