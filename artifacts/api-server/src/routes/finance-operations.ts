@@ -49,7 +49,7 @@ router.get("/finance/expenses", async (req, res): Promise<void> => {
 
   const expenses = await db.select().from(expensesTable)
     .where(conditions.length ? and(...conditions) : undefined)
-    .orderBy(desc(expensesTable.expenseDate))
+    .orderBy(desc(expensesTable.expenseDate), desc(expensesTable.id))
     .limit(parseInt(limit as string))
     .offset(offset);
 
@@ -63,7 +63,7 @@ router.get("/finance/expenses/export-excel", async (req, res): Promise<void> => 
   if (tenantId !== null) conditions.push(eq(expensesTable.tenantId, tenantId));
   const expenses = await db.select().from(expensesTable)
     .where(conditions.length ? and(...conditions) : undefined)
-    .orderBy(desc(expensesTable.expenseDate));
+    .orderBy(desc(expensesTable.expenseDate), desc(expensesTable.id));
 
   const CAT_LABELS: Record<string, string> = {
     shipping_fees:"مصاريف شحن إضافية للمناديب", warehouse_rent:"إيجارات", salary:"مرتبات",
