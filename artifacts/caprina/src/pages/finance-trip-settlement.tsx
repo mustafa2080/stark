@@ -15,6 +15,7 @@ import {
   Plus, Trash2, Lock, CheckCircle2, Truck, Users, Archive,
   Wallet, Smartphone, Building2, Banknote, X, AlertTriangle, TrendingDown,
 } from "lucide-react";
+import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { apiFetch } from "@/lib/api";
 
@@ -217,7 +218,7 @@ export default function FinanceTripSettlement() {
                   activeId === s.id ? "bg-orange-500/15 border-orange-500/40 text-orange-500" : "border-border hover:bg-white/5"
                 }`}
               >
-                {s.settlementNumber} {s.status === "open" && "🟢"}
+                {s.closedAt ? format(new Date(s.closedAt), "yyyy/MM/dd") : s.settlementNumber} {s.status === "open" && "🟢"}
               </button>
             ))}
             <button
