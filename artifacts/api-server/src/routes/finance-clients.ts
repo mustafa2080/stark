@@ -4,6 +4,9 @@ import { eq, desc, and, sql, or, like, isNull, inArray, notInArray, ne } from "d
 import { getTenantId } from "../middlewares/requireTenant.js";
 import { hashPassword } from "../lib/auth.js";
 import { computeClosedManifestsForClient, computeClientBalancesForAllClients, computeNetRevenueDueForAllClients } from "../lib/clientAccountBalance.js";
+// قيمة البيان المفتوح لكل عميل — لفلتر "عميل غير صفري" (لازم نحسب قيمة
+// البيان المفتوح نفسه، مش رصيد العميل الكلي من البيانات المقفولة).
+import { computeClientManifestNetDue } from "../lib/manifestFinance.js";
 import { z } from "zod";
 
 const router = Router();
@@ -390,6 +393,19 @@ router.get("/finance/clients", async (req, res): Promise<void> => {
       }
     }
 
+    // ── قيمة البيان المفتوح الحالي لكل عميل (عنده بيان مفتوح فعلاً) ───────────
+    // مطلوبة لفلتر "عميل غير صفري": الفلتر ده لازم يجيب العملاء اللي عندهم
+    // بيان مفتوح وقيمته (صافي المستحق) غير صفرية — مش رصيد العميل الكلي من
+    // البيانات المقفولة (ده رقم تاني خالص، accountBalance تحت). بنستخدم
+    // computeClientManifestNetDue لكل بيان مفتوح (نفس المنطق ونفس الرقم
+    // المعروض في صفحة تفاصيل البيان لـ"الصافي المستحق").
+    const openManifestValueMap: Record<number, number> = {};
+    for (const clientId of openManifestClientIds) {
+      const manifestId = latestManifestIdMap[clientId];
+      if (manifestId == null) continue;
+      openManifestValueMap[clientId] = await computeClientManifestNetDue(manifestId);
+    }
+
     // ── رصيد العميل والمتبقي — نفس منطق computeClientBalancesForAllClients ────
     // (بيانات حساب عميل مقفولة clientAccountManifestsTable + clientAccountPaymentsTable)
     // رصيد العميل = إجمالي قيمة البيانات المقفولة (لا يتغير بالسداد)
@@ -427,6 +443,9 @@ router.get("/finance/clients", async (req, res): Promise<void> => {
         netRevenueDue: netRevenueDue.toFixed(2),
         hasOpenManifest: openManifestClientIds.has(c.id),
         latestManifestId: latestManifestIdMap[c.id] ?? null,
+        // قيمة البيان المفتوح الحالي (صافي المستحق) — null لو مفيش بيان مفتوح
+        // خالص للعميل ده. مستخدمة في فلتر "عميل غير صفري" بصفحة حسابات العملاء.
+        openManifestValue: openManifestClientIds.has(c.id) ? (openManifestValueMap[c.id] ?? 0) : null,
       };
     });
 

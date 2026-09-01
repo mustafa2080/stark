@@ -41,6 +41,10 @@ type Client = {
   warehouseId: number | null;
   hasOpenManifest?: boolean;
   latestManifestId?: number | null;
+  // قيمة البيان المفتوح الحالي (صافي المستحق) — null لو مفيش بيان مفتوح خالص.
+  // مستخدمة في فلتر "عميل غير صفري" (لازم تكون قيمة البيان المفتوح نفسه، مش
+  // accountBalance اللي بيمثّل رصيد البيانات المقفولة فقط).
+  openManifestValue?: number | null;
 };
 
 const emptyForm = {
@@ -326,11 +330,16 @@ export default function ClientAccountManifestsPage() {
   // على العملاء اللي لسه بياناتهم مفتوحة (بيتفعّل بوضوح في عرض "بروفايل"،
   // ومتاح أيضاً في باقي الأوضاع). "all" = بدون فلترة حسب حالة البيان.
   const [manifestStatusFilter, setManifestStatusFilter] = useState<"all" | "open" | "closed">("all");
-  // ─── فلتر "عميل غير صفري" — طلب مصطفى (2026-08-31): تسهيل الوصول السريع
-  // للعملاء اللي عندهم رصيد مستحق (accountBalance ≠ 0) عشان يتعمل لهم إغلاق
-  // على طول من غير ما حد يدوّر عليهم يدوياً وسط كل العملاء. "all" = بدون
-  // فلترة حسب الرصيد. نفس accountBalance الظاهر في كارت العميل بالضبط
-  // (computeClosedManifestsForClient بالباك إند).
+  // ─── فلتر "عميل غير صفري" — طلب مصطفى (2026-08-31، إصلاح 2026-09-01):
+  // تسهيل الوصول السريع للعملاء اللي عندهم بيان حساب مفتوح ولسه لهم فيه رصيد
+  // مستحق (قيمة البيان المفتوح نفسه ≠ صفر) عشان يتعمل لهم إغلاق على طول من
+  // غير ما حد يدوّر عليهم يدوياً وسط كل العملاء. "all" = بدون فلترة حسب الرصيد.
+  // ⚠️ ملحوظة مهمة: الفلتر ده لازم يبص على قيمة البيان المفتوح (openManifestValue)
+  // مش على accountBalance — accountBalance بيمثّل إجمالي البيانات "المقفولة"
+  // فقط (computeClientBalancesForAllClients بالباك إند)، فمينفعش يتستخدم هنا؛
+  // عميل ممكن يكون عنده بيان مفتوح برصيد كبير ومعندوش أي بيان مقفول
+  // (accountBalance = 0 فمكانش هيظهر)، أو العكس (عنده بيانات مقفولة قديمة
+  // برصيد لكن بيانه المفتوح الحالي فاضي/صفر).
   const [balanceFilter, setBalanceFilter] = useState<"all" | "nonzero">("all");
 
   const { data: clients, isLoading } = useQuery<Client[]>({
@@ -363,10 +372,13 @@ export default function ClientAccountManifestsPage() {
       return true;
     })
     .filter((c) => {
-      // "عميل غير صفري" = رصيده الحالي (accountBalance) مختلف عن صفر، بأي
-      // اتجاه (مستحق له أو عليه) — بنقارن بهامش صغير (0.01) بدل == 0 بالظبط
-      // عشان أي فروقات تقريب عشرية بسيطة متتسببش في ظهور عميل رصيده فعلياً صفر.
-      if (balanceFilter === "nonzero") return Math.abs(c.accountBalance ?? 0) >= 0.01;
+      // "عميل غير صفري" = عنده بيان حساب مفتوح حالياً (hasOpenManifest) وقيمة
+      // البيان المفتوح ده نفسه (openManifestValue، صافي المستحق) مختلفة عن
+      // صفر، بأي اتجاه (مستحق له أو عليه) — بنقارن بهامش صغير (0.01) بدل == 0
+      // بالظبط عشان أي فروقات تقريب عشرية بسيطة متتسببش في ظهور عميل رصيده
+      // فعلياً صفر. عميل مالوش بيان مفتوح خالص (hasOpenManifest = false)
+      // ميتفلترش معاه أبداً، حتى لو عنده رصيد من بيانات مقفولة قديمة.
+      if (balanceFilter === "nonzero") return !!c.hasOpenManifest && Math.abs(c.openManifestValue ?? 0) >= 0.01;
       return true;
     })
     .sort((a, b) => {
