@@ -263,11 +263,22 @@ export default function TrackClientPage() {
                       </div>
                     )}
 
-                    {/* ── مكان الشحنة الحالي (ديناميكي) — في حالة مرتجع/مؤجل (مخزن أو مندوب)
-                         أو وهي قيد الشحن فعليًا مع المندوب (مندوب بس، مفيش مخزن أصلًا) ── */}
-                    {["returned", "returned_to_warehouse", "delayed", "picked_up", "in_shipping", "in_transit", "with_courier", "out_for_delivery"].includes(shipment.status) && (shipment.warehouseName || shipment.courierName) && (
+                    {/* ── مكان الشحنة الحالي (ديناميكي) ──
+                         مرتجع/مؤجل: نعرض المخزن لو موجود، وإلا المندوب.
+                         قيد الشحن فعليًا (مع المندوب): نعرض المندوب دايمًا، حتى لو
+                         لسه فيه warehouseId قديم متسجل في الشحنة (من قبل ما تتحرك)،
+                         لأن الحالة نفسها بتأكد إنها بقت مع المندوب فعليًا. ── */}
+                    {(() => {
+                      const isWithCourier = ["picked_up", "in_shipping", "in_transit", "with_courier", "out_for_delivery"].includes(shipment.status);
+                      const isException = ["returned", "returned_to_warehouse", "delayed"].includes(shipment.status);
+                      if (!isWithCourier && !isException) return null;
+                      // مع المندوب فعليًا → نعرض المندوب بس، حتى لو فيه warehouseName قديم
+                      const showWarehouse = isException && !!shipment.warehouseName;
+                      const showCourier = isWithCourier ? !!shipment.courierName : (!shipment.warehouseName && !!shipment.courierName);
+                      if (!showWarehouse && !showCourier) return null;
+                      return (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-3 border-t" style={{ borderColor: `${c}18` }}>
-                        {shipment.warehouseName && (
+                        {showWarehouse && (
                           <div className="rounded-2xl p-3"
                             style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
                             <p className="text-xs mb-1.5 flex items-center gap-1.5" style={{ color: "rgba(255,255,255,0.3)" }}>
@@ -279,7 +290,7 @@ export default function TrackClientPage() {
                             </p>
                           </div>
                         )}
-                        {!shipment.warehouseName && shipment.courierName && (
+                        {showCourier && (
                           <div className="rounded-2xl p-3"
                             style={{
                               background: `linear-gradient(135deg, ${c}0e 0%, rgba(0,0,0,0.22) 100%)`,
@@ -290,7 +301,7 @@ export default function TrackClientPage() {
                             </p>
                             <div className="flex items-center gap-2.5">
                               {shipment.courierLogo ? (
-                                <img src={shipment.courierLogo} alt={shipment.courierName}
+                                <img src={shipment.courierLogo} alt={shipment.courierName || "مندوب التوصيل"}
                                   className="w-9 h-9 rounded-full object-cover shrink-0"
                                   style={{ border: `1.5px solid ${c}44`, boxShadow: `0 0 10px ${c}44` }} />
                               ) : (
@@ -324,7 +335,8 @@ export default function TrackClientPage() {
                           </div>
                         )}
                       </div>
-                    )}
+                      );
+                    })()}
                   </div>
                 </div>
               );

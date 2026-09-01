@@ -496,10 +496,6 @@ export default function TrackResultPage() {
   const cfg = shipment ? (STATUS_CONFIG[shipment.status] ?? STATUS_CONFIG.pending) : null;
   const StatusIcon = cfg?.icon ?? Package;
 
-  // الحالات اللي فيها "مكان الشحنة الحالي" له معنى: مرتجعة/مؤجلة (مخزن أو مندوب)،
-  // أو وهي قيد الشحن فعليًا مع المندوب — العميل يستحق يعرف مين المندوب يتواصل معاه.
-  // في باقي الحالات (استلمت/جزئي/قبل الشحن) العميل مش محتاج يعرف مكانها الحالي.
-  const showCurrentLocation = !!shipment && ["returned", "returned_to_warehouse", "delayed", "picked_up", "in_shipping", "in_transit", "with_courier", "out_for_delivery"].includes(shipment.status);
   // سبب الإرجاع/التأجيل — بيظهر فقط في حالة الاستثناء الفعلية (مرتجع/مؤجل)
   const showReturnReason = ["returned", "returned_to_warehouse", "delayed"].includes(shipment?.status ?? "") && !!shipment?.returnReason;
   // ملاحظة المندوب — بتظهر في كل الحالات (مرتجع/مؤجل/استلام/استلام جزئي) طالما موجودة
@@ -812,10 +808,19 @@ export default function TrackResultPage() {
             )}
 
             {/* ── مكان الشحنة الحالي — يظهر في حالة مرتجع/مؤجل أو وهي قيد الشحن فعليًا، عشان
-                العميل يعرف يتواصل مع مين (الفرع لو في مخزن، أو المندوب لو معاه) ── */}
-            {showCurrentLocation && (shipment.warehouseName || shipment.courierName) && (
+                العميل يعرف يتواصل مع مين (الفرع لو في مخزن، أو المندوب لو معاه).
+                لو الحالة قيد الشحن فعليًا نعرض المندوب دايمًا حتى لو فيه warehouseId
+                قديم لسه متسجل في الشحنة (من قبل ما تتحرك من المخزن). ── */}
+            {(() => {
+              const isWithCourier = ["picked_up", "in_shipping", "in_transit", "with_courier", "out_for_delivery"].includes(shipment.status);
+              const isException = ["returned", "returned_to_warehouse", "delayed"].includes(shipment.status);
+              if (!isWithCourier && !isException) return null;
+              const showWarehouse = isException && !!shipment.warehouseName;
+              const showCourier = isWithCourier ? !!shipment.courierName : (!shipment.warehouseName && !!shipment.courierName);
+              if (!showWarehouse && !showCourier) return null;
+              return (
               <div className="pt-1 grid grid-cols-1 sm:grid-cols-2 gap-3" style={{ borderTop: `1px solid ${cfg.color}18` }}>
-                {shipment.warehouseName && (
+                {showWarehouse && (
                   <div className="rounded-2xl p-3.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
                     <p className="text-xs mb-1.5 flex items-center gap-1.5" style={{ color: "rgba(255,255,255,0.3)" }}>
                       <Warehouse size={10} />مكان الشحنة
@@ -826,7 +831,7 @@ export default function TrackResultPage() {
                     </p>
                   </div>
                 )}
-                {!shipment.warehouseName && shipment.courierName && (
+                {showCourier && (
                   <div className="rounded-2xl p-3.5 relative overflow-hidden"
                     style={{
                       background: `linear-gradient(135deg, ${cfg.color}0e 0%, rgba(0,0,0,0.25) 100%)`,
@@ -838,7 +843,7 @@ export default function TrackResultPage() {
                     </p>
                     <div className="flex items-center gap-3">
                       {shipment.courierLogo ? (
-                        <img src={shipment.courierLogo} alt={shipment.courierName}
+                        <img src={shipment.courierLogo} alt={shipment.courierName || "مندوب التوصيل"}
                           className="w-10 h-10 rounded-full object-cover shrink-0"
                           style={{ border: `1.5px solid ${cfg.color}44`, boxShadow: `0 0 12px ${cfg.color}44` }} />
                       ) : (
@@ -874,7 +879,8 @@ export default function TrackResultPage() {
                   </div>
                 )}
               </div>
-            )}
+              );
+            })()}
           </div>
 
         </div>
