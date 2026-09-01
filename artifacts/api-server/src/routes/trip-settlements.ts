@@ -10,10 +10,13 @@ import {
   clientAccountPaymentsTable,
   usersTable,
   clientsTable,
+  cashRegistersTable,
+  cashTransactionsTable,
 } from "@workspace/db";
 import { z } from "zod";
 import { requireAuth } from "../middlewares/requireAuth";
 import { getTenantId } from "../middlewares/requireTenant.js";
+import { invalidateSmartCache, invalidateChartsCache } from "./analytics.js";
 
 const router: IRouter = Router();
 router.use(requireAuth);
@@ -422,6 +425,27 @@ router.post("/trip-settlements/clients/:clientRowId/settle", async (req, res): P
     let expenseId: number | null = null;
     let clientPaymentId: number | null = null;
 
+    // ── تحديد الخزنة الافتراضية عشان يتخصم منها فعليًا زي أي مصروف عادي ────
+    let reg: any = null;
+    let balBefore = 0;
+    let balAfter = 0;
+    let resolvedRegisterId: number | null = null;
+
+    const registers = await db.select().from(cashRegistersTable)
+      .where(eq(cashRegistersTable.isActive, true))
+      .orderBy(cashRegistersTable.id);
+    const defaultReg = registers.find((r: any) => r.isDefault) ?? registers[0] ?? null;
+    if (defaultReg) {
+      balBefore = parseFloat(defaultReg.balance ?? "0");
+      balAfter = balBefore - amount;
+      if (balAfter < 0) {
+        res.status(400).json({ error: `رصيد الخزنة الافتراضية "${defaultReg.name}" مش كفاية — المتاح: ${balBefore.toLocaleString("ar-EG")} ج.م` });
+        return;
+      }
+      reg = defaultReg;
+      resolvedRegisterId = defaultReg.id;
+    }
+
     if (row.clientId) {
       const [exp] = await db.insert(expensesTable).values({
         tenantId: tenantId ?? null,
@@ -429,6 +453,7 @@ router.post("/trip-settlements/clients/:clientRowId/settle", async (req, res): P
         category: "client_payment",
         amount: String(amount),
         clientId: row.clientId,
+        cashRegisterId: resolvedRegisterId,
         referenceId: settlement?.settlementNumber ?? null,
         notes: `تسوية رحلة رقم ${settlement?.settlementNumber ?? row.settlementId}`,
         expenseDate: now,
@@ -437,6 +462,27 @@ router.post("/trip-settlements/clients/:clientRowId/settle", async (req, res): P
         createdAt: now,
       });
       expenseId = (exp as any).insertId as number;
+
+      if (reg && resolvedRegisterId) {
+        await db.update(cashRegistersTable)
+          .set({ balance: String(balAfter), updatedAt: now })
+          .where(eq(cashRegistersTable.id, resolvedRegisterId));
+
+        await db.insert(cashTransactionsTable).values({
+          registerId: resolvedRegisterId,
+          type: "expense_paid",
+          amount: String(amount),
+          balanceBefore: String(balBefore),
+          balanceAfter: String(balAfter),
+          description: `سداد رصيد عميل — ${row.clientName} (${settlement?.settlementNumber ?? ""})`,
+          referenceNumber: settlement?.settlementNumber ?? undefined,
+          expenseId,
+          transactionDate: now,
+          createdByUserId: who.id,
+          createdByName: who.name,
+          createdAt: now,
+        });
+      }
 
       const [cap] = await db.insert(clientAccountPaymentsTable).values({
         tenantId: tenantId ?? null,
