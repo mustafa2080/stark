@@ -216,7 +216,7 @@ cashRegistersRouter.get("/:id/transactions", async (req, res): Promise<any> => {
     if(direction==="in") conditions.push(sql`type IN (${creditSql})`);
     if(direction==="out")conditions.push(sql`type IN (${debitSql})`);
     const[stats]=await db.select({totalIn:sql<number>`COALESCE(SUM(CASE WHEN type IN (${creditSql}) THEN CAST(amount AS DECIMAL(14,2)) ELSE 0 END),0)`,totalOut:sql<number>`COALESCE(SUM(CASE WHEN type IN (${debitSql}) THEN CAST(amount AS DECIMAL(14,2)) ELSE 0 END),0)`,txCount:sql<number>`COUNT(*)`}).from(cashTransactionsTable).where(and(...conditions));
-    const transactions=await db.select().from(cashTransactionsTable).where(and(...conditions)).orderBy(desc(cashTransactionsTable.transactionDate)).limit(limitNum).offset(offset);
+    const transactions=await db.select().from(cashTransactionsTable).where(and(...conditions)).orderBy(desc(cashTransactionsTable.transactionDate),desc(cashTransactionsTable.id)).limit(limitNum).offset(offset);
     res.json({transactions,stats:{totalIn:Number(stats?.totalIn??0),totalOut:Number(stats?.totalOut??0),net:Number(stats?.totalIn??0)-Number(stats?.totalOut??0),txCount:Number(stats?.txCount??0)},pagination:{page:pageNum,limit:limitNum,total:Number(stats?.txCount??0)}});
   } catch(err){res.status(500).json({error:"فشل جلب الحركات"});}
 });
@@ -233,7 +233,7 @@ cashRegistersRouter.get("/:id/export", async (req, res): Promise<any> => {
     if(type&&type!=="all")conditions.push(eq(cashTransactionsTable.type,type));
     if(direction==="in") conditions.push(sql`type IN (${creditSql})`);
     if(direction==="out")conditions.push(sql`type IN (${debitSql})`);
-    const transactions=await db.select().from(cashTransactionsTable).where(and(...conditions)).orderBy(desc(cashTransactionsTable.transactionDate)).limit(5000);
+    const transactions=await db.select().from(cashTransactionsTable).where(and(...conditions)).orderBy(desc(cashTransactionsTable.transactionDate),desc(cashTransactionsTable.id)).limit(5000);
     const rows=[
       ["التاريخ","نوع الحركة","الاتجاه","المبلغ","الرصيد قبل","الرصيد بعد","مرجع","ملاحظة","بواسطة"],
       ...transactions.map(tx=>[new Date(tx.transactionDate).toLocaleDateString("ar-EG"),TX_LABELS_AR[tx.type]??tx.type,CREDIT_TYPES.includes(tx.type as any)?"دخل":"خروج",parseFloat(tx.amount??"0"),parseFloat(tx.balanceBefore??"0"),parseFloat(tx.balanceAfter??"0"),tx.referenceNumber??"",tx.description??"",tx.createdByName??""]),
@@ -258,7 +258,7 @@ cashRegistersRouter.get("/:id/export-excel", async (req, res): Promise<any> => {
     if(type&&type!=="all")conditions.push(eq(cashTransactionsTable.type,type));
     if(direction==="in") conditions.push(sql`type IN (${creditSql})`);
     if(direction==="out")conditions.push(sql`type IN (${debitSql})`);
-    const transactions=await db.select().from(cashTransactionsTable).where(and(...conditions)).orderBy(desc(cashTransactionsTable.transactionDate)).limit(5000);
+    const transactions=await db.select().from(cashTransactionsTable).where(and(...conditions)).orderBy(desc(cashTransactionsTable.transactionDate),desc(cashTransactionsTable.id)).limit(5000);
     const[statsRow]=await db.select({totalIn:sql<number>`COALESCE(SUM(CASE WHEN type IN (${creditSql}) THEN CAST(amount AS DECIMAL(14,2)) ELSE 0 END),0)`,totalOut:sql<number>`COALESCE(SUM(CASE WHEN type IN (${debitSql}) THEN CAST(amount AS DECIMAL(14,2)) ELSE 0 END),0)`,txCount:sql<number>`COUNT(*)`}).from(cashTransactionsTable).where(and(...conditions));
     const totalIn=Number(statsRow?.totalIn??0); const totalOut=Number(statsRow?.totalOut??0);
 
