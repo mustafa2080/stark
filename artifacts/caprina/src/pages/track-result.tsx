@@ -499,8 +499,11 @@ export default function TrackResultPage() {
   // الحالات اللي فيها "مكان الشحنة الحالي" له معنى (مرتجعة أو مؤجلة) —
   // في باقي الحالات (استلمت/جزئي/الخ) العميل مش محتاج يعرف مكانها الحالي.
   const showCurrentLocation = !!shipment && ["returned", "returned_to_warehouse", "delayed"].includes(shipment.status);
-  // ملاحظة/سبب المندوب — بتظهر فقط في نفس حالات الاستثناء دي
-  const showReturnInfo = showCurrentLocation && !!(shipment?.returnNote || shipment?.returnReason);
+  // سبب الإرجاع/التأجيل — بيظهر فقط في نفس حالات الاستثناء دي
+  const showReturnReason = showCurrentLocation && !!shipment?.returnReason;
+  // ملاحظة المندوب — بتظهر في كل الحالات (مرتجع/مؤجل/استلام/استلام جزئي) طالما موجودة
+  const showReturnNote = !!shipment?.returnNote;
+  const showReturnInfo = showReturnReason || showReturnNote;
 
   const [darkMode, setDarkMode] = useState(true);
 
@@ -777,7 +780,7 @@ export default function TrackResultPage() {
                   border: `1px solid ${cfg.color}33`,
                 }}>
                 <p className="text-xs mb-1.5 flex items-center gap-1.5 font-bold" style={{ color: cfg.color }}>
-                  <AlertTriangle size={11} /> تنبيه بخصوص الشحنة
+                  <AlertTriangle size={11} /> {showReturnReason ? "تنبيه بخصوص الشحنة" : "ملاحظة من المندوب"}
                 </p>
                 {shipment.returnReason && (
                   <p className="text-sm font-semibold break-words leading-relaxed mb-1.5" style={{ color: "rgba(255,255,255,0.85)", overflowWrap: "anywhere", wordBreak: "break-word" }}>

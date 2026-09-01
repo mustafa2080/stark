@@ -99,7 +99,7 @@ export default function ShipmentStatusHero({ status, trackingNumber, returnReaso
               السبب: {returnReasonLabel(returnReason)}
             </div>
           )}
-          {group === "exception" && returnNote && (
+          {returnNote && (
             <p
               className="max-w-md mx-auto mt-3 text-xs sm:text-sm leading-relaxed break-words px-2"
               style={{ color: "rgba(255,255,255,0.55)", overflowWrap: "anywhere", wordBreak: "break-word" }}

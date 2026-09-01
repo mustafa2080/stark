@@ -278,7 +278,7 @@ export default function TrackClientPage() {
                             </p>
                           </div>
                         )}
-                        {shipment.courierName && (
+                        {!shipment.warehouseName && shipment.courierName && (
                           <div className="rounded-2xl p-3"
                             style={{
                               background: `linear-gradient(135deg, ${c}0e 0%, rgba(0,0,0,0.22) 100%)`,
