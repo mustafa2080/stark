@@ -7,9 +7,9 @@ import router from "./routes";
 import { logger } from "./lib/logger";
 import { startSubscriptionCron } from "./lib/subscriptionCron.js";
 import { startReconciliationCron } from "./lib/reconcileCron.js";
-import { db, usersTable, shipmentsTable } from "@workspace/db";
+import { db, usersTable } from "@workspace/db";
 import { hashPassword } from "./lib/auth.js";
-import { eq, sql, or, and, isNull, desc, like } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 import crypto from "node:crypto";
 
@@ -83,74 +83,13 @@ app.use(
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
-// ─── Public tracking endpoint — NO auth, registered before router ────────────
-// Rate limit صارم مخصص للتتبع العام (بدون تسجيل دخول) — عشان محدش يقدر يستخدمه
-// في حصاد بيانات (scraping) أو تخمين أرقام شحنات بالقوة الغاشمة.
-const publicTrackLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 20,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: "طلبات كثيرة جداً، يرجى المحاولة بعد دقيقة" },
-});
-app.get("/api/shipments/track/:number", publicTrackLimiter, async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { number } = req.params;
-    const trackNumber = Array.isArray(number) ? number[0] : number;
-    const rows = await db
-      .select()
-      .from(shipmentsTable)
-      .where(
-        and(
-          isNull(shipmentsTable.deletedAt),
-          or(
-            eq(shipmentsTable.trackingNumber, trackNumber),
-            eq(shipmentsTable.shipmentNumber,  trackNumber),
-          )
-        )
-      )
-      .orderBy(desc(shipmentsTable.createdAt))
-      .limit(1);
-    if (!rows.length) { res.status(404).json({ error: "لم يتم العثور على الشحنة" }); return; }
-    res.set("Cache-Control", "no-store");
-    res.json(rows[0]);
-  } catch (e) {
-    console.error("[GET /api/shipments/track]", e);
-    res.status(500).json({ error: "خطأ في البحث" });
-  }
-});
+// ملاحظة: endpoints التتبع العام (/api/shipments/track/:number و /api/shipments/track-by-client)
+// اتنقلوا لـ publicShipmentsRouter في routes/shipments.ts (فيها الـ joins الصحيحة
+// لاسم المخزن/المندوب/فرع العميل الأصلي + نفس الـ rate limiter). كانت متعرّفة هنا
+// قبل كده بنسخة ناقصة (select بسيط بدون joins) وده كان بيحجب النسخة الصح تمامًا
+// لأن Express بياخد أول route matching.
 
 app.use("/api", router);
-
-// ─── Public track-by-client endpoint ─────────────────────────────────────────
-app.get("/api/shipments/track-by-client", publicTrackLimiter, async (req: Request, res: Response): Promise<void> => {
-  try {
-    const name  = (req.query.name  as string | undefined)?.trim();
-    const phone = (req.query.phone as string | undefined)?.trim();
-    if (!name || !phone) { res.status(400).json({ error: "يرجى إدخال اسم العميل ورقم الهاتف" }); return; }
-    const rows = await db
-      .select()
-      .from(shipmentsTable)
-      .where(
-        and(
-          isNull(shipmentsTable.deletedAt),
-          like(shipmentsTable.senderName, `%${name}%`),
-          or(
-            eq(shipmentsTable.senderPhone,  phone),
-            eq(shipmentsTable.senderPhone2, phone),
-          )
-        )
-      )
-      .orderBy(desc(shipmentsTable.createdAt))
-      .limit(20);
-    if (!rows.length) { res.status(404).json({ error: "لم يتم العثور على شحنات لهذا العميل" }); return; }
-    res.set("Cache-Control", "no-store");
-    res.json(rows);
-  } catch (e) {
-    console.error("[GET /api/shipments/track-by-client]", e);
-    res.status(500).json({ error: "خطأ في البحث" });
-  }
-});
 
 // ─── Global JSON error handler (must be AFTER routes) ────────────────────────
 // Ensures all unhandled errors return JSON instead of an HTML error page.

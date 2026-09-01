@@ -24,12 +24,15 @@ interface Shipment {
   weight?: string | number;
   notes?: string;
   returnReason?: string | null;
+  returnNote?: string | null;
   createdAt?: string;
   warehouseName?: string | null;
   warehouseCity?: string | null;
   courierName?: string | null;
   courierPhone?: string | null;
   courierLogo?: string | null;
+  originWarehouseName?: string | null;
+  originWarehouseCity?: string | null;
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: typeof Package; step: number; isException?: boolean }> = {
@@ -99,6 +102,7 @@ export default function TrackClientPage() {
             status={shipments[0].status}
             trackingNumber={shipments[0].trackingNumber || shipments[0].shipmentNumber}
             returnReason={shipments[0].returnReason}
+            returnNote={shipments[0].returnNote}
           />
         )}
 
@@ -245,14 +249,28 @@ export default function TrackClientPage() {
                       </p>
                     )}
 
-                    {/* ── مخزن و مندوب ── */}
-                    {(shipment.warehouseName || shipment.courierName) && (
+                    {/* ── الشحنة صادرة من (ثابت دايمًا) ── */}
+                    {shipment.originWarehouseName && (
+                      <div className="rounded-2xl p-3 mb-2.5"
+                        style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                        <p className="text-xs mb-1.5 flex items-center gap-1.5" style={{ color: "rgba(255,255,255,0.3)" }}>
+                          <Warehouse size={10}/>الشحنة صادرة من
+                        </p>
+                        <p className="text-sm font-bold text-white">
+                          {shipment.originWarehouseName}
+                          {shipment.originWarehouseCity && <span className="text-xs mr-1" style={{ color: "rgba(255,255,255,0.4)" }}>({shipment.originWarehouseCity})</span>}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* ── مكان الشحنة الحالي (ديناميكي) — بس في حالة مرتجع/مؤجل ── */}
+                    {["returned", "returned_to_warehouse", "delayed"].includes(shipment.status) && (shipment.warehouseName || shipment.courierName) && (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-3 border-t" style={{ borderColor: `${c}18` }}>
                         {shipment.warehouseName && (
                           <div className="rounded-2xl p-3"
                             style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
                             <p className="text-xs mb-1.5 flex items-center gap-1.5" style={{ color: "rgba(255,255,255,0.3)" }}>
-                              <Warehouse size={10}/>مكان الشحنة
+                              <Warehouse size={10}/>مكان الشحنة الحالي
                             </p>
                             <p className="text-sm font-bold text-white">
                               {shipment.warehouseName}

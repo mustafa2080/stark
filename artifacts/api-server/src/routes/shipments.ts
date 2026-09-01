@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import rateLimit from "express-rate-limit";
 import { eq, desc, and, like, or, inArray, sql, isNull, isNotNull, gte, getTableColumns } from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
 import { db, shipmentsTable, shipmentItemsTable, shipmentZonesTable, zoneCostsTable, parcelTypePricingTable, clientsTable, shippingCompaniesTable, usersTable, warehousesTable, shipmentManifestsTable, shipmentManifestItemsTable, shipmentRatingsTable, clientAccountManifestItemsTable } from "@workspace/db";
@@ -43,9 +44,20 @@ const latestClientAccountManifestItemIdSql = sql`(
 // ─── Public router (no auth) ──────────────────────────────────────────────────
 export const publicShipmentsRouter: IRouter = Router();
 
-publicShipmentsRouter.get("/shipments/track/:number", async (req, res): Promise<void> => {
+// Rate limit صارم مخصص للتتبع العام (بدون تسجيل دخول) — عشان محدش يقدر يستخدمه
+// في حصاد بيانات (scraping) أو تخمين أرقام شحنات بالقوة الغاشمة.
+const publicTrackLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "طلبات كثيرة جداً، يرجى المحاولة بعد دقيقة" },
+});
+
+publicShipmentsRouter.get("/shipments/track/:number", publicTrackLimiter, async (req, res): Promise<void> => {
   try {
-    const { number } = req.params;
+    const { number: rawNumber } = req.params;
+    const number = Array.isArray(rawNumber) ? rawNumber[0] : rawNumber;
     const rows = await db
       .select({
         shipment:        shipmentsTable,
@@ -91,7 +103,7 @@ publicShipmentsRouter.get("/shipments/track/:number", async (req, res): Promise<
 });
 
 // ─── Public: البحث بالاسم التجاري + رقم الفون ────────────────────────────────
-publicShipmentsRouter.get("/shipments/track-by-client", async (req, res): Promise<void> => {
+publicShipmentsRouter.get("/shipments/track-by-client", publicTrackLimiter, async (req, res): Promise<void> => {
   try {
     const name  = (req.query.name  as string | undefined)?.trim();
     const phone = (req.query.phone as string | undefined)?.trim();
@@ -116,9 +128,11 @@ publicShipmentsRouter.get("/shipments/track-by-client", async (req, res): Promis
         shipment:        shipmentsTable,
         warehouseName:   warehousesTable.name,
         warehouseCity:   warehousesTable.city,
-        courierName:     sql<string>`COALESCE(${shippingCompaniesTable.name}, ${manifestShippingCompanyTable.name})`,
-        courierPhone:    sql<string>`COALESCE(${shippingCompaniesTable.phone}, ${manifestShippingCompanyTable.phone})`,
+        courierName:     sql<string>`COALESCE(${shippingCompaniesTable.name}, ${manifestShippingCompanyTable.name}, ${usersTable.displayName})`,
+        courierPhone:    sql<string>`COALESCE(${shippingCompaniesTable.phone}, ${manifestShippingCompanyTable.phone}, ${usersTable.phone})`,
         courierLogo:     sql<string>`COALESCE(${shippingCompaniesTable.logo}, ${manifestShippingCompanyTable.logo})`,
+        originWarehouseName: clientWarehouseTable.name,
+        originWarehouseCity: clientWarehouseTable.city,
       })
       .from(shipmentsTable)
       .leftJoin(warehousesTable,        eq(shipmentsTable.warehouseId,        warehousesTable.id))
@@ -126,6 +140,9 @@ publicShipmentsRouter.get("/shipments/track-by-client", async (req, res): Promis
       .leftJoin(shipmentManifestItemsTable, eq(shipmentManifestItemsTable.shipmentId, shipmentsTable.id))
       .leftJoin(shipmentManifestsTable, eq(shipmentManifestsTable.id, shipmentManifestItemsTable.manifestId))
       .leftJoin(manifestShippingCompanyTable, eq(manifestShippingCompanyTable.id, shipmentManifestsTable.shippingCompanyId))
+      .leftJoin(usersTable,             eq(shipmentsTable.assignedUserId,     usersTable.id))
+      .leftJoin(clientsTable,           eq(shipmentsTable.clientId,           clientsTable.id))
+      .leftJoin(clientWarehouseTable,   eq(clientsTable.warehouseId,          clientWarehouseTable.id))
       .where(and(...conditions))
       .orderBy(desc(shipmentsTable.id))
       .limit(20);
@@ -134,7 +151,7 @@ publicShipmentsRouter.get("/shipments/track-by-client", async (req, res): Promis
       res.status(404).json({ error: "لم يتم العثور على شحنات لهذا العميل" });
       return;
     }
-    const result = rows.map(r => ({ ...r.shipment, warehouseName: r.warehouseName, warehouseCity: r.warehouseCity, courierName: r.courierName, courierPhone: r.courierPhone, courierLogo: r.courierLogo }));
+    const result = rows.map(r => ({ ...r.shipment, warehouseName: r.warehouseName, warehouseCity: r.warehouseCity, courierName: r.courierName, courierPhone: r.courierPhone, courierLogo: r.courierLogo, originWarehouseName: r.originWarehouseName, originWarehouseCity: r.originWarehouseCity }));
     res.set("Cache-Control", "no-store");
     res.json(result);
   } catch (e) {

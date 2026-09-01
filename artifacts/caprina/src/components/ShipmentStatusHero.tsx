@@ -48,9 +48,10 @@ interface ShipmentStatusHeroProps {
   status: string;
   trackingNumber?: string;
   returnReason?: string | null;
+  returnNote?: string | null;
 }
 
-export default function ShipmentStatusHero({ status, trackingNumber, returnReason }: ShipmentStatusHeroProps) {
+export default function ShipmentStatusHero({ status, trackingNumber, returnReason, returnNote }: ShipmentStatusHeroProps) {
   const group = useMemo<StatusGroup>(() => STATUS_GROUP_MAP[status] ?? "pending", [status]);
   const meta = GROUP_META[group];
 
@@ -97,6 +98,14 @@ export default function ShipmentStatusHero({ status, trackingNumber, returnReaso
             >
               السبب: {returnReasonLabel(returnReason)}
             </div>
+          )}
+          {group === "exception" && returnNote && (
+            <p
+              className="max-w-md mx-auto mt-3 text-xs sm:text-sm leading-relaxed break-words px-2"
+              style={{ color: "rgba(255,255,255,0.55)", overflowWrap: "anywhere", wordBreak: "break-word" }}
+            >
+              {returnNote}
+            </p>
           )}
           {trackingNumber && (
             <p className="text-white/25 text-[11px] mt-2 font-mono" dir="ltr">
