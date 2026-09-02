@@ -114,7 +114,7 @@ export function Navbar({ darkMode, toggleDarkMode }: { darkMode: boolean; toggle
   const logoText = "STARK";
 
   return (
-    <nav className="fixed top-3 sm:top-4 left-1/2 -translate-x-1/2 z-50 w-[95%] sm:w-[92%] max-w-4xl" dir="rtl">
+    <nav className="fixed top-3 sm:top-4 left-1/2 -translate-x-1/2 z-50 w-[95%] sm:w-[92%] max-w-5xl" dir="rtl">
       <div
         className="flex items-center justify-between px-3 sm:px-5 h-[52px] sm:h-[58px] rounded-2xl backdrop-blur-xl transition-all duration-500"
         style={{
@@ -146,14 +146,14 @@ export function Navbar({ darkMode, toggleDarkMode }: { darkMode: boolean; toggle
         </button>
 
         {/* Desktop Links */}
-        <div className="hidden md:flex items-center gap-1">
+        <div className="hidden md:flex items-center gap-0.5 lg:gap-1">
           {navLinks.map(l => {
             const isActive = activeSection === l.id;
             return (
               <button
                 key={l.id}
                 onClick={() => scrollTo(l.id)}
-                className={`relative px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 group ${
+                className={`relative px-2.5 lg:px-4 py-2 rounded-xl text-[13px] lg:text-sm font-medium whitespace-nowrap transition-all duration-300 group ${
                   isActive
                     ? darkMode ? "text-white" : "text-black"
                     : darkMode ? "text-gray-400 hover:text-white" : "text-gray-500 hover:text-black"
