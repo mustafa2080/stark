@@ -2256,16 +2256,12 @@ export default function Orders() {
                         )}
                         {isCustomRole && (
                         <TableCell className="text-xs font-bold text-primary">
-                          {formatCurrency((Number(o.codAmount ?? o.totalAmount ?? 0)) + Number(o.shippingFee ?? 0))}
+                          {formatCurrency(Number(o.totalAmount ?? 0))}
                         </TableCell>
                         )}
                         {canFinancials && (
                         <TableCell className="text-xs font-bold text-primary">
-                          {(() => {
-                            const baseAmt = Number(o.codAmount ?? 0) > 0 ? Number(o.codAmount) : Number(o.totalAmount ?? 0);
-                            const shipAmt = Number(o.shippingFee ?? 0);
-                            return formatCurrency(baseAmt + shipAmt);
-                          })()}
+                          {formatCurrency(Number(o.totalAmount ?? 0))}
                         </TableCell>
                         )}
                         {canFinancials && (
