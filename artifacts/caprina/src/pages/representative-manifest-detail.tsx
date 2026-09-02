@@ -1435,7 +1435,7 @@ function InvoiceGroupDeliveryRow({
             )}
           </div>
           {/* اجمالى سعر الشحنة (COD) */}
-          <div className="text-left font-bold px-1.5 flex items-center overflow-hidden">
+          <div className="text-center font-bold px-1.5 flex items-center justify-center overflow-hidden">
             <span className="text-emerald-500 truncate">{formatCurrency(totalFullPrice)}</span>
           </div>
           {/* القيمة المستلمة (فعليًا) */}
