@@ -289,9 +289,12 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
         // رسوم الشحن الفعلية: لو الشحنة معندهاش shippingFee مسجَّل يدويًا (فارغ/صفر)،
         // نرجع لتكلفة المنطقة من "تكاليف المناطق" بدل ما نسيب القيمة صفر/بالسالب.
         shippingCost:  effectiveShippingFee,
-        // الإجمالي = مبلغ التحصيل (codAmount) + سعر الشحن الفعلي (بعد fallback تكاليف المناطق)
-        totalPrice:    Number(sh?.codAmount ?? sh?.totalAmount ?? 0) + effectiveShippingFee,
-        unitPrice:     Number(sh?.codAmount ?? sh?.totalAmount ?? 0) + effectiveShippingFee,
+        // الإجمالي = totalAmount المخزّن على الشحنة مباشرة (نفس مصدر صفحة تفاصيل
+        // الشحنة والليست) — مش إعادة حساب codAmount + shippingFee، لأن codAmount
+        // ممكن يكون سالب/يشمل خصومات خاصة بنوع الطرد فيطلع رقم غلط (مثال: -10 + 95 = 85
+        // بدل 95 الصح). لو totalAmount مش موجود لأي سبب، fallback لنفس المعادلة القديمة.
+        totalPrice:    sh?.totalAmount != null ? Number(sh.totalAmount) : (Number(sh?.codAmount ?? 0) + effectiveShippingFee),
+        unitPrice:     sh?.totalAmount != null ? Number(sh.totalAmount) : (Number(sh?.codAmount ?? 0) + effectiveShippingFee),
         parcelType:    sh?.parcelType ?? null,
         repExtraCost:  sh?.parcelType ? (parcelPricingMap[sh.parcelType]?.repExtraCost ?? 0) : 0,
         repExtraReason: sh?.parcelType && (parcelPricingMap[sh.parcelType]?.repExtraCost ?? 0) > 0
