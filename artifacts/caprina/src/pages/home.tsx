@@ -69,11 +69,14 @@ export function Navbar({ darkMode, toggleDarkMode }: { darkMode: boolean; toggle
     { label: "الرئيسية", id: "home" },
     { label: "من نحن",   id: "about" },
     { label: "خدماتنا",  id: "services" },
+    { label: "أسعار التوصيل والشحن", id: "shipping-rates", route: "/shipping-rates" },
     { label: "العقد والتعاقد", id: "contract" },
     { label: "اتصل بنا", id: "contact" },
   ];
 
   const scrollTo = (id: string) => {
+    const link = navLinks.find(l => l.id === id);
+    if (link?.route) { navigate(link.route); return; }
     if (id === "home") {
       if (!isHome) { navigate("/"); return; }
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -85,6 +88,7 @@ export function Navbar({ darkMode, toggleDarkMode }: { darkMode: boolean; toggle
   };
 
   React.useEffect(() => {
+    if (location === "/shipping-rates") { setActiveSection("shipping-rates"); return; }
     const onScroll = () => {
       setScrolled(window.scrollY > 20);
       const sections = navLinks.map(l => l.id).filter(id => id !== "home");
@@ -101,7 +105,7 @@ export function Navbar({ darkMode, toggleDarkMode }: { darkMode: boolean; toggle
     window.addEventListener("scroll", onScroll, { passive: true });
     onScroll();
     return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+  }, [location]);
 
   const navBg = darkMode
     ? scrolled ? "bg-[#0a0a0a]/95 border-[#2a2a2a] shadow-lg shadow-black/40" : "bg-transparent border-transparent"

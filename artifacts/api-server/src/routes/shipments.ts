@@ -160,6 +160,55 @@ publicShipmentsRouter.get("/shipments/track-by-client", publicTrackLimiter, asyn
   }
 });
 
+// Rate limit أخف للأسعار العامة (صفحة تسويقية) — أعلى من التتبع لأنها بيانات غير حساسة
+// لكن برضه بنمنع أي استخدام مبالغ فيه (bot scraping للأسعار مثلاً).
+const publicPricesLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "طلبات كثيرة جداً، يرجى المحاولة بعد دقيقة" },
+});
+
+// ─── Public: أسعار الشحن العادية (لصفحة "أسعار التوصيل والشحن" التسويقية) ────
+// بيرجع بس: من (الفرع) / إلى (المحافظة) / السعر العادي (priceNormal).
+// عمداً مش بيرجع costPrice ولا priceCommercial ولا priceVip ولا tenantId ولا أي
+// بيانات داخلية — الراوت ده عام بالكامل وبيتقرا من أي حد بدون تسجيل دخول.
+publicShipmentsRouter.get("/shipments/public-prices", publicPricesLimiter, async (req, res): Promise<void> => {
+  try {
+    const rows = await db
+      .select({
+        id:              shipmentZonesTable.id,
+        name:            shipmentZonesTable.name,
+        fromGovernorate: shipmentZonesTable.fromGovernorate,
+        toGovernorate:   shipmentZonesTable.toGovernorate,
+        price:           shipmentZonesTable.priceNormal,
+      })
+      .from(shipmentZonesTable)
+      .where(eq(shipmentZonesTable.isActive, true))
+      .orderBy(shipmentZonesTable.fromGovernorate, shipmentZonesTable.toGovernorate);
+
+    // نستبعد أي صف السعر فيه فاضي/صفر عشان الصفحة العامة متعرضش أسعار مش متظبطة بعد
+    const result = rows
+      .filter(r => r.fromGovernorate && r.toGovernorate && Number(r.price) > 0)
+      .map(r => ({
+        id: r.id,
+        from: r.fromGovernorate,
+        to: r.toGovernorate,
+        area: r.name,
+        price: Number(r.price),
+      }));
+
+    // Cache خفيف على مستوى الـ CDN/المتصفح — الأسعار مش بتتغير كل ثانية،
+    // بس برضه قصير عشان أي تحديث سعر يظهر بسرعة معقولة.
+    res.set("Cache-Control", "public, max-age=120");
+    res.json(result);
+  } catch (e) {
+    console.error("[GET /shipments/public-prices]", e);
+    res.status(500).json({ error: "خطأ في استرجاع الأسعار" });
+  }
+});
+
 // ─── Zod schemas ──────────────────────────────────────────────────────────────
 const CreateShipmentSchema = z.object({
   clientId:        z.number().int().positive().nullish(),

@@ -254,6 +254,7 @@ const ContractPage          = lazy(() => import("@/pages/contract"));
 const ShipmentsSettingsPage = lazy(() => import("@/pages/shipments"));
 const ParcelTypesPage       = lazy(() => import("@/pages/parcel-types"));
 const TrackResultPage       = lazy(() => import("@/pages/track-result"));
+const ShippingRatesPage     = lazy(() => import("@/pages/shipping-rates"));
 const TrackClientPage       = lazy(() => import("@/pages/track-client"));
 const ClientsShowcasePage   = lazy(() => import("@/pages/clients-showcase"));
 const RepresentativePage    = lazy(() => import("@/pages/representative-dashboard"));
@@ -426,7 +427,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!user && location !== "/login" && location !== "/home" && location !== "/" && location !== "/register" && location !== "/contract" && location !== "/track-client" && !location.startsWith("/track/")) {
+  if (!user && location !== "/login" && location !== "/home" && location !== "/" && location !== "/register" && location !== "/contract" && location !== "/track-client" && location !== "/shipping-rates" && !location.startsWith("/track/")) {
     sessionStorage.setItem("redirect_after_login", location);
     return <Redirect to="/login" />;
   }
@@ -512,7 +513,7 @@ function Router() {
   const { user } = useAuth();
   const [location] = useLocation();
 
-  if (location === "/" || location === "/home" || location === "/login" || location === "/register" || location === "/client-register" || location === "/contract" || location === "/track-client" || location.startsWith("/track/")) {
+  if (location === "/" || location === "/home" || location === "/login" || location === "/register" || location === "/client-register" || location === "/contract" || location === "/track-client" || location === "/shipping-rates" || location.startsWith("/track/")) {
     if (location === "/home") return <Redirect to="/" />;
     // لو logged in → روح للداشبورد (بس مش من /contract)
     if (user && (location === "/" || location === "/login" || location === "/register" || location === "/client-register")) {
@@ -525,6 +526,7 @@ function Router() {
       <Suspense fallback={<PageLoader />}>
         <Switch>
           <Route path="/" component={Home} />
+          <Route path="/shipping-rates" component={ShippingRatesPage} />
           <Route path="/track/:number" component={TrackResultPage} />
           <Route path="/track-client" component={TrackClientPage} />
           <Route path="/contract" component={ContractPage} />
