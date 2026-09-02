@@ -235,7 +235,7 @@ export default function ClientPickupRequestsPage() {
   const [showModal, setShowModal] = useState(false);
 
   const { data, isLoading, refetch } = useQuery<{ data: PickupRequest[]; total: number }>({
-    queryKey: ["client-pickup-requests"],
+    queryKey: ["client-pickup-requests", user?.id, user?.receiverClientId],
     queryFn: () => apiFetch("/client-portal/pickup-requests"),
     enabled: !!user,
     staleTime: 15_000,
@@ -245,7 +245,7 @@ export default function ClientPickupRequestsPage() {
     mutationFn: (id: number) => apiFetch(`/client-portal/pickup-requests/${id}/cancel`, { method: "PATCH" }),
     onSuccess: () => {
       toast({ title: "تم إلغاء الطلب" });
-      queryClient.invalidateQueries({ queryKey: ["client-pickup-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["client-pickup-requests", user?.id, user?.receiverClientId] });
     },
     onError: (err: any) => toast({ title: "خطأ", description: err.message, variant: "destructive" }),
   });

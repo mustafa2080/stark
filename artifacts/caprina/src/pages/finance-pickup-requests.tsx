@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -74,9 +75,11 @@ export default function FinancePickupRequestsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [refreshing, setRefreshing] = useState(false);
 
+  // نجيب كل الطلبات مرة واحدة (بدون فلترة سيرفر) عشان نقدر نعرض عداد لكل حالة
+  // في شريط التابات، والتبديل بين الحالات يبقى فوري من غير ريكوست جديد.
   const { data, isLoading, isError, error, refetch } = useQuery<{ data: AdminPickupRequest[]; total: number }>({
-    queryKey: ["finance-pickup-requests", statusFilter],
-    queryFn: () => apiFetch(`/finance/pickup-requests${statusFilter !== "all" ? `?status=${statusFilter}` : ""}`),
+    queryKey: ["finance-pickup-requests"],
+    queryFn: () => apiFetch(`/finance/pickup-requests`),
     staleTime: 15_000,
   });
 
@@ -96,8 +99,14 @@ export default function FinancePickupRequestsPage() {
     setRefreshing(false);
   };
 
-  const requests = data?.data ?? [];
-  const pendingCount = requests.filter(r => r.status === "pending").length;
+  const allRequests = data?.data ?? [];
+  const pendingCount = allRequests.filter(r => r.status === "pending").length;
+
+  // عداد لكل حالة عشان يتعرض جنب اسمها في شريط التابات
+  const countsByStatus: Record<string, number> = { all: allRequests.length };
+  for (const r of allRequests) countsByStatus[r.status] = (countsByStatus[r.status] ?? 0) + 1;
+
+  const requests = statusFilter === "all" ? allRequests : allRequests.filter(r => r.status === statusFilter);
 
   return (
     <div className="space-y-5 animate-in fade-in duration-500" dir="rtl">
@@ -110,24 +119,49 @@ export default function FinancePickupRequestsPage() {
           <p className="text-base text-muted-foreground">طلبات استلام الشحنات المرسلة من العملاء</p>
         </div>
         <div className="mr-auto flex items-center gap-2 flex-wrap">
-          <Badge variant="outline" className="text-sm">{requests.length} طلب</Badge>
-          {pendingCount > 0 && (
+          <Badge variant="outline" className="text-sm">{allRequests.length} طلب</Badge>
+          {pendingCount > 0 && statusFilter !== "pending" && (
             <Badge className="text-sm bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
               {pendingCount} بانتظار الموافقة
             </Badge>
           )}
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="h-9 text-sm w-[170px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {STATUS_FILTERS.map(f => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
           <Button variant="outline" size="sm" className="h-9 text-sm gap-1.5" onClick={handleRefresh} disabled={refreshing}>
             <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
             تحديث
           </Button>
+        </div>
+      </div>
+
+      {/* شريط فلتر الحالات — تابات ثابتة فوق عشان تعرف الطلبات الحالية من غير نزول لتحت */}
+      <div className="sticky top-0 z-10 -mx-1 px-1 py-1 bg-background/80 backdrop-blur-sm">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {STATUS_FILTERS.map(f => {
+            const isActive = statusFilter === f.value;
+            const count = countsByStatus[f.value] ?? 0;
+            const meta = f.value === "all" ? null : STATUS_META[f.value];
+            return (
+              <button
+                key={f.value}
+                onClick={() => setStatusFilter(f.value)}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors",
+                  isActive
+                    ? meta
+                      ? colorClasses(meta.color) + " border-current"
+                      : "bg-primary text-primary-foreground border-primary"
+                    : "bg-muted/40 text-muted-foreground border-border hover:bg-muted"
+                )}
+              >
+                {f.label}
+                <span className={cn(
+                  "rounded-full px-1.5 py-0.5 text-xs font-bold leading-none",
+                  isActive ? "bg-current/15" : "bg-muted-foreground/10"
+                )}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 

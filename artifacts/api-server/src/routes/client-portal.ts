@@ -1422,12 +1422,28 @@ router.get("/client-portal/pickup-requests", async (req, res): Promise<void> => 
     const user = (req as any).user;
     if (!user.clientId) { res.json({ data: [], total: 0 }); return; }
 
+    // ⚠️ حماية إضافية بـ tenantId (كان الفلتر بيعتمد على portalClientId بس) —
+    // عشان نستبعد أي احتمال تداخل clientId بين شركات مختلفة على نفس السيرفر
     const conds: any[] = [
       eq(pickupRequestsTable.portalClientId, user.clientId),
       isNull(pickupRequestsTable.deletedAt),
     ];
+    if (user.tenantId !== null && user.tenantId !== undefined) {
+      conds.push(eq(pickupRequestsTable.tenantId, user.tenantId));
+    }
     const rows = await db.select().from(pickupRequestsTable)
       .where(and(...conds)).orderBy(desc(pickupRequestsTable.createdAt));
+
+    // 🔍 تشخيص مؤقت: نتأكد إن كل صف راجع فعلاً بتاع نفس user.clientId —
+    // لو حصل تسريب تاني، هيبان فورًا في الـ logs مين اللي شاف بيانات مين
+    const wrongClientRows = rows.filter(r => r.portalClientId !== user.clientId);
+    if (wrongClientRows.length > 0) {
+      console.error(
+        `[SECURITY] pickup-requests leak! user.id=${user.id} user.clientId=${user.clientId} ` +
+        `returned rows with portalClientId=${wrongClientRows.map(r => r.portalClientId).join(",")}`
+      );
+    }
+    console.log(`[pickup-requests] user.id=${user.id} clientId=${user.clientId} tenantId=${user.tenantId} → ${rows.length} rows`);
 
     res.json({ data: rows, total: rows.length });
   } catch (err: any) {
