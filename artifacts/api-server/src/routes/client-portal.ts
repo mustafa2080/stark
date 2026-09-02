@@ -30,7 +30,7 @@ import ExcelJS from "exceljs";
 import { signToken, comparePassword, hashPassword } from "../lib/auth.js";
 import { requireAuth } from "../middlewares/requireAuth.js";
 import { logAudit } from "../lib/audit.js";
-import { generateShipmentNumber, syncShipmentInventory } from "./shipments.js";
+import { generateShipmentNumber, syncShipmentInventory, computeTotalAmount } from "./shipments.js";
 import { pushNotification } from "../lib/notifications.js";
 import { computeClosedManifestsForClient } from "../lib/clientAccountBalance.js";
 
@@ -1052,7 +1052,10 @@ router.post("/client-portal/shipments", async (req, res): Promise<void> => {
       codAmount:       String(d.codAmount),
       shippingFee:     String(d.shippingFee),
       insuranceFee:    String(d.insuranceFee),
-      totalAmount:     String(d.totalAmount),
+      // totalAmount بيتحسب دايمًا في السيرفر (مش بياخده زي ما جاي من الفرونت) —
+      // بوابة العميل مش بتبعت totalAmount خالص في الطلب، فكان بيتسجل صفر افتراضيًا.
+      // نفس دالة الحساب المستخدمة في POST /shipments (مصدر واحد للحقيقة).
+      totalAmount:     String(computeTotalAmount(d.paymentMethod, d.codAmount, d.shippingFee, d.insuranceFee)),
       collectedAmount: "0",
       // الحالة دايمًا "waiting" — الأدمن هو اللي يقرر يقبلها ويحولها warehouse_ready
       status:          "waiting",

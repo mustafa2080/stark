@@ -13,6 +13,26 @@ import { invalidateSmartCache, invalidateChartsCache } from "./analytics.js";
 
 const router: IRouter = Router();
 
+// ─── حساب totalAmount دايمًا في السيرفر (مش بيتاخد كإدخال من الفرونت) ─────────
+// السبب: بعض الفورمات (بوابة العميل تحديدًا) بتبعت codAmount و shippingFee بس
+// من غير totalAmount خالص، وده كان بيسيب القيمة تتخزن بالـ default (0) أو
+// بقيمة قديمة متعارضة مع الحقول التانية. الدالة دي هي المصدر الوحيد للحساب
+// عشان "سعر الشحنة" (الإجمالي) يفضل متسق دايمًا مع codAmount/shippingFee/insuranceFee
+// مهما كان الفرونت اللي بعت الطلب.
+export function computeTotalAmount(
+  paymentMethod: string,
+  codAmount: number,
+  shippingFee: number,
+  insuranceFee: number,
+): number {
+  // نفس منطق الـ fallback الموجود بالفعل في client-shipment-detail.tsx (سطر ~4713):
+  // COD → الإجمالي = codAmount + shippingFee (المندوب بيحصّل القيمتين مع بعض من العميل)
+  // غير كده (مدفوع مسبقًا/آجل) → مفيش COD يتحصل، فالإجمالي = رسوم الشحن + التأمين
+  return paymentMethod === "cod"
+    ? codAmount + shippingFee
+    : shippingFee + insuranceFee;
+}
+
 // alias لجدول المناطق عشان نطابق محافظة مدينة الراسل (senderCity) بشكل مستقل عن منطقة المستلم
 const senderZoneTable = alias(shipmentZonesTable, "sender_zone");
 const manifestShippingCompanyTable = alias(shippingCompaniesTable, "manifest_shipping_company");
@@ -977,7 +997,9 @@ router.post("/shipments", async (req, res): Promise<void> => {
       codAmount:       String(d.codAmount),
       shippingFee:     String(d.shippingFee),
       insuranceFee:    String(d.insuranceFee),
-      totalAmount:     String(d.totalAmount),
+      // totalAmount بيتحسب دايمًا في السيرفر (مش بياخده زي ما جاي من الفرونت) —
+      // عشان يفضل متسق مع codAmount/shippingFee/insuranceFee مهما كانت الصفحة اللي بعتت الطلب
+      totalAmount:     String(computeTotalAmount(d.paymentMethod, d.codAmount, d.shippingFee, d.insuranceFee)),
       collectedAmount: "0",
       status:          d.status ?? "waiting",
       notes:           d.notes ?? undefined,
@@ -1110,7 +1132,6 @@ router.put("/shipments/:id", async (req, res): Promise<void> => {
     if (d.costPrice        !== undefined) updateData.costPrice        = String(d.costPrice);
     if (d.shippingFee      !== undefined) updateData.shippingFee      = String(d.shippingFee);
     if (d.insuranceFee     !== undefined) updateData.insuranceFee     = String(d.insuranceFee);
-    if (d.totalAmount      !== undefined) updateData.totalAmount      = String(d.totalAmount);
     if (d.notes            !== undefined) updateData.notes            = d.notes;
     if (d.internalNotes    !== undefined) updateData.internalNotes    = d.internalNotes;
     if (d.returnReason     !== undefined) updateData.returnReason     = d.returnReason;
@@ -1122,6 +1143,18 @@ router.put("/shipments/:id", async (req, res): Promise<void> => {
     if (d.canOpen           !== undefined) updateData.canOpen          = d.canOpen === null ? null : Number(d.canOpen);
     if (d.isDivisible       !== undefined) updateData.isDivisible      = d.isDivisible === null ? null : Number(d.isDivisible);
     if (d.rejectionPolicy   !== undefined) updateData.rejectionPolicy  = d.rejectionPolicy;
+
+    // totalAmount: بيتحسب دايمًا في السيرفر لو أي حقل داخل في معادلته اتغيّر
+    // (paymentMethod/codAmount/shippingFee/insuranceFee) — بنفس منطق POST /shipments،
+    // عشان يفضل متسق مهما كانت الشاشة اللي بعتت التعديل. لو مفيش تغيير في أي حقل من
+    // دول، منسيبش totalAmount زي ما هو (منعًا لأي recompute مش لازم مع تعديلات تانية بحتة زي الحالة).
+    if (d.paymentMethod !== undefined || d.codAmount !== undefined || d.shippingFee !== undefined || d.insuranceFee !== undefined) {
+      const mergedPaymentMethod = d.paymentMethod ?? existingShipment.paymentMethod;
+      const mergedCodAmount     = d.codAmount     !== undefined ? d.codAmount     : Number(existingShipment.codAmount ?? 0);
+      const mergedShippingFee   = d.shippingFee   !== undefined ? d.shippingFee   : Number(existingShipment.shippingFee ?? 0);
+      const mergedInsuranceFee  = d.insuranceFee  !== undefined ? d.insuranceFee  : Number(existingShipment.insuranceFee ?? 0);
+      updateData.totalAmount = String(computeTotalAmount(mergedPaymentMethod, mergedCodAmount, mergedShippingFee, mergedInsuranceFee));
+    }
 
     // ربط المخزون: خصم/إرجاع تلقائي حسب التغييرات (منتج جديد / مرتجع / استلام جزئي)
     await syncShipmentInventory(existingShipment, updateData);
@@ -1295,7 +1328,15 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
     if (d.costPrice         !== undefined) updateData.costPrice         = String(d.costPrice);
     if (d.shippingFee       !== undefined) updateData.shippingFee       = String(d.shippingFee);
     if (d.insuranceFee      !== undefined) updateData.insuranceFee      = String(d.insuranceFee);
-    if (d.totalAmount       !== undefined) updateData.totalAmount       = String(d.totalAmount);
+    // totalAmount: نفس منطق PUT /shipments/:id بالظبط — بيتحسب في السيرفر لو أي حقل
+    // داخل في معادلته اتغيّر، عشان يفضل متسق مهما كانت الشاشة اللي بعتت التعديل.
+    if (d.paymentMethod !== undefined || d.codAmount !== undefined || d.shippingFee !== undefined || d.insuranceFee !== undefined) {
+      const mergedPaymentMethod = d.paymentMethod ?? existingShipment.paymentMethod;
+      const mergedCodAmount     = d.codAmount     !== undefined ? d.codAmount     : Number(existingShipment.codAmount ?? 0);
+      const mergedShippingFee   = d.shippingFee   !== undefined ? d.shippingFee   : Number(existingShipment.shippingFee ?? 0);
+      const mergedInsuranceFee  = d.insuranceFee  !== undefined ? d.insuranceFee  : Number(existingShipment.insuranceFee ?? 0);
+      updateData.totalAmount = String(computeTotalAmount(mergedPaymentMethod, mergedCodAmount, mergedShippingFee, mergedInsuranceFee));
+    }
     if (d.notes             !== undefined) updateData.notes             = d.notes;
     if (d.internalNotes     !== undefined) updateData.internalNotes     = d.internalNotes;
     if (d.returnReason      !== undefined) updateData.returnReason      = d.returnReason;
