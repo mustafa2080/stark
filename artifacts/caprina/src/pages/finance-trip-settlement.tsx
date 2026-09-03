@@ -66,7 +66,6 @@ export default function FinanceTripSettlement() {
   const [addRepOpen, setAddRepOpen] = useState(false);
   const [addClientOpen, setAddClientOpen] = useState(false);
   const [clientFilter, setClientFilter] = useState<"all" | "paid" | "pending">("all");
-  const [payTarget, setPayTarget] = useState<Rep | null>(null);
 
   // ── جلب البيان الحالي (لو viewingId === "current") أو بيان مؤرشف محدد ──────
   const { data: currentData } = useQuery({
@@ -114,18 +113,6 @@ export default function FinanceTripSettlement() {
 
   const deleteRep = useMutation({
     mutationFn: (id: number) => api.del(`/trip-settlements/reps/${id}`),
-    onSuccess: () => invalidateAll(),
-  });
-
-  const addPayment = useMutation({
-    mutationFn: ({ repId, method, amount, note }: { repId: number; method: string; amount: number; note?: string }) =>
-      api.post(`/trip-settlements/reps/${repId}/payments`, { method, amount, note }),
-    onSuccess: () => { invalidateAll(); toast({ title: "تمت إضافة وسيلة الدفع" }); },
-    onError: () => toast({ title: "خطأ", variant: "destructive" }),
-  });
-
-  const deletePayment = useMutation({
-    mutationFn: (id: number) => api.del(`/trip-settlements/rep-payments/${id}`),
     onSuccess: () => invalidateAll(),
   });
 
@@ -339,14 +326,6 @@ export default function FinanceTripSettlement() {
                           </span>
                         );
                       })}
-                      {isOpen && (
-                        <button
-                          onClick={() => setPayTarget(rep)}
-                          className="text-[10px] px-1.5 py-0.5 rounded-md border border-dashed border-border text-muted-foreground hover:bg-white/5 leading-none"
-                        >
-                          + وسيلة دفع
-                        </button>
-                      )}
                     </div>
                   </div>
                 ))}
@@ -456,11 +435,6 @@ export default function FinanceTripSettlement() {
 
       {/* مودال إضافة عميل */}
       <AddClientDialog open={addClientOpen} onOpenChange={setAddClientOpen} onSubmit={(b: any) => addClient.mutate(b)} pending={addClient.isPending} />
-
-      {/* مودال وسيلة دفع للمندوب */}
-      <AddPaymentDialog rep={payTarget} onClose={() => setPayTarget(null)}
-        onSubmit={(method: string, amount: number, note?: string) => addPayment.mutate({ repId: payTarget!.id, method, amount, note })}
-        pending={addPayment.isPending} />
 
       {/* مودال تأكيد سداد الرصيد */}
       <Dialog open={!!settleTarget} onOpenChange={(o) => { if (!o) { setSettleTarget(null); setSettlePaymentMethod(""); } }}>
@@ -667,37 +641,4 @@ function AddClientDialog({ open, onOpenChange, onSubmit, pending }: any) {
   );
 }
 
-// ─── مودال إضافة وسيلة دفع لمندوب ────────────────────────────────────────────
-function AddPaymentDialog({ rep, onClose, onSubmit, pending }: any) {
-  const [method, setMethod] = useState("cash");
-  const [amount, setAmount] = useState("");
-  const [note, setNote] = useState("");
-  return (
-    <Dialog open={!!rep} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent dir="rtl">
-        <DialogHeader><DialogTitle>وسيلة دفع — {rep?.repName}</DialogTitle></DialogHeader>
-        <div className="space-y-3 py-2">
-          <Select value={method} onValueChange={setMethod}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {Object.entries(METHOD_LABELS).map(([k, v]) => (
-                <SelectItem key={k} value={k}>{v.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Input type="number" placeholder="المبلغ" value={amount} onChange={e => setAmount(e.target.value)} />
-          <Input placeholder="ملاحظة (اختياري)" value={note} onChange={e => setNote(e.target.value)} />
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>إلغاء</Button>
-          <Button
-            disabled={!amount || Number(amount) <= 0 || pending}
-            onClick={() => { onSubmit(method, Number(amount), note || undefined); setAmount(""); setNote(""); onClose(); }}
-          >
-            إضافة
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
+
