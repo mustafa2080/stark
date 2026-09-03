@@ -2828,8 +2828,14 @@ function ExportDialog({
   manifest: ShippingManifestDetail;
   onClose: () => void;
 }) {
+  // ⚠️ لازم يفضل مطابق تمامًا لكارت "صافي المستحق للشركة" الظاهر على الشاشة —
+  // المصدر الموحّد الوحيد هو computeManifestNetDue (manifestFinance.ts)، اللي
+  // الباك إند بيرجّعه جاهز في s.walletNetDue / s.walletGrossDue. ممنوع إعادة
+  // حساب الإيرادات/تكلفة الشحن يدويًا هنا تاني (كان ده سبب اختلاف رقم الإكسل
+  // عن رقم الشاشة والطباعة).
   const s = manifest.stats;
-  const effectiveShipping = (manifest as any)?.company?.shippingCost != null ? Number((manifest as any).company.shippingCost) : 0;
+  const totalCollected = Number((s as any)?.walletGrossDue ?? 0);
+  const effectiveShipping = totalCollected - Number((s as any)?.walletNetDue ?? 0);
   const { brand } = useBrand();
   const groupedManifestOrders = groupManifestOrders(manifest.orders ?? []);
   const manifestGroupPriority: Record<string, number> = {
@@ -2860,29 +2866,9 @@ function ExportDialog({
     (group) => groupManifestStatus(group) === "pending"
   ).length;
 
-  const safeOrders = manifest.orders ?? [];
-
-  const deliveredGross = safeOrders
-    .filter(o => o.deliveryStatus === "delivered")
-    .reduce((sum, o) => sum + Number(o.totalPrice ?? 0), 0);
-  const partialGross = safeOrders
-    .filter(o => o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered")
-    .reduce((sum, o) => {
-      const returnReceived = (o as any).returnReceived == null ? null : Number((o as any).returnReceived);
-      if (returnReceived == null) return sum;
-      if (o.partialQuantity == null) return sum;
-      // partial_delivered (بيان شحن): القيمة الفعلية متسجّلة مباشرة في partialQuantity
-      if (o.deliveryStatus === "partial_delivered") {
-        return sum + Number(o.partialQuantity);
-      }
-      if (o.quantity <= 0) return sum;
-      const unitPrice = (o as any).unitPrice != null
-        ? Number((o as any).unitPrice)
-        : Number(o.totalPrice) / Number(o.quantity);
-      return sum + Math.round(unitPrice * Number(o.partialQuantity));
-    }, 0);
-  const totalCollected = deliveredGross + partialGross;
-  const netDue = totalCollected - effectiveShipping;
+  // totalCollected/effectiveShipping معرَّفين فوق من manifest.stats مباشرة (المصدر الموحد) —
+  // مفيش إعادة حساب يدوي هنا تاني (كان ده سبب اختلاف رقم الإكسل عن رقم الشاشة/الطباعة).
+  const netDue = Number((s as any)?.walletNetDue ?? 0);
 
   // ── Excel Export — styled workbook with RTL layout ────────────────────────
   const exportExcel = async () => {
