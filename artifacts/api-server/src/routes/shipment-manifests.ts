@@ -1445,16 +1445,53 @@ router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
             if (netDue > 0) {
               let repUserId: number | null = null;
               let repName = "مندوب";
-              if (manifest.representativeUserId) {
+              let repResolved = false;
+
+              // (صفر) المندوب صف في shipping_companies مش في users (حالة
+              // شركات/مناديب مسجلين كـ "شركة شحن" بدل يوزر نظام حقيقي — زي
+              // مصطفى فيصل). ده مصدر الحقيقة الموجود دايمًا لأي بيان شحنات
+              // (shippingCompanyId هو العمود الأساسي اللي بيتحدد بيه صاحب
+              // البيان وقت الإنشاء)، فبناخده كأولوية أولى قبل حتى
+              // representativeUserId. تصحيح 2026-09-03.
+              if (manifest.shippingCompanyId) {
+                const [repCompany] = await db.select({ name: shippingCompaniesTable.name })
+                  .from(shippingCompaniesTable).where(eq(shippingCompaniesTable.id, manifest.shippingCompanyId)).limit(1);
+                if (repCompany?.name) {
+                  repUserId = null; // مش يوزر حقيقي — يفضل null في trip_settlement_reps
+                  repName = repCompany.name;
+                  repResolved = true;
+                }
+              }
+
+              if (!repResolved && manifest.representativeUserId) {
                 repUserId = manifest.representativeUserId;
                 const [repUser] = await db.select({ displayName: usersTable.displayName })
                   .from(usersTable).where(eq(usersTable.id, repUserId)).limit(1);
                 repName = repUser?.displayName ?? "مندوب";
-              } else if (manifestBeforeUpdate?.closedByRole === "representative" && manifestBeforeUpdate.closedByUserId) {
+                repResolved = true;
+              } else if (!repResolved && manifestBeforeUpdate?.closedByRole === "representative" && manifestBeforeUpdate.closedByUserId) {
                 repUserId = manifestBeforeUpdate.closedByUserId;
                 const [repUser] = await db.select({ displayName: usersTable.displayName })
                   .from(usersTable).where(eq(usersTable.id, repUserId)).limit(1);
                 repName = repUser?.displayName ?? "مندوب";
+              } else if (items.length && items[0]?.shipmentId) {
+                // (ج) بيانات قديمة من غير shippingCompanyId ومن غير representativeUserId
+                // ومن غير closedByRole:
+                // نجيب المندوب من assignedUserId بتاع أول شحنة في البيان — نفس
+                // المنطق المستخدم وقت إنشاء البيان أصلاً — بدل ما نحط اسم الأدمن
+                // اللي بيقفل البيان دلوقتي (كان بيظهر غلط زي "sondos" بدل المندوب
+                // الحقيقي). تصحيح 2026-09-03.
+                const [firstShipment] = await db.select({ assignedUserId: shipmentsTable.assignedUserId })
+                  .from(shipmentsTable).where(eq(shipmentsTable.id, items[0].shipmentId)).limit(1);
+                if (firstShipment?.assignedUserId) {
+                  repUserId = firstShipment.assignedUserId;
+                  const [repUser] = await db.select({ displayName: usersTable.displayName })
+                    .from(usersTable).where(eq(usersTable.id, repUserId)).limit(1);
+                  repName = repUser?.displayName ?? "مندوب";
+                } else if (userId) {
+                  repUserId = userId;
+                  repName = userName ?? "مندوب";
+                }
               } else if (userId) {
                 repUserId = userId;
                 repName = userName ?? "مندوب";
