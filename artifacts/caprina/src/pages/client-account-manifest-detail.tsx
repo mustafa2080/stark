@@ -4466,10 +4466,13 @@ export default function ShippingManifestPage() {
     (group) => isPartialStatus(groupManifestStatus(group))
   ).length;
 
-  // عدادات الإجمالي والتسليم والمعلق: من الطلبيات المفلترة (بدون البضاعة عند الشحن)
-  const groupedPendingCount   = groupedManifestOrders.filter((group) => groupManifestStatus(group) === "pending").length;
-  const groupedDeliveredCount = groupedManifestOrders.filter((group) => groupManifestStatus(group) === "delivered").length;
-  const groupedTotalCount     = groupedManifestOrders.length;
+  // عدادات الإجمالي والتسليم والمعلق: من filteredManifestOrders — نفس المصدر
+  // المطابق فعليًا لجدول "الشحنات في البيان" وكارت "إجمالي عدد الشحنات"
+  // (بيستبعد rolledOver صح، بعكس groupedManifestOrders اللي كان بيديها 13
+  // بدل 11 في بيان CAM-98-003 لأنه بيفضل شايل البنود المُرحّلة المُسلَّمة).
+  const groupedPendingCount   = filteredManifestOrders.filter((group) => groupManifestStatus(group) === "pending").length;
+  const groupedDeliveredCount = filteredManifestOrders.filter((group) => groupManifestStatus(group) === "delivered").length;
+  const groupedTotalCount     = filteredManifestOrders.length;
   const allGroupedTotalCount  = allGroupedOrders.length; // إجمالي كل الأوردرات شاملة اللي لسه عند الشحن — للنسب المئوية لكروت مرتجع/مؤجل
   const groupedCompletedCount = groupedDeliveredCount + groupedManifestOrders.filter((group) => isPartialStatus(groupManifestStatus(group))).length;
   const groupedDeliveryRate   = groupedTotalCount > 0 ? Math.round((groupedCompletedCount / groupedTotalCount) * 100) : 0;
