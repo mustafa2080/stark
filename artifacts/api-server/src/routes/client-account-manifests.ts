@@ -201,19 +201,45 @@ router.get("/client-account-manifests", async (req, res): Promise<void> => {
         received: "delivered",
       };
 
+      // ⚠️ إصلاح (2026-09-03، تحقيق العميل مجدي عرفة CAM-98-003 + شحنة "أحمد"
+      // CAM-84-003): باگ قديم في منطق الترحيل بين البيانات (اتصلح في الكود
+      // الحالي) كان بينسخ بند شحنة "مسلَّم/مرتجع" بالفعل لبيان جديد وكأنها لسه
+      // معلّقة، فبقت نفس الشحنة الحقيقية (سطر واحد فعلي في shipments) عندها
+      // أكتر من بند في أكتر من بيان بنفس الحالة النهائية وبلا أي قيمة جديدة.
+      // جدول تفاصيل البيان (filteredManifestOrders في الفرونت) بيستبعد البند
+      // "المُرحّل" ده صح لو حالته النهائية مش pending/delayed/postponed — لازم
+      // العدّ هنا (وكارت "إجمالي عدد الشحنات") يطابق نفس المنطق، وإلا الكارت
+      // يعدّ شحنات اتحسبت فعلًا في بيانها الأصلي زيادة عن اللي ظاهر في الجدول.
+      const olderManifestRows = await db
+        .select({
+          shipmentId: clientAccountManifestItemsTable.shipmentId,
+          manifestId: clientAccountManifestItemsTable.manifestId,
+        })
+        .from(clientAccountManifestItemsTable)
+        .where(inArray(clientAccountManifestItemsTable.shipmentId, itemShipmentIds));
+      const oldestManifestIdByShipment: Record<number, number> = {};
+      olderManifestRows.forEach(r => {
+        const cur = oldestManifestIdByShipment[r.shipmentId];
+        if (cur === undefined || r.manifestId < cur) oldestManifestIdByShipment[r.shipmentId] = r.manifestId;
+      });
+
       itemRows.forEach(r => {
         // شحنة محذوفة (deletedAt) أو مش موجودة → مش في shipmentStatusById →
         // تتخطّى من العدّ بالكامل عشان shipmentCount + مجموع statusCounts يفضلوا
         // مطابقين لعدد الشحنات الظاهرة فعليًا في تفاصيل البيان.
         if (!(r.shipmentId in shipmentStatusById)) return;
         const mid = r.manifestId;
-        countMap[mid] = (countMap[mid] ?? 0) + 1;
-        if (!statusCountMap[mid]) statusCountMap[mid] = { pending: 0, delayed: 0, returned: 0, delivered: 0, partial: 0 };
         let st = r.deliveryStatus ?? "pending";
         if (st === "pending") {
           const shStatus = shipmentStatusById[r.shipmentId];
           if (shStatus && SHIPMENT_TO_DELIVERY[shStatus]) st = SHIPMENT_TO_DELIVERY[shStatus];
         }
+        // بند مُرحّل من بيان أقدم (فيه صف بنفس الشحنة في manifestId أصغر) وحالته
+        // النهائية مش pending/delayed → اتحسب فعلًا في بيانه الأصلي، تخطّاه هنا.
+        const isRolledOver = (oldestManifestIdByShipment[r.shipmentId] ?? mid) < mid;
+        if (isRolledOver && st !== "pending" && st !== "delayed") return;
+        countMap[mid] = (countMap[mid] ?? 0) + 1;
+        if (!statusCountMap[mid]) statusCountMap[mid] = { pending: 0, delayed: 0, returned: 0, delivered: 0, partial: 0 };
         if (st === "delayed") statusCountMap[mid].delayed += 1;
         else if (st === "returned") statusCountMap[mid].returned += 1;
         else if (st === "delivered") statusCountMap[mid].delivered += 1;
@@ -659,6 +685,28 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
       olderItemRows.forEach(r => rolledOverShipmentIds.add(r.shipmentId));
     }
 
+    // ⚠️⚠️ إصلاح (2026-09-03، تحقيق العميل مجدي عرفة CAM-98-003): كل الحسابات
+    // المالية تحت (stats.total/delivered/returned..، totalRevenue، totalCost،
+    // totalShippingCost، netDueFromClient) كانت بتتحسب من visibleItems الخام،
+    // من غير ما تستبعد البند "المُرحّل" (rolledOver) اللي حالته النهائية مش
+    // pending/delayed — بالظبط زي جدول تفاصيل البيان (filteredManifestOrders)
+    // في الفرونت إند. باگ ترحيل قديم (اتصلح في rolloverPendingItemsToNewManifest
+    // الحالية) كان بينسخ بند شحنة "مسلَّم/مرتجع" بالفعل لبيان جديد وكأنها لسه
+    // معلّقة، فبقت الشحنة الحقيقية الواحدة (سطر واحد فعلي في shipments) عندها
+    // أكتر من بند في أكتر من بيان بنفس الحالة النهائية وبلا أي قيمة جديدة. من
+    // غير الاستبعاد هنا، كانت قيمة الشحنة دي (مثلاً 885 ج.م) بتتحسب في
+    // totalRevenue/totalShippingCost/netDueFromClient بعدد مرات تكرارها عبر
+    // البيانات (٣ مرات بدل مرة واحدة) — تضخيم مالي حقيقي، مش مجرد فرق عدّاد.
+    // financialItems = نفس visibleItems لكن بدون أي بند مُرحّل حالته النهائية
+    // غير pending/delayed/postponed — نفس معيار الجدول بالظبط، عشان الأرقام في
+    // الكروت تتطابق مع اللي المستخدم شايفه فعليًا في جدول "الشحنات في البيان".
+    // enrichedItems (اللي بترجع في items: للفرونت) تفضل مبنية على visibleItems
+    // الكاملة عشان الفرونت لسه يقدر يعرض الأرشيف التاريخي لو احتاج.
+    const financialItems = visibleItems.filter(item => {
+      if (!rolledOverShipmentIds.has(item.shipmentId)) return true;
+      return item.deliveryStatus === "pending" || item.deliveryStatus === "delayed" || (item.deliveryStatus as any) === "postponed";
+    });
+
     const enrichedItems = visibleItems.map(item => {
       const sh = shipmentMap[item.shipmentId] ?? null;
       // item.returnReason (جدول client_account_manifest_items) ممكن يفضل null حتى
@@ -775,11 +823,11 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
       };
     });
 
-    const delivered = visibleItems.filter(i => i.deliveryStatus === "delivered").length;
-    const returned  = visibleItems.filter(i => i.deliveryStatus === "returned").length;
-    const pending   = visibleItems.filter(i => i.deliveryStatus === "pending").length;
-    const delayed   = visibleItems.filter(i => i.deliveryStatus === "delayed").length;
-    const partial   = visibleItems.filter(i => i.deliveryStatus === "partial_delivered").length;
+    const delivered = financialItems.filter(i => i.deliveryStatus === "delivered").length;
+    const returned  = financialItems.filter(i => i.deliveryStatus === "returned").length;
+    const pending   = financialItems.filter(i => i.deliveryStatus === "pending").length;
+    const delayed   = financialItems.filter(i => i.deliveryStatus === "delayed").length;
+    const partial   = financialItems.filter(i => i.deliveryStatus === "partial_delivered").length;
 
     // ─── حسابات مالية — من منظور حساب العميل (بدل شركة الشحن) ────────────────
     // نفس الأسباب المالية الثلاثة المستخدمة فوق (RETURN_REASONS_WITH_VALUE) — لازم تفضل
@@ -787,7 +835,7 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
     const RETURN_REASONS_WITH_SHIPPING = new Set(["refused_paid", "refused_unpaid", "quality"]);
     let totalRevenue = 0, totalCost = 0, totalShippingCost = 0, returnLosses = 0, deliveredGross = 0;
     let deliveredShippingFees = 0;
-    for (const item of visibleItems) {
+    for (const item of financialItems) {
       const shipment = shipmentMap[item.shipmentId];
       if (!shipment) continue;
       const cod      = Number(shipment.codAmount ?? shipment.totalAmount ?? 0);
@@ -856,16 +904,24 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
     // استبعاد أي بند مُرحّل (rolledOver) لسه معلّق (اتحسب فعليًا وقت قفل بيانه الأصلي).
     const RETURN_REASONS_DUE = new Set(["refused_paid", "refused_unpaid", "quality"]);
     let netDueFromClientAllStatuses = 0;
-    for (const item of visibleItems as any[]) {
+    // ⚠️⚠️ إصلاح (2026-09-03): الحلقة دي بتقرا item.rolledOver/item.zonePrice/
+    // item.zoneCost/item.totalPrice — كل الحقول دي بتتحسب في enrichedItems بس
+    // (مش موجودة على visibleItems الخام)، فكانت بتشتغل على undefined لكل
+    // الحقول دي طول الوقت. لازم تشتغل على enrichedItems، ومع استبعاد إضافي
+    // لأي بند مُرحّل (rolledOver) حالته النهائية delivered/partial_delivered
+    // برضو (مش بس returned) — نفس معيار financialItems فوق بالظبط — عشان
+    // "الرصيد المستحق" ميحسبش قيمة شحنة اتحسبت فعلًا في بيانها الأصلي مرة
+    // زيادة (باگ الترحيل القديم، راجع تحقيق مجدي عرفة CAM-98-003).
+    for (const item of enrichedItems as any[]) {
       const shipment = shipmentMap[item.shipmentId];
       if (!shipment) continue;
       const st = item.deliveryStatus;
       const reason = item.returnReason ?? shipment.returnReason ?? null;
       const isReturnedWithValue = st === "returned" && RETURN_REASONS_DUE.has(String(reason ?? ""));
 
-      // بند مُرحّل من بيان أقدم لسه معلّق (مرتجع لم يُستلم بعد) — يُستبعد بالكامل،
-      // لأنه اتحسب فعليًا في بيانه الأصلي وقت قفله (نفس isRolledOverPending).
-      if (item.rolledOver && st === "returned" && item.returnReceived !== 1) continue;
+      // بند مُرحّل من بيان أقدم بأي حالة نهائية (مش بس مرتجع معلّق) — يُستبعد
+      // بالكامل، لأنه اتحسب فعليًا في بيانه الأصلي وقت قفله.
+      if (item.rolledOver && st !== "pending" && st !== "delayed" && (st as any) !== "postponed") continue;
       if (st === "returned" && !isReturnedWithValue) continue; // مرتجع بلا قيمة مالية: مستبعد تمامًا
 
       let collected = 0;
@@ -906,7 +962,7 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
       client: client ?? null,
       items: enrichedItems,
       stats: {
-        total: visibleItems.length, delivered, returned, pending, delayed, partial,
+        total: financialItems.length, delivered, returned, pending, delayed, partial,
         totalRevenue, totalCost, totalShippingCost, returnLosses,
         netProfit, deliveredGross,
         deliveredShippingFees,
