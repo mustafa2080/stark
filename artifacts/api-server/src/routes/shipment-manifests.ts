@@ -1413,9 +1413,11 @@ router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
           //     الأدمن يأكّد القفل النهائي هنا — لازم نلتقطه من manifestBeforeUpdate
           //     (قبل ما التحديث فوق يكتب فوق closedByUserId باسم الأدمن).
           // (ب) الأدمن قفل البيان مباشرة من غير ما يمر بقفل مؤقت من المندوب —
-          //     هنا مفيش closedByUserId نعتمد عليه، فبنجيب المندوب من
-          //     usersTable (role="representative") — عندنا شركة شحن واحدة
-          //     بس (stark) فمفيش لبس في تحديد مين المندوب.
+          //     هنا مفيش closedByUserId حقيقي نعتمد عليه، فبنستخدم نفس مصدر
+          //     الخزنة بالظبط (userId/userName بتوع اليوزر اللي قافل دلوقتي)
+          //     بدل ما ندور على "أول representative" في الجدول عشوائيًا —
+          //     ده كان بيرجّع دايمًا نفس أول مندوب اتسجل في النظام بغض النظر
+          //     مين فعليًا صاحب البيان، فيخالف اسم صاحب حركة الخزنة الصح.
           try {
             const netDue = (await computeManifestNetDue(manifest, items)).net;
             if (netDue > 0) {
@@ -1426,13 +1428,9 @@ router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
                 const [repUser] = await db.select({ displayName: usersTable.displayName })
                   .from(usersTable).where(eq(usersTable.id, repUserId)).limit(1);
                 repName = repUser?.displayName ?? "مندوب";
-              } else {
-                const [repUser] = await db.select({ id: usersTable.id, displayName: usersTable.displayName })
-                  .from(usersTable).where(eq(usersTable.role, "representative")).limit(1);
-                if (repUser) {
-                  repUserId = repUser.id;
-                  repName = repUser.displayName ?? "مندوب";
-                }
+              } else if (userId) {
+                repUserId = userId;
+                repName = userName ?? "مندوب";
               }
               if (repUserId) {
                 await autoAddRepToTripSettlement({
