@@ -4457,10 +4457,14 @@ export default function ShippingManifestPage() {
   const isPartialStatus = (st: string) => st === "partial_received" || st === "partial_delivered";
   const isPostponedStatus = (st: string) => st === "postponed" || st === "delayed";
 
-  // عدادات الحالات: من كل الطلبيات (شاملة البضاعة عند الشحن)
-  const groupedPostponedCount = allGroupedOrders.filter((group) => isPostponedStatus(groupManifestStatus(group))).length;
-  const groupedPartialCount   = allGroupedOrders.filter((group) => isPartialStatus(groupManifestStatus(group))).length;
-  const groupedReturnedCount  = allGroupedOrders.filter((group) => groupManifestStatus(group) === "returned").length;
+  // عدادات الحالات: من filteredManifestOrders — نفس مصدر جدول "الشحنات في
+  // البيان" فعليًا (بيستبعد rolledOver المُسلَّم/المرتجع/الجزئي المتكرر من
+  // بيان أقدم اتقفل خلاص). كانت قبل كده بتتحسب من allGroupedOrders اللي
+  // مفيهوش استبعاد rolledOver خالص، فكانت بتدّي أرقام أكبر من الجدول الفعلي
+  // (مثال: كارت مرتجع عرض 5 بدل 2 في CAM-83-003).
+  const groupedPostponedCount = filteredManifestOrders.filter((group) => isPostponedStatus(groupManifestStatus(group))).length;
+  const groupedPartialCount   = filteredManifestOrders.filter((group) => isPartialStatus(groupManifestStatus(group))).length;
+  const groupedReturnedCount  = filteredManifestOrders.filter((group) => groupManifestStatus(group) === "returned").length;
   // كارت "استلم جزئي" لازم يشمل كل الطلبيات partial حتى اللي لسه عند شركة الشحن ومتأكدش استلامها
   const groupedPartialCountDisplay = groupManifestOrders(manifest.orders ?? []).filter(
     (group) => isPartialStatus(groupManifestStatus(group))
@@ -4474,7 +4478,7 @@ export default function ShippingManifestPage() {
   const groupedDeliveredCount = filteredManifestOrders.filter((group) => groupManifestStatus(group) === "delivered").length;
   const groupedTotalCount     = filteredManifestOrders.length;
   const allGroupedTotalCount  = allGroupedOrders.length; // إجمالي كل الأوردرات شاملة اللي لسه عند الشحن — للنسب المئوية لكروت مرتجع/مؤجل
-  const groupedCompletedCount = groupedDeliveredCount + groupedManifestOrders.filter((group) => isPartialStatus(groupManifestStatus(group))).length;
+  const groupedCompletedCount = groupedDeliveredCount + filteredManifestOrders.filter((group) => isPartialStatus(groupManifestStatus(group))).length;
   const groupedDeliveryRate   = groupedTotalCount > 0 ? Math.round((groupedCompletedCount / groupedTotalCount) * 100) : 0;
   const screenDeliveryRate    = groupedTotalCount > 0 ? Math.round((groupedDeliveredCount / groupedTotalCount) * 100) : 0;
   const groupedPendingOrders  = groupedPendingCount;
