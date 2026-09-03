@@ -4810,7 +4810,7 @@ export default function ShippingManifestPage() {
             <span className="text-sm font-black text-violet-300">إجمالي عدد الشحنات</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-xl font-black text-violet-300">{manifest.orders.length}</span>
+            <span className="text-xl font-black text-violet-300">{groupedTotalCount}</span>
             <ChevronDown
               className={`w-4 h-4 text-muted-foreground transition-transform duration-300 ${statusBreakdownOpen ? "rotate-180" : ""}`}
             />
