@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/select";
 import {
   Plus, Trash2, Lock, CheckCircle2, Truck, Users, Archive,
-  Wallet, Smartphone, Building2, Banknote, X, AlertTriangle, TrendingDown,
+  Wallet, Smartphone, Building2, Banknote, AlertTriangle, TrendingDown,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -335,10 +335,7 @@ export default function FinanceTripSettlement() {
                         return (
                           <span key={p.id} className="text-[10px] pr-1.5 pl-1 py-0.5 rounded-md flex items-center gap-1 leading-none"
                             style={{ background: `${m.color}12`, border: `1px solid ${m.color}25`, color: m.color }}>
-                            <m.Icon className="w-2.5 h-2.5" /> {fmt(Number(p.amount))}
-                            {isOpen && (
-                              <X className="w-2.5 h-2.5 cursor-pointer opacity-50 hover:opacity-100" onClick={() => deletePayment.mutate(p.id)} />
-                            )}
+                            {fmt(Number(p.amount))}
                           </span>
                         );
                       })}
