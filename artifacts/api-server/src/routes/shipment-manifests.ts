@@ -1475,17 +1475,30 @@ router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
                   .from(usersTable).where(eq(usersTable.id, repUserId)).limit(1);
                 repName = repUser?.displayName ?? "مندوب";
                 repResolved = true;
-              } else if (items.length && items[0]?.shipmentId) {
+              } else if (items.length) {
                 // (ج) بيانات قديمة من غير shippingCompanyId ومن غير representativeUserId
                 // ومن غير closedByRole:
-                // نجيب المندوب من assignedUserId بتاع أول شحنة في البيان — نفس
-                // المنطق المستخدم وقت إنشاء البيان أصلاً — بدل ما نحط اسم الأدمن
-                // اللي بيقفل البيان دلوقتي (كان بيظهر غلط زي "sondos" بدل المندوب
-                // الحقيقي). تصحيح 2026-09-03.
-                const [firstShipment] = await db.select({ assignedUserId: shipmentsTable.assignedUserId })
-                  .from(shipmentsTable).where(eq(shipmentsTable.id, items[0].shipmentId)).limit(1);
-                if (firstShipment?.assignedUserId) {
-                  repUserId = firstShipment.assignedUserId;
+                // بدل الاعتماد على أول شحنة بس (ممكن تكون استثنائية بدون
+                // assignedUserId)، بنجيب أكتر مندوب متكرر بين كل شحنات البيان —
+                // أضمن مصدر متاح، وبيغطي حالة إن أول شحنة بس ناقصها البيانات.
+                // تصحيح 2026-09-04: كان بيعتمد على أول شحنة بس ("ج" الأصلية)،
+                // وده كان بيوصل أحيانًا لآخر fallback (اسم الأدمن القافل) لو
+                // أول شحنة بالذات من غير assignedUserId حتى لو باقي الشحنات
+                // فيها المندوب واضح.
+                const shipmentIdsInManifest = items.map(it => it.shipmentId).filter((v): v is number => v != null);
+                let bestRepUserId: number | null = null;
+                if (shipmentIdsInManifest.length) {
+                  const [topRep] = await db
+                    .select({ assignedUserId: shipmentsTable.assignedUserId, cnt: count() })
+                    .from(shipmentsTable)
+                    .where(and(inArray(shipmentsTable.id, shipmentIdsInManifest), sql`${shipmentsTable.assignedUserId} IS NOT NULL`))
+                    .groupBy(shipmentsTable.assignedUserId)
+                    .orderBy(desc(count()))
+                    .limit(1);
+                  bestRepUserId = topRep?.assignedUserId ?? null;
+                }
+                if (bestRepUserId) {
+                  repUserId = bestRepUserId;
                   const [repUser] = await db.select({ displayName: usersTable.displayName })
                     .from(usersTable).where(eq(usersTable.id, repUserId)).limit(1);
                   repName = repUser?.displayName ?? "مندوب";
