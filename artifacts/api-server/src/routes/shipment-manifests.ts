@@ -540,11 +540,33 @@ router.post("/shipment-manifests", async (req, res): Promise<void> => {
       : await generateManifestNumber(body.shippingCompanyId!);
     const now = new Date();
 
+    // المندوب صاحب البيان الفعلي — بيتسجل وقت الإنشاء نفسه (مش وقت القفل)،
+    // عشان "تسوية الرحلات والتحصيل" بعدين تعرض اسم المندوب الحقيقي حتى لو
+    // اللي قفل البيان فعليًا أدمن تاني (زي sondos) نيابةً عنه.
+    // ملحوظة (تصحيح 2026-09-03): الأدمن هو اللي بيعمل البيان فعليًا (مش
+    // المندوب نفسه)، فمينفعش نعتمد على reqUser.id. بدل كده بناخد
+    // assignedUserId من أول شحنة داخلة في البيان — الشحنات في العملي كلها
+    // بتاعة نفس المندوب لأن كل مندوب مش شايف غير شحناته وقت الاختيار.
+    let representativeUserId: number | null = null;
+    if (!isClientRequest) {
+      if (reqUser?.role === "representative") {
+        representativeUserId = reqUser.id;
+      } else {
+        const [firstShipment] = await db
+          .select({ assignedUserId: shipmentsTable.assignedUserId })
+          .from(shipmentsTable)
+          .where(eq(shipmentsTable.id, body.shipmentIds[0]))
+          .limit(1);
+        representativeUserId = firstShipment?.assignedUserId ?? null;
+      }
+    }
+
     const [result] = await db.insert(shipmentManifestsTable).values({
       tenantId:          tenantId ?? null,
       manifestNumber,
       shippingCompanyId: isClientRequest ? null : body.shippingCompanyId!,
       clientId:          isClientRequest ? clientId! : null,
+      representativeUserId,
       status:            "open",
       notes:             body.notes ?? null,
       createdAt:         now,
@@ -1408,22 +1430,27 @@ router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
           await createTreasuryEntryOnClose(manifest, items, userId, userName);
 
           // ── ترحيل تلقائي لـ "تسوية الرحلات والتحصيل" ──────────────────────
-          // نفس netDueToCompany اللي اترحّل للخزنة فوق بالظبط. يشتغل في حالتين:
-          // (أ) المندوب عمل القفل المؤقت (closedByRole="representative") قبل ما
-          //     الأدمن يأكّد القفل النهائي هنا — لازم نلتقطه من manifestBeforeUpdate
-          //     (قبل ما التحديث فوق يكتب فوق closedByUserId باسم الأدمن).
-          // (ب) الأدمن قفل البيان مباشرة من غير ما يمر بقفل مؤقت من المندوب —
-          //     هنا مفيش closedByUserId حقيقي نعتمد عليه، فبنستخدم نفس مصدر
-          //     الخزنة بالظبط (userId/userName بتوع اليوزر اللي قافل دلوقتي)
-          //     بدل ما ندور على "أول representative" في الجدول عشوائيًا —
-          //     ده كان بيرجّع دايمًا نفس أول مندوب اتسجل في النظام بغض النظر
-          //     مين فعليًا صاحب البيان، فيخالف اسم صاحب حركة الخزنة الصح.
+          // نفس netDueToCompany اللي اترحّل للخزنة فوق بالظبط. أولوية تحديد
+          // "المندوب صاحب البيان" بقت كالتالي (تصحيح جذري بتاريخ 2026-09-03):
+          // (أ) manifest.representativeUserId — المندوب اللي أنشأ البيان فعليًا
+          //     واختار شحناته وقت الإنشاء (مصدر الحقيقة الصح دايمًا، بغض النظر
+          //     مين اللي ضغط زرار القفل بعد كده).
+          // (ب) fallback للبيانات القديمة (قبل إضافة العمود) اللي عملها المندوب
+          //     "قفل مؤقت" بنفسه قبل تأكيد الأدمن — closedByRole="representative".
+          // (ج) fallback أخير للبيانات القديمة جدًا اللي مفيش فيها ولا (أ) ولا (ب) —
+          //     هنا فقط بنستخدم اليوزر اللي قافل دلوقتي (ممكن يكون أدمن، مش دقيق
+          //     100%، لكنه أفضل من صف من غير مندوب خالص).
           try {
             const netDue = (await computeManifestNetDue(manifest, items)).net;
             if (netDue > 0) {
               let repUserId: number | null = null;
               let repName = "مندوب";
-              if (manifestBeforeUpdate?.closedByRole === "representative" && manifestBeforeUpdate.closedByUserId) {
+              if (manifest.representativeUserId) {
+                repUserId = manifest.representativeUserId;
+                const [repUser] = await db.select({ displayName: usersTable.displayName })
+                  .from(usersTable).where(eq(usersTable.id, repUserId)).limit(1);
+                repName = repUser?.displayName ?? "مندوب";
+              } else if (manifestBeforeUpdate?.closedByRole === "representative" && manifestBeforeUpdate.closedByUserId) {
                 repUserId = manifestBeforeUpdate.closedByUserId;
                 const [repUser] = await db.select({ displayName: usersTable.displayName })
                   .from(usersTable).where(eq(usersTable.id, repUserId)).limit(1);

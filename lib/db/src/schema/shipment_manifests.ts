@@ -14,6 +14,10 @@ export const shipmentManifestsTable = mysqlTable("shipment_manifests", {
   manifestNumber:   varchar("manifest_number", { length: 100 }).notNull(),
   shippingCompanyId: int("shipping_company_id").references(() => shippingCompaniesTable.id),
   clientId:         int("client_id").references(() => clientsTable.id),
+  // المندوب صاحب البيان الفعلي — بيتسجل وقت الإنشاء (مش وقت القفل). ده مصدر
+  // الحقيقة الصحيح لاسم المندوب في "تسوية الرحلات والتحصيل"، بدل الاعتماد على
+  // اليوزر اللي قفل البيان (اللي ممكن يكون أدمن قفل نيابة عن المندوب).
+  representativeUserId: int("representative_user_id"),
   status:           varchar("status", { length: 50 }).notNull().default("open"),
   // closedByRole: "representative" = قفل مؤقت من المندوب (الأدمن يقدر يفتحه تاني أو يأكد القفل النهائي)
   //               "admin" = قفل نهائي فعلي (ترحيل مالي + ترحيل شحنات معلّقة)
