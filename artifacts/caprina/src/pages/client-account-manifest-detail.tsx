@@ -4121,7 +4121,7 @@ export default function ShippingManifestPage() {
         const statuses = [...new Set(group.map(o => o.deliveryStatus))];
         const labels: Record<string, string> = {
           delivered:"مسلَّم", returned:"مرتجع", pending:"قيد الانتظار",
-          postponed:"مؤجَّل", partial_received:"استلام جزئي",
+          postponed:"مؤجَّل", partial_received:"استلام جزئي", delayed:"مؤجل",
         };
         return statuses.map(s => labels[s] ?? s).join(" / ");
       }
