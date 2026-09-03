@@ -61,6 +61,7 @@ export default function FinanceTripSettlement() {
   const [viewingId, setViewingId] = useState<number | "current" | null>("current");
   const [showArchive, setShowArchive] = useState(false);
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
+  const [closePayments, setClosePayments] = useState<Record<number, { vodafone_cash: string; instapay: string }>>({});
   const [settleTarget, setSettleTarget] = useState<ClientRow | null>(null);
   const [settlePaymentMethod, setSettlePaymentMethod] = useState("");
   const [addRepOpen, setAddRepOpen] = useState(false);
@@ -134,11 +135,28 @@ export default function FinanceTripSettlement() {
     onError: () => toast({ title: "خطأ في السداد", variant: "destructive" }),
   });
 
+  const addPayment = useMutation({
+    mutationFn: ({ repId, method, amount, note }: { repId: number; method: string; amount: number; note?: string }) =>
+      api.post(`/trip-settlements/reps/${repId}/payments`, { method, amount, note }),
+  });
+
   const closeTrip = useMutation({
-    mutationFn: () => api.post(`/trip-settlements/${activeId}/close`),
+    mutationFn: async () => {
+      // ── تسجيل مبالغ فودافون كاش / انستا لكل مندوب قبل الإغلاق ──────────────
+      const entries = Object.entries(closePayments);
+      for (const [repIdStr, vals] of entries) {
+        const repId = Number(repIdStr);
+        const vcash = Number(vals.vodafone_cash);
+        const insta = Number(vals.instapay);
+        if (vcash > 0) await addPayment.mutateAsync({ repId, method: "vodafone_cash", amount: vcash });
+        if (insta > 0) await addPayment.mutateAsync({ repId, method: "instapay", amount: insta });
+      }
+      return api.post(`/trip-settlements/${activeId}/close`);
+    },
     onSuccess: (data) => {
       invalidateAll();
       setCloseConfirmOpen(false);
+      setClosePayments({});
       setViewingId("current");
       toast({ title: "تم إغلاق الرحلة وفتح حاوية جديدة", description: `رقم الرحلة الجديدة: ${data?.newSettlement?.settlementNumber ?? ""}` });
     },
@@ -319,10 +337,14 @@ export default function FinanceTripSettlement() {
                     <div className="flex flex-wrap gap-1 mt-1.5">
                       {rep.payments.map(p => {
                         const m = METHOD_LABELS[p.method] ?? METHOD_LABELS.other;
+                        const Icon = m.Icon;
                         return (
-                          <span key={p.id} className="text-[10px] pr-1.5 pl-1 py-0.5 rounded-md flex items-center gap-1 leading-none"
+                          <span key={p.id} className="text-[10px] pr-1.5 pl-2 py-0.5 rounded-md flex items-center gap-1 leading-none font-medium"
                             style={{ background: `${m.color}12`, border: `1px solid ${m.color}25`, color: m.color }}>
-                            {fmt(Number(p.amount))}
+                            <Icon className="w-3 h-3" />
+                            <span>{m.label}</span>
+                            <span className="opacity-60">·</span>
+                            <span className="tabular-nums font-black">{fmt(Number(p.amount))}</span>
                           </span>
                         );
                       })}
@@ -475,14 +497,54 @@ export default function FinanceTripSettlement() {
 
       {/* مودال تأكيد إغلاق الرحلة */}
       <Dialog open={closeConfirmOpen} onOpenChange={setCloseConfirmOpen}>
-        <DialogContent dir="rtl">
+        <DialogContent dir="rtl" className="max-w-lg">
           <DialogHeader>
             <DialogTitle>تأكيد إغلاق الرحلة / البيان</DialogTitle>
           </DialogHeader>
-          <div className="py-2 space-y-2 text-sm">
+          <div className="py-2 space-y-3 text-sm">
             <p>سيتم أرشفة الرحلة الحالية وفتح حاوية جديدة تلقائيًا.</p>
             <p>العملاء المسددون بالكامل ("خالص") لن يتم ترحيلهم.</p>
             <p>العملاء الذين لهم/عليهم رصيد متبقٍ سيتم ترحيل أرصدتهم تلقائيًا للرحلة الجديدة.</p>
+
+            {reps.filter(r => r.status !== "closed").length > 0 && (
+              <div className="space-y-2 pt-1">
+                <p className="text-xs font-bold text-muted-foreground">وسائل دفع المناديب (اختياري):</p>
+                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                  {reps.filter(r => r.status !== "closed").map(rep => {
+                    const vals = closePayments[rep.id] ?? { vodafone_cash: "", instapay: "" };
+                    const setVal = (key: "vodafone_cash" | "instapay", value: string) =>
+                      setClosePayments(prev => ({ ...prev, [rep.id]: { ...vals, [key]: value } }));
+                    return (
+                      <div key={rep.id} className="rounded-lg border border-border p-2 space-y-1.5">
+                        <p className="text-xs font-bold truncate">{rep.repName}</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="flex items-center gap-1.5 rounded-md border border-rose-500/25 bg-rose-500/5 px-2">
+                            <Smartphone className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                            <Input
+                              type="number"
+                              placeholder="فودافون كاش"
+                              value={vals.vodafone_cash}
+                              onChange={e => setVal("vodafone_cash", e.target.value)}
+                              className="border-0 bg-transparent h-8 px-1 focus-visible:ring-0"
+                            />
+                          </div>
+                          <div className="flex items-center gap-1.5 rounded-md border border-violet-500/25 bg-violet-500/5 px-2">
+                            <Wallet className="w-3.5 h-3.5 text-violet-500 shrink-0" />
+                            <Input
+                              type="number"
+                              placeholder="انستا"
+                              value={vals.instapay}
+                              onChange={e => setVal("instapay", e.target.value)}
+                              className="border-0 bg-transparent h-8 px-1 focus-visible:ring-0"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCloseConfirmOpen(false)}>إلغاء</Button>
