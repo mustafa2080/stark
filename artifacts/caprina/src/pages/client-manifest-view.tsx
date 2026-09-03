@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { RETURN_REASONS, returnReasonLabel } from "@/lib/order-constants";
+import { useBrand, type BrandSettings } from "@/contexts/BrandContext";
 
 const formatCurrency = (n: number | string | null | undefined) =>
   new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(Number(n) || 0);
@@ -176,11 +177,27 @@ function StatusCountCard({
 
 
 // ─── تصدير Excel لبيان العميل — نفس تصميم شيت "الطلبيات" في الأدمن، بدون أي بيانات تكلفة داخلية ───
-async function exportClientManifestExcel(manifest: ManifestDetail, groups: ManifestItem[][]) {
+// brand: اسم/لوجو الشركة الحقيقيين (useBrand) — بدل النص الثابت القديم.
+async function exportClientManifestExcel(manifest: ManifestDetail, groups: ManifestItem[][], brand: BrandSettings) {
   const ExcelJS = await import("exceljs");
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = "CAPRINA";
+  const brandName = brand.name || "STARK";
+  workbook.creator = brandName;
   workbook.created = new Date();
+
+  // اللوجو كصورة Base64 (بنجيبه كـ blob عشان نضيفه للـ workbook — logoUrl مسار API عادي)
+  let logoImageId: number | null = null;
+  if (brand.hasLogo && brand.logoUrl) {
+    try {
+      const resp = await fetch(brand.logoUrl);
+      const blob = await resp.blob();
+      const buf = await blob.arrayBuffer();
+      const ext = blob.type.includes("png") ? "png" : blob.type.includes("gif") ? "gif" : "jpeg";
+      logoImageId = workbook.addImage({ buffer: buf as any, extension: ext as any });
+    } catch {
+      // فشل تحميل اللوجو مش لازم يمنع باقي التصدير
+    }
+  }
 
   const manifestDate = format(new Date(manifest.createdAt), "yyyy/MM/dd");
   const printDate = format(new Date(), "yyyy/MM/dd HH:mm");
@@ -214,9 +231,16 @@ async function exportClientManifestExcel(manifest: ManifestDetail, groups: Manif
     { key: "status", width: 14 }, { key: "note", width: 24 },
   ];
 
+  // صف اللوجو (لو موجود) — ارتفاع أكبر عشان الصورة تبان، وإلا بيتحط بدل الاسم نص فقط
+  const logoRowHeight = logoImageId !== null ? 46 : 28;
   ws.mergeCells("A1:K1");
-  setCell(ws.getCell("A1"), "CAPRINA", { fill: C.bg, font: { bold: true, size: 16, color: { argb: C.gold } }, align: { horizontal: "center", vertical: "middle" }, border: C.bg });
-  ws.getRow(1).height = 28;
+  setCell(ws.getCell("A1"), logoImageId !== null ? "" : brandName, { fill: C.bg, font: { bold: true, size: 16, color: { argb: C.gold } }, align: { horizontal: "center", vertical: "middle" }, border: C.bg });
+  ws.getRow(1).height = logoRowHeight;
+  if (logoImageId !== null) {
+    // اللوجو في مربع صغير على أقصى يمين الهيدر (RTL) + اسم البراند جنبه في الوسط
+    ws.addImage(logoImageId, { tl: { col: 9, row: 0.05 }, ext: { width: 60, height: logoRowHeight - 6 } });
+    setCell(ws.getCell("A1"), brandName, { fill: C.bg, font: { bold: true, size: 16, color: { argb: C.gold } }, align: { horizontal: "center", vertical: "middle" }, border: C.bg });
+  }
   ws.mergeCells("A2:K2");
   setCell(ws.getCell("A2"), `بيان الشحن — ${manifest.manifestNumber}   |   ${manifestDate}`, { fill: C.bg, font: { bold: true, size: 12, color: { argb: C.gold } }, align: { horizontal: "center", vertical: "middle" }, border: C.bg });
   ws.getRow(2).height = 24;
@@ -282,9 +306,21 @@ async function exportClientManifestExcel(manifest: ManifestDetail, groups: Manif
 }
 
 // ─── طباعة احترافية لبيان العميل — نافذة منفصلة بتصميم A4 بصفحة واحدة (نفس أسلوب client-return-manifest-detail) ───
-function buildClientManifestPrintHtml(manifest: ManifestDetail, groups: ManifestItem[][]) {
+// brand: اسم/لوجو الشركة الحقيقيين (useBrand) — بدل النص الثابت "STARK" القديم.
+function buildClientManifestPrintHtml(manifest: ManifestDetail, groups: ManifestItem[][], brand: BrandSettings) {
+  const brandName = brand.name || "STARK";
+  const logoHtml = brand.hasLogo && brand.logoUrl
+    ? `<img src="${brand.logoUrl}" class="mp-logo-img" alt="${brandName}" />`
+    : `<div class="mp-company-name">${brandName}</div>`;
   const manifestDate = format(new Date(manifest.createdAt), "yyyy/MM/dd", { locale: ar });
   const printDate = format(new Date(), "yyyy/MM/dd HH:mm");
+
+  // ضغط تلقائي للصفحة الواحدة: عدد شحنات كبير → خط وpadding أصغر عشان الجدول
+  // كله يفضل في صفحة A4 landscape واحدة بدل ما يفيض لصفحة تانية.
+  const rowCount = groups.length;
+  const density = rowCount > 40 ? "dense" : rowCount > 22 ? "compact" : "normal";
+  const tableFontSize = density === "dense" ? "7.2pt" : density === "compact" ? "7.8pt" : "8.3pt";
+  const cellPaddingV = density === "dense" ? "1.1mm" : density === "compact" ? "1.5mm" : "2mm";
 
   const deliveredCount = groups.filter((g) => {
     const statuses = [...new Set(g.map((i) => i.deliveryStatus))];
@@ -360,6 +396,7 @@ function buildClientManifestPrintHtml(manifest: ManifestDetail, groups: Manifest
     .mp-meta { font-size:9pt; color:#555; margin-top:1.5mm; line-height:1.8; }
     .mp-meta b { color:#1e293b; font-weight:700; }
     .mp-company-name { font-size:15pt; font-weight:900; color:#1e3a5f; text-align:left; letter-spacing:0.5px; }
+    .mp-logo-img { max-height:16mm; max-width:45mm; object-fit:contain; }
     .mp-status { display:inline-block; font-size:8pt; font-weight:700; padding:1mm 3.5mm; border-radius:3mm; margin-top:2mm; }
     .mp-status-open { background:#dcfce7; color:#15803d; }
     .mp-status-closed { background:#e2e8f0; color:#475569; }
@@ -373,10 +410,10 @@ function buildClientManifestPrintHtml(manifest: ManifestDetail, groups: Manifest
     .mp-sum-total .mp-sum-val { color:#15803d; }
     .mp-sum-cost .mp-sum-val { color:#d97706; }
     .mp-sum-due .mp-sum-val { color:#0284c7; }
-    .mp-table { width:100%; border-collapse:collapse; margin-bottom:4mm; font-size:8.3pt; border:2px solid #1e3a5f; }
+    .mp-table { width:100%; border-collapse:collapse; margin-bottom:4mm; font-size:${tableFontSize}; border:2px solid #1e3a5f; }
     .mp-table thead tr { background:#1e3a5f; }
     .mp-table th { color:#fff; font-size:8pt; font-weight:700; padding:2.2mm 2mm; text-align:center; border:1px solid rgba(255,255,255,0.4); white-space:nowrap; }
-    .mp-table td { padding:2mm 2mm; border:1px solid #cbd5e1; vertical-align:middle; line-height:1.4; }
+    .mp-table td { padding:${cellPaddingV} 2mm; border:1px solid #cbd5e1; vertical-align:middle; line-height:1.35; }
     .mp-row-alt td { background:#f4f7fa; }
     .mp-td-center { text-align:center; } .mp-td-bold { font-weight:700; }
     .mp-td-ltr { direction:ltr; }
@@ -409,7 +446,7 @@ function buildClientManifestPrintHtml(manifest: ManifestDetail, groups: Manifest
         ${manifest.status === "open" ? "بيان مفتوح" : "بيان مغلق"}
       </span>
     </div>
-    <div class="mp-company-name">STARK</div>
+    ${logoHtml}
   </div>
 
   <div class="mp-summary">
@@ -467,13 +504,13 @@ function buildClientManifestPrintHtml(manifest: ManifestDetail, groups: Manifest
     </div>
   </div>
 
-  <div class="mp-print-footer">تم إنشاء هذا البيان بواسطة نظام STARK — ${printDate}</div>
+  <div class="mp-print-footer">تم إنشاء هذا البيان بواسطة نظام ${brandName} — ${printDate}</div>
 </body>
 </html>`;
 }
 
-function printClientManifest(manifest: ManifestDetail, groups: ManifestItem[][]) {
-  const html = buildClientManifestPrintHtml(manifest, groups);
+function printClientManifest(manifest: ManifestDetail, groups: ManifestItem[][], brand: BrandSettings) {
+  const html = buildClientManifestPrintHtml(manifest, groups, brand);
   const win = window.open("", "_blank", "width=1000,height=750");
   if (!win) { window.print(); return; }
   win.document.write(html);
@@ -539,6 +576,7 @@ function ExportDialog({
 export default function ClientManifestViewPage() {
   const params = useParams();
   const id = Number(params.id);
+  const { brand } = useBrand();
   const [statusBreakdownOpen, setStatusBreakdownOpen] = useState(true);
   const [search, setSearch] = useState("");
   const [showExportDialog, setShowExportDialog] = useState(false);
@@ -687,7 +725,7 @@ export default function ClientManifestViewPage() {
             variant="outline"
             size="sm"
             className="h-8 text-xs gap-1 border-border"
-            onClick={() => printClientManifest(manifest, groupedItems)}
+            onClick={() => printClientManifest(manifest, groupedItems, brand)}
           >
             <Printer className="w-3 h-3" />طباعة
           </Button>
@@ -705,8 +743,8 @@ export default function ClientManifestViewPage() {
       <ExportDialog
         open={showExportDialog}
         onClose={() => setShowExportDialog(false)}
-        onExportExcel={() => exportClientManifestExcel(manifest, groupedItems)}
-        onExportPDF={() => printClientManifest(manifest, groupedItems)}
+        onExportExcel={() => exportClientManifestExcel(manifest, groupedItems, brand)}
+        onExportPDF={() => printClientManifest(manifest, groupedItems, brand)}
       />
 
       {/* ─── حاوية "إجمالي عدد الشحنات" القابلة للطي ─── */}
