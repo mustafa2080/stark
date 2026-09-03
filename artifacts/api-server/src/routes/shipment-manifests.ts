@@ -1474,6 +1474,7 @@ router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
                 const [repUser] = await db.select({ displayName: usersTable.displayName })
                   .from(usersTable).where(eq(usersTable.id, repUserId)).limit(1);
                 repName = repUser?.displayName ?? "مندوب";
+                repResolved = true;
               } else if (items.length && items[0]?.shipmentId) {
                 // (ج) بيانات قديمة من غير shippingCompanyId ومن غير representativeUserId
                 // ومن غير closedByRole:
@@ -1488,15 +1489,23 @@ router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
                   const [repUser] = await db.select({ displayName: usersTable.displayName })
                     .from(usersTable).where(eq(usersTable.id, repUserId)).limit(1);
                   repName = repUser?.displayName ?? "مندوب";
+                  repResolved = true;
                 } else if (userId) {
                   repUserId = userId;
                   repName = userName ?? "مندوب";
+                  repResolved = true;
                 }
               } else if (userId) {
                 repUserId = userId;
                 repName = userName ?? "مندوب";
+                repResolved = true;
               }
-              if (repUserId) {
+              // ملحوظة: بنتحقق من repResolved مش repUserId، لأن مندوب من
+              // shipping_companies بيكون repUserId = null عن قصد (مش يوزر
+              // حقيقي) بس repResolved = true واسمه اتحل صح. لو اتحققنا من
+              // repUserId بس، البيان مكانش هيترحّل خالص لتسوية الرحلات
+              // لمناديب زي مصطفى فيصل. تصحيح 2026-09-03.
+              if (repResolved) {
                 await autoAddRepToTripSettlement({
                   tenantId: manifest.tenantId ?? null,
                   sourceManifestId: manifest.id,
