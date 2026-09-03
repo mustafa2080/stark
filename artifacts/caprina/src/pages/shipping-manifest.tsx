@@ -4796,17 +4796,17 @@ export default function ShippingManifestPage() {
                   </div>
                   {/* ─── اسم العميل ─── */}
                   <div className="relative flex items-center">
-                    <div className="flex items-center justify-between w-full h-9 px-1.5 overflow-hidden">
+                    <div className={`flex items-center w-full h-9 px-1.5 overflow-hidden ${showColFilters ? "justify-between" : "justify-center"}`}>
                       <span className="font-bold truncate">اسم العميل</span>
                       {showColFilters && <ColFilterBtn col="customer" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}
                     </div>
                   </div>
                   {/* ─── رقم تليفون العميل ─── */}
-                  <div className="flex items-center gap-1 px-1.5 h-9 overflow-hidden">
+                  <div className="flex items-center justify-center gap-1 px-1.5 h-9 overflow-hidden">
                     <span className="truncate">تليفون</span>
                   </div>
                   {/* ─── المحافظة ─── */}
-                  <div className="flex items-center justify-between gap-1 px-1.5 h-9 overflow-hidden">
+                  <div className={`flex items-center gap-1 px-1.5 h-9 overflow-hidden ${showColFilters ? "justify-between" : "justify-center"}`}>
                     <div className="flex items-center gap-1 min-w-0">
                       <svg className="w-2.5 h-2.5 opacity-50 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0112 2a8 8 0 018 8.2c0 7.3-8 11.8-8 11.8z"/><circle cx="12" cy="10" r="3"/></svg>
                       <span className="truncate">المحافظة</span>
@@ -4820,7 +4820,7 @@ export default function ShippingManifestPage() {
                   </div>
                   {/* ─── اجمالى سعر الشحنة (COD) ─── */}
                   <div className="flex flex-col justify-center gap-0.5 px-1.5 h-9 overflow-hidden">
-                    <div className="flex items-center justify-between gap-1">
+                    <div className={`flex items-center gap-1 ${showColFilters ? "justify-between" : "justify-center"}`}>
                       <span className="font-bold truncate">إجمالي</span>
                       {showColFilters && <ColFilterBtn col="total" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}
                     </div>
