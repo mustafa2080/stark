@@ -201,19 +201,45 @@ router.get("/client-account-manifests", async (req, res): Promise<void> => {
         received: "delivered",
       };
 
+      // ⚠️ إصلاح (2026-09-03، تحقيق شحنة "أحمد" CAM-84-003): لازم نستبعد من
+      // العدّ هنا نفس البنود اللي جدول تفاصيل البيان (client-account-manifest-detail.tsx
+      // filteredManifestOrders) بيستبعدها فعليًا — بند "مُرحّل" (rolledOver: فيه
+      // صف أقدم لنفس الشحنة في بيان أقدم) وحالته النهائية مش pending/delayed/
+      // postponed. من غير الاستبعاد ده، shipmentCount هنا كان بيفضل يعدّ بنود
+      // قديمة اتحسبت فعلًا في بيانها الأصلي (زي شحنة "أحمد" 1881: اتسلّمت في
+      // CAM-84-001 30/8، وبسبب باگ ترحيل قديم اترحّل نفس البند delivered لبيانين
+      // بعديها) فيطلع الكارت "3" بينما الجدول التفصيلي (اللي بيستبعدها بالفعل)
+      // بيعرض "2" فقط.
+      const olderManifestRows = await db
+        .select({
+          shipmentId: clientAccountManifestItemsTable.shipmentId,
+          manifestId: clientAccountManifestItemsTable.manifestId,
+        })
+        .from(clientAccountManifestItemsTable)
+        .where(inArray(clientAccountManifestItemsTable.shipmentId, itemShipmentIds));
+      const oldestManifestIdByShipment: Record<number, number> = {};
+      olderManifestRows.forEach(r => {
+        const cur = oldestManifestIdByShipment[r.shipmentId];
+        if (cur === undefined || r.manifestId < cur) oldestManifestIdByShipment[r.shipmentId] = r.manifestId;
+      });
+
       itemRows.forEach(r => {
         // شحنة محذوفة (deletedAt) أو مش موجودة → مش في shipmentStatusById →
         // تتخطّى من العدّ بالكامل عشان shipmentCount + مجموع statusCounts يفضلوا
         // مطابقين لعدد الشحنات الظاهرة فعليًا في تفاصيل البيان.
         if (!(r.shipmentId in shipmentStatusById)) return;
         const mid = r.manifestId;
-        countMap[mid] = (countMap[mid] ?? 0) + 1;
-        if (!statusCountMap[mid]) statusCountMap[mid] = { pending: 0, delayed: 0, returned: 0, delivered: 0, partial: 0 };
         let st = r.deliveryStatus ?? "pending";
         if (st === "pending") {
           const shStatus = shipmentStatusById[r.shipmentId];
           if (shStatus && SHIPMENT_TO_DELIVERY[shStatus]) st = SHIPMENT_TO_DELIVERY[shStatus];
         }
+        // بند مُرحّل من بيان أقدم (فيه صف بنفس الشحنة في manifestId أصغر) وحالته
+        // النهائية مش pending/delayed → اتحسب فعلًا في بيانه الأصلي، تخطّاه هنا.
+        const isRolledOver = (oldestManifestIdByShipment[r.shipmentId] ?? mid) < mid;
+        if (isRolledOver && st !== "pending" && st !== "delayed") return;
+        countMap[mid] = (countMap[mid] ?? 0) + 1;
+        if (!statusCountMap[mid]) statusCountMap[mid] = { pending: 0, delayed: 0, returned: 0, delivered: 0, partial: 0 };
         if (st === "delayed") statusCountMap[mid].delayed += 1;
         else if (st === "returned") statusCountMap[mid].returned += 1;
         else if (st === "delivered") statusCountMap[mid].delivered += 1;
