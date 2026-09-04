@@ -1503,14 +1503,17 @@ router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
                     .from(usersTable).where(eq(usersTable.id, repUserId)).limit(1);
                   repName = repUser?.displayName ?? "مندوب";
                   repResolved = true;
-                } else if (userId) {
-                  repUserId = userId;
-                  repName = userName ?? "مندوب";
+                } else {
+                  // لا مندوب مربوط بالبيان ولا بأي شحنة جواه — نعرض اسم واضح
+                  // بدل اسم أي حد قافل البيان (ممكن يكون أدمن مش له دعوة
+                  // بالبيان أصلاً). تصحيح بناءً على طلب بشمهندس مصطفى.
+                  repUserId = null;
+                  repName = "غير محدد";
                   repResolved = true;
                 }
-              } else if (userId) {
-                repUserId = userId;
-                repName = userName ?? "مندوب";
+              } else {
+                repUserId = null;
+                repName = "غير محدد";
                 repResolved = true;
               }
               // ملحوظة: بنتحقق من repResolved مش repUserId، لأن مندوب من
