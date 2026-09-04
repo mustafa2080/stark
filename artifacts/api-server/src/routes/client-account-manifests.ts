@@ -1354,6 +1354,46 @@ router.patch("/client-account-manifests/:id", async (req, res): Promise<void> =>
 
     const isClosingNow = body.status === "closed" && currentManifest.status !== "closed";
 
+    // ── منع إغلاق بيان العميل لو فيه شحنة (مُسلَّمة/استلام جزئي/مرتجعة) لسه
+    // مرتبطة ببيان مندوب مفتوح — لازم بيان المندوب يتقفل الأول. طلب بشمهندس
+    // مصطفى (2026-09-04): من غير الشرط ده، رصيد المندوب ممكن يتغير بعد ما
+    // العميل يكون خلاص اتحاسب، فيحصل تعارض بين الرقمين. ──────────────────────
+    if (isClosingNow) {
+      const relevantItems = await db
+        .select({ shipmentId: clientAccountManifestItemsTable.shipmentId })
+        .from(clientAccountManifestItemsTable)
+        .where(and(
+          eq(clientAccountManifestItemsTable.manifestId, id),
+          inArray(clientAccountManifestItemsTable.deliveryStatus, ["delivered", "partial_delivered", "returned"]),
+        ));
+      const relevantShipmentIds = relevantItems.map(i => i.shipmentId);
+
+      if (relevantShipmentIds.length) {
+        const openRepManifests = await db
+          .select({
+            manifestId:   shipmentManifestsTable.id,
+            repUserId:    shipmentManifestsTable.representativeUserId,
+            repName:      usersTable.displayName,
+          })
+          .from(shipmentManifestItemsTable)
+          .innerJoin(shipmentManifestsTable, eq(shipmentManifestsTable.id, shipmentManifestItemsTable.manifestId))
+          .leftJoin(usersTable, eq(usersTable.id, shipmentManifestsTable.representativeUserId))
+          .where(and(
+            inArray(shipmentManifestItemsTable.shipmentId, relevantShipmentIds),
+            eq(shipmentManifestsTable.status, "open"),
+          ))
+          .limit(1);
+
+        if (openRepManifests.length) {
+          const repName = openRepManifests[0].repName ?? "غير محدد";
+          res.status(400).json({
+            error: `لا يمكن إغلاق البيان الحالي لأنه مرتبط ببيان مندوب مفتوح. برجاء إغلاق بيان المندوب أولاً [اسم المندوب: ${repName}].`,
+          });
+          return;
+        }
+      }
+    }
+
     await db.update(clientAccountManifestsTable)
       .set({
         ...(body.status ? { status: body.status } : {}),
