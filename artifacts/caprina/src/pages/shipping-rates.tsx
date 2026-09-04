@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { useLocation } from "wouter";
 import {
   MapPin, ArrowRight, Package, Search, Loader2, ChevronDown,
-  Truck, ShieldCheck, Clock, Sparkles,
+  Truck, ShieldCheck, Clock, Sparkles, Phone, User, Hash,
 } from "lucide-react";
 import { Navbar, Footer, SocialFloat } from "./home";
 
@@ -281,25 +281,58 @@ function PriceResult({ price, from, to, darkMode }: { price: number | null; from
   );
 }
 
-// ─── Track Shipment Widget — mobile-first: one big input + one big button ───
+// ─── Track Shipment Widget — mobile-first, two search modes ─────────────────
+// وضع 1: رقم الشحنة مباشرة → /track/:number
+// وضع 2: اسم الراسل + رقم هاتفه → /track-client?name=..&phone=.. (بيرجع كل الشحنات المرتبطة)
+type TrackMode = "number" | "client";
+
 function TrackWidget({ darkMode }: { darkMode: boolean }) {
   const [, navigate] = useLocation();
-  const [number, setNumber] = useState("");
+  const [mode, setMode] = useState<TrackMode>("number");
   const [shake, setShake] = useState(false);
+
+  // وضع رقم الشحنة
+  const [number, setNumber] = useState("");
+
+  // وضع الاسم + الهاتف
+  const [senderName, setSenderName] = useState("");
+  const [senderPhone, setSenderPhone] = useState("");
+  const [fieldError, setFieldError] = useState<string | null>(null);
 
   const toEnglishDigits = (value: string) =>
     value.replace(/[٠-٩]/g, d => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
          .replace(/[۰-۹]/g, d => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)));
 
-  const handleTrack = () => {
+  const isValidEgyptianPhone = (p: string) => /^01[0-9]{9}$/.test(p);
+
+  const triggerShake = () => {
+    setShake(true);
+    setTimeout(() => setShake(false), 500);
+  };
+
+  const handleTrackByNumber = () => {
     const n = toEnglishDigits(number.trim()).trim();
-    if (!n) {
-      setShake(true);
-      setTimeout(() => setShake(false), 500);
-      return;
-    }
+    if (!n) { triggerShake(); return; }
     navigate(`/track/${encodeURIComponent(n)}`);
   };
+
+  const handleTrackByClient = () => {
+    const n = senderName.trim();
+    const p = toEnglishDigits(senderPhone.trim()).replace(/[^0-9]/g, "");
+
+    if (!n) { setFieldError("من فضلك أدخل اسم الراسل"); triggerShake(); return; }
+    if (!p) { setFieldError("من فضلك أدخل رقم هاتف الراسل"); triggerShake(); return; }
+    if (!isValidEgyptianPhone(p)) { setFieldError("رقم الهاتف لازم يبدأ بـ 01 ويتكون من 11 رقم"); triggerShake(); return; }
+
+    setFieldError(null);
+    navigate(`/track-client?name=${encodeURIComponent(n)}&phone=${encodeURIComponent(p)}`);
+  };
+
+  const inputStyle = {
+    background: darkMode ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)",
+    border: darkMode ? "1.5px solid rgba(255,255,255,0.12)" : "1.5px solid rgba(0,0,0,0.12)",
+    fontSize: "16px",
+  } as const;
 
   return (
     <div
@@ -316,46 +349,117 @@ function TrackWidget({ darkMode }: { darkMode: boolean }) {
         </div>
         <div>
           <h3 className={`font-bold text-sm sm:text-base ${darkMode ? "text-white" : "text-black"}`}>هل تبحث عن تحديثات حول شحنتك؟</h3>
-          <p className="text-xs mt-0.5" style={{ color: darkMode ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.4)" }}>أدخل رقم الشحنة لمعرفة حالتها فورًا</p>
+          <p className="text-xs mt-0.5" style={{ color: darkMode ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.4)" }}>اختر طريقة البحث المناسبة لك</p>
         </div>
       </div>
 
-      <div
-        className="flex flex-col sm:flex-row gap-2.5"
-        style={{ animation: shake ? "shakeInput 0.4s ease" : "none" }}
-      >
-        <input
-          type="text"
-          inputMode="numeric"
-          value={number}
-          onChange={e => setNumber(e.target.value)}
-          onKeyDown={e => { if (e.key === "Enter") handleTrack(); }}
-          placeholder="مثال: 1234567890"
-          dir="ltr"
-          className={`flex-1 rounded-xl px-4 py-4 sm:py-3.5 focus:outline-none transition-all duration-300 ${darkMode ? "text-white placeholder-white/30" : "text-black placeholder-black/30"}`}
-          style={{
-            background: darkMode ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)",
-            border: darkMode ? "1.5px solid rgba(255,255,255,0.12)" : "1.5px solid rgba(0,0,0,0.12)",
-            fontSize: "16px",
-            textAlign: "center",
-            letterSpacing: "0.05em",
-          }}
-          onFocus={e => { e.currentTarget.style.border = "1.5px solid rgba(212,175,55,0.5)"; }}
-          onBlur={e => { e.currentTarget.style.border = darkMode ? "1.5px solid rgba(255,255,255,0.12)" : "1.5px solid rgba(0,0,0,0.12)"; }}
-        />
-        <button
-          onClick={handleTrack}
-          className="shrink-0 rounded-xl px-6 py-4 sm:py-3.5 font-bold text-sm transition-all duration-300 active:scale-95 flex items-center justify-center gap-2"
-          style={{
-            background: "linear-gradient(135deg, #d4af37 0%, #f0d060 50%, #b8942a 100%)",
-            color: "#1a1400",
-            boxShadow: "0 4px 20px rgba(212,175,55,0.25)",
-          }}
-        >
-          <Search size={16} />
-          تتبع الشحنة
-        </button>
+      {/* Mode switch */}
+      <div className="grid grid-cols-2 gap-2 mb-4">
+        {([
+          { key: "number" as TrackMode, label: "برقم الشحنة", icon: Hash },
+          { key: "client" as TrackMode, label: "بالاسم ورقم الهاتف", icon: User },
+        ]).map(opt => {
+          const active = mode === opt.key;
+          return (
+            <button
+              key={opt.key}
+              onClick={() => { setMode(opt.key); setFieldError(null); }}
+              className="flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs sm:text-sm font-bold transition-all duration-300"
+              style={{
+                background: active ? "linear-gradient(135deg, rgba(212,175,55,0.16) 0%, rgba(212,175,55,0.04) 100%)" : "transparent",
+                border: active ? "1.5px solid rgba(212,175,55,0.5)" : darkMode ? "1.5px solid rgba(255,255,255,0.1)" : "1.5px solid rgba(0,0,0,0.1)",
+                color: active ? "#d4af37" : darkMode ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)",
+              }}
+            >
+              <opt.icon size={14} />
+              {opt.label}
+            </button>
+          );
+        })}
       </div>
+
+      {mode === "number" ? (
+        <div
+          className="flex flex-col sm:flex-row gap-2.5"
+          style={{ animation: shake ? "shakeInput 0.4s ease" : "none" }}
+        >
+          <input
+            type="text"
+            inputMode="numeric"
+            value={number}
+            onChange={e => setNumber(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter") handleTrackByNumber(); }}
+            placeholder="مثال: 1234567890"
+            dir="ltr"
+            className={`flex-1 rounded-xl px-4 py-4 sm:py-3.5 focus:outline-none transition-all duration-300 ${darkMode ? "text-white placeholder-white/30" : "text-black placeholder-black/30"}`}
+            style={{ ...inputStyle, textAlign: "center", letterSpacing: "0.05em" }}
+            onFocus={e => { e.currentTarget.style.border = "1.5px solid rgba(212,175,55,0.5)"; }}
+            onBlur={e => { e.currentTarget.style.border = inputStyle.border; }}
+          />
+          <button
+            onClick={handleTrackByNumber}
+            className="shrink-0 rounded-xl px-6 py-4 sm:py-3.5 font-bold text-sm transition-all duration-300 active:scale-95 flex items-center justify-center gap-2"
+            style={{
+              background: "linear-gradient(135deg, #d4af37 0%, #f0d060 50%, #b8942a 100%)",
+              color: "#1a1400",
+              boxShadow: "0 4px 20px rgba(212,175,55,0.25)",
+            }}
+          >
+            <Search size={16} />
+            تتبع الشحنة
+          </button>
+        </div>
+      ) : (
+        <div style={{ animation: shake ? "shakeInput 0.4s ease" : "none" }}>
+          <div className="flex flex-col gap-2.5">
+            <div className="relative">
+              <User size={15} className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: darkMode ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.3)" }} />
+              <input
+                type="text"
+                value={senderName}
+                onChange={e => setSenderName(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") handleTrackByClient(); }}
+                placeholder="اسم الراسل"
+                dir="rtl"
+                className={`w-full rounded-xl pr-11 pl-4 py-4 sm:py-3.5 focus:outline-none transition-all duration-300 ${darkMode ? "text-white placeholder-white/30" : "text-black placeholder-black/30"}`}
+                style={inputStyle}
+                onFocus={e => { e.currentTarget.style.border = "1.5px solid rgba(212,175,55,0.5)"; }}
+                onBlur={e => { e.currentTarget.style.border = inputStyle.border; }}
+              />
+            </div>
+            <div className="relative">
+              <Phone size={15} className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: darkMode ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.3)" }} />
+              <input
+                type="tel"
+                value={senderPhone}
+                onChange={e => setSenderPhone(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") handleTrackByClient(); }}
+                placeholder="رقم هاتف الراسل مثال: 01012345678"
+                dir="ltr"
+                className={`w-full rounded-xl pr-11 pl-4 py-4 sm:py-3.5 focus:outline-none transition-all duration-300 text-center ${darkMode ? "text-white placeholder-white/30" : "text-black placeholder-black/30"}`}
+                style={inputStyle}
+                onFocus={e => { e.currentTarget.style.border = "1.5px solid rgba(212,175,55,0.5)"; }}
+                onBlur={e => { e.currentTarget.style.border = inputStyle.border; }}
+              />
+            </div>
+            {fieldError && (
+              <p className="text-xs text-center" style={{ color: "#f87171" }}>{fieldError}</p>
+            )}
+            <button
+              onClick={handleTrackByClient}
+              className="w-full rounded-xl px-6 py-4 sm:py-3.5 font-bold text-sm transition-all duration-300 active:scale-95 flex items-center justify-center gap-2"
+              style={{
+                background: "linear-gradient(135deg, #d4af37 0%, #f0d060 50%, #b8942a 100%)",
+                color: "#1a1400",
+                boxShadow: "0 4px 20px rgba(212,175,55,0.25)",
+              }}
+            >
+              <Search size={16} />
+              تتبع الشحنة
+            </button>
+          </div>
+        </div>
+      )}
 
       <style>{`
         @keyframes shakeInput {
