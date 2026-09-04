@@ -133,13 +133,19 @@ publicShipmentsRouter.get("/shipments/track-by-client", publicTrackLimiter, asyn
       return;
     }
 
-    // اسم الراسل (senderName) + رقم هاتف الراسل نفسه (senderPhone/senderPhone2) — مطابقة تامة
+    // البحث بالاسم + رقم الهاتف — بيدور سواء الشخص ده الراسل أو المستلم،
+    // لأن أي طرف من طرفي الشحنة ممكن يحب يتابعها ببياناته هو.
     const conditions = [
       isNull(shipmentsTable.deletedAt),
-      eq(shipmentsTable.senderName, name),
+      or(
+        eq(shipmentsTable.senderName, name),
+        eq(shipmentsTable.receiverName, name),
+      ) as any,
       or(
         eq(shipmentsTable.senderPhone,  phone),
         eq(shipmentsTable.senderPhone2, phone),
+        eq(shipmentsTable.receiverPhone, phone),
+        eq(shipmentsTable.receiverPhone2, phone),
       ) as any,
     ];
 
