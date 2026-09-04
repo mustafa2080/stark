@@ -434,7 +434,7 @@ function TrackWidget({ darkMode }: { darkMode: boolean }) {
                 value={senderPhone}
                 onChange={e => setSenderPhone(e.target.value)}
                 onKeyDown={e => { if (e.key === "Enter") handleTrackByClient(); }}
-                placeholder="رقم هاتف الراسل مثال: 01012345678"
+                placeholder="رقم هاتف المستلم مثال: 01012345678"
                 dir="ltr"
                 className={`w-full rounded-xl pr-11 pl-4 py-4 sm:py-3.5 focus:outline-none transition-all duration-300 text-center ${darkMode ? "text-white placeholder-white/30" : "text-black placeholder-black/30"}`}
                 style={inputStyle}
