@@ -267,6 +267,9 @@ function PriceResult({ price, from, to, darkMode }: { price: number | null; from
       <p className="relative text-xs mt-2" style={{ color: darkMode ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.4)" }}>
         من {from} إلى {to}
       </p>
+      <p className="relative text-[11px] sm:text-xs mt-4 leading-relaxed px-2" style={{ color: darkMode ? "rgba(255,255,255,0.32)" : "rgba(0,0,0,0.38)" }}>
+        * السعر المعروض يخص شحنة بوزن لا يتجاوز 1 كيلوجرام وحجم عادي، وفي حالة زيادة الوزن أو الحجم قد يُضاف مصروف شحن إضافي يُحدَّد عند تأكيد الطلب.
+      </p>
 
       <style>{`
         @keyframes priceReveal {
