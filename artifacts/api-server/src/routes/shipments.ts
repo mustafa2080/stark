@@ -57,6 +57,54 @@ const latestClientAccountManifestItemIdSql = sql`(
   WHERE cami2.shipment_id = ${shipmentsTable.id}
 )`;
 
+// ─── قفل الشحنات المرتبطة ببيان مندوب مغلق ────────────────────────────────────
+// بطلب صريح من مصطفى (2026-09-06): لو الشحنة مرتبطة بأحدث بند بيان ليها وده
+// البيان مغلق (status = "closed")، تبقى "أصل ثابت مجمّد" — يُمنع تعديلها أو
+// حذفها أو تغيير حالتها أو استعجالها نهائيًا، سواء البيان أصلي أو مرحّل، طول
+// ما هو مغلق. بنفحص أحدث بند بيان للشحنة بس (مش أي بند تاريخي قديم) لأن شحنة
+// ممكن يكون ليها بنود قديمة في بيانات مغلقة من زمان لكنها حاليًا نشطة في بيان
+// جديد مفتوح بعد rollover.
+async function getLockedManifestClosureInfo(shipmentId: number): Promise<{ manifestId: number; manifestNumber: string } | null> {
+  const rows = await db
+    .select({
+      manifestId:     shipmentManifestsTable.id,
+      manifestNumber: shipmentManifestsTable.manifestNumber,
+      status:         shipmentManifestsTable.status,
+    })
+    .from(shipmentManifestItemsTable)
+    .innerJoin(shipmentManifestsTable, eq(shipmentManifestItemsTable.manifestId, shipmentManifestsTable.id))
+    .where(and(
+      eq(shipmentManifestItemsTable.shipmentId, shipmentId),
+      eq(shipmentManifestItemsTable.id, sql`(
+        SELECT MAX(smi2.id) FROM shipment_manifest_items smi2
+        WHERE smi2.shipment_id = ${shipmentId}
+      )`),
+    ))
+    .limit(1);
+
+  const row = rows[0];
+  if (row && row.status === "closed") {
+    return { manifestId: row.manifestId, manifestNumber: row.manifestNumber };
+  }
+  return null;
+}
+
+// Helper موحّد يبعت رد 423 (Locked) لو الشحنة مقفولة على بيان مغلق — يُستخدم في
+// كل نقطة تعديل/حذف/تغيير حالة فردية أو جماعية على الشحنات.
+async function rejectIfShipmentLocked(res: any, shipmentId: number): Promise<boolean> {
+  const lock = await getLockedManifestClosureInfo(shipmentId);
+  if (lock) {
+    res.status(423).json({
+      error: `لا يمكن تعديل هذه الشحنة — مرتبطة ببيان مندوب مغلق (${lock.manifestNumber}). الشحنة أصبحت أصلًا ثابتًا بعد قفل البيان.`,
+      manifestId: lock.manifestId,
+      manifestNumber: lock.manifestNumber,
+      locked: true,
+    });
+    return true;
+  }
+  return false;
+}
+
 // ملاحظة: shippingCompaniesTable في هذا النظام تحمل اسم المندوب نفسه
 // (كل "شركة شحن" في الواقع هي مندوب مستقل). فاسم المندوب = manifestShippingCompanyTable.name
 // أو shippingCompaniesTable.name مباشرة — مفيش داعي لجلبه من usersTable.
@@ -1099,6 +1147,7 @@ router.put("/shipments/:id", async (req, res): Promise<void> => {
 
     const [existingShipment] = await db.select().from(shipmentsTable).where(eq(shipmentsTable.id, id)).limit(1);
     if (!existingShipment) { res.status(404).json({ error: "الشحنة غير موجودة" }); return; }
+    if (await rejectIfShipmentLocked(res, id)) return;
 
     const d = parsed.data;
     const updateData: any = { updatedAt: new Date() };
@@ -1244,11 +1293,22 @@ router.patch("/shipments/bulk-status", async (req, res): Promise<void> => {
       res.status(400).json({ error: "ids و status مطلوبة" });
       return;
     }
-    const numericIds = ids.map(id => parseInt(String(id))).filter(id => !isNaN(id));
+    let numericIds = ids.map(id => parseInt(String(id))).filter(id => !isNaN(id));
     if (numericIds.length === 0) {
       res.status(400).json({ error: "ids غير صالحة" });
       return;
     }
+
+    // نستبعد أي شحنة مرتبطة بأحدث بند بيان ليها مغلق — "أصل ثابت مجمّد" لا
+    // يتغير حالتها حتى في التحديث الجماعي. نكمل على الباقي ونبلّغ بالمستبعد.
+    const lockChecks = await Promise.all(numericIds.map(async id => ({ id, lock: await getLockedManifestClosureInfo(id) })));
+    const lockedIds = lockChecks.filter(c => c.lock).map(c => c.id);
+    numericIds = lockChecks.filter(c => !c.lock).map(c => c.id);
+    if (numericIds.length === 0) {
+      res.status(423).json({ error: "كل الشحنات المحددة مرتبطة ببيانات مندوب مغلقة", lockedIds, locked: true });
+      return;
+    }
+
     const tenantId = getTenantId(req);
     const now = new Date();
 
@@ -1289,7 +1349,7 @@ router.patch("/shipments/bulk-status", async (req, res): Promise<void> => {
       }
     }
 
-    res.json({ updated: numericIds.length });
+    res.json({ updated: numericIds.length, lockedIds: lockedIds.length ? lockedIds : undefined });
   } catch (e: any) {
     console.error("bulk-status error:", e);
     res.status(500).json({ error: "خطأ في تحديث الحالة", detail: e?.message });
@@ -1306,6 +1366,7 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
 
     const [existingShipment] = await db.select().from(shipmentsTable).where(eq(shipmentsTable.id, id)).limit(1);
     if (!existingShipment) { res.status(404).json({ error: "الشحنة غير موجودة" }); return; }
+    if (await rejectIfShipmentLocked(res, id)) return;
 
     const d = parsed.data;
     const updateData: any = { updatedAt: new Date() };
@@ -1538,6 +1599,7 @@ router.patch("/shipments/:id/urgent", async (req, res): Promise<void> => {
       : eq(shipmentsTable.id, id);
     const [existingShipment] = await db.select().from(shipmentsTable).where(cond).limit(1);
     if (!existingShipment) { res.status(404).json({ error: "الشحنة غير موجودة" }); return; }
+    if (await rejectIfShipmentLocked(res, id)) return;
 
     await db.update(shipmentsTable)
       .set({
@@ -1585,10 +1647,16 @@ router.delete("/shipments/bulk", async (req, res): Promise<void> => {
 
     let deleted = 0;
     let skipped = 0;
+    let lockedSkipped = 0;
 
     for (const sh of existing) {
       if (sh.status === "received") {
         skipped++;
+        continue;
+      }
+      // أصل ثابت مجمّد — مرتبط بأحدث بند بيان مندوب مغلق، ما يتحذفش نهائيًا.
+      if (await getLockedManifestClosureInfo(sh.id)) {
+        lockedSkipped++;
         continue;
       }
       if (sh.inventoryDeducted && !sh.inventoryReturned) {
@@ -1605,7 +1673,7 @@ router.delete("/shipments/bulk", async (req, res): Promise<void> => {
       deleted++;
     }
 
-    res.json({ deleted, skipped });
+    res.json({ deleted, skipped, lockedSkipped: lockedSkipped || undefined });
   } catch (e: any) {
     res.status(500).json({ error: "خطأ في الحذف الجماعي" });
   }
@@ -1656,6 +1724,9 @@ router.delete("/shipments/:id", async (req, res): Promise<void> => {
     const cond = tenantId !== null
       ? and(eq(shipmentsTable.id, id), eq(shipmentsTable.tenantId, tenantId))
       : eq(shipmentsTable.id, id);
+    const [existingShipment] = await db.select().from(shipmentsTable).where(cond).limit(1);
+    if (!existingShipment) { res.status(404).json({ error: "الشحنة غير موجودة" }); return; }
+    if (await rejectIfShipmentLocked(res, id)) return;
     await db.update(shipmentsTable).set({ deletedAt: new Date(), updatedAt: new Date() }).where(cond);
     res.json({ success: true });
   } catch (e) {
