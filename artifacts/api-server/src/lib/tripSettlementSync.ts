@@ -39,11 +39,24 @@ export async function autoAddRepToTripSettlement(params: {
   const { tenantId, sourceManifestId, netDue, repUserId, repName, payments } = params;
   if (netDue <= 0) return;
 
-  const [existing] = await db.select({ id: tripSettlementRepsTable.id })
+  const [existing] = await db.select({ id: tripSettlementRepsTable.id, repName: tripSettlementRepsTable.repName })
     .from(tripSettlementRepsTable)
     .where(eq(tripSettlementRepsTable.sourceManifestId, sourceManifestId))
     .limit(1);
-  if (existing) return;
+  // ── تحديث صف قديم بـ"غير محدد" لو دلوقتي عندنا اسم حقيقي ──────────────────
+  // ده بيحصل لما البيان اتقفل قبل كده (زمان، قبل تصحيحات أولوية تحديد المندوب)
+  // وسجّل صف بـ"غير محدد" — أي إغلاق تاني لنفس البيان (retry/إعادة فتح وإغلاق)
+  // كان بيتوقف هنا بسبب منع التكرار، فالاسم يفضل غلط للأبد حتى لو اتصلح منطق
+  // تحديد المندوب بعد كده. لو الاسم الجديد حقيقي (مش "غير محدد") والقديم كان
+  // "غير محدد"، بنحدّث الصف القديم بدل ما نتجاهله.
+  if (existing) {
+    if (existing.repName === "غير محدد" && repName && repName !== "غير محدد") {
+      await db.update(tripSettlementRepsTable)
+        .set({ repName, userId: repUserId })
+        .where(eq(tripSettlementRepsTable.id, existing.id));
+    }
+    return;
+  }
 
   const settlement = await getOrCreateOpenSettlement(tenantId, null, "ترحيل تلقائي");
   const now = new Date();

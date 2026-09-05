@@ -67,6 +67,8 @@ export default function FinanceTripSettlement() {
   const [addRepOpen, setAddRepOpen] = useState(false);
   const [addClientOpen, setAddClientOpen] = useState(false);
   const [clientFilter, setClientFilter] = useState<"all" | "paid" | "pending">("all");
+  const [editingRepId, setEditingRepId] = useState<number | null>(null);
+  const [editingRepName, setEditingRepName] = useState("");
 
   // ── جلب البيان الحالي (لو viewingId === "current") أو بيان مؤرشف محدد ──────
   const { data: currentData } = useQuery({
@@ -126,6 +128,13 @@ export default function FinanceTripSettlement() {
   const deleteClient = useMutation({
     mutationFn: (id: number) => api.del(`/trip-settlements/clients/${id}`),
     onSuccess: () => invalidateAll(),
+  });
+
+  const renameRep = useMutation({
+    mutationFn: ({ id, repName }: { id: number; repName: string }) =>
+      api.patch(`/trip-settlements/reps/${id}`, { repName }),
+    onSuccess: () => invalidateAll(),
+    onError: () => toast({ title: "خطأ في تعديل الاسم", variant: "destructive" }),
   });
 
   const settleClient = useMutation({
@@ -316,8 +325,42 @@ export default function FinanceTripSettlement() {
                 {reps.map(rep => (
                   <div key={rep.id} className="group rounded-lg border border-border px-3 py-2 hover:border-border/80 transition-colors">
                     <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="font-bold text-[13px] truncate">{rep.repName}</span>
+                      <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                        {editingRepId === rep.id ? (
+                          <Input
+                            autoFocus
+                            value={editingRepName}
+                            onChange={(e) => setEditingRepName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && editingRepName.trim()) {
+                                renameRep.mutate({ id: rep.id, repName: editingRepName.trim() });
+                                setEditingRepId(null);
+                              } else if (e.key === "Escape") {
+                                setEditingRepId(null);
+                              }
+                            }}
+                            onBlur={() => {
+                              if (editingRepName.trim() && editingRepName.trim() !== rep.repName) {
+                                renameRep.mutate({ id: rep.id, repName: editingRepName.trim() });
+                              }
+                              setEditingRepId(null);
+                            }}
+                            className="h-6 text-[13px] px-1.5 py-0"
+                          />
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!isOpen) return;
+                              setEditingRepId(rep.id);
+                              setEditingRepName(rep.repName === "غير محدد" ? "" : rep.repName);
+                            }}
+                            className={`font-bold text-[13px] truncate text-right ${rep.repName === "غير محدد" ? "text-amber-500" : ""} ${isOpen ? "hover:underline decoration-dotted" : ""}`}
+                            title={isOpen ? "اضغط لتعديل اسم المندوب" : undefined}
+                          >
+                            {rep.repName}
+                          </button>
+                        )}
                         {rep.status === "closed" ? (
                           <Badge className="bg-slate-500/15 text-slate-400 border-slate-500/20 text-[9px] px-1.5 py-0 h-4 shrink-0">مقفول</Badge>
                         ) : (
