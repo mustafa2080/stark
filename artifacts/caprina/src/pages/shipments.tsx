@@ -9,7 +9,7 @@ import {
   ChevronDown, ChevronUp, X, RefreshCw, Eye, Edit, Trash2,
   ArrowUpDown, Building2, DollarSign, FileText, Boxes, Tag,
   Settings, Globe, Layers, Image as ImageIcon,
-  Megaphone, Warehouse, UserCheck, ChevronsUpDown, Check,
+  Megaphone, Warehouse, UserCheck, ChevronsUpDown, Check, Lock,
 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -81,6 +81,10 @@ interface Shipment {
   createdAt: string;
   createdByName?: string;
   warehouseName?: string;
+  // حالة/رقم أحدث بيان مندوب مرتبط بالشحنة — لو "closed" فالشحنة أصل ثابت
+  // مجمّد، وما ينفعش تتغير حالتها (بطلب مصطفى 2026-09-06)
+  manifestStatus?: string | null;
+  manifestNumber?: string | null;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -674,6 +678,12 @@ function EditStatusDialog({ shipment, onClose }: { shipment: Shipment; onClose: 
   const [tracking, setTracking] = useState(shipment.trackingNumber || "");
   const [collected, setCollected] = useState(String(shipment.collectedAmount || "0"));
 
+  // الشحنة مرتبطة بأحدث بيان مندوب مغلق — أصل ثابت مجمّد، ما ينفعش تتغير
+  // حالتها نهائيًا (بطلب مصطفى 2026-09-06). نتحقق من الفرونت هنا (منع فوري
+  // قبل حتى محاولة الحفظ)، والباك إند برضو بيرفض الطلب بنفس الرسالة لو
+  // حصل تلاعب بالـ UI أو الداتا كانت قديمة وقت الفتح.
+  const isLocked = shipment.manifestStatus === "closed";
+
   const mutation = useMutation({
     mutationFn: (data: any) =>
       apiFetch(`/shipments/${shipment.id}`, { method: "PUT", body: JSON.stringify(data) }),
@@ -695,6 +705,22 @@ function EditStatusDialog({ shipment, onClose }: { shipment: Shipment; onClose: 
             تحديث شحنة #ة #{shipment.shipmentNumber}
           </DialogTitle>
         </DialogHeader>
+
+        {isLocked ? (
+          <div className="space-y-4 pt-2">
+            <div className="flex items-start gap-2.5 p-3 rounded-lg border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-900/20">
+              <Lock className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+              <p className="text-xs font-bold text-red-700 dark:text-red-400 leading-relaxed">
+                لا يمكن تعديل حالة هذه الشحنة — مرتبطة ببيان مندوب مغلق
+                {shipment.manifestNumber ? ` (${shipment.manifestNumber})` : ""}.
+                الشحنة أصبحت أصلًا ثابتًا مجمّدًا بعد قفل البيان.
+              </p>
+            </div>
+            <div className="flex gap-2 pt-1 border-t border-border">
+              <Button variant="outline" onClick={onClose} className="flex-1 text-xs">إغلاق</Button>
+            </div>
+          </div>
+        ) : (
         <div className="space-y-4 pt-2">
           <div>
             <Label className="text-xs font-bold mb-2 block">الحالة</Label>
@@ -728,6 +754,7 @@ function EditStatusDialog({ shipment, onClose }: { shipment: Shipment; onClose: 
             </Button>
           </div>
         </div>
+        )}
       </DialogContent>
     </Dialog>
   );

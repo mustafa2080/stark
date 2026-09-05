@@ -702,6 +702,11 @@ router.get("/shipments", async (req, res): Promise<void> => {
           deliveredValueReceived: shipmentManifestItemsTable.deliveredValueReceived,
           // ── JOIN: نفس القيمة لكن من آخر بيان حساب عميل تجاري (لو اتقفلت الشحنة من هناك بدل بيان شركة الشحن) ──
           clientAccountDeliveredValueReceived: clientAccountManifestItemsTable.deliveredValueReceived,
+          // ── JOIN: حالة/رقم أحدث بيان مندوب مرتبط بالشحنة — تُستخدم فى الفرونت
+          // لقفل زر "تغيير الحالة" لو البيان "closed" (بطلب مصطفى 2026-09-06:
+          // شحنة مرتبطة ببيان مغلق = أصل ثابت مجمّد، ما ينفعش تتغير حالتها) ──
+          manifestStatus: shipmentManifestsTable.status,
+          manifestNumber: shipmentManifestsTable.manifestNumber,
         })
         .from(shipmentsTable)
         .leftJoin(shippingCompaniesTable, eq(shipmentsTable.shippingCompanyId, shippingCompaniesTable.id))
