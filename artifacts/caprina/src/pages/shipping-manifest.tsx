@@ -74,6 +74,9 @@ import {
   Eye,
   EyeOff,
   Zap,
+  Smartphone,
+  Building2,
+  Wallet,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/contexts/AuthContext";
@@ -87,6 +90,18 @@ const formatCurrency = (n: number | string | null | undefined) =>
     currency: "EGP",
     maximumFractionDigits: 0,
   }).format(Number(n) || 0);
+
+// ─── وسائل الدفع عند قفل البيان (توزيع صافي المستحق من المندوب) ──────────────
+// نفس القيم والتسميات الموجودة في finance-trip-settlement.tsx (TRIP_SETTLEMENT_PAYMENT_METHODS)
+// عشان تفضل متطابقة مع الشِپّات اللي بتتعرض في صفحة تسوية الرحلات.
+const CLOSE_METHOD_LABELS: Record<string, { label: string; Icon: any }> = {
+  cash:          { label: "كاش",         Icon: Banknote },
+  vodafone_cash: { label: "فودافون كاش", Icon: Smartphone },
+  alix_branch:   { label: "فرع ALIX",    Icon: Building2 },
+  instapay:      { label: "انستا باي",   Icon: Wallet },
+  other:         { label: "أخرى",        Icon: Wallet },
+};
+type ClosePaymentRow = { id: string; method: string; amount: string };
 
 // بند مُرحَّل من بيان مقفول = لا شيء مالي (صفر إيراد + صفر تكلفة) في أي بيان جديد.
 // مصدر الحقيقة = عمود is_rolled_over من الباك إند؛ بادئة [ROLLED_OVER] النصية fallback
@@ -2337,11 +2352,49 @@ function CloseConfirmDialog({
 }: {
   manifest: ShippingManifestDetail;
   onClose: () => void;
-  onConfirm: () => void;
+  onConfirm: (repPayments?: { method: string; amount: number }[]) => void;
   loading: boolean;
 }) {
   const s = manifest.stats;
   const [netDueOpen, setNetDueOpen] = useState(false);
+  const netDue = (manifest as any)?.stats?.walletNetDue ?? 0;
+
+  // ─── توزيع صافي المستحق من المندوب على وسائل دفع (اختياري) ──────────────
+  // لو الأدمن ما فعّلش التقسيم، بنسيب السلوك القديم (صف "كاش" واحد بكل المبلغ)
+  // بعدم إرسال repPayments خالص — الباك إند (autoAddRepToTripSettlement) بيرجع
+  // تلقائيًا لسلوك الـfallback في الحالة دي.
+  const [splitPayments, setSplitPayments] = useState(false);
+  const [paymentRows, setPaymentRows] = useState<ClosePaymentRow[]>([
+    { id: `p-${Date.now()}`, method: "cash", amount: "" },
+  ]);
+
+  const paymentsTotal = useMemo(
+    () => paymentRows.reduce((sum, r) => sum + (Number(r.amount) || 0), 0),
+    [paymentRows]
+  );
+  const paymentsMismatch = splitPayments && netDue > 0 && Math.abs(paymentsTotal - netDue) >= 0.01;
+
+  const addPaymentRow = () => {
+    setPaymentRows(rows => [...rows, { id: `p-${Date.now()}`, method: "cash", amount: "" }]);
+  };
+  const removePaymentRow = (id: string) => {
+    setPaymentRows(rows => rows.length > 1 ? rows.filter(r => r.id !== id) : rows);
+  };
+  const updatePaymentRow = (id: string, patch: Partial<ClosePaymentRow>) => {
+    setPaymentRows(rows => rows.map(r => r.id === id ? { ...r, ...patch } : r));
+  };
+
+  const handleConfirm = () => {
+    if (splitPayments && netDue > 0) {
+      if (paymentsMismatch) return; // زر التأكيد بيبقى معطّل أصلًا، ده حماية إضافية
+      const repPayments = paymentRows
+        .filter(r => Number(r.amount) > 0)
+        .map(r => ({ method: r.method, amount: Number(r.amount) }));
+      onConfirm(repPayments);
+    } else {
+      onConfirm();
+    }
+  };
 
   // احسب الإحصائيات على مستوى الفواتير (مش الطلبات الفردية)
   const invoiceStatusMap = useMemo(() => {
@@ -2509,13 +2562,97 @@ function CloseConfirmDialog({
               </div>
             )}
           </div>
+
+          {/* ─── توزيع صافي المستحق على وسائل الدفع (اختياري) ─── */}
+          {netDue > 0 && (
+            <div className="rounded-md border border-border overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setSplitPayments(v => !v)}
+                className="w-full flex items-center justify-between p-3 text-right text-xs bg-muted/20"
+              >
+                <span className="flex items-center gap-2">
+                  <Wallet className="w-3.5 h-3.5 text-primary" />
+                  <span className="font-medium">تحديد طريقة استلام المبلغ من المندوب</span>
+                </span>
+                <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-300 ${splitPayments ? "rotate-180" : ""}`} />
+              </button>
+              <div className={`grid transition-all duration-300 ease-in-out ${splitPayments ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
+                <div className="overflow-hidden">
+                  <div className="p-3 space-y-2 border-t border-border">
+                    {paymentRows.map((row) => {
+                      const M = CLOSE_METHOD_LABELS[row.method] ?? CLOSE_METHOD_LABELS.other;
+                      const MIcon = M.Icon;
+                      return (
+                        <div key={row.id} className="flex items-center gap-1.5">
+                          <MIcon className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                          <Select
+                            value={row.method}
+                            onValueChange={(val) => updatePaymentRow(row.id, { method: val })}
+                          >
+                            <SelectTrigger className="h-8 text-xs flex-1">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {Object.entries(CLOSE_METHOD_LABELS).map(([key, m]) => (
+                                <SelectItem key={key} value={key} className="text-xs">
+                                  {m.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Input
+                            type="number"
+                            inputMode="decimal"
+                            placeholder="القيمة"
+                            className="h-8 text-xs w-24"
+                            value={row.amount}
+                            onChange={(e) => updatePaymentRow(row.id, { amount: e.target.value })}
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-red-400 hover:text-red-300 shrink-0"
+                            onClick={() => removePaymentRow(row.id)}
+                            disabled={paymentRows.length === 1}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      );
+                    })}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full h-7 text-[11px] gap-1"
+                      onClick={addPaymentRow}
+                    >
+                      + إضافة وسيلة دفع أخرى
+                    </Button>
+                    <div className={`flex items-center justify-between text-[11px] pt-1 ${paymentsMismatch ? "text-red-400" : "text-muted-foreground"}`}>
+                      <span>الإجمالي المُدخَل: {formatCurrency(paymentsTotal)}</span>
+                      <span>المطلوب: {formatCurrency(netDue)}</span>
+                    </div>
+                    {paymentsMismatch && (
+                      <p className="text-[10px] text-red-400 flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3" />
+                        مجموع القيم لازم يساوي صافي المستحق بالظبط قبل التأكيد
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         <DialogFooter className="flex gap-2 mt-2">
           <Button
             className="flex-1 bg-emerald-700 hover:bg-emerald-600 text-white gap-1"
-            onClick={onConfirm}
-            disabled={loading}
+            onClick={handleConfirm}
+            disabled={loading || paymentsMismatch}
           >
             <Lock className="w-3 h-3" />
             {loading ? "جاري الإغلاق..." : "تأكيد الإغلاق"}
@@ -3941,7 +4078,7 @@ export default function ShippingManifestPage() {
   }, [queryClient, id]);
 
   const updateMutation = useMutation({
-    mutationFn: (data: { status: "open" | "closed" }) =>
+    mutationFn: (data: { status: "open" | "closed"; repPayments?: { method: string; amount: number }[] }) =>
       shipmentManifestsApi.update(id, data),
     onSuccess: (result: any) => {
       refetch();
@@ -5209,7 +5346,7 @@ export default function ShippingManifestPage() {
         <CloseConfirmDialog
           manifest={manifest}
           onClose={() => setShowCloseDialog(false)}
-          onConfirm={() => updateMutation.mutate({ status: "closed" })}
+          onConfirm={(repPayments) => updateMutation.mutate({ status: "closed", repPayments })}
           loading={updateMutation.isPending}
         />
       )}

@@ -1325,7 +1325,15 @@ router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
   try {
     const id   = Number(req.params.id);
     const tenantId = getTenantId(req);
-    let body = req.body as { status?: "open" | "closed"; notes?: string; invoicePrice?: number | null };
+    let body = req.body as {
+      status?: "open" | "closed";
+      notes?: string;
+      invoicePrice?: number | null;
+      // توزيع صافي المستحق من المندوب على أكتر من وسيلة دفع وقت قفل البيان
+      // (اختياري — لو مش مبعوت أو المجموع مش مطابق لـ netDue، بيرجع لسلوك
+      // الـ"كاش" القديم جوه autoAddRepToTripSettlement).
+      repPayments?: { method: string; amount: number; note?: string | null }[];
+    };
     const now  = new Date();
     const reqUser = (req as any).user;
 
@@ -1528,6 +1536,7 @@ router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
                   netDue,
                   repUserId,
                   repName,
+                  payments: body.repPayments,
                 });
               }
             }

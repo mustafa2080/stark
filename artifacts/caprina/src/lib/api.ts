@@ -2491,7 +2491,13 @@ export const shipmentManifestsApi = {
       `/shipment-manifests/${manifestId}/add-shipments`,
       { method: "POST", body: JSON.stringify({ shipmentIds }) }
     ),
-  update: (id: number, data: { status?: "open" | "closed"; notes?: string; invoicePrice?: number | null }) =>
+  update: (id: number, data: {
+    status?: "open" | "closed";
+    notes?: string;
+    invoicePrice?: number | null;
+    // توزيع صافي المستحق من المندوب على أكتر من وسيلة دفع وقت قفل البيان (اختياري)
+    repPayments?: { method: string; amount: number; note?: string | null }[];
+  }) =>
     apiFetch<{
       success: boolean;
       rolledOverManifest?: {

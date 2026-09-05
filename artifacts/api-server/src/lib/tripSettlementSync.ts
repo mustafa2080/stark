@@ -28,8 +28,15 @@ export async function autoAddRepToTripSettlement(params: {
   netDue: number;
   repUserId: number | null;
   repName: string;
+  // ── وسائل الدفع (اختياري) ────────────────────────────────────────────────
+  // لو الأدمن اختار وقت إغلاق البيان يوزّع صافي المستحق على أكتر من وسيلة دفع
+  // (فودافون كاش / انستاباي / فرع ALIX / أخرى...) بنسجّلها كصفوف منفصلة في
+  // trip_settlement_rep_payments بدل صف "كاش" واحد بكل المبلغ. المجموع لازم
+  // يبقى مطابق لـ netDue — لو مش متطابق أو الباراميتر مش متبعوت، نرجع
+  // للسلوك القديم (صف "كاش" واحد بكل المبلغ) كـ fallback آمن.
+  payments?: { method: string; amount: number; note?: string | null }[];
 }): Promise<void> {
-  const { tenantId, sourceManifestId, netDue, repUserId, repName } = params;
+  const { tenantId, sourceManifestId, netDue, repUserId, repName, payments } = params;
   if (netDue <= 0) return;
 
   const [existing] = await db.select({ id: tripSettlementRepsTable.id })
@@ -53,13 +60,29 @@ export async function autoAddRepToTripSettlement(params: {
   });
   const repRowId = (created as any).insertId as number;
 
-  await db.insert(tripSettlementRepPaymentsTable).values({
-    repRowId,
-    method: "cash",
-    amount: String(netDue),
-    note: "ترحيل تلقائي من إغلاق البيان",
-    createdAt: now,
-  });
+  const validPayments = (payments ?? []).filter(p => p.amount > 0);
+  const paymentsTotal = validPayments.reduce((sum, p) => sum + p.amount, 0);
+  const useCustomPayments = validPayments.length > 0 && Math.abs(paymentsTotal - netDue) < 0.01;
+
+  if (useCustomPayments) {
+    await db.insert(tripSettlementRepPaymentsTable).values(
+      validPayments.map(p => ({
+        repRowId,
+        method: p.method,
+        amount: String(p.amount),
+        note: p.note?.trim() || "ترحيل تلقائي من إغلاق البيان",
+        createdAt: now,
+      }))
+    );
+  } else {
+    await db.insert(tripSettlementRepPaymentsTable).values({
+      repRowId,
+      method: "cash",
+      amount: String(netDue),
+      note: "ترحيل تلقائي من إغلاق البيان",
+      createdAt: now,
+    });
+  }
 
   await recomputeRepBalance(repRowId);
   await recomputeSettlementTotals(settlement.id);
