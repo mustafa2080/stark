@@ -64,12 +64,13 @@ const latestClientAccountManifestItemIdSql = sql`(
 // ما هو مغلق. بنفحص أحدث بند بيان للشحنة بس (مش أي بند تاريخي قديم) لأن شحنة
 // ممكن يكون ليها بنود قديمة في بيانات مغلقة من زمان لكنها حاليًا نشطة في بيان
 // جديد مفتوح بعد rollover.
-async function getLockedManifestClosureInfo(shipmentId: number): Promise<{ manifestId: number; manifestNumber: string } | null> {
+async function getLockedManifestClosureInfo(shipmentId: number, callerRole?: string): Promise<{ manifestId: number; manifestNumber: string } | null> {
   const rows = await db
     .select({
       manifestId:     shipmentManifestsTable.id,
       manifestNumber: shipmentManifestsTable.manifestNumber,
       status:         shipmentManifestsTable.status,
+      closedByRole:   shipmentManifestsTable.closedByRole,
     })
     .from(shipmentManifestItemsTable)
     .innerJoin(shipmentManifestsTable, eq(shipmentManifestItemsTable.manifestId, shipmentManifestsTable.id))
@@ -83,7 +84,25 @@ async function getLockedManifestClosureInfo(shipmentId: number): Promise<{ manif
     .limit(1);
 
   const row = rows[0];
+  // ⚠️ قفل المندوب "مؤقت" — البيان بيفضل status="open" فعليًا لحد ما الأدمن يأكّد
+  // القفل النهائي، وبس closedByRole="representative" هو اللي بيتسجل كعلامة "طلب
+  // قفل من المندوب" (نفس منطق الفحص في routes/shipment-manifests.ts). فحص
+  // row.status === "closed" بس هنا كان بيسيب فجوة: أي تحديث حالة (PUT فردي أو
+  // bulk-status) بعد ما المندوب يقفل بيانه كان بينفذ عادي (لأن status لسه "open")
+  // وبينادي syncShipmentStatusToManifests بقيمة shipmentsTable.status العامة،
+  // فيدهس deliveryStatus الصحيح اللي المندوب سجّله فعلاً في بند البيان ويرجّعه
+  // "قيد الانتظار" بعد أي refresh — بالظبط المشكلة اللي حصلت مع بيان SMF-2-003.
+  //
+  // لكن قفل المندوب لازم يفضل قابل للحل من الأدمن — هو الوحيد اللي المفروض
+  // يقدر يحسم الشحنات المعلّقة (زي "قيد الانتظار") قبل ما يأكّد القفل النهائي.
+  // فبنفرّق هنا: لو القفل ده "مؤقت" بس (closedByRole="representative" و
+  // status لسه "open") والمستخدم الحالي أدمن، نسيبه يعدي عادي. القفل الكامل
+  // (status="closed" فعليًا — يعني الأدمن أكّد) بيتطبّق على الجميع بدون استثناء،
+  // لأن هنا فعلاً حصل ترحيل مالي والشحنة بقت أصل ثابت مجمّد.
   if (row && row.status === "closed") {
+    return { manifestId: row.manifestId, manifestNumber: row.manifestNumber };
+  }
+  if (row && row.closedByRole && callerRole !== "admin") {
     return { manifestId: row.manifestId, manifestNumber: row.manifestNumber };
   }
   return null;
@@ -91,8 +110,8 @@ async function getLockedManifestClosureInfo(shipmentId: number): Promise<{ manif
 
 // Helper موحّد يبعت رد 423 (Locked) لو الشحنة مقفولة على بيان مغلق — يُستخدم في
 // كل نقطة تعديل/حذف/تغيير حالة فردية أو جماعية على الشحنات.
-async function rejectIfShipmentLocked(res: any, shipmentId: number): Promise<boolean> {
-  const lock = await getLockedManifestClosureInfo(shipmentId);
+async function rejectIfShipmentLocked(res: any, shipmentId: number, callerRole?: string): Promise<boolean> {
+  const lock = await getLockedManifestClosureInfo(shipmentId, callerRole);
   if (lock) {
     res.status(423).json({
       error: `لا يمكن تعديل هذه الشحنة — مرتبطة ببيان مندوب مغلق (${lock.manifestNumber}). الشحنة أصبحت أصلًا ثابتًا بعد قفل البيان.`,
@@ -1152,7 +1171,7 @@ router.put("/shipments/:id", async (req, res): Promise<void> => {
 
     const [existingShipment] = await db.select().from(shipmentsTable).where(eq(shipmentsTable.id, id)).limit(1);
     if (!existingShipment) { res.status(404).json({ error: "الشحنة غير موجودة" }); return; }
-    if (await rejectIfShipmentLocked(res, id)) return;
+    if (await rejectIfShipmentLocked(res, id, (req as any).user?.role)) return;
 
     const d = parsed.data;
     const updateData: any = { updatedAt: new Date() };
@@ -1306,7 +1325,9 @@ router.patch("/shipments/bulk-status", async (req, res): Promise<void> => {
 
     // نستبعد أي شحنة مرتبطة بأحدث بند بيان ليها مغلق — "أصل ثابت مجمّد" لا
     // يتغير حالتها حتى في التحديث الجماعي. نكمل على الباقي ونبلّغ بالمستبعد.
-    const lockChecks = await Promise.all(numericIds.map(async id => ({ id, lock: await getLockedManifestClosureInfo(id) })));
+    // (بنمرر دور المستخدم عشان الأدمن يقدر يحسم شحنات "قفل مؤقت" من المندوب.)
+    const bulkCallerRole = (req as any).user?.role;
+    const lockChecks = await Promise.all(numericIds.map(async id => ({ id, lock: await getLockedManifestClosureInfo(id, bulkCallerRole) })));
     const lockedIds = lockChecks.filter(c => c.lock).map(c => c.id);
     numericIds = lockChecks.filter(c => !c.lock).map(c => c.id);
     if (numericIds.length === 0) {
@@ -1371,7 +1392,7 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
 
     const [existingShipment] = await db.select().from(shipmentsTable).where(eq(shipmentsTable.id, id)).limit(1);
     if (!existingShipment) { res.status(404).json({ error: "الشحنة غير موجودة" }); return; }
-    if (await rejectIfShipmentLocked(res, id)) return;
+    if (await rejectIfShipmentLocked(res, id, (req as any).user?.role)) return;
 
     const d = parsed.data;
     const updateData: any = { updatedAt: new Date() };
@@ -1604,7 +1625,7 @@ router.patch("/shipments/:id/urgent", async (req, res): Promise<void> => {
       : eq(shipmentsTable.id, id);
     const [existingShipment] = await db.select().from(shipmentsTable).where(cond).limit(1);
     if (!existingShipment) { res.status(404).json({ error: "الشحنة غير موجودة" }); return; }
-    if (await rejectIfShipmentLocked(res, id)) return;
+    if (await rejectIfShipmentLocked(res, id, reqUser?.role)) return;
 
     await db.update(shipmentsTable)
       .set({
@@ -1731,7 +1752,7 @@ router.delete("/shipments/:id", async (req, res): Promise<void> => {
       : eq(shipmentsTable.id, id);
     const [existingShipment] = await db.select().from(shipmentsTable).where(cond).limit(1);
     if (!existingShipment) { res.status(404).json({ error: "الشحنة غير موجودة" }); return; }
-    if (await rejectIfShipmentLocked(res, id)) return;
+    if (await rejectIfShipmentLocked(res, id, (req as any).user?.role)) return;
     await db.update(shipmentsTable).set({ deletedAt: new Date(), updatedAt: new Date() }).where(cond);
     res.json({ success: true });
   } catch (e) {
