@@ -1475,7 +1475,14 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
     // 10 دقايق. الحل: التحديثين دول بس داخل transaction واحدة. القيمة والترتيب
     // بتاع كل حاجة تانية زي ما هو من غير أي تغيير.
     await db.transaction(async (tx) => {
-      await tx.update(shipmentsTable).set(updateData).where(cond);
+      // console.log("[DEBUG partial-fix]") — تشخيص مؤقت (2026-09-06): بنتأكد
+      // من القيمة الفعلية اللي واصلة لـ updateData/cond/tenantId والنتيجة الفعلية
+      // من الـ UPDATE (عدد الصفوف المتأثرة) — هيتشال بعد ما نلقط السبب.
+      console.log("[DEBUG partial-fix] PATCH /shipments/:id", {
+        id, tenantId, updateData, existingStatus: existingShipment.status,
+      });
+      const updateResult: any = await tx.update(shipmentsTable).set(updateData).where(cond);
+      console.log("[DEBUG partial-fix] update result:", JSON.stringify(updateResult?.[0] ?? updateResult));
 
       // مزامنة حالة الشحنة مع أي بيان (حساب عميل / شركة شحن) مرتبطة بيها
       // بنمرر returnReason كمان عشان لو القفل تم من مسار المندوب (representative-dashboard)
