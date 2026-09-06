@@ -4248,6 +4248,15 @@ export default function ShippingManifestPage() {
         toast({ title: "🔒 تم إغلاق البيان بنجاح" });
       }
     },
+    onError: (error: any) => {
+      // نعرض الرسالة الحقيقية الجاية من الباك إند (مثلاً: البيان مرتبط ببيان
+      // مندوب مفتوح) بدل ما الطلب يفشل بصمت من غير أي تنبيه لليوزر.
+      toast({
+        title: "تعذّر إغلاق البيان",
+        description: error?.message || "حدث خطأ غير متوقع، برجاء المحاولة مرة أخرى",
+        variant: "destructive",
+      });
+    },
   });
 
   const deleteMutation = useMutation({
