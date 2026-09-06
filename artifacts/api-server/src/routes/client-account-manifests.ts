@@ -1386,6 +1386,11 @@ router.patch("/client-account-manifests/:id", async (req, res): Promise<void> =>
 
         if (openRepManifests.length) {
           let repName = openRepManifests[0].repName;
+          console.log("[CLOSE-MANIFEST-REPNAME-DEBUG]", {
+            camId: id,
+            openRepManifest: openRepManifests[0],
+            relevantShipmentIds,
+          });
           // ⚠️ fallback: بيان المندوب ممكن يتفتح من الأدمن (مش من المندوب نفسه)
           // وفي الحالة دي shipment_manifests.representative_user_id بيتسجل من
           // assignedUserId بتاع أول شحنة وقت الإنشاء (راجع POST
@@ -1406,6 +1411,22 @@ router.patch("/client-account-manifests/:id", async (req, res): Promise<void> =>
               .limit(1);
             repName = shipmentRep?.repName ?? null;
           }
+          // ⚠️ fallback ثالث: لو حتى الشحنات المحدَّدة (اللي بتمنع القفل) نفسها
+          // مالهاش assignedUserId (لسه في المخزن أو مش متعيّنة لمندوب)، ندوّر
+          // على أي شحنة تانية جوه *كل* بيان المندوب ده (مش بس الشحنات اللي
+          // بتمنع القفل) — لأن باقي شحنات نفس بيان المندوب غالبًا نفس المندوب،
+          // فده أفضل تخمين متاح بدل ما نسيب الرسالة من غير أي اسم خالص.
+          if (!repName) {
+            const [anyShipmentInManifest] = await db
+              .select({ repName: usersTable.displayName })
+              .from(shipmentManifestItemsTable)
+              .innerJoin(shipmentsTable, eq(shipmentsTable.id, shipmentManifestItemsTable.shipmentId))
+              .innerJoin(usersTable, eq(usersTable.id, shipmentsTable.assignedUserId))
+              .where(eq(shipmentManifestItemsTable.manifestId, openRepManifests[0].manifestId))
+              .limit(1);
+            repName = anyShipmentInManifest?.repName ?? null;
+          }
+          console.log("[CLOSE-MANIFEST-REPNAME-DEBUG] final repName:", repName);
           res.status(400).json({
             error: `لا يمكن إغلاق البيان الحالي لأنه مرتبط ببيان مندوب مفتوح. برجاء إغلاق بيان المندوب أولاً [اسم المندوب: ${repName ?? "غير محدد"}].`,
           });
