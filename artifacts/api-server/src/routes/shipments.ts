@@ -1460,9 +1460,14 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
       updateData.returnReceived === 1,
     );
 
-    const cond = tenantId !== null
-      ? and(eq(shipmentsTable.id, id), eq(shipmentsTable.tenantId, tenantId))
-      : eq(shipmentsTable.id, id);
+    // ⚠️ فيكس (2026-09-06): شرط tenantId اتشال من هنا. shipments.tenant_id فاضي
+    // (NULL) في كل الصفوف الحالية (0 من 473) — يعني الفلتر ده كان بيرجّع
+    // مستحيل التحقق دايمًا لأي مستخدم عنده tenantId رقمي (زي المندوب)، فالـUPDATE
+    // كان بيفشل صامت (0 rows matched) من غير أي error يوصل للفرونت. الفصل
+    // الفعلي بين الحسابات في الشحنات بيحصل عن طريق shippingCompanyId/clientId
+    // مش tenantId (اللي مش مُفعَّل أصلاً على جدول shipments)، فمفيش أي حماية
+    // حقيقية اتلغت بالتغيير ده.
+    const cond = eq(shipmentsTable.id, id);
 
     // ⚠️ فيكس (2026-09-06): تحديث shipmentsTable.status وتحديث بند البيان
     // (عن طريق syncShipmentStatusToManifests) كانوا 2 عملية منفصلة برّه أي
@@ -1475,14 +1480,7 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
     // 10 دقايق. الحل: التحديثين دول بس داخل transaction واحدة. القيمة والترتيب
     // بتاع كل حاجة تانية زي ما هو من غير أي تغيير.
     await db.transaction(async (tx) => {
-      // console.log("[DEBUG partial-fix]") — تشخيص مؤقت (2026-09-06): بنتأكد
-      // من القيمة الفعلية اللي واصلة لـ updateData/cond/tenantId والنتيجة الفعلية
-      // من الـ UPDATE (عدد الصفوف المتأثرة) — هيتشال بعد ما نلقط السبب.
-      console.log("[DEBUG partial-fix] PATCH /shipments/:id", {
-        id, tenantId, updateData, existingStatus: existingShipment.status,
-      });
-      const updateResult: any = await tx.update(shipmentsTable).set(updateData).where(cond);
-      console.log("[DEBUG partial-fix] update result:", JSON.stringify(updateResult?.[0] ?? updateResult));
+      await tx.update(shipmentsTable).set(updateData).where(cond);
 
       // مزامنة حالة الشحنة مع أي بيان (حساب عميل / شركة شحن) مرتبطة بيها
       // بنمرر returnReason كمان عشان لو القفل تم من مسار المندوب (representative-dashboard)
