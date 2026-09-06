@@ -1757,6 +1757,7 @@ export default function OperationsCenterPage() {
       </div>
 
       {/* ── إجمالي أرصدة الخزن (منقول من لوحة التحكم) ────────────────────── */}
+      {can("dashboard.cash_registers") && (
       <Card className="oc-card overflow-hidden" style={{ ["--tone" as any]: "#10b981" }}>
         <CardContent className="p-4">
           <div className="flex items-center justify-between gap-2 mb-2">
@@ -1844,6 +1845,7 @@ export default function OperationsCenterPage() {
           </div>
         </CardContent>
       </Card>
+      )}
 
       {/* ── ربح الفترات: اليوم / الأسبوع / الشهر (منقول من لوحة التحكم) ──── */}
       <div className={`grid grid-cols-1 sm:grid-cols-3 ${ocPeriodFilter.type === "custom" && periodProfitData?.custom ? "xl:grid-cols-4" : ""} gap-3`}>
@@ -1910,6 +1912,7 @@ export default function OperationsCenterPage() {
       })()}
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+        {can("dashboard.status_distribution") && (
         <div className="xl:col-span-1">
           {statusDistLoading && statusDonutData.length === 0 ? (
             <div className="h-56 rounded-2xl bg-muted animate-pulse" />
@@ -1922,7 +1925,9 @@ export default function OperationsCenterPage() {
             <ShipmentStatusDonut data={statusDonutData} total={statusDistTotal} />
           )}
         </div>
+        )}
 
+        {can("dashboard.weekly_shipments") && (
         <Card className="oc-card xl:col-span-2 overflow-hidden">
           <CardHeader className="pb-2 flex flex-row items-center justify-between">
             <div>
@@ -1941,12 +1946,14 @@ export default function OperationsCenterPage() {
             )}
           </CardContent>
         </Card>
+        )}
       </div>
 
       {/* ── الصف الثاني: مركز العمليات + الخريطة + KPIs ────────────────── */}
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-4 items-stretch xl:h-[680px]">
         {/* العمود الجانبي — مركز العمليات (سكرول واحد موحّد للحاويات الأربع) */}
         <div className="xl:col-span-1 flex flex-col gap-3 xl:h-full xl:overflow-y-auto pr-1 min-h-0">
+          {can("dashboard.delayed_shipments") && (
           <Card className="oc-kpi-card shrink-0 flex flex-col" style={{ ["--tone" as any]: "#ef4444" }}>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
@@ -1979,7 +1986,9 @@ export default function OperationsCenterPage() {
               )}
             </CardContent>
           </Card>
+          )}
 
+          {can("dashboard.problem_shipments") && (
           <Card className="oc-kpi-card shrink-0 flex flex-col" style={{ ["--tone" as any]: "#f59e0b" }}>
             <CardHeader className="pb-2 shrink-0">
               <CardTitle className="text-sm flex items-center gap-2">
@@ -2012,7 +2021,9 @@ export default function OperationsCenterPage() {
               )}
             </CardContent>
           </Card>
+          )}
 
+          {can("dashboard.online_reps") && (
           <Card className="oc-kpi-card shrink-0 flex flex-col" style={{ ["--tone" as any]: "#0ea5e9" }}>
             <CardHeader className="pb-2 shrink-0">
               <CardTitle className="text-sm flex items-center gap-2">
@@ -2042,7 +2053,9 @@ export default function OperationsCenterPage() {
               )}
             </CardContent>
           </Card>
+          )}
 
+          {can("dashboard.clients_followup") && (
           <Card className="oc-kpi-card shrink-0 flex flex-col" style={{ ["--tone" as any]: "#d946ef" }}>
             <CardHeader className="pb-2 shrink-0">
               <CardTitle className="text-sm flex items-center gap-2">
@@ -2069,9 +2082,11 @@ export default function OperationsCenterPage() {
               )}
             </CardContent>
           </Card>
+          )}
         </div>
 
         {/* الخريطة المباشرة (MapLibre GL — تجميع الشحنات حسب المحافظة) */}
+        {can("dashboard.live_map") && (
         <div className="xl:col-span-2">
           <Card className="oc-kpi-card h-full flex flex-col" style={{ ["--tone" as any]: "#06b6d4" }}>
             <CardHeader className="pb-2 flex-row items-center justify-between shrink-0">
@@ -2094,8 +2109,10 @@ export default function OperationsCenterPage() {
             </CardContent>
           </Card>
         </div>
+        )}
 
         {/* مؤشرات الأداء الرئيسية */}
+        {can("dashboard.performance_metrics") && (
         <div className="xl:col-span-1">
           <Card className="oc-kpi-card h-full" style={{ ["--tone" as any]: "#6366f1" }}>
             <CardHeader className="pb-2 space-y-3">
@@ -2149,11 +2166,13 @@ export default function OperationsCenterPage() {
             </CardContent>
           </Card>
         </div>
+        )}
       </div>
 
       {/* ── الصف الثالث: أرباح + اتجاه إيرادات + AI ────────────────────── */}
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
         {/* ملخص الأرباح */}
+        {can("dashboard.revenue_summary") && (
         <Card className="oc-kpi-card xl:col-span-1" style={{ ["--tone" as any]: "#14b8a6" }}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
@@ -2206,7 +2225,10 @@ export default function OperationsCenterPage() {
           </CardContent>
         </Card>
 
+        )}
+
         {/* اتجاه صافي الإيرادات */}
+        {can("dashboard.revenue_trend") && (
         <Card className="oc-kpi-card xl:col-span-2" style={{ ["--tone" as any]: "#3b82f6" }}>
           <CardHeader className="pb-2 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -2262,7 +2284,10 @@ export default function OperationsCenterPage() {
           </CardContent>
         </Card>
 
+        )}
+
         {/* مركز الذكاء الاصطناعي */}
+        {can("dashboard.ai_center") && (
         <Card className="oc-kpi-card xl:col-span-1" style={{ ["--tone" as any]: "#d946ef" }}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
@@ -2291,10 +2316,12 @@ export default function OperationsCenterPage() {
             )}
           </CardContent>
         </Card>
+        )}
       </div>
 
       {/* ── أفضل العملاء / أفضل المندوبين ───────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {can("dashboard.top_clients") && (
         <Card className="oc-kpi-card" style={{ ["--tone" as any]: "#a855f7" }}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center justify-between gap-2 flex-wrap">
@@ -2347,6 +2374,9 @@ export default function OperationsCenterPage() {
           </CardContent>
         </Card>
 
+        )}
+
+        {can("dashboard.top_reps") && (
         <Card className="oc-kpi-card" style={{ ["--tone" as any]: "#0ea5e9" }}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center justify-between gap-2 flex-wrap">
@@ -2404,11 +2434,13 @@ export default function OperationsCenterPage() {
             )}
           </CardContent>
         </Card>
+        )}
       </div>
 
       {/* ── الصف الرابع ──────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
         {/* أحدث التنبيهات */}
+        {can("dashboard.recent_events") && (
         <Card className="oc-kpi-card xl:col-span-2" style={{ ["--tone" as any]: "#ef4444" }}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
@@ -2436,7 +2468,10 @@ export default function OperationsCenterPage() {
           </CardContent>
         </Card>
 
+        )}
+
         {/* آخر الشحنات */}
+        {can("dashboard.recent_shipments") && (
         <Card className="oc-kpi-card xl:col-span-2" style={{ ["--tone" as any]: "#64748b" }}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
@@ -2480,10 +2515,12 @@ export default function OperationsCenterPage() {
             )}
           </CardContent>
         </Card>
+        )}
       </div>
 
       {/* ── إجراءات سريعة + جدول المندوبين اليومي ───────────────────────── */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+        {can("dashboard.quick_actions") && (
         <Card className="oc-kpi-card xl:col-span-1" style={{ ["--tone" as any]: "#eab308" }}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
@@ -2523,6 +2560,9 @@ export default function OperationsCenterPage() {
           </CardContent>
         </Card>
 
+        )}
+
+        {can("dashboard.reps_daily_table") && (
         <Card className="oc-kpi-card xl:col-span-2" style={{ ["--tone" as any]: "#0ea5e9" }}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center justify-between gap-2 flex-wrap">
@@ -2565,9 +2605,11 @@ export default function OperationsCenterPage() {
             )}
           </CardContent>
         </Card>
+        )}
       </div>
 
       {/* ── شاشة المدير التنفيذي ─────────────────────────────────────────── */}
+      {can("dashboard.executive_summary") && (
       <Card className="oc-kpi-card border-2" style={{ ["--tone" as any]: "#10b981" }}>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm flex items-center gap-2">
@@ -2593,6 +2635,8 @@ export default function OperationsCenterPage() {
           )}
         </CardContent>
       </Card>
+
+      )}
 
       {/* ── Footer ───────────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-muted-foreground border-t pt-4">

@@ -61,11 +61,33 @@ const MAX_POLL_FAILURES = 3;
 export const ALL_PERMISSIONS = {
   // 1. لوحة التحكم
   dashboard: [
-    { key: "dashboard.view",           label: "دخول لوحة التحكم",               desc: "يشوف الصفحة الرئيسية" },
-    { key: "dashboard.financials",     label: "بطاقات الأرباح والخسائر",        desc: "إخفاء إذا لم يُمنح" },
-    { key: "dashboard.shipping_stats", label: "إحصائيات شركات الشحن",          desc: "إخفاء إذا لم يُمنح" },
-    { key: "dashboard.returns",        label: "بطاقة المرتجعات",                desc: "إخفاء إذا لم يُمنح" },
-    { key: "dashboard.team",           label: "قسم أداء الفريق",                desc: "إخفاء إذا لم يُمنح" },
+    { key: "dashboard.view",                  label: "رؤية لوحة التحكم",             desc: "الدخول الأساسي على الداشبورد" },
+    // ── الحاويات الرئيسية (الكروت العلوية) ────────────────────────────
+    { key: "dashboard.cash_registers",        label: "رؤية إجمالي أرصدة الخزن",      desc: "إخفاء إذا لم يُمنح" },
+    { key: "dashboard.status_distribution",   label: "رؤية توزيع الشحنات",            desc: "إخفاء إذا لم يُمنح" },
+    { key: "dashboard.weekly_shipments",      label: "رؤية الشحنات الأسبوعية",        desc: "إخفاء إذا لم يُمنح" },
+    { key: "dashboard.delayed_shipments",     label: "رؤية الشحنات المتأخرة",         desc: "إخفاء إذا لم يُمنح" },
+    { key: "dashboard.problem_shipments",     label: "رؤية الشحنات اللي فيها مشكلة",  desc: "إخفاء إذا لم يُمنح" },
+    { key: "dashboard.online_reps",           label: "رؤية المندوبين الموجودين حالياً", desc: "إخفاء إذا لم يُمنح" },
+    { key: "dashboard.clients_followup",      label: "رؤية العملاء المحتاجين متابعة", desc: "إخفاء إذا لم يُمنح" },
+    { key: "dashboard.live_map",              label: "رؤية الخريطة المباشرة",         desc: "إخفاء إذا لم يُمنح" },
+    // ── حاويات اختيارية (مش ظاهرة إلا لو مُنحت صراحةً لاحقاً لو احتجنا) ──
+    { key: "dashboard.performance_metrics",   label: "رؤية مؤشرات الأداء الخاصة بالشركة", desc: "إخفاء إذا لم يُمنح" },
+    { key: "dashboard.revenue_summary",       label: "رؤية ملخص الإيرادات",           desc: "إخفاء إذا لم يُمنح" },
+    { key: "dashboard.revenue_trend",         label: "رؤية اتجاه صافي الإيرادات",     desc: "إخفاء إذا لم يُمنح" },
+    { key: "dashboard.ai_center",             label: "رؤية مركز الذكاء الاصطناعي",    desc: "إخفاء إذا لم يُمنح" },
+    { key: "dashboard.top_clients",           label: "رؤية أفضل العملاء",             desc: "إخفاء إذا لم يُمنح" },
+    { key: "dashboard.top_reps",              label: "رؤية أفضل المندوبين",           desc: "إخفاء إذا لم يُمنح" },
+    { key: "dashboard.recent_events",         label: "رؤية أحدث التنبيهات",           desc: "إخفاء إذا لم يُمنح" },
+    { key: "dashboard.recent_shipments",      label: "رؤية آخر الشحنات",              desc: "إخفاء إذا لم يُمنح" },
+    { key: "dashboard.quick_actions",         label: "رؤية إجراءات سريعة",            desc: "إخفاء إذا لم يُمنح" },
+    { key: "dashboard.reps_daily_table",      label: "رؤية جدول المندوبين اليومي",    desc: "إخفاء إذا لم يُمنح" },
+    { key: "dashboard.executive_summary",     label: "رؤية شاشة المدير التنفيذي",     desc: "إخفاء إذا لم يُمنح" },
+    // ── قديمة (deprecated) — نسيبها للتوافق مع مستخدمين قدامى ─────────
+    { key: "dashboard.financials",     label: "بطاقات الأرباح والخسائر [قديم]",        desc: "متروكة للتوافق فقط" },
+    { key: "dashboard.shipping_stats", label: "إحصائيات شركات الشحن [قديم]",          desc: "متروكة للتوافق فقط" },
+    { key: "dashboard.returns",        label: "بطاقة المرتجعات [قديم]",                desc: "متروكة للتوافق فقط" },
+    { key: "dashboard.team",           label: "قسم أداء الفريق [قديم]",                desc: "متروكة للتوافق فقط" },
   ],
   // 2. الطلبات
   orders: [
@@ -470,6 +492,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!permission.includes(".")) {
         if (realPerms.includes(permission)) return true;
         return realPerms.some(p => p.startsWith(permission + "."));
+      }
+
+      // ── استثناء: حاويات لوحة التحكم (Opt-out) ──────────────────────
+      // "dashboard.view" لوحدها تكفي لإظهار كل حاويات الداشبورد تلقائياً.
+      // الإخفاء الصريح لحاوية معينة بيتم بإضافة "!dashboard.xxx" في الصلاحيات.
+      if (permission.startsWith("dashboard.") && permission !== "dashboard.view") {
+        if (realPerms.includes(permission)) return true; // مُنحت صراحةً
+        if (realPerms.includes("!" + permission)) return false; // اتخفت صراحةً
+        // لو dashboard.view ممنوحة ومفيش إخفاء صريح → ظاهرة تلقائياً
+        if (realPerms.includes("dashboard.view")) return true;
+        return false;
       }
 
       // صلاحية تفصيلية (مثلاً "orders.view") — لازم تكون موجودة بالضبط
