@@ -4022,8 +4022,13 @@ export default function ShippingManifestPage() {
     };
   }, [rawManifest]);
 
-  // ─── Search filter — real-time, no popover ────────────────────────────────
-  const filteredManifestOrders = useMemo(() => {
+  // ─── القاعدة الأساسية لعرض شحنات البيان (بدون تأثير أي بحث نصي) ────────────
+  // (2026-09-06): منفصلة عن filteredManifestOrders تحت عشان الطباعة (PDF)
+  // تستخدمها هي بالظبط — قبل كده كانت الطباعة بتستخدم groupedManifestOrders
+  // (بدون استبعاد rolled-over النهائي)، فكانت تظهر عدد شحنات أكبر من جدول
+  // الشاشة الفعلي وتختلف عن كروت الإحصائيات. دلوقتي: نفس القاعدة بالظبط
+  // للشاشة والطباعة، والفرق الوحيد إن الشاشة كمان بتفلتر بالبحث لو مفعّل.
+  const baseManifestGroups = useMemo(() => {
     const orders = manifest?.orders ?? [];
     // ─── منطق ظهور المرتجع/الجزئي في جدول "الشحنات في البيان" ─────────────────
     // ⚠️ تصحيح (2026-08-28، ٧): بناءً على طلب صريح — البيان (مفتوح أو مقفول)
@@ -4058,7 +4063,12 @@ export default function ShippingManifestPage() {
       }
       return true;
     });
-    const groups = groupManifestOrders(ordersWithoutPendingReturns);
+    return groupManifestOrders(ordersWithoutPendingReturns);
+  }, [manifest?.orders, manifest?.status]);
+
+  // ─── Search filter — real-time, no popover ────────────────────────────────
+  const filteredManifestOrders = useMemo(() => {
+    const groups = baseManifestGroups;
     if (!manifestCustomerSearch && !manifestProductSearch && !manifestTotalSearch) return groups;
     const cLow = manifestCustomerSearch.toLowerCase();
     const pLow = manifestProductSearch.toLowerCase();
@@ -4382,9 +4392,31 @@ export default function ShippingManifestPage() {
     .mp-sig-title { font-size:9pt; color:#64748b; margin-bottom:8mm; font-weight:700; }
     .mp-sig-line  { border-top:1.5px solid #333; width:80%; margin:0 auto; }
     .mp-sig-name  { font-size:8pt; color:#555; margin-top:2mm; }
+    /* ── Compact mode (2026-09-06): بيان صغير/متوسط (≤20 شحنة) — ضغط
+       الهوامش/الخطوط عشان يتقل صفحة A4 واحدة قد الإمكان. ── */
+    body.mp-compact { padding: 0 1mm; }
+    .mp-compact .mp-header { padding-bottom:2mm; margin-bottom:2mm; }
+    .mp-compact .mp-title { font-size:15pt; }
+    .mp-compact .mp-meta { font-size:8pt; margin-top:1mm; line-height:1.4; }
+    .mp-compact .mp-stats { margin-bottom:2mm; }
+    .mp-compact .mp-stat { padding:1.5mm 2mm; }
+    .mp-compact .mp-stat-lbl { font-size:7pt; margin-bottom:0.3mm; }
+    .mp-compact .mp-stat-val { font-size:12pt; }
+    .mp-compact .mp-table { font-size:8.5pt; margin-bottom:2mm; }
+    .mp-compact .mp-table th { padding:1.5mm 2mm; font-size:8pt; }
+    .mp-compact .mp-table td { padding:1.3mm 2mm; line-height:1.25; }
+    .mp-compact .mp-sub { font-size:7pt; }
+    .mp-compact .mp-note { font-size:7pt; }
+    .mp-compact .st-d, .mp-compact .st-r, .mp-compact .st-p, .mp-compact .st-x, .mp-compact .st-n { font-size:7.5pt; padding:0.3mm 2mm; }
+    .mp-compact .mp-totals { gap:2mm; margin-bottom:2.5mm; }
+    .mp-compact .mp-total-card { padding:2mm 3mm; }
+    .mp-compact .mp-total-lbl { font-size:7pt; margin-bottom:0.5mm; }
+    .mp-compact .mp-total-val { font-size:11pt; }
+    .mp-compact .mp-footer { padding-top:2.5mm; margin-top:2.5mm; }
+    .mp-compact .mp-sig-title { margin-bottom:5mm; }
   </style>
 </head>
-<body>
+<body class="${baseManifestGroups.length <= 20 ? 'mp-compact' : ''}">
   ${html}
 </body>
 </html>`);
@@ -4535,7 +4567,10 @@ export default function ShippingManifestPage() {
   return (
     <>
     {/* ══════════════ PRINT-ONLY ══════════════ */}
-    <div className="manifest-print print:block hidden" dir="rtl">
+    {/* mp-compact: بيان صغير/متوسط (≤20 شحنة) بيتقل صفحة A4 واحدة بضغط
+        الهوامش والخطوط تلقائيًا؛ بيان كبير (>20) يسيب المساحة العادية
+        ويتوزع على أكتر من صفحة طبيعي — الأولوية للتطابق مش للحشر. */}
+    <div className={`manifest-print print:block hidden${baseManifestGroups.length <= 20 ? " mp-compact" : ""}`} dir="rtl">
 
       {/* ─── Header ─── */}
       <div className="mp-header">
@@ -4593,7 +4628,12 @@ export default function ShippingManifestPage() {
           </tr>
         </thead>
         <tbody>
-          {groupedManifestOrders.map((group, idx) => {
+          {/* (2026-09-06): baseManifestGroups — نفس القاعدة بالظبط المطابقة
+              لجدول الشاشة وكروت الإحصائيات (تستبعد pending/waiting و rolled-over
+              النهائي)، بدون تأثير أي بحث نصي نشط في الشاشة وقت الطباعة. قبل كده
+              كانت الطباعة بتستخدم groupedManifestOrders (allGroupedOrders) اللي
+              بتشمل rolled-over، فكان عدد الشحنات في الـ PDF مختلف عن الشاشة. */}
+          {baseManifestGroups.map((group, idx) => {
             const rep = group[0];
             const statuses = [...new Set(group.map((o) => o.deliveryStatus))];
             const isSingleStatus = statuses.length === 1;
