@@ -738,43 +738,6 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
         : (bareNote.length > 0 ? bareNote : null);
     }
 
-    // 🔍 DEBUG مؤقت — نشيله بعد ما نتأكد من مصدر المشكلة (partialQuantity بيوصل صفر
-    // للمندوب رغم كل الفيكسات، محتاجين نشوف بالظبط الراوت ده بيستقبل إيه فعليًا)
-    console.log("[DEBUG partial-fix] PATCH items", { manifestId, shipmentId, rawBody: req.body, parsedBody: body });
-
-    await db.update(shipmentManifestItemsTable)
-      .set({
-        deliveryStatus: body.deliveryStatus,
-        deliveryNote:   nextDeliveryNote,
-        // العمود هو مصدر الحقيقة المالي: يفضل 1 طول ما البند no-op مُرحّل، ويترجّع 0 لو
-        // رجع حيّ (فيتحسب تسليمه هنا). بنلمسه بس لو البند كان مُرحّلًا أصلًا.
-        ...(wasRolledOver ? { isRolledOver: staysNoOp ? 1 : 0 } : {}),
-        partialQuantity: body.partialQuantity ?? null,
-        // returnReason و returnValueReceived: لو الطلب مابعتهمش (undefined) — زي زرار
-        // "تم الاستلام" السريع اللي بيبعت returnReceived بس — نسيب القيمة القديمة زي
-        // ما هي (undefined في drizzle .set = تجاهل العمود)، عشان الحسابات المالية
-        // اللي اتسجلت وقت تسجيل المرتجع تفضل زي ما هي ومتتصفرش بمجرد "تم الاستلام".
-        ...(body.returnReason !== undefined ? { returnReason: body.returnReason ?? null } : {}),
-        returnReceived: body.returnReceived == null ? null : body.returnReceived ? 1 : 0,
-        ...(body.returnValueReceived !== undefined ? { returnValueReceived: body.returnValueReceived == null ? null : String(body.returnValueReceived) } : {}),
-        ...(body.deliveredValueReceived !== undefined ? { deliveredValueReceived: body.deliveredValueReceived == null ? null : String(body.deliveredValueReceived) } : {}),
-        deliveredAt:    (body.deliveryStatus === "delivered" || body.deliveryStatus === "partial_delivered") ? now : undefined,
-      })
-      .where(and(
-        eq(shipmentManifestItemsTable.manifestId, manifestId),
-        eq(shipmentManifestItemsTable.shipmentId, shipmentId),
-      ));
-
-    // 🔍 DEBUG مؤقت — نتأكد إن الـ update فعلاً كتب partialQuantity في الصف الصح
-    const [debugAfterUpdate] = await db.select({
-      partialQuantity: shipmentManifestItemsTable.partialQuantity,
-      deliveryStatus: shipmentManifestItemsTable.deliveryStatus,
-    }).from(shipmentManifestItemsTable).where(and(
-      eq(shipmentManifestItemsTable.manifestId, manifestId),
-      eq(shipmentManifestItemsTable.shipmentId, shipmentId),
-    )).limit(1);
-    console.log("[DEBUG partial-fix] after shipmentManifestItems update:", debugAfterUpdate);
-
     // حدّث حالة الشحنة نفسها — partial_delivered (البيان) يقابل partial_received (شحنات) بنفس الاسم
     // عشان عمود "الحالة" في صفحة الشحنات يفضل واحد ثابت، والفرق (لسه عند الشحن / في المخزن) بييجي من returnReceived
     //
@@ -842,9 +805,42 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
       }
     }
 
-    await db.update(shipmentsTable)
-      .set(shipmentPatch)
-      .where(eq(shipmentsTable.id, shipmentId));
+    // ⚠️ فيكس (2026-09-06): تحديث بند البيان (shipment_manifest_items) وتحديث حالة
+    // الشحنة نفسها (shipments) كانوا 2 عملية منفصلة برّه أي transaction. لو حصل أي
+    // استثناء بينهم كان بند البيان بيتسجل "delivered" فعلاً بينما shipments.status
+    // تفضل زي ما هي القديمة — عدم تزامن صامت كان بيخلي reconcileCron (اللي بيعتبر
+    // shipments.status مصدر الحقيقة) يرجّع البند لـ "pending" بعد أقصى 10 دقايق،
+    // فيبان للمندوب إن الأوردر "اتقفل" وبعدين "رجع قيد الانتظار" لوحده (راجع نقاش
+    // 2026-09-06 — بيان SMF-2-003). الحل: التحديثين دول بس داخل transaction واحدة —
+    // ينجحوا مع بعض أو يترول باك مع بعض. القيمة والترتيب بتاع كل حاجة تانية زي ما هو.
+    await db.transaction(async (tx) => {
+      await tx.update(shipmentManifestItemsTable)
+        .set({
+          deliveryStatus: body.deliveryStatus,
+          deliveryNote:   nextDeliveryNote,
+          // العمود هو مصدر الحقيقة المالي: يفضل 1 طول ما البند no-op مُرحّل، ويترجّع 0 لو
+          // رجع حيّ (فيتحسب تسليمه هنا). بنلمسه بس لو البند كان مُرحّلًا أصلًا.
+          ...(wasRolledOver ? { isRolledOver: staysNoOp ? 1 : 0 } : {}),
+          partialQuantity: body.partialQuantity ?? null,
+          // returnReason و returnValueReceived: لو الطلب مابعتهمش (undefined) — زي زرار
+          // "تم الاستلام" السريع اللي بيبعت returnReceived بس — نسيب القيمة القديمة زي
+          // ما هي (undefined في drizzle .set = تجاهل العمود)، عشان الحسابات المالية
+          // اللي اتسجلت وقت تسجيل المرتجع تفضل زي ما هي ومتتصفرش بمجرد "تم الاستلام".
+          ...(body.returnReason !== undefined ? { returnReason: body.returnReason ?? null } : {}),
+          returnReceived: body.returnReceived == null ? null : body.returnReceived ? 1 : 0,
+          ...(body.returnValueReceived !== undefined ? { returnValueReceived: body.returnValueReceived == null ? null : String(body.returnValueReceived) } : {}),
+          ...(body.deliveredValueReceived !== undefined ? { deliveredValueReceived: body.deliveredValueReceived == null ? null : String(body.deliveredValueReceived) } : {}),
+          deliveredAt:    (body.deliveryStatus === "delivered" || body.deliveryStatus === "partial_delivered") ? now : undefined,
+        })
+        .where(and(
+          eq(shipmentManifestItemsTable.manifestId, manifestId),
+          eq(shipmentManifestItemsTable.shipmentId, shipmentId),
+        ));
+
+      await tx.update(shipmentsTable)
+        .set(shipmentPatch)
+        .where(eq(shipmentsTable.id, shipmentId));
+    });
 
     // مزامنة الحالة الجديدة مع بيان حساب العميل التجاري فقط (لو الشحنة مضافة له كمان).
     // ملحوظة: مش بنمرر التحديث لبيان شركة الشحن نفسه هنا لأننا أصلاً حدّثنا
