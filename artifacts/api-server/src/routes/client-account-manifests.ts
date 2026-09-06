@@ -1369,66 +1369,31 @@ router.patch("/client-account-manifests/:id", async (req, res): Promise<void> =>
       const relevantShipmentIds = relevantItems.map(i => i.shipmentId);
 
       if (relevantShipmentIds.length) {
-        const openRepManifests = await db
+        // ⚠️ مصدر اسم المندوب الصحيح: shipping_companies.name (وليس
+        // representative_user_id ولا shipments.assigned_user_id). في هذا
+        // النظام، سجل "المندوب" نفسه مخزَّن كصف في جدول shipping_companies
+        // (نفس الصفوف الظاهرة في صفحة "مناديب الشحن" /shipping) وبيان
+        // المندوب (shipment_manifests) بيرتبط بيه عبر shippingCompanyId —
+        // representative_user_id بيفضل null دايمًا في كل بيانات النظام (لسه
+        // مش بيتاخد قيمة فعليًا وقت الإنشاء)، فمينفعش يتعمد عليه.
+        const [openRepManifest] = await db
           .select({
-            manifestId:   shipmentManifestsTable.id,
-            repUserId:    shipmentManifestsTable.representativeUserId,
-            repName:      usersTable.displayName,
+            manifestId: shipmentManifestsTable.id,
+            repName:    shippingCompaniesTable.name,
           })
           .from(shipmentManifestItemsTable)
           .innerJoin(shipmentManifestsTable, eq(shipmentManifestsTable.id, shipmentManifestItemsTable.manifestId))
-          .leftJoin(usersTable, eq(usersTable.id, shipmentManifestsTable.representativeUserId))
+          .leftJoin(shippingCompaniesTable, eq(shippingCompaniesTable.id, shipmentManifestsTable.shippingCompanyId))
           .where(and(
             inArray(shipmentManifestItemsTable.shipmentId, relevantShipmentIds),
             eq(shipmentManifestsTable.status, "open"),
           ))
           .limit(1);
 
-        if (openRepManifests.length) {
-          let repName = openRepManifests[0].repName;
-          console.log("[CLOSE-MANIFEST-REPNAME-DEBUG]", {
-            camId: id,
-            openRepManifest: openRepManifests[0],
-            relevantShipmentIds,
-          });
-          // ⚠️ fallback: بيان المندوب ممكن يتفتح من الأدمن (مش من المندوب نفسه)
-          // وفي الحالة دي shipment_manifests.representative_user_id بيتسجل من
-          // assignedUserId بتاع أول شحنة وقت الإنشاء (راجع POST
-          // /shipment-manifests) — لو الشحنة دي كانت وقتها من غير مندوب معيّن،
-          // العمود بيفضل null فيرجع "غير محدد" هنا رغم إن الشحنات الحالية
-          // (اللي فعلاً بتمنع القفل) ليها مندوب معيّن دلوقتي. فبنجيب اسم
-          // المندوب من shipments.assignedUserId مباشرة كـ fallback ثاني.
-          if (!repName) {
-            const [shipmentRep] = await db
-              .select({ repName: usersTable.displayName })
-              .from(shipmentManifestItemsTable)
-              .innerJoin(shipmentsTable, eq(shipmentsTable.id, shipmentManifestItemsTable.shipmentId))
-              .innerJoin(usersTable, eq(usersTable.id, shipmentsTable.assignedUserId))
-              .where(and(
-                inArray(shipmentManifestItemsTable.shipmentId, relevantShipmentIds),
-                eq(shipmentManifestItemsTable.manifestId, openRepManifests[0].manifestId),
-              ))
-              .limit(1);
-            repName = shipmentRep?.repName ?? null;
-          }
-          // ⚠️ fallback ثالث: لو حتى الشحنات المحدَّدة (اللي بتمنع القفل) نفسها
-          // مالهاش assignedUserId (لسه في المخزن أو مش متعيّنة لمندوب)، ندوّر
-          // على أي شحنة تانية جوه *كل* بيان المندوب ده (مش بس الشحنات اللي
-          // بتمنع القفل) — لأن باقي شحنات نفس بيان المندوب غالبًا نفس المندوب،
-          // فده أفضل تخمين متاح بدل ما نسيب الرسالة من غير أي اسم خالص.
-          if (!repName) {
-            const [anyShipmentInManifest] = await db
-              .select({ repName: usersTable.displayName })
-              .from(shipmentManifestItemsTable)
-              .innerJoin(shipmentsTable, eq(shipmentsTable.id, shipmentManifestItemsTable.shipmentId))
-              .innerJoin(usersTable, eq(usersTable.id, shipmentsTable.assignedUserId))
-              .where(eq(shipmentManifestItemsTable.manifestId, openRepManifests[0].manifestId))
-              .limit(1);
-            repName = anyShipmentInManifest?.repName ?? null;
-          }
-          console.log("[CLOSE-MANIFEST-REPNAME-DEBUG] final repName:", repName);
+        if (openRepManifest) {
+          const repName = openRepManifest.repName ?? "غير محدد";
           res.status(400).json({
-            error: `لا يمكن إغلاق البيان الحالي لأنه مرتبط ببيان مندوب مفتوح. برجاء إغلاق بيان المندوب أولاً [اسم المندوب: ${repName ?? "غير محدد"}].`,
+            error: `لا يمكن إغلاق البيان الحالي لأنه مرتبط ببيان مندوب مفتوح. برجاء إغلاق بيان المندوب أولاً [اسم المندوب: ${repName}].`,
           });
           return;
         }
