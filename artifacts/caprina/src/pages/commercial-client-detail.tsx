@@ -3128,12 +3128,15 @@ function AdminManifestActions({ manifest, clientId, qc, compact = false }: {
 }) {
   const { toast } = useToast();
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+  const [closeError, setCloseError] = useState<string | null>(null);
 
   const toggleLockMutation = useMutation({
     mutationFn: (status: "open" | "closed") =>
       clientAccountManifestsApi.update(manifest.id, { status }),
     onSuccess: (res: any) => {
       qc.invalidateQueries({ queryKey: ["client-account-manifests", clientId] });
+      setCloseError(null);
+      setShowCloseConfirm(false);
       if (res?.rolled) {
         toast({
           title: "🔒 تم إغلاق البيان بنجاح",
@@ -3144,7 +3147,10 @@ function AdminManifestActions({ manifest, clientId, qc, compact = false }: {
         toast({ title: "تم التحديث" });
       }
     },
-    onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
+    onError: (e: any) => {
+      setCloseError(e.message || "حدث خطأ غير متوقع");
+      toast({ title: "خطأ", description: e.message, variant: "destructive", duration: 10000 });
+    },
   });
 
   const deleteMutation = useMutation({
@@ -3165,7 +3171,7 @@ function AdminManifestActions({ manifest, clientId, qc, compact = false }: {
             "gap-1 border-emerald-700 text-emerald-400 hover:bg-emerald-900/20",
             compact ? "h-7 text-[10px] px-2" : "h-8 text-xs px-3",
           )}
-          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowCloseConfirm(true); }}
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setCloseError(null); setShowCloseConfirm(true); }}
           disabled={toggleLockMutation.isPending}
         >
           <Lock className="w-3 h-3" />إغلاق
@@ -3205,10 +3211,15 @@ function AdminManifestActions({ manifest, clientId, qc, compact = false }: {
             <p className="text-xs text-amber-400 leading-relaxed">
               سيتم إغلاق البيان، وأي فواتير لسه قيد التجهيز غير مسلَّمة هيتم ترحيلها تلقائياً لبيان جديد مفتوح.
             </p>
+            {closeError && (
+              <p className="text-xs text-red-400 font-semibold leading-relaxed border border-red-900/40 bg-red-950/20 rounded-md p-2 mb-1">
+                ⚠️ {closeError}
+              </p>
+            )}
             <div className="flex gap-2 pt-2">
               <Button
                 size="sm" className="h-8 text-xs flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
-                onClick={() => { toggleLockMutation.mutate("closed"); setShowCloseConfirm(false); }}
+                onClick={() => { setCloseError(null); toggleLockMutation.mutate("closed"); }}
                 disabled={toggleLockMutation.isPending}
               >
                 {toggleLockMutation.isPending ? "جاري الإغلاق..." : "تأكيد الإغلاق والترحيل"}
@@ -3261,12 +3272,15 @@ function ClientManifestRow({ manifest, clientId, qc }: {
 }) {
   const { toast } = useToast();
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+  const [closeError, setCloseError] = useState<string | null>(null);
 
   const toggleLockMutation = useMutation({
     mutationFn: (status: "open" | "closed") =>
       clientAccountManifestsApi.update(manifest.id, { status }),
     onSuccess: (res: any) => {
       qc.invalidateQueries({ queryKey: ["client-account-manifests", clientId] });
+      setCloseError(null);
+      setShowCloseConfirm(false);
       if (res?.rolled) {
         toast({
           title: "🔒 تم إغلاق البيان بنجاح",
@@ -3277,7 +3291,10 @@ function ClientManifestRow({ manifest, clientId, qc }: {
         toast({ title: "تم التحديث" });
       }
     },
-    onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
+    onError: (e: any) => {
+      setCloseError(e.message || "حدث خطأ غير متوقع");
+      toast({ title: "خطأ", description: e.message, variant: "destructive", duration: 10000 });
+    },
   });
 
   const deleteMutation = useMutation({
@@ -3322,7 +3339,7 @@ function ClientManifestRow({ manifest, clientId, qc }: {
             <Button
               size="sm" variant="outline"
               className="h-7 text-[10px] gap-1 border-emerald-700 text-emerald-400 hover:bg-emerald-900/20"
-              onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowCloseConfirm(true); }}
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); setCloseError(null); setShowCloseConfirm(true); }}
               disabled={toggleLockMutation.isPending}
             >
               <Lock className="w-3 h-3" />إغلاق
@@ -3355,10 +3372,15 @@ function ClientManifestRow({ manifest, clientId, qc }: {
           <p className="text-[11px] text-amber-400 mb-2">
             سيتم إغلاق البيان، وأي فواتير لسه قيد التجهيز (غير مسلَّمة) هيتم ترحيلها تلقائياً لبيان جديد مفتوح.
           </p>
+          {closeError && (
+            <p className="text-[10px] text-red-400 font-semibold leading-relaxed border border-red-900/40 bg-red-950/20 rounded-md p-2 mb-2">
+              ⚠️ {closeError}
+            </p>
+          )}
           <div className="flex gap-2">
             <Button
               size="sm" className="h-7 text-[10px] flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
-              onClick={() => { toggleLockMutation.mutate("closed"); setShowCloseConfirm(false); }}
+              onClick={() => { setCloseError(null); toggleLockMutation.mutate("closed"); }}
               disabled={toggleLockMutation.isPending}
             >
               {toggleLockMutation.isPending ? "جاري الإغلاق..." : "تأكيد الإغلاق والترحيل"}

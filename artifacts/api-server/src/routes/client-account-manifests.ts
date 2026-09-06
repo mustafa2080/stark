@@ -1369,29 +1369,41 @@ router.patch("/client-account-manifests/:id", async (req, res): Promise<void> =>
       const relevantShipmentIds = relevantItems.map(i => i.shipmentId);
 
       if (relevantShipmentIds.length) {
-        // ⚠️ مصدر اسم المندوب الصحيح: shipping_companies.name (وليس
-        // representative_user_id ولا shipments.assigned_user_id). في هذا
-        // النظام، سجل "المندوب" نفسه مخزَّن كصف في جدول shipping_companies
-        // (نفس الصفوف الظاهرة في صفحة "مناديب الشحن" /shipping) وبيان
-        // المندوب (shipment_manifests) بيرتبط بيه عبر shippingCompanyId —
-        // representative_user_id بيفضل null دايمًا في كل بيانات النظام (لسه
-        // مش بيتاخد قيمة فعليًا وقت الإنشاء)، فمينفعش يتعمد عليه.
-        const [openRepManifest] = await db
+        // ⚠️ تعديل (طلب بشمهندس مصطفى): الشرط الأصلي كان بيمنع القفل لمجرد
+        // وجود *أي* بيان مندوب مفتوح مرتبط بالشحنة — حتى لو نفس الشحنة كان
+        // ليها *بيان مندوب مقفول* فعلاً هو اللي اتحسبت واتثبتت فيه القيمة
+        // المالية (تسليم/مرتجع/جزئي)، والبيان المفتوح مجرد استمرار لاحق (نفس
+        // المندوب فتح بيان جديد لشحنات تانية) مالوش أي علاقة بالقيمة دي.
+        // الشرط الصحيح: امنع القفل فقط لو فيه شحنة (من ضمن الشحنات المُسلَّمة/
+        // الجزئية/المرتجعة في بيان العميل ده) *مفيش ليها ولا بيان مندوب مقفول
+        // خالص* — يعني قيمتها لسه معلّقة في بيان مفتوح بس، فمفيش ضمان إنها
+        // مؤكدة نهائيًا. لو الشحنة ليها بيان مندوب مقفول واحد على الأقل، يبقى
+        // قيمتها مؤكدة ومحسوبة بالفعل، حتى لو نفسها ظاهرة كمان في بيان مفتوح
+        // تاني لاحق (ده شأن بيان المندوب الجديد، مش شأن بيان العميل ده).
+        const shipmentManifestLinks = await db
           .select({
+            shipmentId: shipmentManifestItemsTable.shipmentId,
             manifestId: shipmentManifestsTable.id,
+            status:     shipmentManifestsTable.status,
             repName:    shippingCompaniesTable.name,
           })
           .from(shipmentManifestItemsTable)
           .innerJoin(shipmentManifestsTable, eq(shipmentManifestsTable.id, shipmentManifestItemsTable.manifestId))
           .leftJoin(shippingCompaniesTable, eq(shippingCompaniesTable.id, shipmentManifestsTable.shippingCompanyId))
-          .where(and(
-            inArray(shipmentManifestItemsTable.shipmentId, relevantShipmentIds),
-            eq(shipmentManifestsTable.status, "open"),
-          ))
-          .limit(1);
+          .where(inArray(shipmentManifestItemsTable.shipmentId, relevantShipmentIds));
 
-        if (openRepManifest) {
-          const repName = openRepManifest.repName ?? "غير محدد";
+        const hasClosedManifest = new Set<number>();
+        const openManifestByShipment: Record<number, { repName: string | null }> = {};
+        shipmentManifestLinks.forEach(row => {
+          if (row.status === "closed") hasClosedManifest.add(row.shipmentId);
+          else if (row.status === "open") openManifestByShipment[row.shipmentId] = { repName: row.repName };
+        });
+
+        // الشحنة اللي لسه من غير أي بيان مندوب مقفول خالص (قيمتها غير مؤكدة بعد)
+        const unresolvedShipmentId = relevantShipmentIds.find(sid => !hasClosedManifest.has(sid));
+
+        if (unresolvedShipmentId !== undefined && openManifestByShipment[unresolvedShipmentId]) {
+          const repName = openManifestByShipment[unresolvedShipmentId].repName ?? "غير محدد";
           res.status(400).json({
             error: `لا يمكن إغلاق البيان الحالي لأنه مرتبط ببيان مندوب مفتوح. برجاء إغلاق بيان المندوب أولاً [اسم المندوب: ${repName}].`,
           });
