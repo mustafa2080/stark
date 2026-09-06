@@ -1385,9 +1385,29 @@ router.patch("/client-account-manifests/:id", async (req, res): Promise<void> =>
           .limit(1);
 
         if (openRepManifests.length) {
-          const repName = openRepManifests[0].repName ?? "غير محدد";
+          let repName = openRepManifests[0].repName;
+          // ⚠️ fallback: بيان المندوب ممكن يتفتح من الأدمن (مش من المندوب نفسه)
+          // وفي الحالة دي shipment_manifests.representative_user_id بيتسجل من
+          // assignedUserId بتاع أول شحنة وقت الإنشاء (راجع POST
+          // /shipment-manifests) — لو الشحنة دي كانت وقتها من غير مندوب معيّن،
+          // العمود بيفضل null فيرجع "غير محدد" هنا رغم إن الشحنات الحالية
+          // (اللي فعلاً بتمنع القفل) ليها مندوب معيّن دلوقتي. فبنجيب اسم
+          // المندوب من shipments.assignedUserId مباشرة كـ fallback ثاني.
+          if (!repName) {
+            const [shipmentRep] = await db
+              .select({ repName: usersTable.displayName })
+              .from(shipmentManifestItemsTable)
+              .innerJoin(shipmentsTable, eq(shipmentsTable.id, shipmentManifestItemsTable.shipmentId))
+              .innerJoin(usersTable, eq(usersTable.id, shipmentsTable.assignedUserId))
+              .where(and(
+                inArray(shipmentManifestItemsTable.shipmentId, relevantShipmentIds),
+                eq(shipmentManifestItemsTable.manifestId, openRepManifests[0].manifestId),
+              ))
+              .limit(1);
+            repName = shipmentRep?.repName ?? null;
+          }
           res.status(400).json({
-            error: `لا يمكن إغلاق البيان الحالي لأنه مرتبط ببيان مندوب مفتوح. برجاء إغلاق بيان المندوب أولاً [اسم المندوب: ${repName}].`,
+            error: `لا يمكن إغلاق البيان الحالي لأنه مرتبط ببيان مندوب مفتوح. برجاء إغلاق بيان المندوب أولاً [اسم المندوب: ${repName ?? "غير محدد"}].`,
           });
           return;
         }
