@@ -5,6 +5,11 @@ import {
   shipmentManifestItemsTable,
 } from "@workspace/db";
 
+// نوع مبسّط لأي شيء عنده .update() بنفس واجهة drizzle — يقبل db العادي أو tx
+// جوه db.transaction(). بنستخدم Pick بس على .update عشان تفرق النوع الحقيقي
+// بين db (عنده $client إضافي) و tx (مالوش) ما تمنعش تمرير أي منهم هنا.
+type DbOrTx = Pick<typeof db, "update">;
+
 /**
  * ─── مزامنة حالة الشحنة مع حالة البند داخل البيانات ─────────────────────────
  *
@@ -69,6 +74,7 @@ export async function syncShipmentStatusToManifests(
     // لأن الصفحة بتقرا order.deliveryNote مش shipment.notes.
     deliveryNote?: string | null;
   },
+  dbOrTx: DbOrTx = db,
 ): Promise<void> {
   const mapped = SHIPMENT_STATUS_TO_DELIVERY[newShipmentStatus];
   if (!mapped) return; // حالة مش معروفة → متلمسش البيانات
@@ -102,7 +108,7 @@ export async function syncShipmentStatusToManifests(
     : {};
 
   try {
-    await db.update(clientAccountManifestItemsTable)
+    await dbOrTx.update(clientAccountManifestItemsTable)
       .set({
         deliveryStatus: mapped,
         ...(deliveredAt ? { deliveredAt } : {}),
@@ -126,7 +132,7 @@ export async function syncShipmentStatusToManifests(
   if (options?.skipShipmentManifestItems) return;
 
   try {
-    await db.update(shipmentManifestItemsTable)
+    await dbOrTx.update(shipmentManifestItemsTable)
       .set({
         deliveryStatus: mapped,
         ...(deliveredAt ? { deliveredAt } : {}),

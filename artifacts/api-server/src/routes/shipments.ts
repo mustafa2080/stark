@@ -1463,50 +1463,66 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
     const cond = tenantId !== null
       ? and(eq(shipmentsTable.id, id), eq(shipmentsTable.tenantId, tenantId))
       : eq(shipmentsTable.id, id);
-    await db.update(shipmentsTable).set(updateData).where(cond);
 
-    // مزامنة حالة الشحنة مع أي بيان (حساب عميل / شركة شحن) مرتبطة بيها
-    // بنمرر returnReason كمان عشان لو القفل تم من مسار المندوب (representative-dashboard)
-    // اللي بيعدي من هنا، السبب ينزل صح في جدول الـ manifest items مش يفضل فاضي.
+    // ⚠️ فيكس (2026-09-06): تحديث shipmentsTable.status وتحديث بند البيان
+    // (عن طريق syncShipmentStatusToManifests) كانوا 2 عملية منفصلة برّه أي
+    // transaction — بالظبط نفس المشكلة اللي اتصلحت قبل كده في
+    // routes/shipment-manifests.ts، لكن هنا في المسار الحقيقي اللي "مهامي"
+    // المندوب بتستخدمه فعليًا (PATCH /shipments/:id، مش /shipment-manifests/...).
+    // لو حصل استثناء بينهم كان shipments.status يتسجل (delivered مثلاً) بينما
+    // بند البيان يفضل زي ما هو القديم — فـ reconcileCron (اللي بيعتبر
+    // shipments.status مصدر الحقيقة) كان بيرجّع البند لحالته القديمة بعد أقصى
+    // 10 دقايق. الحل: التحديثين دول بس داخل transaction واحدة. القيمة والترتيب
+    // بتاع كل حاجة تانية زي ما هو من غير أي تغيير.
+    await db.transaction(async (tx) => {
+      await tx.update(shipmentsTable).set(updateData).where(cond);
+
+      // مزامنة حالة الشحنة مع أي بيان (حساب عميل / شركة شحن) مرتبطة بيها
+      // بنمرر returnReason كمان عشان لو القفل تم من مسار المندوب (representative-dashboard)
+      // اللي بيعدي من هنا، السبب ينزل صح في جدول الـ manifest items مش يفضل فاضي.
+      if (updateData.status !== undefined) {
+        // ملحوظة: من "مهامي" المندوب، collectedAmount هو المصدر الموحّد للقيمة
+        // المالية في الحالات الثلاث (مسلَّم / استلام جزئي / مرتجع). بنمررها
+        // للدالة تحت كل الأسماء المحتملة، والدالة بتختار الـ patch الصح حسب
+        // الحالة النهائية (mapped) فمفيش تعارض ولا كتابة فوق حقل غلط.
+        // partialQuantity في جدول البيان عمود int بيمثّل قيمة مالية (مش عدد قطع
+        // زي partialQty بتاع "مهامي")، فبنقرّبها لأقرب رقم صحيح قبل التمرير.
+        // ⚠️ فيكس: شاشة "استلام جزئي" في مهامي المندوب (ShipmentStatusEditor) بتبعت
+        // partialQuantity (قيمة مالية) مش collectedAmount للحالة دي تحديدًا — قبل
+        // الفيكس ده كنا بنعتمد على d.collectedAmount بس هنا، فكانت partialQuantity
+        // في جدولي البيان (حساب العميل / شركة الشحن) بتفضل زي ما هي (صفر) رغم إن
+        // المندوب كتب القيمة فعلاً وحفظها صح في shipmentsTable.partialQuantity.
+        // ⚠️ فيكس تاني: في حالة "استلام جزئي" تحديدًا، الفرونت (ShipmentStatusEditor)
+        // بيبعت partialQuantity (القيمة اللي المندوب كتبها فعليًا في الحقل الظاهر)
+        // + collectedAmount = 0 في نفس الوقت (متبقّية من تهيئة الحقل بقيمة
+        // shipment.collectedAmount القديمة اللي مش ظاهرة أصلاً كحقل في حالة
+        // partial_received) — فلو اعتمدنا على collectedAmount!==undefined هنا،
+        // الصفر ده كان بيكسب على partialQuantity الصح. عشان كده في الحالة دي
+        // تحديدًا نديله الأولوية دايمًا.
+        const manifestFinancialValue = updateData.status === "partial_received" && d.partialQuantity !== undefined
+          ? d.partialQuantity
+          : d.collectedAmount !== undefined
+            ? d.collectedAmount
+            : d.partialQuantity;
+        await syncShipmentStatusToManifests(id, updateData.status, {
+          returnReason: updateData.returnReason,
+          // ⚠️ ملاحظة "مهامي" (سبب التأجيل/الإرجاع اللي المندوب بيكتبه) — كانت
+          // بتتحفظ في shipmentsTable.notes بس من غير ما تتزامن مع deliveryNote في
+          // جدولي البيانات، فبيان المندوب كان بيعرض "لم يحدد السبب" دايمًا لحالة
+          // "مؤجل" رغم كتابة الملاحظة فعليًا. بنمررها هنا بس لو الفرونت بعتها
+          // فعلاً (d.notes !== undefined) عشان منمسحش ملاحظة قديمة بالغلط لو
+          // التحديث ده مالوش علاقة بالملاحظة أصلاً.
+          deliveryNote: d.notes !== undefined ? d.notes : undefined,
+          deliveredValueReceived: manifestFinancialValue !== undefined ? manifestFinancialValue : undefined,
+          partialQuantity: manifestFinancialValue !== undefined && manifestFinancialValue !== null
+            ? Math.round(manifestFinancialValue)
+            : manifestFinancialValue,
+          returnValueReceived: manifestFinancialValue !== undefined ? manifestFinancialValue : undefined,
+        }, tx);
+      }
+    });
+
     if (updateData.status !== undefined) {
-      // ملحوظة: من "مهامي" المندوب، collectedAmount هو المصدر الموحّد للقيمة
-      // المالية في الحالات الثلاث (مسلَّم / استلام جزئي / مرتجع). بنمررها
-      // للدالة تحت كل الأسماء المحتملة، والدالة بتختار الـ patch الصح حسب
-      // الحالة النهائية (mapped) فمفيش تعارض ولا كتابة فوق حقل غلط.
-      // partialQuantity في جدول البيان عمود int بيمثّل قيمة مالية (مش عدد قطع
-      // زي partialQty بتاع "مهامي")، فبنقرّبها لأقرب رقم صحيح قبل التمرير.
-      // ⚠️ فيكس: شاشة "استلام جزئي" في مهامي المندوب (ShipmentStatusEditor) بتبعت
-      // partialQuantity (قيمة مالية) مش collectedAmount للحالة دي تحديدًا — قبل
-      // الفيكس ده كنا بنعتمد على d.collectedAmount بس هنا، فكانت partialQuantity
-      // في جدولي البيان (حساب العميل / شركة الشحن) بتفضل زي ما هي (صفر) رغم إن
-      // المندوب كتب القيمة فعلاً وحفظها صح في shipmentsTable.partialQuantity.
-      // ⚠️ فيكس تاني: في حالة "استلام جزئي" تحديدًا، الفرونت (ShipmentStatusEditor)
-      // بيبعت partialQuantity (القيمة اللي المندوب كتبها فعليًا في الحقل الظاهر)
-      // + collectedAmount = 0 في نفس الوقت (متبقّية من تهيئة الحقل بقيمة
-      // shipment.collectedAmount القديمة اللي مش ظاهرة أصلاً كحقل في حالة
-      // partial_received) — فلو اعتمدنا على collectedAmount!==undefined هنا،
-      // الصفر ده كان بيكسب على partialQuantity الصح. عشان كده في الحالة دي
-      // تحديدًا نديله الأولوية دايمًا.
-      const manifestFinancialValue = updateData.status === "partial_received" && d.partialQuantity !== undefined
-        ? d.partialQuantity
-        : d.collectedAmount !== undefined
-          ? d.collectedAmount
-          : d.partialQuantity;
-      await syncShipmentStatusToManifests(id, updateData.status, {
-        returnReason: updateData.returnReason,
-        // ⚠️ ملاحظة "مهامي" (سبب التأجيل/الإرجاع اللي المندوب بيكتبه) — كانت
-        // بتتحفظ في shipmentsTable.notes بس من غير ما تتزامن مع deliveryNote في
-        // جدولي البيانات، فبيان المندوب كان بيعرض "لم يحدد السبب" دايمًا لحالة
-        // "مؤجل" رغم كتابة الملاحظة فعليًا. بنمررها هنا بس لو الفرونت بعتها
-        // فعلاً (d.notes !== undefined) عشان منمسحش ملاحظة قديمة بالغلط لو
-        // التحديث ده مالوش علاقة بالملاحظة أصلاً.
-        deliveryNote: d.notes !== undefined ? d.notes : undefined,
-        deliveredValueReceived: manifestFinancialValue !== undefined ? manifestFinancialValue : undefined,
-        partialQuantity: manifestFinancialValue !== undefined && manifestFinancialValue !== null
-          ? Math.round(manifestFinancialValue)
-          : manifestFinancialValue,
-        returnValueReceived: manifestFinancialValue !== undefined ? manifestFinancialValue : undefined,
-      });
       invalidateSmartCache(tenantId);
       invalidateChartsCache(tenantId);
     }
