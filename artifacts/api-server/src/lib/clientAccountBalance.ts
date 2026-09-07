@@ -13,6 +13,7 @@ import {
   shipmentManifestItemsTable,
   clientsTable,
 } from "@workspace/db";
+import { isShipmentVisibleInManifest } from "./manifestSync.js";
 
 // ─── حساب قيمة كل بيان حساب عميل مقفول على حدة ────────────────────────────────
 // نفس منطق GET /client-account-manifests/balance/:clientId بالظبط (مستخرج هنا
@@ -259,11 +260,13 @@ export async function computeClosedManifestsForClient(clientId: number): Promise
     // "pending" (يعني لسه في المخزن ومفيش سعر شحن نهائي متحدد لها) كانت بتتحسب
     // هنا بسعر شحن كامل مخصوم من غير مقابل، بينما صفحة البيان الفردي بتستبعدها
     // بالكامل. لازم نفس الاستبعاد هنا بالظبط عشان الرقمين يفضلوا متطابقين تمامًا.
-    const EXCLUDED_SHIPMENT_STATUSES = new Set(["waiting", "pending"]);
+    // ⚠️ موحّد الآن عبر isShipmentVisibleInManifest (manifestSync.ts) — كانت
+    // {waiting, pending} بس هنا (ناقصة "confirmed") قبل التوحيد، فمكانتش متطابقة
+    // تمامًا مع computeClientManifestNetDue بعد إضافة "confirmed" هناك.
     for (const item of items) {
       const shipment = shipmentMap[item.shipmentId];
       if (!shipment) continue;
-      if (EXCLUDED_SHIPMENT_STATUSES.has(shipment.status)) continue;
+      if (!isShipmentVisibleInManifest(shipment.status)) continue;
       const st = item.deliveryStatus;
       const reason = (item as any).returnReason ?? (shipment as any)?.returnReason ?? null;
       const isReturnedWithValue = st === "returned" && RETURN_REASONS_FINANCIAL.has(String(reason ?? ""));
@@ -614,11 +617,12 @@ export async function computeClientBalancesForAllClients(
     // "pending" (EXCLUDED_SHIPMENT_STATUSES)، فلازم نفس الاستبعاد هنا عشان
     // الرقمين يتطابقوا (التعليق القديم اللي كان هنا غلط: كان بيفترض إن صفحة
     // البيان الفردي مبتستبعدش على أساس shipment.status، وده عكس الصح).
-    const EXCLUDED_SHIPMENT_STATUSES_ALL = new Set(["waiting", "pending"]);
+    // ⚠️ موحّد الآن عبر isShipmentVisibleInManifest (manifestSync.ts) — كانت
+    // {waiting, pending} بس هنا (ناقصة "confirmed") قبل التوحيد.
     for (const item of items) {
       const shipment = shipmentMap[item.shipmentId];
       if (!shipment) continue;
-      if (EXCLUDED_SHIPMENT_STATUSES_ALL.has(shipment.status)) continue;
+      if (!isShipmentVisibleInManifest(shipment.status)) continue;
       const clientId = manifestClientMap[item.manifestId];
       if (clientId == null) continue;
       const clientType = clientTypeMap[clientId] ?? "normal";

@@ -1,9 +1,12 @@
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import {
   db,
   clientAccountManifestItemsTable,
+  clientAccountManifestsTable,
+  shipmentsTable,
   shipmentManifestItemsTable,
 } from "@workspace/db";
+import { pushNotification } from "./notifications.js";
 
 // نوع مبسّط لأي شيء عنده .update() بنفس واجهة drizzle — يقبل db العادي أو tx
 // جوه db.transaction(). بنستخدم Pick بس على .update عشان تفرق النوع الحقيقي
@@ -24,6 +27,22 @@ type DbOrTx = Pick<typeof db, "update">;
 
 export type ManifestDeliveryStatus =
   | "pending" | "delivered" | "returned" | "delayed" | "partial_delivered";
+
+// ─── معيار موحّد: هل الشحنة لسه "قبل المخزن" وبالتالي مالهاش وجود فعلي في بيان حساب العميل؟ ──
+// ⚠️ مصدر الحقيقة الوحيد لهذا المعيار — لازم يتطابق تمامًا مع STATUSES_BEFORE_WAREHOUSE
+// في client-account-manifests.ts (نفس القائمة بالظبط: pending/waiting/confirmed، بالتصميم
+// المعتمد بتاريخ 2026-08-30). كان في السابق 4 نسخ مكررة ومتضاربة من هذا المعيار
+// (بعضها ناقص "confirmed") في: client-account-manifests.ts، manifestFinance.ts،
+// و clientAccountBalance.ts (مرتين) — ده كان بيسبب تضارب بين "عدد الأوردرات" في
+// كارت العميل (اللي معندوش أي فلترة على shipment.status) وعدد الأوردرات الفعلي
+// داخل البيان (اللي بيستبعد الشحنات دي). الحل: نسخة واحدة هنا تُستخدم في كل
+// الأماكن الخمسة (الأربعة دول + كارت العميل نفسه).
+export const EXCLUDED_SHIPMENT_STATUSES = new Set(["pending", "waiting", "confirmed"]);
+
+export function isShipmentVisibleInManifest(shipmentStatus: string | null | undefined): boolean {
+  if (!shipmentStatus) return false;
+  return !EXCLUDED_SHIPMENT_STATUSES.has(shipmentStatus);
+}
 
 // شحنة → بيان: من status الشحنة الأصلي لحالة التسليم في البيان
 export const SHIPMENT_STATUS_TO_DELIVERY: Record<string, ManifestDeliveryStatus> = {
@@ -121,6 +140,57 @@ export async function syncShipmentStatusToManifests(
       .where(eq(clientAccountManifestItemsTable.shipmentId, shipmentId));
   } catch (e) {
     console.error("[syncShipmentStatusToManifests] client-account-manifests error:", e);
+  }
+
+  // ─── تنبيه: الشحنة رجعت "قبل المخزن" وهي لسه item في بيان حساب عميل مفتوح ──
+  // ⚠️ إصلاح (نفس مشكلة تضارب عدد الأوردرات بين كارت العميل وصفحة البيان):
+  // لما شحنة اتضافت تلقائيًا لبيان لأنها وصلت warehouse_ready، وبعدين حد رجّع
+  // حالتها لـ waiting/pending/confirmed (اتلغى تجهيزها مثلاً) من غير ما يشيلها
+  // من البيان يدويًا، الصف بيفضل موجود في clientAccountManifestItemsTable
+  // (بتصميم النظام — "العنصر بيفضل موجود للتاريخ") لكنه بيختفي من عرض البيان
+  // وحساباته (isShipmentVisibleInManifest). من غير تنبيه، محدش كان بيعرف إن
+  // البيان بقى "ناقص" ضمنيًا. هنا بنتحقق: لو الحالة الجديدة ضمن
+  // EXCLUDED_SHIPMENT_STATUSES ولسه فيه بند لنفس الشحنة في بيان مفتوح، نبعت
+  // تنبيه warning للأدمنز عشان حد يراجع الموقف (يشيل الشحنة من البيان، أو يرجّعها
+  // للمخزن، حسب الحالة الفعلية).
+  if (EXCLUDED_SHIPMENT_STATUSES.has(newShipmentStatus)) {
+    try {
+      const openItems = await db
+        .select({
+          manifestId: clientAccountManifestItemsTable.manifestId,
+          manifestNumber: clientAccountManifestsTable.manifestNumber,
+          tenantId: clientAccountManifestsTable.tenantId,
+          clientId: clientAccountManifestsTable.clientId,
+        })
+        .from(clientAccountManifestItemsTable)
+        .innerJoin(clientAccountManifestsTable, eq(clientAccountManifestItemsTable.manifestId, clientAccountManifestsTable.id))
+        .where(and(
+          eq(clientAccountManifestItemsTable.shipmentId, shipmentId),
+          eq(clientAccountManifestsTable.status, "open"),
+        ));
+
+      if (openItems.length > 0) {
+        const [shipment] = await db
+          .select({ shipmentNumber: shipmentsTable.shipmentNumber, receiverName: shipmentsTable.receiverName })
+          .from(shipmentsTable)
+          .where(eq(shipmentsTable.id, shipmentId));
+
+        for (const item of openItems) {
+          await pushNotification({
+            tenantId: item.tenantId,
+            type: "shipment_updated",
+            severity: "warning",
+            title: `شحنة رجعت للمخزن داخل بيان مفتوح`,
+            message: `الشحنة ${shipment?.shipmentNumber ?? `#${shipmentId}`}${shipment?.receiverName ? ` (${shipment.receiverName})` : ""} رجعت لحالة "${newShipmentStatus}" وهي لسه مضافة في البيان ${item.manifestNumber} المفتوح — البند هيختفي من عرض البيان وحساباته رغم إنه لسه موجود، راجع البيان.`,
+            entityType: "client_account_manifest",
+            entityId: item.manifestId,
+            link: `/finance/client-account-sheet/manifest/${item.manifestId}`,
+          });
+        }
+      }
+    } catch (e) {
+      console.error("[syncShipmentStatusToManifests] notify shipment-returned-to-warehouse error:", e);
+    }
   }
 
   // بيان شركة الشحن (shipmentManifestItemsTable) عنده منطق تحديث خاص به بالفعل

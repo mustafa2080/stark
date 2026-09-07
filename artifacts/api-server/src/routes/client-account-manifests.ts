@@ -19,7 +19,7 @@ import {
 import { z } from "zod";
 import { requireAuth } from "../middlewares/requireAuth";
 import { getTenantId } from "../middlewares/requireTenant.js";
-import { syncManifestItemToShipment, SHIPMENT_STATUS_TO_DELIVERY } from "../lib/manifestSync.js";
+import { syncManifestItemToShipment, SHIPMENT_STATUS_TO_DELIVERY, isShipmentVisibleInManifest, EXCLUDED_SHIPMENT_STATUSES as MANIFEST_EXCLUDED_SHIPMENT_STATUSES } from "../lib/manifestSync.js";
 import { syncShipmentInventory } from "./shipments.js";
 import { syncShipmentItemsInventory } from "../lib/inventory.js";
 import { computeClosedManifestsForClient, computeClientBalancesForAllClients } from "../lib/clientAccountBalance.js";
@@ -75,7 +75,9 @@ async function generateManifestNumber(clientId: number): Promise<string> {
 // idempotent: بتتأكد الأول إن الشحنة مالهاش صف بالفعل في clientAccountManifestItemsTable
 // (بأي بيان، مفتوح أو مقفول) قبل ما تضيف — فمينفعش تتكرر لو اتنادت أكتر من مرة
 // لنفس الشحنة (زي إعادة المزامنة sync-warehouse-ready).
-const STATUSES_BEFORE_WAREHOUSE = new Set(["pending", "waiting", "confirmed"]);
+// ⚠️ نفس EXCLUDED_SHIPMENT_STATUSES الموحّدة في manifestSync.ts (مصدر الحقيقة
+// الوحيد لهذا المعيار الآن) — كانت قائمة محلية منفصلة هنا قبل التوحيد.
+const STATUSES_BEFORE_WAREHOUSE = MANIFEST_EXCLUDED_SHIPMENT_STATUSES;
 
 export async function autoAddShipmentToClientAccountManifest(
   shipmentId: number,
@@ -430,14 +432,16 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
     // ملحوظة: مبنستبعدش العنصر بناءً على item.deliveryStatus === "pending"،
     // لأن "pending" هي القيمة الافتراضية لأي شحنة بتتضاف حديثًا للبيان (لسه محدش
     // سجّل نتيجة تسليمها) — مش معناها إن الشحنة نفسها لسه منتظرة في المخزن.
-    // المعيار الوحيد لإخفاء الشحنة من عرض البيان هو حالتها الفعلية (shipment.status).
-    const EXCLUDED_SHIPMENT_STATUSES = new Set(["waiting", "pending"]);
+    // المعيار الوحيد لإخفاء الشحنة من عرض البيان هو حالتها الفعلية (shipment.status)
+    // — موحّد الآن عبر isShipmentVisibleInManifest (manifestSync.ts) مع باقي
+    // الأماكن الأربعة التانية اللي بتحسب نفس items (كارت العميل، manifestFinance،
+    // clientAccountBalance ×2).
     const visibleItems = items.filter(item => {
       const sh = shipmentMap[item.shipmentId];
       // الشحنة اتحذفت (deletedAt) أو مش موجودة خالص (اتشالت من shipmentMap فوق)
       // → البند بيختفي من عرض البيان وكل الحسابات المالية المبنية على visibleItems.
       if (!sh) return false;
-      if (EXCLUDED_SHIPMENT_STATUSES.has(sh.status)) return false;
+      if (!isShipmentVisibleInManifest(sh.status)) return false;
       return true;
     });
 
@@ -1583,13 +1587,26 @@ router.get("/clients/:id/account-manifest-stats", async (req, res): Promise<void
     }
     // نستبعد بنود الشحنات المحذوفة (soft-deleted) من إحصائيات كارت العميل عشان
     // ما تتحسبش في الإجمالي/نسبة التسليم بعد ما الشحنة اتمسحت.
+    //
+    // ⚠️ إصلاح (تضارب "إجمالي الأوردرات" بين كارت العميل وصفحة البيان الفعلي):
+    // الكارت هنا كان بيحسب total = items.length من غير أي فلترة على
+    // shipment.status الحالي (بس المحذوفة)، بينما صفحة عرض البيان الفردي (وكل
+    // حسابات manifestFinance/clientAccountBalance) بتستبعد كمان أي شحنة رجعت
+    // لحالة "قبل المخزن" (pending/waiting/confirmed) بعد ما كانت اتضافت للبيان
+    // وهي warehouse_ready — فكان بيفضل يعدّها الكارت رغم إنها مختفية فعليًا من
+    // البيان. لازم نفس الفلترة هنا (isShipmentVisibleInManifest، موحّدة في
+    // manifestSync.ts) عشان الرقمين يتطابقوا دايمًا.
     if (items.length) {
       const itemShipmentIds = [...new Set(items.map(i => i.shipmentId))];
-      const liveRows = await db.select({ id: shipmentsTable.id })
+      const liveRows = await db.select({ id: shipmentsTable.id, status: shipmentsTable.status })
         .from(shipmentsTable)
         .where(and(inArray(shipmentsTable.id, itemShipmentIds), isNull(shipmentsTable.deletedAt)));
-      const liveSet = new Set(liveRows.map(r => r.id));
-      items = items.filter(i => liveSet.has(i.shipmentId));
+      const liveStatusMap = new Map(liveRows.map(r => [r.id, r.status]));
+      items = items.filter(i => {
+        const status = liveStatusMap.get(i.shipmentId);
+        if (status === undefined) return false; // محذوفة أو مش موجودة
+        return isShipmentVisibleInManifest(status);
+      });
     }
 
     const delivered = items.filter(i => i.deliveryStatus === "delivered").length;

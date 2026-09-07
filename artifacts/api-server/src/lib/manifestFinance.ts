@@ -12,6 +12,7 @@ import {
   clientAccountManifestItemsTable,
   clientsTable,
 } from "@workspace/db";
+import { isShipmentVisibleInManifest } from "./manifestSync.js";
 
 // ─── حساب صافي المستحق من بيان معين (نفس منطق netDueToCompany) ──────────────
 // مستخرجة كدالة مشتركة (بدل تكرارها في shipment-manifests.ts و representative.ts)
@@ -198,11 +199,13 @@ export async function computeClientManifestNetDue(manifestId: number): Promise<n
   const shipmentMap: Record<number, any> = {};
   shipments.forEach(s => { shipmentMap[s.id] = s; });
 
-  const EXCLUDED_SHIPMENT_STATUSES = new Set(["waiting", "pending"]);
+  // ⚠️ موحّد عبر isShipmentVisibleInManifest (manifestSync.ts) — كانت قائمة
+  // محلية منفصلة (وناقصة "confirmed") قبل التوحيد؛ لازم تتطابق مع صفحة عرض
+  // البيان الفردي وكارت العميل (account-manifest-stats) بالظبط.
   const visibleItems = items.filter(item => {
     const sh = shipmentMap[item.shipmentId];
     if (!sh) return false;
-    if (EXCLUDED_SHIPMENT_STATUSES.has(sh.status)) return false;
+    if (!isShipmentVisibleInManifest(sh.status)) return false;
     return true;
   });
 
