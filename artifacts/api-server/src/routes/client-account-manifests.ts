@@ -114,8 +114,43 @@ export async function autoAddShipmentToClientAccountManifest(
     .limit(1);
   if (openManifest) return;
 
-  // مفيش بيان مفتوح → نفتح واحد جديد للعميل ده (نفس منطق POST /client-account-manifests)
-  // ونضيف الشحنة له فورًا.
+  // مفيش بيان مفتوح → نفتح واحد جديد للعميل ده. مهم: لا نضيف الشحنة التي
+  // سببت النداء وحدها؛ نجمع معها كل شحنات العميل المؤهلة وغير المرتبطة بأي
+  // بيان. وإلا أول شحنة فقط كانت تدخل البيان الجديد، ثم الشحنات الأربعة التالية
+  // تراها الدالة "معلقة" لمجرد أن البيان اتفتح بالفعل.
+  const shipmentTenantCondition = tenantId !== null
+    ? or(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.tenantId))
+    : undefined;
+  const clientShipments = await db
+    .select({ id: shipmentsTable.id, status: shipmentsTable.status })
+    .from(shipmentsTable)
+    .where(and(
+      eq(shipmentsTable.clientId, clientId),
+      isNull(shipmentsTable.deletedAt),
+      shipmentTenantCondition,
+    ));
+
+  const eligibleShipmentIds = clientShipments
+    .filter(s => !STATUSES_BEFORE_WAREHOUSE.has(s.status))
+    .map(s => s.id);
+
+  const linkedShipmentIds = eligibleShipmentIds.length
+    ? new Set((await db
+      .select({ shipmentId: clientAccountManifestItemsTable.shipmentId })
+      .from(clientAccountManifestItemsTable)
+      .where(inArray(clientAccountManifestItemsTable.shipmentId, eligibleShipmentIds)))
+      .map(row => row.shipmentId))
+    : new Set<number>();
+  const shipmentsToAdd = clientShipments.filter(s =>
+    eligibleShipmentIds.includes(s.id) && !linkedShipmentIds.has(s.id)
+  );
+
+  // الحماية الموجودة في أول الدالة تجعل الحالة دي غير متوقعة، لكن لا ننشئ
+  // بيانًا فارغًا لو تغيّرت الشحنة في نفس اللحظة أو لم تعد مؤهلة.
+  if (!shipmentsToAdd.length) return;
+
+  // نفتح واحد جديد للعميل ده (نفس منطق POST /client-account-manifests)
+  // ونضيف له كل الشحنات المؤهلة دفعة واحدة.
   const now = new Date();
   const manifestNumber = await generateManifestNumber(clientId);
   const [result] = await db.insert(clientAccountManifestsTable).values({
@@ -129,12 +164,14 @@ export async function autoAddShipmentToClientAccountManifest(
   });
   const manifestId = (result as any).insertId as number;
 
-  await db.insert(clientAccountManifestItemsTable).values({
-    manifestId,
-    shipmentId,
-    deliveryStatus: "pending",
-    addedAt: now,
-  });
+  await db.insert(clientAccountManifestItemsTable).values(
+    shipmentsToAdd.map(shipment => ({
+      manifestId,
+      shipmentId: shipment.id,
+      deliveryStatus: SHIPMENT_STATUS_TO_DELIVERY[shipment.status] ?? "pending",
+      addedAt: now,
+    }))
+  );
 }
 
 // ─── GET /client-account-manifests?clientId=X ────────────────────────────────
