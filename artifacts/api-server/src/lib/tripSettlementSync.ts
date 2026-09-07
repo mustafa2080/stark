@@ -37,7 +37,9 @@ export async function autoAddRepToTripSettlement(params: {
   payments?: { method: string; amount: number; note?: string | null }[];
 }): Promise<void> {
   const { tenantId, sourceManifestId, netDue, repUserId, repName, payments } = params;
-  if (netDue <= 0) return;
+  // الصفر نتيجة صحيحة عند إغلاق بيان المندوب، ولازم يظهر في تسوية الرحلات
+  // باسم المندوب كتوثيق للإغلاق. الرصيد السالب فقط لا يُرحَّل كتحصيل.
+  if (netDue < 0) return;
 
   const [existing] = await db.select({
     id: tripSettlementRepsTable.id,
@@ -99,7 +101,7 @@ export async function autoAddRepToTripSettlement(params: {
         createdAt: now,
       }))
     );
-  } else {
+  } else if (netDue > 0) {
     await db.insert(tripSettlementRepPaymentsTable).values({
       repRowId,
       method: "cash",

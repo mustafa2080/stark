@@ -1475,7 +1475,9 @@ router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
           //     100%، لكنه أفضل من صف من غير مندوب خالص).
           try {
             const netDue = (await computeManifestNetDue(manifest, items)).net;
-            if (netDue > 0) {
+            // حتى لو صافي التحصيل صفر، نرحّل صفًا باسم المندوب لتوثيق إغلاق
+            // بيانه في تسوية الرحلات. القيمة السالبة وحدها لا تمثل تحصيلاً.
+            if (netDue >= 0) {
               let repUserId: number | null = null;
               let repName = "مندوب";
               let repResolved = false;
