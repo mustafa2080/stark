@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, and, inArray, sql, count, isNull, or } from "drizzle-orm";
+import { eq, desc, and, inArray, sql, count, isNull, or, ne } from "drizzle-orm";
 import {
   db,
   shipmentManifestsTable,
@@ -1400,7 +1400,20 @@ router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
     const isRepClose = body.status === "closed" && reqUser?.role === "representative";
     const effectiveStatus = isRepClose ? "open" : body.status;
 
-    await db.update(shipmentManifestsTable)
+    // ── منع الـ race condition عند قفل الأدمن النهائي ─────────────────────────
+    // لو طلبين قفل جم قريبين من بعض لنفس البيان (double-click / retry بسبب
+    // مهلة شبكة)، القراءة الأولى لـ manifestBeforeUpdate ممكن الاتنين يشوفوها
+    // "لسه مش closed نهائي" قبل ما أي UPDATE يخلص فعليًا — فالاتنين كانوا بيعدّوا
+    // من شرط alreadyFinalClosed ويعملوا الترحيل المالي مرتين (تصحيح 2026-09-07،
+    // اكتشفناه من بيان SMF-13-001: repName اتسجل "غير محدد" من أول تنفيذ سباقي
+    // (shippingCompanyId لسه ملحقش يستقر وقتها)، وبعدين تحديث تلقائي من تنفيذ
+    // تاني لقى الاسم الصح). الحل: نخلي شرط "لسه مش مقفول نهائي من أدمن" جزء من
+    // الـ WHERE بتاع الـ UPDATE نفسه (ذرّي، الداتابيز بتضمنه) بدل قراءة منفصلة
+    // قبله؛ ولو الـ UPDATE ده رجع صفر صفوف لقفل أدمن، معناه إن تنفيذ تاني سبقنا
+    // وقفل البيان خلاص — فنتجاهل الترحيل المالي هنا (already-closed-by-race).
+    const isAdminClose = body.status === "closed" && reqUser?.role !== "representative";
+
+    const updateResult = await db.update(shipmentManifestsTable)
       .set({
         ...(effectiveStatus ? { status: effectiveStatus } : {}),
         ...(body.notes !== undefined ? { notes: body.notes } : {}),
@@ -1413,7 +1426,22 @@ router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
           closedByUserId: reqUser?.id ?? null,
         } : {}),
       })
-      .where(eq(shipmentManifestsTable.id, id));
+      .where(
+        isAdminClose
+          // شرط ذرّي: بس لو البيان مش مقفول نهائي من أدمن أصلاً (نفس تعريف
+          // alreadyFinalClosed تمامًا)، بنسمح بالـ UPDATE. لو تنفيذ سابق سبقنا
+          // وقفله بالفعل، الشرط ده هيرجع صفر صفوف وهنمنع الترحيل المالي تحت.
+          ? and(
+              eq(shipmentManifestsTable.id, id),
+              or(
+                ne(shipmentManifestsTable.status, "closed"),
+                ne(shipmentManifestsTable.closedByRole, "admin"),
+                isNull(shipmentManifestsTable.closedByRole),
+              )
+            )
+          : eq(shipmentManifestsTable.id, id)
+      );
+    const raceLostToAnotherClose = isAdminClose && (updateResult as any)[0]?.affectedRows === 0;
 
     invalidateSmartCache(tenantId);
     invalidateChartsCache(tenantId);
@@ -1421,9 +1449,10 @@ router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
     // ── تحويل الإيراد للخزنة عند الإغلاق ──────────────────────────────────
     // ملحوظة: ده مش من اختصاص المندوب — لما المندوب هو اللي بيقفل بيانه،
     // إغلاقه نهائي بدون أي ترحيل مالي للخزنة ولا ترحيل شحنات معلّقة لبيان جديد.
-    // الترحيل بيحصل فقط لما الأدمن هو اللي بيقفل البيان.
+    // الترحيل بيحصل فقط لما الأدمن هو اللي بيقفل البيان، ولو مفيش تنفيذ تاني
+    // سبقنا وقفل نفس البيان في نفس اللحظة (race).
     let rolledOverManifest: any = null;
-    if (body.status === "closed" && reqUser?.role !== "representative" && !alreadyFinalClosed) {
+    if (body.status === "closed" && reqUser?.role !== "representative" && !alreadyFinalClosed && !raceLostToAnotherClose) {
       try {
         const [manifest] = await db.select().from(shipmentManifestsTable).where(eq(shipmentManifestsTable.id, id));
         if (manifest) {
