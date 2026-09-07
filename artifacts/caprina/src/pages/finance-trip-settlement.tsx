@@ -355,7 +355,7 @@ export default function FinanceTripSettlement() {
                               setEditingRepId(rep.id);
                               setEditingRepName(rep.repName === "غير محدد" ? "" : rep.repName);
                             }}
-                            className={`font-bold text-[13px] truncate text-right ${isOpen ? "hover:underline decoration-dotted" : ""}`}
+                            className={`font-bold text-[13px] text-blue-500 truncate text-right ${isOpen ? "hover:underline decoration-dotted" : ""}`}
                             title={isOpen ? "اضغط لتعديل اسم المندوب" : undefined}
                           >
                             {rep.repName}
@@ -757,5 +757,4 @@ function AddClientDialog({ open, onOpenChange, onSubmit, pending }: any) {
     </Dialog>
   );
 }
-
 
