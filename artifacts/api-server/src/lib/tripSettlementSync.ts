@@ -68,7 +68,7 @@ export async function autoAddRepToTripSettlement(params: {
     status: "active",
     balance: "0",
     sourceManifestId,
-    notes: "تمت الإضافة تلقائيًا عند إغلاق بيان الشحنات",
+    notes: `تمت الإضافة تلقائيًا عند إغلاق بيان مندوب${repName ? " (" + repName + ")" : ""}`,
     createdAt: now,
   });
   const repRowId = (created as any).insertId as number;
