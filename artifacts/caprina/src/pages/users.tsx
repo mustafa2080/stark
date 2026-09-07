@@ -1,6 +1,6 @@
 ﻿import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { usersApi, type AppUser } from "@/lib/api";
+import { usersApi, type AppUser, shippingApi, financeClientsApi } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -133,6 +133,8 @@ const ROLE_LABELS: Record<string, string> = {
   employee: "موظف مبيعات",
   warehouse: "مسؤول مخزون",
   custom: "مخصص ⚙️",
+  representative: "مندوب 🚚",
+  client: "عميل 🧑‍💼",
 };
 
 const ROLE_COLORS: Record<string, string> = {
@@ -141,6 +143,8 @@ const ROLE_COLORS: Record<string, string> = {
   employee: "border-blue-700 bg-blue-900/20 text-blue-400",
   warehouse: "border-emerald-700 bg-emerald-900/20 text-emerald-400",
   custom: "border-primary/40 bg-primary/10 text-primary",
+  representative: "border-orange-700 bg-orange-900/20 text-orange-400",
+  client: "border-sky-700 bg-sky-900/20 text-sky-400",
 };
 
 // ── ربط الصلاحيات بالـ section keys (module-level) ───────────────────────────
@@ -495,6 +499,10 @@ export default function UsersPage() {
     Object.fromEntries(SECTION_GROUPS.map(g => [g.id, true]))
   );
 
+  // ── إضافة حساب مندوب/عميل ──────────────────────────────────────────────────
+  const [repClientDialogOpen, setRepClientDialogOpen] = useState(false);
+  const [repClientMode, setRepClientMode] = useState<"representative" | "client">("representative");
+
   const { data: users = [], isLoading } = useQuery({
     queryKey: ["users"],
     queryFn: usersApi.list,
@@ -729,6 +737,8 @@ export default function UsersPage() {
     employee: users.filter(u => u.role === "employee").length,
     warehouse: users.filter(u => u.role === "warehouse").length,
     custom: users.filter(u => u.role === "custom").length,
+    representative: users.filter(u => u.role === "representative").length,
+    client: users.filter(u => u.role === "client").length,
   };
 
   return (
@@ -746,9 +756,21 @@ export default function UsersPage() {
           <p className="text-xs text-muted-foreground mt-0.5 mr-10">{users.length} مستخدم — تحكم في الأدوار والصلاحيات</p>
         </div>
         {isAdmin && (
-          <Button onClick={openCreate} className="h-9 text-xs sm:text-sm font-bold gap-1.5 shrink-0">
+          <Button
+            onClick={() => {
+              if (filterRole === "representative" || filterRole === "client") {
+                setRepClientMode(filterRole as "representative" | "client");
+                setRepClientDialogOpen(true);
+              } else {
+                openCreate();
+              }
+            }}
+            className="h-9 text-xs sm:text-sm font-bold gap-1.5 shrink-0"
+          >
             <UserPlus className="w-4 h-4" />
-            <span className="hidden sm:inline">إضافة مستخدم</span>
+            <span className="hidden sm:inline">
+              {filterRole === "representative" ? "إضافة مندوب" : filterRole === "client" ? "إضافة عميل" : "إضافة مستخدم"}
+            </span>
             <span className="sm:hidden">إضافة</span>
           </Button>
         )}
@@ -781,6 +803,8 @@ export default function UsersPage() {
             { key: "employee", label: "موظف" },
             { key: "warehouse", label: "مخزون" },
             { key: "custom", label: "⚙️ مخصص" },
+            { key: "representative", label: "🚚 مندوب" },
+            { key: "client", label: "🧑‍💼 عملاء" },
           ].map(tab => (
             <button
               key={tab.key}
@@ -853,6 +877,12 @@ export default function UsersPage() {
                         return marker ? marker.replace("__rolename__", "") : ROLE_LABELS[u.role];
                       })()}
                     </Badge>
+                    {u.role === "representative" && (u as any).shippingCompanyName && (
+                      <p className="text-[10px] text-orange-400/80 mt-1 truncate">🚚 {(u as any).shippingCompanyName}</p>
+                    )}
+                    {u.role === "client" && (u as any).clientName && (
+                      <p className="text-[10px] text-sky-400/80 mt-1 truncate">🧑‍💼 {(u as any).clientName}</p>
+                    )}
                   </div>
                 </div>
 
@@ -1496,6 +1526,139 @@ export default function UsersPage() {
         </DialogContent>
       </Dialog>
 
+      {/* ── إضافة حساب مندوب/عميل ── */}
+      <RepClientDialog
+        open={repClientDialogOpen}
+        onOpenChange={setRepClientDialogOpen}
+        mode={repClientMode}
+        existingUsers={users}
+        onDone={() => qc.invalidateQueries({ queryKey: ["users"] })}
+      />
+
     </div>
+  );
+}
+
+// ── Dialog: إضافة حساب دخول لمندوب (شركة شحن) أو عميل تجاري ─────────────────
+function RepClientDialog({ open, onOpenChange, mode, existingUsers, onDone }: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  mode: "representative" | "client";
+  existingUsers: AppUser[];
+  onDone: () => void;
+}) {
+  const { toast } = useToast();
+  const [selectedId, setSelectedId] = useState<number | "">("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+
+  const companiesQuery = useQuery({
+    queryKey: ["shipping-companies"],
+    queryFn: shippingApi.list,
+    enabled: open && mode === "representative",
+  });
+  const clientsQuery = useQuery({
+    queryKey: ["finance-clients-list"],
+    queryFn: financeClientsApi.list,
+    enabled: open && mode === "client",
+  });
+
+  const linkedCompanyIds = new Set(existingUsers.filter(u => u.role === "representative" && u.shippingCompanyId).map(u => u.shippingCompanyId));
+  const linkedClientIds = new Set(existingUsers.filter(u => u.role === "client" && u.clientId).map(u => u.clientId));
+
+  const availableCompanies = (companiesQuery.data ?? []).filter((c: any) => !linkedCompanyIds.has(c.id));
+  const availableClients = (clientsQuery.data ?? []).filter((c: any) => !linkedClientIds.has(c.id));
+
+  const reset = () => { setSelectedId(""); setUsername(""); setPassword(""); setDisplayName(""); setShowPassword(false); };
+
+  const repMutation = useMutation({
+    mutationFn: (companyId: number) => shippingApi.setRepresentative(companyId, { username, password, displayName: displayName || undefined }),
+    onSuccess: () => { toast({ title: "تم إنشاء حساب المندوب" }); onDone(); reset(); onOpenChange(false); },
+    onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
+  });
+
+  const clientMutation = useMutation({
+    mutationFn: (clientId: number) => financeClientsApi.addAccount(clientId, { username, password }),
+    onSuccess: () => { toast({ title: "تم إنشاء حساب العميل" }); onDone(); reset(); onOpenChange(false); },
+    onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
+  });
+
+  const isPending = repMutation.isPending || clientMutation.isPending;
+
+  const handleSubmit = () => {
+    if (!selectedId) { toast({ title: "اختر " + (mode === "representative" ? "شركة الشحن" : "العميل") + " أولاً", variant: "destructive" }); return; }
+    if (username.trim().length < 3) { toast({ title: "اسم المستخدم 3 أحرف إنجليزية/أرقام على الأقل", variant: "destructive" }); return; }
+    if (password.length < 6) { toast({ title: "كلمة المرور 6 أحرف على الأقل", variant: "destructive" }); return; }
+    if (mode === "representative") repMutation.mutate(Number(selectedId));
+    else clientMutation.mutate(Number(selectedId));
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) reset(); onOpenChange(v); }}>
+      <DialogContent className="bg-card border-border w-[95vw] max-w-sm" dir="rtl">
+        <DialogHeader>
+          <DialogTitle>{mode === "representative" ? "إضافة حساب مندوب 🚚" : "إضافة حساب عميل 🧑‍💼"}</DialogTitle>
+          <DialogDescription>
+            {mode === "representative"
+              ? "اختر شركة الشحن ثم أنشئ لها حساب دخول"
+              : "اختر العميل التجاري ثم أنشئ له حساب دخول"}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 mt-1">
+          <div>
+            <Label className="text-xs text-muted-foreground mb-1.5 block">
+              {mode === "representative" ? "شركة الشحن" : "العميل"}
+            </Label>
+            <select
+              value={selectedId}
+              onChange={e => setSelectedId(e.target.value ? Number(e.target.value) : "")}
+              className="w-full h-9 text-sm rounded-lg bg-background border border-border/60 px-2.5"
+            >
+              <option value="">اختر...</option>
+              {mode === "representative"
+                ? availableCompanies.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)
+                : availableClients.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            {mode === "representative" && !companiesQuery.isLoading && availableCompanies.length === 0 && (
+              <p className="text-[10px] text-muted-foreground mt-1">كل شركات الشحن عندها حساب مندوب بالفعل</p>
+            )}
+            {mode === "client" && !clientsQuery.isLoading && availableClients.length === 0 && (
+              <p className="text-[10px] text-muted-foreground mt-1">كل العملاء عندهم حساب دخول بالفعل</p>
+            )}
+          </div>
+
+          {mode === "representative" && (
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1.5 block">اسم العرض (اختياري)</Label>
+              <Input className="h-9 text-sm bg-background" value={displayName} onChange={e => setDisplayName(e.target.value)} placeholder="افتراضياً اسم الشركة" />
+            </div>
+          )}
+
+          <div>
+            <Label className="text-xs text-muted-foreground mb-1.5 block">اسم المستخدم</Label>
+            <Input className="h-9 text-sm bg-background font-mono" value={username} onChange={e => setUsername(e.target.value.toLowerCase())} placeholder="أحرف إنجليزية وأرقام فقط" />
+          </div>
+
+          <div>
+            <Label className="text-xs text-muted-foreground mb-1.5 block">كلمة المرور</Label>
+            <div className="relative">
+              <Input type={showPassword ? "text" : "password"} className="h-9 text-sm bg-background pl-9" value={password} onChange={e => setPassword(e.target.value)} placeholder="6 أحرف على الأقل" />
+              <button type="button" onClick={() => setShowPassword(v => !v)} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground">
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+
+          <div className="flex gap-2 pt-1">
+            <Button className="flex-1 h-9 text-sm font-bold" onClick={handleSubmit} disabled={isPending}>
+              {isPending ? "جاري الحفظ..." : "إنشاء الحساب"}
+            </Button>
+            <Button variant="outline" className="h-9 text-sm" onClick={() => onOpenChange(false)}>إلغاء</Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -53,12 +53,18 @@ export const authApi = {
 // ─── Users API ─────────────────────────────────────────────────────────────
 export interface AppUser {
   id: number; username: string; displayName: string;
-  role: "admin" | "employee" | "warehouse";
+  role: "super_admin" | "admin" | "employee" | "warehouse" | "custom" | "representative" | "client";
   permissions: string[]; isActive: boolean;
   jobTitle?: string | null;
   department?: string | null;
   avatar?: string | null;
   showProfileLink?: boolean;
+  shippingCompanyId?: number | null;
+  clientId?: number | null;
+  shippingCompanyName?: string | null;
+  clientName?: string | null;
+  phone?: string | null;
+  email?: string | null;
   createdAt: string; updatedAt: string;
 }
 
@@ -227,6 +233,10 @@ export interface FinanceClientSearchResult {
 export const financeClientsApi = {
   search: (q: string) =>
     apiFetch<FinanceClientSearchResult[]>(`/finance/clients/search?q=${encodeURIComponent(q)}`),
+  list: () => apiFetch<FinanceClientSearchResult[]>("/finance/clients"),
+  // إضافة حساب دخول (role=client) لعميل تجاري موجود بالفعل
+  addAccount: (clientId: number, data: { username: string; password: string }) =>
+    apiFetch<{ createdAccount: boolean }>(`/finance/clients/${clientId}`, { method: "PATCH", body: JSON.stringify(data) }),
 };
 
 export const shippingApi = {
@@ -234,6 +244,9 @@ export const shippingApi = {
   create: (data: Partial<ShippingCompany>) => apiFetch<ShippingCompany>("/shipping-companies", { method: "POST", body: JSON.stringify(data) }),
   update: (id: number, data: Partial<ShippingCompany>) => apiFetch<ShippingCompany>(`/shipping-companies/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   delete: (id: number) => apiFetch<void>(`/shipping-companies/${id}`, { method: "DELETE" }),
+  // إنشاء/تحديث حساب دخول (role=representative) مرتبط بشركة شحن
+  setRepresentative: (companyId: number, data: { username: string; password?: string; displayName?: string }) =>
+    apiFetch<{ user: any; created: boolean }>(`/shipping-companies/${companyId}/representative`, { method: "POST", body: JSON.stringify(data) }),
 };
 
 const parseFile = async (file: File, endpoint: string): Promise<ParsedImport> => {

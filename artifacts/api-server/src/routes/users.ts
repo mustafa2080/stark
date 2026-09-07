@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { db, usersTable, USER_ROLES, employeeProfilesTable } from "@workspace/db";
+import { db, usersTable, USER_ROLES, employeeProfilesTable, shippingCompaniesTable, clientsTable } from "@workspace/db";
 import { eq, and, isNull, or } from "drizzle-orm";
 import { hashPassword } from "../lib/auth.js";
 import { requireAuth } from "../middlewares/requireAuth.js";
@@ -42,12 +42,20 @@ router.get("/", async (req, res): Promise<void> => {
     avatar: usersTable.avatar,
     showProfileLink: usersTable.showProfileLink,
     defaultAdSource: usersTable.defaultAdSource,
+    shippingCompanyId: usersTable.shippingCompanyId,
+    clientId: usersTable.clientId,
+    phone: usersTable.phone,
+    email: usersTable.email,
     createdAt: usersTable.createdAt,
     updatedAt: usersTable.updatedAt,
     jobTitle: employeeProfilesTable.jobTitle,
     department: employeeProfilesTable.department,
+    shippingCompanyName: shippingCompaniesTable.name,
+    clientName: clientsTable.name,
   }).from(usersTable)
-    .leftJoin(employeeProfilesTable, eq(employeeProfilesTable.userId, usersTable.id));
+    .leftJoin(employeeProfilesTable, eq(employeeProfilesTable.userId, usersTable.id))
+    .leftJoin(shippingCompaniesTable, eq(shippingCompaniesTable.id, usersTable.shippingCompanyId))
+    .leftJoin(clientsTable, eq(clientsTable.id, usersTable.clientId));
 
   // super_admin → يجيب كل المستخدمين بدون فلتر
   // admin عنده tenantId → يجيب users بنفس tenantId فقط
