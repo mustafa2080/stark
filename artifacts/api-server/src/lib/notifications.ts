@@ -1,6 +1,7 @@
 import type { Response } from "express";
 import { db, notificationsTable, type NotificationType, type NotificationSeverity } from "@workspace/db";
 import { desc, eq, and, sql } from "drizzle-orm";
+import { sendPushToAllAdmins, sendPushToUser } from "./webPush.js";
 
 // ─── SSE: مخزن اتصالات المستخدمين مرتبة بـ tenantId (null = مستخدم بدون tenant) ──
 const notifSseClients = new Map<string, Set<Response>>();
@@ -115,6 +116,14 @@ export async function pushNotification(opts: CreateNotificationOptions): Promise
       sendToUser(opts.targetUserId, payload);
     } else {
       broadcastToAllAdmins(payload, opts.excludeUserId);
+      // ── إشعار push للتليفون (أدمن/مدير فقط، حالياً) — بشكل منفصل تمامًا،
+      // فشله أبداً ميأثرش على SSE أو على إنشاء الإشعار نفسه ──────────────────
+      sendPushToAllAdmins({
+        title: opts.title,
+        message: opts.message,
+        link: opts.link,
+        severity: opts.severity ?? "info",
+      }).catch(() => {});
     }
   } catch (err) {
     // فشل الإشعار مايوقفش العملية الأساسية أبداً

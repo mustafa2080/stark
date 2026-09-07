@@ -6,7 +6,7 @@
 //   • API calls (/api/*)    → Network Only (never cache)
 //   • Video/audio files     → Network Only (Range requests / 206 not cacheable)
 
-const CACHE_VERSION = "caprina-v11";
+const CACHE_VERSION = "caprina-v12";
 const STATIC_CACHE  = `${CACHE_VERSION}-static`;
 const NAV_CACHE     = `${CACHE_VERSION}-nav`;
 const ALL_CACHES    = [STATIC_CACHE, NAV_CACHE];
@@ -150,4 +150,39 @@ self.addEventListener("fetch", (event) => {
 // ─── Message handler ──────────────────────────────────────────────────────────
 self.addEventListener("message", (event) => {
   if (event.data?.type === "SKIP_WAITING") self.skipWaiting();
+});
+
+// ─── Web Push — استقبال إشعار وعرضه كإشعار نظام على شريط التليفون ────────────
+self.addEventListener("push", (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch (_) { data = {}; }
+
+  const title = data.title || "إشعار جديد";
+  const options = {
+    body: data.body || "",
+    icon: "/icon-192.png",
+    badge: "/icon-192.png",
+    data: { link: data.link || "/" },
+    tag: data.severity === "error" || data.severity === "warning" ? "urgent" : undefined,
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+// ─── لما المستخدم يدوس على الإشعار → افتح/ركّز على الموقع في نفس الصفحة المطلوبة ──
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const link = event.notification.data?.link || "/";
+
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientsArr) => {
+      for (const client of clientsArr) {
+        if ("focus" in client) {
+          client.navigate(link);
+          return client.focus();
+        }
+      }
+      if (self.clients.openWindow) return self.clients.openWindow(link);
+    })
+  );
 });

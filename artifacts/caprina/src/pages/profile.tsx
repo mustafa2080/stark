@@ -27,6 +27,7 @@ import {
   type Attendance, type AttendanceSalaryReport, type PayrollAdjustment, type MonthlySalaryReport,
 } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
 import { MyDashboardTab, EmployeeKpiTab } from "./team";
@@ -2218,7 +2219,63 @@ function SettingsTab({ user, avatarB64, setAvatarB64, avatarMutation, handleSave
           </div>
         </CardContent>
       </Card>
+
+      <PushNotificationsCard />
     </div>
+  );
+}
+
+/* ── إشعارات التليفون (Web Push) ── */
+function PushNotificationsCard() {
+  const { status, isSubscribed, isLoading, permission, subscribe, unsubscribe } = usePushNotifications();
+  const { toast } = useToast();
+
+  const handleToggle = async () => {
+    if (isSubscribed) {
+      const ok = await unsubscribe();
+      toast(ok
+        ? { title: "تم إيقاف الإشعارات", description: "لن تصلك إشعارات على هذا الجهاز بعد الآن" }
+        : { title: "خطأ", description: "تعذّر إيقاف الإشعارات", variant: "destructive" });
+    } else {
+      const ok = await subscribe();
+      toast(ok
+        ? { title: "تم تفعيل الإشعارات 🎉", description: "هتوصلك إشعارات الشحنات على شريط التليفون" }
+        : { title: "لم يتم التفعيل", description: permission === "denied" ? "الإشعارات ممنوعة من إعدادات المتصفح" : "حاول مرة أخرى", variant: "destructive" });
+    }
+  };
+
+  return (
+    <Card className="border">
+      <CardContent className="p-6">
+        <h3 className="font-bold text-sm mb-4 flex items-center gap-2"><Shield className="w-4 h-4 text-primary" />إشعارات التليفون</h3>
+
+        {status === "unsupported" && (
+          <p className="text-xs text-muted-foreground">المتصفح ده مش بيدعم إشعارات التليفون.</p>
+        )}
+
+        {status === "ios-needs-install" && (
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            على الآيفون، لازم تضيف الموقع للشاشة الرئيسية الأول: افتح قائمة المشاركة (Share) من Safari ثم اختر "إضافة إلى الشاشة الرئيسية"، وبعدين افتح التطبيق من الأيقونة عشان تقدر تفعّل الإشعارات.
+          </p>
+        )}
+
+        {status === "supported" && (
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-xs text-muted-foreground max-w-xs">
+              {isSubscribed
+                ? "الإشعارات مفعّلة على هذا الجهاز — هتوصلك الأحداث حتى لو الموقع مقفول."
+                : "فعّل الإشعارات عشان توصلك أحداث الشحنات على شريط التليفون فورًا."}
+            </p>
+            <Button size="sm" variant={isSubscribed ? "outline" : "default"} onClick={handleToggle} disabled={isLoading} className="gap-2 shrink-0">
+              {isLoading
+                ? <div className="w-3.5 h-3.5 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                : <Shield className="w-3.5 h-3.5" />}
+              {isSubscribed ? "إيقاف الإشعارات" : "تفعيل الإشعارات"}
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

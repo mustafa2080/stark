@@ -2766,6 +2766,12 @@ export const notificationsApi = {
   unreadCount: () => apiFetch<{ count: number }>("/notifications/unread-count"),
   markRead: (id: number) => apiFetch<{ success: boolean }>(`/notifications/${id}/read`, { method: "PATCH" }),
   markAllRead: () => apiFetch<{ success: boolean }>("/notifications/read-all", { method: "PATCH" }),
+  // ─── Web Push (إشعارات التليفون) ──────────────────────────────────────────
+  getVapidKey: () => apiFetch<{ publicKey: string }>("/notifications/push/vapid-key"),
+  subscribe: (sub: { endpoint: string; keys: { p256dh: string; auth: string } }) =>
+    apiFetch<{ success: boolean }>("/notifications/push/subscribe", { method: "POST", body: JSON.stringify(sub) }),
+  unsubscribe: (endpoint: string) =>
+    apiFetch<{ success: boolean }>("/notifications/push/subscribe", { method: "DELETE", body: JSON.stringify({ endpoint }) }),
 };
 
 // ─── Client Account Pro API (حساب العميل الاحترافي) ─────────────────────────

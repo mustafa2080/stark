@@ -49,6 +49,9 @@ export * from "./pickup_requests";
 // ─── Notifications ────────────────────────────────────────────────────────────
 export * from "./notifications";
 
+// ─── Push Subscriptions (إشعارات التليفون) ───────────────────────────────────
+export * from "./push_subscriptions";
+
 // ─── تسوية الرحلات والتحصيل ───────────────────────────────────────────────────
 export * from "./trip_settlements";
 

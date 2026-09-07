@@ -1,8 +1,9 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import { desc, eq, and, sql } from "drizzle-orm";
-import { db, notificationsTable } from "@workspace/db";
+import { db, notificationsTable, pushSubscriptionsTable } from "@workspace/db";
 import { verifyToken } from "../lib/auth.js";
 import { registerNotifSseClient } from "../lib/notifications.js";
+import { getVapidPublicKey } from "../lib/webPush.js";
 
 const router: IRouter = Router();
 
@@ -92,5 +93,44 @@ notificationsProtectedRouter.patch("/notifications/read-all", async (req: Reques
     ? sql`${notificationsTable.targetUserId} IS NULL`
     : sql`${notificationsTable.targetUserId} = ${userId}`;
   await db.update(notificationsTable).set({ isRead: true }).where(cond);
+  res.json({ success: true });
+});
+
+// GET /notifications/push/vapid-key — المفتاح العام اللي الفرونت محتاجه يسجل بيه subscription
+notificationsProtectedRouter.get("/notifications/push/vapid-key", (_req: Request, res: Response): void => {
+  const key = getVapidPublicKey();
+  if (!key) { res.status(503).json({ error: "إشعارات التليفون غير مفعّلة حالياً" }); return; }
+  res.json({ publicKey: key });
+});
+
+// POST /notifications/push/subscribe — تسجيل جهاز جديد (أو تحديثه لو الـ endpoint موجود)
+notificationsProtectedRouter.post("/notifications/push/subscribe", async (req: Request, res: Response): Promise<void> => {
+  const user = (req as any).user;
+  const userId = user?.id ?? null;
+  if (!userId) { res.status(401).json({ error: "غير مصرح" }); return; }
+
+  const { endpoint, keys } = req.body || {};
+  if (!endpoint || !keys?.p256dh || !keys?.auth) { res.status(400).json({ error: "بيانات الاشتراك غير مكتملة" }); return; }
+
+  const existing = await db.select({ id: pushSubscriptionsTable.id }).from(pushSubscriptionsTable)
+    .where(eq(pushSubscriptionsTable.endpoint, endpoint)).limit(1);
+
+  if (existing.length > 0) {
+    await db.update(pushSubscriptionsTable)
+      .set({ userId, p256dh: keys.p256dh, auth: keys.auth })
+      .where(eq(pushSubscriptionsTable.endpoint, endpoint));
+  } else {
+    await db.insert(pushSubscriptionsTable).values({
+      userId, endpoint, p256dh: keys.p256dh, auth: keys.auth,
+    });
+  }
+  res.json({ success: true });
+});
+
+// DELETE /notifications/push/subscribe — إلغاء تسجيل جهاز (لما المستخدم يوقف الإشعارات)
+notificationsProtectedRouter.delete("/notifications/push/subscribe", async (req: Request, res: Response): Promise<void> => {
+  const { endpoint } = req.body || {};
+  if (!endpoint) { res.status(400).json({ error: "endpoint مطلوب" }); return; }
+  await db.delete(pushSubscriptionsTable).where(eq(pushSubscriptionsTable.endpoint, endpoint));
   res.json({ success: true });
 });
