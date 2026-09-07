@@ -39,7 +39,11 @@ export async function autoAddRepToTripSettlement(params: {
   const { tenantId, sourceManifestId, netDue, repUserId, repName, payments } = params;
   if (netDue <= 0) return;
 
-  const [existing] = await db.select({ id: tripSettlementRepsTable.id, repName: tripSettlementRepsTable.repName })
+  const [existing] = await db.select({
+    id: tripSettlementRepsTable.id,
+    repName: tripSettlementRepsTable.repName,
+    notes: tripSettlementRepsTable.notes,
+  })
     .from(tripSettlementRepsTable)
     .where(eq(tripSettlementRepsTable.sourceManifestId, sourceManifestId))
     .limit(1);
@@ -52,7 +56,15 @@ export async function autoAddRepToTripSettlement(params: {
   if (existing) {
     if (existing.repName === "غير محدد" && repName && repName !== "غير محدد") {
       await db.update(tripSettlementRepsTable)
-        .set({ repName, userId: repUserId })
+        .set({
+          repName,
+          userId: repUserId,
+          // الملاحظة القديمة كانت بتحتفظ بالاسم الافتراضي، فتظهر "غير محدد"
+          // حتى بعد إصلاح العنوان. نصلحها فقط لو ما زالت تحتوي القيمة القديمة.
+          ...(existing.notes?.includes("غير محدد")
+            ? { notes: `تم إغلاق البيان تلقائيًا من طرف المندوب (${repName})` }
+            : {}),
+        })
         .where(eq(tripSettlementRepsTable.id, existing.id));
     }
     return;

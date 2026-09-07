@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, and, sql, isNotNull } from "drizzle-orm";
+import { eq, desc, and, sql, isNotNull, like } from "drizzle-orm";
 import {
   db,
   tripSettlementsTable,
@@ -91,20 +91,43 @@ async function resolveRepFromSourceManifest(sourceManifestId: number): Promise<{
 
 async function repairUnknownRepNames(reps: typeof tripSettlementRepsTable.$inferSelect[]) {
   return Promise.all(reps.map(async (rep) => {
-    if (rep.repName !== "غير محدد" || !rep.sourceManifestId) return rep;
+    const hasUnknownName = rep.repName === "غير محدد";
+    const hasStaleAutoNote = rep.notes?.includes("غير محدد") ?? false;
+    if (!hasUnknownName && !hasStaleAutoNote) return rep;
 
-    const resolved = await resolveRepFromSourceManifest(rep.sourceManifestId);
-    if (!resolved) return rep;
+    // لو الأدمن صحّح العنوان يدويًا قبل كده، نستعمله لتصحيح ملاحظة الترحيل
+    // القديمة من غير ما نستبدله. أما "غير محدد" نفسه فلا نغيره إلا لو قدرنا
+    // نثبت الاسم من بيان المصدر.
+    const resolved = hasUnknownName && rep.sourceManifestId
+      ? await resolveRepFromSourceManifest(rep.sourceManifestId)
+      : null;
+    if (hasUnknownName && !resolved) return rep;
 
-    // شرط الاسم جزء من WHERE حتى لا نمسح تعديلًا يدويًا حصل بالتوازي.
-    await db.update(tripSettlementRepsTable)
-      .set({ repName: resolved.name, userId: resolved.userId })
-      .where(and(
-        eq(tripSettlementRepsTable.id, rep.id),
-        eq(tripSettlementRepsTable.repName, "غير محدد"),
-      ));
+    const repName = resolved?.name ?? rep.repName;
+    const userId = resolved?.userId ?? rep.userId;
 
-    return { ...rep, repName: resolved.name, userId: resolved.userId };
+    if (hasUnknownName) {
+      // شرط الاسم جزء من WHERE حتى لا نمسح تعديلًا يدويًا حصل بالتوازي.
+      await db.update(tripSettlementRepsTable)
+        .set({ repName, userId })
+        .where(and(
+          eq(tripSettlementRepsTable.id, rep.id),
+          eq(tripSettlementRepsTable.repName, "غير محدد"),
+        ));
+    }
+
+    if (hasStaleAutoNote) {
+      await db.update(tripSettlementRepsTable)
+        .set({ notes: `تم إغلاق البيان تلقائيًا من طرف المندوب (${repName})` })
+        .where(and(
+          eq(tripSettlementRepsTable.id, rep.id),
+          like(tripSettlementRepsTable.notes, "%غير محدد%"),
+        ));
+    }
+
+    return { ...rep, repName, userId, notes: hasStaleAutoNote
+      ? `تم إغلاق البيان تلقائيًا من طرف المندوب (${repName})`
+      : rep.notes };
   }));
 }
 
