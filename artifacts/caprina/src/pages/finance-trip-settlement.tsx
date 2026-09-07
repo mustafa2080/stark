@@ -355,7 +355,7 @@ export default function FinanceTripSettlement() {
                               setEditingRepId(rep.id);
                               setEditingRepName(rep.repName === "غير محدد" ? "" : rep.repName);
                             }}
-                            className={`font-bold text-[13px] truncate text-right ${rep.repName === "غير محدد" ? "text-amber-500" : ""} ${isOpen ? "hover:underline decoration-dotted" : ""}`}
+                            className={`font-bold text-[13px] truncate text-right ${isOpen ? "hover:underline decoration-dotted" : ""}`}
                             title={isOpen ? "اضغط لتعديل اسم المندوب" : undefined}
                           >
                             {rep.repName}
@@ -376,7 +376,19 @@ export default function FinanceTripSettlement() {
                         )}
                       </div>
                     </div>
-                    {rep.notes && <p className="text-[10px] text-muted-foreground mt-0.5 truncate">{rep.notes}</p>}
+                    {rep.notes && (() => {
+                      const m = rep.notes.match(/^(.*)\(([^)]+)\)\s*$/);
+                      if (!m) {
+                        return <p className="text-[10px] text-muted-foreground mt-0.5 truncate">{rep.notes}</p>;
+                      }
+                      const [, prefix, name] = m;
+                      return (
+                        <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
+                          {prefix.trim()}{" "}
+                          <span className="text-[12px] font-bold text-blue-500 font-mono">{name.trim()}</span>
+                        </p>
+                      );
+                    })()}
                     <div className="flex flex-wrap gap-1 mt-1.5">
                       {rep.payments.map(p => {
                         const m = METHOD_LABELS[p.method] ?? METHOD_LABELS.other;
