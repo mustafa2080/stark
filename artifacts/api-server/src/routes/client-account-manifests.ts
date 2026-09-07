@@ -230,6 +230,10 @@ router.get("/client-account-manifests", async (req, res): Promise<void> => {
         // تتخطّى من العدّ بالكامل عشان shipmentCount + مجموع statusCounts يفضلوا
         // مطابقين لعدد الشحنات الظاهرة فعليًا في تفاصيل البيان.
         if (!(r.shipmentId in shipmentStatusById)) return;
+        // Keep list-card totals aligned with the shipments actually visible in
+        // the manifest detail. A shipment returned to a pre-warehouse status
+        // is hidden there and must not remain counted in this card.
+        if (!isShipmentVisibleInManifest(shipmentStatusById[r.shipmentId])) return;
         const mid = r.manifestId;
         let st = r.deliveryStatus ?? "pending";
         if (st === "pending") {
