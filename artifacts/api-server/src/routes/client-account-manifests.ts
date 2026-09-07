@@ -104,12 +104,11 @@ export async function autoAddShipmentToClientAccountManifest(
     ? or(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.tenantId))
     : undefined;
 
-  // فيه بيان مفتوح بالفعل لنفس العميل؟ في المعتاد الشحنة تفضل معلّقة (orphan)
-  // وتستنى لحد ما البيان ده يتقفل. الاستثناء الوحيد هو *أول* بيان للعميل:
-  // الشحنات التي كانت موجودة قبل فتحه قد تصل warehouse_ready واحدة وراء الثانية.
-  // لا نتركها معلقة لمجرد أن أول شحنة فتحت البيان قبلها بلحظات.
+  // وجود أي بيان مفتوح لنفس العميل يعني أن الشحنة تظل معلّقة (orphan) حتى
+  // يُغلق البيان. لا يوجد استثناء للبيان الأول؛ التجميع يتم فقط لحظة فتح
+  // بيان جديد، ويشمل وقتها كل الشحنات المؤهلة الموجودة بلا حد أقصى.
   const [openManifest] = await db
-    .select({ id: clientAccountManifestsTable.id, createdAt: clientAccountManifestsTable.createdAt })
+    .select({ id: clientAccountManifestsTable.id })
     .from(clientAccountManifestsTable)
     .where(and(
       eq(clientAccountManifestsTable.clientId, clientId),
@@ -117,53 +116,7 @@ export async function autoAddShipmentToClientAccountManifest(
       tenantCondition,
     ))
     .limit(1);
-  if (openManifest) {
-    // لا نضم أي شحنات لبيان مفتوح عادي. نتحقق أولاً أن هذا هو البيان الأول
-    // للعميل؛ عندها فقط نكمل دفعة البداية التي كانت موجودة قبل إنشاء البيان.
-    const [olderManifest] = await db
-      .select({ id: clientAccountManifestsTable.id })
-      .from(clientAccountManifestsTable)
-      .where(and(
-        eq(clientAccountManifestsTable.clientId, clientId),
-        lt(clientAccountManifestsTable.id, openManifest.id),
-        tenantCondition,
-      ))
-      .limit(1);
-    if (olderManifest) return;
-
-    const initialShipments = await db
-      .select({ id: shipmentsTable.id, status: shipmentsTable.status, createdAt: shipmentsTable.createdAt })
-      .from(shipmentsTable)
-      .where(and(
-        eq(shipmentsTable.clientId, clientId),
-        isNull(shipmentsTable.deletedAt),
-        shipmentTenantCondition,
-      ));
-    const initialEligible = initialShipments.filter(shipment =>
-      !STATUSES_BEFORE_WAREHOUSE.has(shipment.status)
-      && shipment.createdAt.getTime() <= openManifest.createdAt.getTime()
-    );
-    if (!initialEligible.length) return;
-
-    const linkedIds = new Set((await db
-      .select({ shipmentId: clientAccountManifestItemsTable.shipmentId })
-      .from(clientAccountManifestItemsTable)
-      .where(inArray(clientAccountManifestItemsTable.shipmentId, initialEligible.map(s => s.id))))
-      .map(row => row.shipmentId));
-    const initialItems = initialEligible.filter(shipment => !linkedIds.has(shipment.id));
-    if (!initialItems.length) return;
-
-    const now = new Date();
-    await db.insert(clientAccountManifestItemsTable).values(
-      initialItems.map(shipment => ({
-        manifestId: openManifest.id,
-        shipmentId: shipment.id,
-        deliveryStatus: SHIPMENT_STATUS_TO_DELIVERY[shipment.status] ?? "pending",
-        addedAt: now,
-      }))
-    );
-    return;
-  }
+  if (openManifest) return;
 
   // مفيش بيان مفتوح → نفتح واحد جديد للعميل ده. مهم: لا نضيف الشحنة التي
   // سببت النداء وحدها؛ نجمع معها كل شحنات العميل المؤهلة وغير المرتبطة بأي
@@ -1097,31 +1050,23 @@ router.post("/client-account-manifests", async (req, res): Promise<void> => {
       return;
     }
 
-    // أول بيان للعميل: نلتقط كل شحناته التي وصلت "قيد الشحن في المخزن" دفعة
-    // واحدة. الواجهة قد تبعث الشحنة التي ضغط عليها المستخدم فقط، لكن لا يصح
-    // أن تظل الشحنات الأربع الأخرى معلقة لمجرد أنها لم تكن محددة يدويًا.
-    const [previousManifest] = await db
-      .select({ id: clientAccountManifestsTable.id })
-      .from(clientAccountManifestsTable)
-      .where(and(eq(clientAccountManifestsTable.clientId, body.clientId), manifestTenantCondition))
-      .limit(1);
-
+    // لا يوجد بيان مفتوح (تم التحقق أعلاه): نلتقط كل شحنات العميل التي وصلت
+    // "قيد الشحن في المخزن" دفعة واحدة، بلا حد أقصى. الواجهة قد تبعث شحنة
+    // واحدة فقط، لكن لا يصح أن تبقى بقية الشحنات المؤهلة معلقة.
     let shipmentIds = [...new Set(body.shipmentIds)];
-    if (!previousManifest) {
-      const shipmentTenantCondition = tenantId !== null
-        ? or(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.tenantId))
-        : undefined;
-      const warehouseReadyShipments = await db
-        .select({ id: shipmentsTable.id })
-        .from(shipmentsTable)
-        .where(and(
-          eq(shipmentsTable.clientId, body.clientId),
-          eq(shipmentsTable.status, "warehouse_ready"),
-          isNull(shipmentsTable.deletedAt),
-          shipmentTenantCondition,
-        ));
-      shipmentIds = [...new Set([...shipmentIds, ...warehouseReadyShipments.map(s => s.id)])];
-    }
+    const shipmentTenantCondition = tenantId !== null
+      ? or(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.tenantId))
+      : undefined;
+    const warehouseReadyShipments = await db
+      .select({ id: shipmentsTable.id })
+      .from(shipmentsTable)
+      .where(and(
+        eq(shipmentsTable.clientId, body.clientId),
+        eq(shipmentsTable.status, "warehouse_ready"),
+        isNull(shipmentsTable.deletedAt),
+        shipmentTenantCondition,
+      ));
+    shipmentIds = [...new Set([...shipmentIds, ...warehouseReadyShipments.map(s => s.id)])];
 
     // لا نسمح بأن يربط الطلب شحنة تخص عميلًا آخر أو شحنة حُذفت.
     const validShipments = await db
