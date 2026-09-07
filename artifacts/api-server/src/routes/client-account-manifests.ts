@@ -1032,18 +1032,60 @@ router.post("/client-account-manifests", async (req, res): Promise<void> => {
     const tenantId = getTenantId(req);
     const body = CreateSchema.parse(req.body);
 
+    const manifestTenantCondition = tenantId !== null
+      ? or(eq(clientAccountManifestsTable.tenantId, tenantId), isNull(clientAccountManifestsTable.tenantId))
+      : undefined;
+
     const [existing] = await db
       .select({ id: clientAccountManifestsTable.id })
       .from(clientAccountManifestsTable)
       .where(and(
         eq(clientAccountManifestsTable.clientId, body.clientId),
         eq(clientAccountManifestsTable.status, "open"),
-        tenantId !== null
-          ? or(eq(clientAccountManifestsTable.tenantId, tenantId), isNull(clientAccountManifestsTable.tenantId))
-          : undefined,
+        manifestTenantCondition,
       ));
     if (existing) {
       res.status(409).json({ error: "يوجد بيان مفتوح بالفعل لهذا العميل" });
+      return;
+    }
+
+    // أول بيان للعميل: نلتقط كل شحناته التي وصلت "قيد الشحن في المخزن" دفعة
+    // واحدة. الواجهة قد تبعث الشحنة التي ضغط عليها المستخدم فقط، لكن لا يصح
+    // أن تظل الشحنات الأربع الأخرى معلقة لمجرد أنها لم تكن محددة يدويًا.
+    const [previousManifest] = await db
+      .select({ id: clientAccountManifestsTable.id })
+      .from(clientAccountManifestsTable)
+      .where(and(eq(clientAccountManifestsTable.clientId, body.clientId), manifestTenantCondition))
+      .limit(1);
+
+    let shipmentIds = [...new Set(body.shipmentIds)];
+    if (!previousManifest) {
+      const shipmentTenantCondition = tenantId !== null
+        ? or(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.tenantId))
+        : undefined;
+      const warehouseReadyShipments = await db
+        .select({ id: shipmentsTable.id })
+        .from(shipmentsTable)
+        .where(and(
+          eq(shipmentsTable.clientId, body.clientId),
+          eq(shipmentsTable.status, "warehouse_ready"),
+          isNull(shipmentsTable.deletedAt),
+          shipmentTenantCondition,
+        ));
+      shipmentIds = [...new Set([...shipmentIds, ...warehouseReadyShipments.map(s => s.id)])];
+    }
+
+    // لا نسمح بأن يربط الطلب شحنة تخص عميلًا آخر أو شحنة حُذفت.
+    const validShipments = await db
+      .select({ id: shipmentsTable.id, status: shipmentsTable.status })
+      .from(shipmentsTable)
+      .where(and(
+        inArray(shipmentsTable.id, shipmentIds),
+        eq(shipmentsTable.clientId, body.clientId),
+        isNull(shipmentsTable.deletedAt),
+      ));
+    if (!validShipments.length) {
+      res.status(400).json({ error: "لا توجد شحنات صالحة لإضافتها إلى البيان" });
       return;
     }
 
@@ -1062,10 +1104,10 @@ router.post("/client-account-manifests", async (req, res): Promise<void> => {
     const manifestId = (result as any).insertId as number;
 
     await db.insert(clientAccountManifestItemsTable).values(
-      body.shipmentIds.map(sid => ({
+      validShipments.map(shipment => ({
         manifestId,
-        shipmentId:     sid,
-        deliveryStatus: "pending",
+        shipmentId:     shipment.id,
+        deliveryStatus: SHIPMENT_STATUS_TO_DELIVERY[shipment.status] ?? "pending",
         addedAt:        now,
       }))
     );
@@ -1073,7 +1115,7 @@ router.post("/client-account-manifests", async (req, res): Promise<void> => {
     res.status(201).json({
       id: manifestId,
       manifestNumber,
-      shipmentCount: body.shipmentIds.length,
+      shipmentCount: validShipments.length,
     });
   } catch (e: any) {
     console.error("[POST /client-account-manifests]", e);
