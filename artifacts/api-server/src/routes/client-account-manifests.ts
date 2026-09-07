@@ -100,11 +100,16 @@ export async function autoAddShipmentToClientAccountManifest(
   const tenantCondition = tenantId !== null
     ? or(eq(clientAccountManifestsTable.tenantId, tenantId), isNull(clientAccountManifestsTable.tenantId))
     : undefined;
+  const shipmentTenantCondition = tenantId !== null
+    ? or(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.tenantId))
+    : undefined;
 
-  // فيه بيان مفتوح بالفعل لنفس العميل؟ الشحنة تفضل معلّقة (orphan) وتستنى
-  // لحد ما البيان ده يتقفل ويتفتح بيان جديد يلمّها.
+  // فيه بيان مفتوح بالفعل لنفس العميل؟ في المعتاد الشحنة تفضل معلّقة (orphan)
+  // وتستنى لحد ما البيان ده يتقفل. الاستثناء الوحيد هو *أول* بيان للعميل:
+  // الشحنات التي كانت موجودة قبل فتحه قد تصل warehouse_ready واحدة وراء الثانية.
+  // لا نتركها معلقة لمجرد أن أول شحنة فتحت البيان قبلها بلحظات.
   const [openManifest] = await db
-    .select({ id: clientAccountManifestsTable.id })
+    .select({ id: clientAccountManifestsTable.id, createdAt: clientAccountManifestsTable.createdAt })
     .from(clientAccountManifestsTable)
     .where(and(
       eq(clientAccountManifestsTable.clientId, clientId),
@@ -112,15 +117,58 @@ export async function autoAddShipmentToClientAccountManifest(
       tenantCondition,
     ))
     .limit(1);
-  if (openManifest) return;
+  if (openManifest) {
+    // لا نضم أي شحنات لبيان مفتوح عادي. نتحقق أولاً أن هذا هو البيان الأول
+    // للعميل؛ عندها فقط نكمل دفعة البداية التي كانت موجودة قبل إنشاء البيان.
+    const [olderManifest] = await db
+      .select({ id: clientAccountManifestsTable.id })
+      .from(clientAccountManifestsTable)
+      .where(and(
+        eq(clientAccountManifestsTable.clientId, clientId),
+        lt(clientAccountManifestsTable.id, openManifest.id),
+        tenantCondition,
+      ))
+      .limit(1);
+    if (olderManifest) return;
+
+    const initialShipments = await db
+      .select({ id: shipmentsTable.id, status: shipmentsTable.status, createdAt: shipmentsTable.createdAt })
+      .from(shipmentsTable)
+      .where(and(
+        eq(shipmentsTable.clientId, clientId),
+        isNull(shipmentsTable.deletedAt),
+        shipmentTenantCondition,
+      ));
+    const initialEligible = initialShipments.filter(shipment =>
+      !STATUSES_BEFORE_WAREHOUSE.has(shipment.status)
+      && shipment.createdAt.getTime() <= openManifest.createdAt.getTime()
+    );
+    if (!initialEligible.length) return;
+
+    const linkedIds = new Set((await db
+      .select({ shipmentId: clientAccountManifestItemsTable.shipmentId })
+      .from(clientAccountManifestItemsTable)
+      .where(inArray(clientAccountManifestItemsTable.shipmentId, initialEligible.map(s => s.id))))
+      .map(row => row.shipmentId));
+    const initialItems = initialEligible.filter(shipment => !linkedIds.has(shipment.id));
+    if (!initialItems.length) return;
+
+    const now = new Date();
+    await db.insert(clientAccountManifestItemsTable).values(
+      initialItems.map(shipment => ({
+        manifestId: openManifest.id,
+        shipmentId: shipment.id,
+        deliveryStatus: SHIPMENT_STATUS_TO_DELIVERY[shipment.status] ?? "pending",
+        addedAt: now,
+      }))
+    );
+    return;
+  }
 
   // مفيش بيان مفتوح → نفتح واحد جديد للعميل ده. مهم: لا نضيف الشحنة التي
   // سببت النداء وحدها؛ نجمع معها كل شحنات العميل المؤهلة وغير المرتبطة بأي
   // بيان. وإلا أول شحنة فقط كانت تدخل البيان الجديد، ثم الشحنات الأربعة التالية
   // تراها الدالة "معلقة" لمجرد أن البيان اتفتح بالفعل.
-  const shipmentTenantCondition = tenantId !== null
-    ? or(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.tenantId))
-    : undefined;
   const clientShipments = await db
     .select({ id: shipmentsTable.id, status: shipmentsTable.status })
     .from(shipmentsTable)
