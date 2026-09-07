@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, and, sql } from "drizzle-orm";
+import { eq, desc, and, sql, isNotNull } from "drizzle-orm";
 import {
   db,
   tripSettlementsTable,
@@ -12,6 +12,10 @@ import {
   clientsTable,
   cashRegistersTable,
   cashTransactionsTable,
+  shipmentManifestsTable,
+  shipmentManifestItemsTable,
+  shipmentsTable,
+  shippingCompaniesTable,
 } from "@workspace/db";
 import { z } from "zod";
 import { requireAuth } from "../middlewares/requireAuth";
@@ -25,6 +29,83 @@ router.use(requireAuth);
 function actor(req: any) {
   const u = req.user;
   return { id: u?.id ?? null, name: u?.displayName ?? u?.name ?? u?.username ?? "مستخدم" };
+}
+
+// اسم المندوب في تسوية الرحلات هو لقطة وقت إغلاق البيان. بعض البيانات القديمة
+// اتسجلت قبل حفظ مصدر المندوب بشكل كامل، فظهر الاسم "غير محدد" رغم إن مصدر
+// البيان نفسه (شركة الشحن أو شحناته) ما زال يحمل الاسم الصحيح. لا نستخدم هذا
+// إلا لإصلاح ذلك الاسم الافتراضي؛ أي اسم عدّله الأدمن يدويًا يظل كما هو.
+async function resolveRepFromSourceManifest(sourceManifestId: number): Promise<{
+  name: string;
+  userId: number | null;
+} | null> {
+  const [manifest] = await db.select({
+    shippingCompanyId: shipmentManifestsTable.shippingCompanyId,
+    representativeUserId: shipmentManifestsTable.representativeUserId,
+  })
+    .from(shipmentManifestsTable)
+    .where(eq(shipmentManifestsTable.id, sourceManifestId))
+    .limit(1);
+
+  if (!manifest) return null;
+
+  // شركة الشحن هي صاحب بيان المندوب حتى لو لم يكن لها مستخدم نظام مربوط.
+  if (manifest.shippingCompanyId) {
+    const [company] = await db.select({ name: shippingCompaniesTable.name })
+      .from(shippingCompaniesTable)
+      .where(eq(shippingCompaniesTable.id, manifest.shippingCompanyId))
+      .limit(1);
+    if (company?.name?.trim()) return { name: company.name, userId: null };
+  }
+
+  if (manifest.representativeUserId) {
+    const [user] = await db.select({ name: usersTable.displayName })
+      .from(usersTable)
+      .where(eq(usersTable.id, manifest.representativeUserId))
+      .limit(1);
+    if (user?.name?.trim()) return { name: user.name, userId: manifest.representativeUserId };
+  }
+
+  // Fallback آمن للبيانات الأقدم: المندوب الأكثر تكرارًا في شحنات البيان.
+  const [assignedRep] = await db.select({
+    userId: shipmentsTable.assignedUserId,
+    occurrences: sql<number>`COUNT(*)`,
+  })
+    .from(shipmentManifestItemsTable)
+    .innerJoin(shipmentsTable, eq(shipmentsTable.id, shipmentManifestItemsTable.shipmentId))
+    .where(and(
+      eq(shipmentManifestItemsTable.manifestId, sourceManifestId),
+      isNotNull(shipmentsTable.assignedUserId),
+    ))
+    .groupBy(shipmentsTable.assignedUserId)
+    .orderBy(desc(sql`COUNT(*)`))
+    .limit(1);
+
+  if (!assignedRep?.userId) return null;
+  const [user] = await db.select({ name: usersTable.displayName })
+    .from(usersTable)
+    .where(eq(usersTable.id, assignedRep.userId))
+    .limit(1);
+  return user?.name?.trim() ? { name: user.name, userId: assignedRep.userId } : null;
+}
+
+async function repairUnknownRepNames(reps: typeof tripSettlementRepsTable.$inferSelect[]) {
+  return Promise.all(reps.map(async (rep) => {
+    if (rep.repName !== "غير محدد" || !rep.sourceManifestId) return rep;
+
+    const resolved = await resolveRepFromSourceManifest(rep.sourceManifestId);
+    if (!resolved) return rep;
+
+    // شرط الاسم جزء من WHERE حتى لا نمسح تعديلًا يدويًا حصل بالتوازي.
+    await db.update(tripSettlementRepsTable)
+      .set({ repName: resolved.name, userId: resolved.userId })
+      .where(and(
+        eq(tripSettlementRepsTable.id, rep.id),
+        eq(tripSettlementRepsTable.repName, "غير محدد"),
+      ));
+
+    return { ...rep, repName: resolved.name, userId: resolved.userId };
+  }));
 }
 
 async function generateSettlementNumber(): Promise<string> {
@@ -214,8 +295,9 @@ router.get("/trip-settlements/:id", async (req, res): Promise<void> => {
     const reps = await db.select().from(tripSettlementRepsTable)
       .where(eq(tripSettlementRepsTable.settlementId, id))
       .orderBy(tripSettlementRepsTable.sortOrder, tripSettlementRepsTable.id);
+    const repairedReps = await repairUnknownRepNames(reps);
 
-    const repIds = reps.map(r => r.id);
+    const repIds = repairedReps.map(r => r.id);
     const payments = repIds.length
       ? await db.select().from(tripSettlementRepPaymentsTable).where(sql`${tripSettlementRepPaymentsTable.repRowId} IN (${sql.join(repIds, sql`,`)})`)
       : [];
@@ -224,7 +306,7 @@ router.get("/trip-settlements/:id", async (req, res): Promise<void> => {
       .where(eq(tripSettlementClientsTable.settlementId, id))
       .orderBy(tripSettlementClientsTable.sortOrder, tripSettlementClientsTable.id);
 
-    const repsWithPayments = reps.map(r => ({ ...r, payments: payments.filter(p => p.repRowId === r.id) }));
+    const repsWithPayments = repairedReps.map(r => ({ ...r, payments: payments.filter(p => p.repRowId === r.id) }));
 
     // تنبيه "عميل متكرر السالب": نحسب السلسلة بس للمعلّق وسالب فعلاً — توفير queries.
     const clientsWithStreak = await Promise.all(clients.map(async c => {
