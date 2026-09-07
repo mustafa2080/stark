@@ -142,21 +142,22 @@ export async function syncShipmentStatusToManifests(
     console.error("[syncShipmentStatusToManifests] client-account-manifests error:", e);
   }
 
-  // ─── تنبيه: الشحنة رجعت "قبل المخزن" وهي لسه item في بيان حساب عميل مفتوح ──
-  // ⚠️ إصلاح (نفس مشكلة تضارب عدد الأوردرات بين كارت العميل وصفحة البيان):
-  // لما شحنة اتضافت تلقائيًا لبيان لأنها وصلت warehouse_ready، وبعدين حد رجّع
-  // حالتها لـ waiting/pending/confirmed (اتلغى تجهيزها مثلاً) من غير ما يشيلها
-  // من البيان يدويًا، الصف بيفضل موجود في clientAccountManifestItemsTable
-  // (بتصميم النظام — "العنصر بيفضل موجود للتاريخ") لكنه بيختفي من عرض البيان
-  // وحساباته (isShipmentVisibleInManifest). من غير تنبيه، محدش كان بيعرف إن
-  // البيان بقى "ناقص" ضمنيًا. هنا بنتحقق: لو الحالة الجديدة ضمن
-  // EXCLUDED_SHIPMENT_STATUSES ولسه فيه بند لنفس الشحنة في بيان مفتوح، نبعت
-  // تنبيه warning للأدمنز عشان حد يراجع الموقف (يشيل الشحنة من البيان، أو يرجّعها
-  // للمخزن، حسب الحالة الفعلية).
+  // ─── الشحنة رجعت "قبل المخزن" وهي لسه item في بيان حساب عميل مفتوح ──────────
+  // ⚠️ تحديث (بطلب مصطفى 2026-09-07): قبل كده كان بيتبعت تنبيه بس والبند
+  // يفضل موجود "شبح" في clientAccountManifestItemsTable — ده كان بيسبب نفس
+  // مشكلة تضارب عدد الأوردرات (كارت العميل يقول 1، البيان الفعلي يقول 0)
+  // تتكرر تاني على كل شحنة جديدة ترجع لحالة قبل المخزن، لأن isShipmentVisibleInManifest
+  // بتخفيه بصريًا بس مش بتشيله فعليًا. الحل الحاسم: نشيل البند فعليًا من الجدول
+  // (زي DELETE /client-account-manifests/:id/items/:shipmentId اليدوي بالظبط،
+  // لكن هنا تلقائي) بمجرد ما حالة الشحنة الأصلية ترجع pending/waiting/confirmed
+  // وهي لسه item في بيان مفتوح — كده الكارت والبيان بيتطابقوا دايمًا من غير
+  // أي بند مخفي، وبعد الحذف بنبعت تنبيه إعلامي (مش تحذير "راجع الموقف") يوضّح
+  // إن الشحنة اتشالت تلقائيًا وهتدخل بيان جديد تاني لما ترجع تجهيزها.
   if (EXCLUDED_SHIPMENT_STATUSES.has(newShipmentStatus)) {
     try {
       const openItems = await db
         .select({
+          itemId: clientAccountManifestItemsTable.id,
           manifestId: clientAccountManifestItemsTable.manifestId,
           manifestNumber: clientAccountManifestsTable.manifestNumber,
           tenantId: clientAccountManifestsTable.tenantId,
@@ -176,12 +177,16 @@ export async function syncShipmentStatusToManifests(
           .where(eq(shipmentsTable.id, shipmentId));
 
         for (const item of openItems) {
+          // الحذف الفعلي — مش مجرد إخفاء بالفلتر
+          await db.delete(clientAccountManifestItemsTable)
+            .where(eq(clientAccountManifestItemsTable.id, item.itemId));
+
           await pushNotification({
             tenantId: item.tenantId,
             type: "shipment_updated",
-            severity: "warning",
-            title: `شحنة رجعت للمخزن داخل بيان مفتوح`,
-            message: `الشحنة ${shipment?.shipmentNumber ?? `#${shipmentId}`}${shipment?.receiverName ? ` (${shipment.receiverName})` : ""} رجعت لحالة "${newShipmentStatus}" وهي لسه مضافة في البيان ${item.manifestNumber} المفتوح — البند هيختفي من عرض البيان وحساباته رغم إنه لسه موجود، راجع البيان.`,
+            severity: "info",
+            title: `شحنة اتشالت تلقائيًا من بيان مفتوح`,
+            message: `الشحنة ${shipment?.shipmentNumber ?? `#${shipmentId}`}${shipment?.receiverName ? ` (${shipment.receiverName})` : ""} رجعت لحالة "${newShipmentStatus}" فاتشالت تلقائيًا من البيان ${item.manifestNumber} المفتوح — هتدخل بيان جديد تلقائي لما ترجع "قيد الشحن في المخزن" تاني.`,
             entityType: "client_account_manifest",
             entityId: item.manifestId,
             link: `/finance/client-account-sheet/manifest/${item.manifestId}`,
@@ -189,7 +194,7 @@ export async function syncShipmentStatusToManifests(
         }
       }
     } catch (e) {
-      console.error("[syncShipmentStatusToManifests] notify shipment-returned-to-warehouse error:", e);
+      console.error("[syncShipmentStatusToManifests] remove-shipment-returned-to-warehouse error:", e);
     }
   }
 
