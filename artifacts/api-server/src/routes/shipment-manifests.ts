@@ -1508,7 +1508,7 @@ router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
                   .from(usersTable).where(eq(usersTable.id, repUserId)).limit(1);
                 repName = repUser?.displayName ?? "مندوب";
                 repResolved = true;
-              } else if (items.length) {
+              } else if (!repResolved && items.length) {
                 // (ج) بيانات قديمة من غير shippingCompanyId ومن غير representativeUserId
                 // ومن غير closedByRole:
                 // بدل الاعتماد على أول شحنة بس (ممكن تكون استثنائية بدون
@@ -1518,6 +1518,16 @@ router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
                 // وده كان بيوصل أحيانًا لآخر fallback (اسم الأدمن القافل) لو
                 // أول شحنة بالذات من غير assignedUserId حتى لو باقي الشحنات
                 // فيها المندوب واضح.
+                // تصحيح 2026-09-07 (حرج): الشرط ده كان else if بدون فحص
+                // !repResolved — يعني حتى لو الشرط (أ) (shippingCompanyId) نجح
+                // فعلاً وحدد الاسم الصح، الـ else-if chain كان بيكمل ويوصل هنا
+                // برضو (لأن شرط أ اتحقق جوه if منفصل قبل السلسلة، مش جزء منها)،
+                // ولو الشحنات كلها assignedUserId=null (حالة شائعة جدًا لمندوب
+                // مسجل كـ shipping_companies بدل يوزر حقيقي — نفس حالة "ايهاب
+                // اسكندر"/SMF-12-001)، كان بيعمل override على الاسم الصح ويرجّعه
+                // "غير محدد". اكتُشفت من فحص مباشر: shippingCompanyId=12 واسم
+                // الشركة "ايهاب اسكندر" كانا سليمين 100%، لكن الاسم النهائي طلع
+                // "غير محدد" بسبب الـ override ده بالظبط.
                 const shipmentIdsInManifest = items.map(it => it.shipmentId).filter((v): v is number => v != null);
                 let bestRepUserId: number | null = null;
                 if (shipmentIdsInManifest.length) {
