@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, type CSSProperties } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, clientAccountManifestsApi } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Card } from "@/components/ui/card";
@@ -19,6 +19,7 @@ import {
   FileSpreadsheet, TrendingUp, ImagePlus, X as XIcon, Camera, Target,
   ChevronDown, Lock, Unlock, Truck, Package, Search, SlidersHorizontal, X,
   LayoutGrid, List, Check, Wallet, FileText, CircleUserRound,
+  Loader2, AlertTriangle,
 } from "lucide-react";
 
 const fmtDate = (iso: string) => {
@@ -341,6 +342,16 @@ export default function ClientAccountManifestsPage() {
   // (accountBalance = 0 فمكانش هيظهر)، أو العكس (عنده بيانات مقفولة قديمة
   // برصيد لكن بيانه المفتوح الحالي فاضي/صفر).
   const [balanceFilter, setBalanceFilter] = useState<"all" | "nonzero">("all");
+  // ─── إغلاق جماعي لكل البيانات المفتوحة — طلب المدير (تسهيل بدل ما يفتح
+  // بيان بيان يدوياً). كل بيان مفتوح بيتقفل بنفس منطق زرار الإغلاق الفردي
+  // بالظبط (PATCH /client-account-manifests/:id بحالة closed)، شامل البيانات
+  // اللي قيمتها صفر. أي بيان مربوط بشحنة لسه في بيان مندوب مفتوح بيتفشل
+  // ويظهر في نتيجة "تخطّي" — من غير ما يوقف باقي العملاء.
+  const [showBulkCloseConfirm, setShowBulkCloseConfirm] = useState(false);
+  const [bulkCloseResult, setBulkCloseResult] = useState<{
+    succeeded: { name: string }[];
+    skipped: { name: string; reason: string }[];
+  } | null>(null);
 
   const { data: clients, isLoading } = useQuery<Client[]>({
     queryKey: ["finance-clients"],
@@ -422,6 +433,38 @@ export default function ClientAccountManifestsPage() {
     onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
   });
 
+  // ─── إغلاق جماعي لكل البيانات المفتوحة ─────────────────────────────────────
+  // بيقفل كل عميل عنده بيان مفتوح (hasOpenManifest) واحد واحد بالتسلسل (مش
+  // Promise.all) عشان لو حصل خطأ في عميل ميوقفش تنفيذ الباقيين، ولضمان عدم
+  // تحميل الباك إند بكل الطلبات مرة واحدة. بيستخدم نفس PATCH بالظبط اللي
+  // بيستخدمه زرار الإغلاق الفردي جوه بيان العميل — نفس منطق الترحيل للخزنة
+  // ولتسوية الرحلات (شامل البيانات اللي قيمتها صفر، بعد إصلاح الباك إند).
+  const bulkCloseMutation = useMutation({
+    mutationFn: async () => {
+      const targets = (clients ?? []).filter(c => c.hasOpenManifest && c.latestManifestId);
+      const succeeded: { name: string }[] = [];
+      const skipped: { name: string; reason: string }[] = [];
+      for (const c of targets) {
+        try {
+          await clientAccountManifestsApi.update(c.latestManifestId as number, { status: "closed" });
+          succeeded.push({ name: c.name });
+        } catch (e: any) {
+          skipped.push({ name: c.name, reason: e?.message ?? "خطأ غير معروف" });
+        }
+      }
+      return { succeeded, skipped };
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["finance-clients"] });
+      setBulkCloseResult(result);
+      setShowBulkCloseConfirm(false);
+    },
+    onError: (e: any) => {
+      setShowBulkCloseConfirm(false);
+      toast({ title: "خطأ", description: e.message, variant: "destructive" });
+    },
+  });
+
   const openAdd = () => { setEditingClient(null); setForm(emptyForm); setDialogOpen(true); };
   const openEdit = (c: Client) => {
     setEditingClient(c);
@@ -469,6 +512,19 @@ export default function ClientAccountManifestsPage() {
           <p className="text-muted-foreground text-sm mt-0.5">إدارة العملاء التجاريين وبيانات حساباتهم</p>
         </div>
         <div className="flex items-center gap-2">
+          {canEdit && (clients ?? []).some(c => c.hasOpenManifest) && (
+            <Button
+              variant="outline"
+              onClick={() => setShowBulkCloseConfirm(true)}
+              className="gap-2 font-bold text-sm border-emerald-800 text-emerald-400 hover:bg-emerald-900/20"
+            >
+              <Lock className="w-4 h-4" />
+              إغلاق جميع البيانات المفتوحة
+              <Badge variant="outline" className="text-[10px] border-emerald-700">
+                {(clients ?? []).filter(c => c.hasOpenManifest).length}
+              </Badge>
+            </Button>
+          )}
           <Button variant="outline" onClick={() => navigate("/finance/client-account-dashboard")} className="gap-2 font-bold text-sm">
             <TrendingUp className="w-4 h-4" />الداشبورد
           </Button>
@@ -931,6 +987,76 @@ export default function ClientAccountManifestsPage() {
             <AlertDialogAction onClick={() => deleteClient && deleteMutation.mutate(deleteClient.id)} className="bg-red-600 hover:bg-red-700 text-white">
               نعم، احذف
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk Close Confirm Dialog */}
+      <AlertDialog open={showBulkCloseConfirm} onOpenChange={(v) => !bulkCloseMutation.isPending && setShowBulkCloseConfirm(v)}>
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-emerald-500">
+              <Lock className="w-5 h-5" />
+              إغلاق جميع البيانات المفتوحة
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-right space-y-2">
+              <span className="block">
+                هيتم إغلاق بيان حساب كل عميل عنده بيان مفتوح دلوقتي (
+                <strong className="text-foreground">{(clients ?? []).filter(c => c.hasOpenManifest).length}</strong>
+                {" "}عميل)، بنفس منطق زرار الإغلاق الفردي بالظبط — شامل العملاء اللي رصيدهم صفر.
+              </span>
+              <span className="block text-amber-600 dark:text-amber-400 font-medium">
+                ⚠ أي عميل مرتبط بشحنة لسه في بيان مندوب مفتوح هيتخطّى تلقائيًا وهيظهر في تقرير النتيجة.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkCloseMutation.isPending}>إلغاء</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); bulkCloseMutation.mutate(); }}
+              disabled={bulkCloseMutation.isPending}
+              className="bg-emerald-700 hover:bg-emerald-600 text-white gap-1.5"
+            >
+              {bulkCloseMutation.isPending
+                ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />جاري الإغلاق...</>
+                : <><Lock className="w-3.5 h-3.5" />تأكيد الإغلاق</>}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk Close Result Dialog */}
+      <AlertDialog open={!!bulkCloseResult} onOpenChange={(v) => !v && setBulkCloseResult(null)}>
+        <AlertDialogContent dir="rtl" className="max-w-md max-h-[80vh] overflow-y-auto">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-emerald-500">
+              <Check className="w-5 h-5" />
+              نتيجة الإغلاق الجماعي
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-right space-y-3">
+              <span className="block text-foreground font-medium text-sm">
+                تم إغلاق <strong className="text-emerald-400">{bulkCloseResult?.succeeded.length ?? 0}</strong> بيان بنجاح
+                {(bulkCloseResult?.skipped.length ?? 0) > 0 && (
+                  <>{" "}— تخطّي <strong className="text-amber-400">{bulkCloseResult?.skipped.length}</strong></>
+                )}
+              </span>
+              {bulkCloseResult && bulkCloseResult.skipped.length > 0 && (
+                <span className="block space-y-1.5">
+                  {bulkCloseResult.skipped.map((s, i) => (
+                    <span key={i} className="flex items-start gap-1.5 text-xs p-2 rounded-md bg-amber-900/10 border border-amber-800">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-500 mt-0.5 shrink-0" />
+                      <span>
+                        <strong className="text-foreground">{s.name}</strong>
+                        <span className="block text-muted-foreground">{s.reason}</span>
+                      </span>
+                    </span>
+                  ))}
+                </span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setBulkCloseResult(null)}>تمام</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -126,7 +126,10 @@ export async function autoAddClientToTripSettlement(params: {
   clientName: string;
 }): Promise<void> {
   const { tenantId, sourceManifestId, netDue, clientId, clientName } = params;
-  if (netDue === 0) return;
+  // الصفر نتيجة صحيحة عند إغلاق بيان حساب العميل، ولازم يظهر في تسوية
+  // الرحلات كتوثيق للإغلاق (زي autoAddRepToTripSettlement بالظبط). الرصيد
+  // السالب فقط لا يُرحَّل كتحصيل. تصحيح بناءً على طلب بشمهندس مصطفى.
+  if (netDue < 0) return;
 
   const [existing] = await db.select({ id: tripSettlementClientsTable.id })
     .from(tripSettlementClientsTable)

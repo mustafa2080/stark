@@ -1509,7 +1509,10 @@ router.patch("/client-account-manifests/:id", async (req, res): Promise<void> =>
     if (isClosingNow) {
       try {
         const netDue = await computeClientManifestNetDue(id);
-        if (netDue !== 0) {
+        // الصفر نتيجة صحيحة عند إغلاق بيان العميل (خصوصًا مع الإغلاق الجماعي)،
+        // ولازم يظهر في تسوية الرحلات كتوثيق للإغلاق — نفس منطق autoAddRepToTripSettlement
+        // بالظبط (raise فقط عند سالب، مش عند صفر). تصحيح بناءً على طلب بشمهندس مصطفى.
+        if (netDue >= 0) {
           const [clientRow] = await db.select({ name: clientsTable.name })
             .from(clientsTable).where(eq(clientsTable.id, currentManifest.clientId)).limit(1);
           await autoAddClientToTripSettlement({
