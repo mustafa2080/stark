@@ -412,18 +412,17 @@ function PermissionRefresher() {
   return null;
 }
 
-// مزامنة اشتراك الـ Push للأدمن فقط في كل فتح للتطبيق. لا نطلب صلاحية جديدة
-// هنا؛ لا يحدث أي prompt إلا من الزر الواضح في صفحة الملف الشخصي.
-function AdminPushSubscriptionSync() {
-  const { user, isAdmin } = useAuth();
+// ┘à╪▓╪د┘à┘╪ر ╪د╪┤╪ز╪▒╪د┘â ╪د┘┘ Push ┘╪ث┘è ┘à╪│╪ز╪«╪»┘à ┘à╪│╪ش┘ ╪»╪«┘ê┘ (╪ث╪»┘à┘/┘à┘╪»┘ê╪ذ/╪╣┘à┘è┘) ┘┘è ┘â┘ ┘╪ز╪ص ┘┘╪ز╪╖╪ذ┘è┘é. ┘╪د ┘╪╖┘╪ذ ╪╡┘╪د╪ص┘è╪ر ╪ش╪»┘è╪»╪ر ┘ç┘╪د╪ؤ ┘╪د ┘è╪ص╪»╪س ╪ث┘è prompt ╪ح┘╪د ┘à┘ ╪د┘╪▓╪▒ ╪د┘┘ê╪د╪╢╪ص ┘┘è ╪╡┘╪ص╪ر ╪د┘┘à┘┘ ╪د┘╪┤╪«╪╡┘è. (┘é╪ذ┘ ┘â╪»┘ç ┘â╪د┘ ┘à┘é╪╡┘ê╪▒ ╪╣┘┘ë ╪د┘╪ث╪»┘à┘ ╪ذ╪│)
+function PushSubscriptionSync() {
+  const { user } = useAuth();
   const { permission, ensureSubscribed } = usePushNotifications();
   const syncedUserId = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!user || !isAdmin || permission !== "granted" || syncedUserId.current === user.id) return;
+    if (!user || permission !== "granted" || syncedUserId.current === user.id) return;
     syncedUserId.current = user.id;
     void ensureSubscribed();
-  }, [user, isAdmin, permission, ensureSubscribed]);
+  }, [user, permission, ensureSubscribed]);
 
   return null;
 }
@@ -693,7 +692,7 @@ function App() {
                   <ErrorBoundary onRetry={() => queryClient.clear()}>
                     <ScrollToTop />
                     <PermissionRefresher />
-                    <AdminPushSubscriptionSync />
+                    <PushSubscriptionSync />
                     <Router />
                     <SubscriptionBlocker />
                   </ErrorBoundary>

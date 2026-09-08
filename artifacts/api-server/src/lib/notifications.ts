@@ -115,6 +115,15 @@ export async function pushNotification(opts: CreateNotificationOptions): Promise
     // لو الإشعار موجّه لمستخدم بعينه، ابعته له بس — غير كده يوصل لكل الأدمنز في النظام كله
     if (opts.targetUserId != null) {
       sendToUser(opts.targetUserId, payload);
+      // ── إشعار push للتليفون (مندوب/عميل) — منفصل تمامًا عن SSE، فشله ميأثرش
+      // على أي حاجة تانية. من غيره الإشعار كان بيوصل بس والتطبيق مفتوح فعليًا
+      // (SSE محتاج اتصال مفتوح)، فمكانش بيوصل لو التطبيق مقفول أو الموبايل نايم ──
+      sendPushToUser(opts.targetUserId, {
+        title: opts.title,
+        message: opts.message,
+        link: opts.link,
+        severity: opts.severity ?? "info",
+      }).catch(() => {});
     } else {
       broadcastToAllAdmins(payload, opts.excludeUserId);
       // ── إشعار push للتليفون (أدمن/مدير فقط، حالياً) — بشكل منفصل تمامًا،
