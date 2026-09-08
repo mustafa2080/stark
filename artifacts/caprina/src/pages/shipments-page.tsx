@@ -1519,9 +1519,8 @@ export default function Orders() {
     // السيرفر هو مصدر الحقيقة: يسجّل فتح واتساب وينقل فقط pending/waiting
     // إلى warehouse_ready، لذلك أي حالة أخرى تظل كما هي حتى مع ضغط الزر.
     const shouldMoveToWarehouse = status === "pending" || status === "waiting";
-    void apiFetch(`/shipments/${order.id}`, {
-      method: "PATCH",
-      body: JSON.stringify({ whatsappSent: true }),
+    void apiFetch(`/shipments/${order.id}/whatsapp-opened`, {
+      method: "POST",
     }).then(() => {
       queryClient.invalidateQueries({ queryKey: ["shipments-list"] });
       queryClient.invalidateQueries({ queryKey: ["shipments-stats"] });

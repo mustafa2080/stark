@@ -1384,6 +1384,54 @@ router.patch("/shipments/bulk-status", async (req, res): Promise<void> => {
   }
 });
 
+// ─── POST /shipments/:id/whatsapp-opened ─────────────────────────────────────
+// مسار صغير مستقل عن PATCH العام. لا يقرأ صف الشحنة الكامل لأن قواعد بيانات
+// قديمة قد لا تحتوي أعمدة أضيفت لاحقاً؛ فتح واتساب يحتاج الحالة والعميل فقط.
+router.post("/shipments/:id/whatsapp-opened", async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const id = Number.parseInt(req.params.id, 10);
+    if (!Number.isInteger(id) || id <= 0) {
+      res.status(400).json({ error: "معرّف الشحنة غير صالح" });
+      return;
+    }
+
+    const [rows] = await db.execute(sql`
+      SELECT id, status, client_id FROM shipments WHERE id = ${id} LIMIT 1
+    `) as any;
+    const shipment = rows?.[0];
+    if (!shipment) {
+      res.status(404).json({ error: "الشحنة غير موجودة" });
+      return;
+    }
+    if (await rejectIfShipmentLocked(res, id, (req as any).user?.role)) return;
+
+    const canMoveToWarehouse = shipment.status === "pending" || shipment.status === "waiting";
+    if (canMoveToWarehouse) {
+      await db.execute(sql`
+        UPDATE shipments SET status = ${"warehouse_ready"}, updated_at = ${new Date()}
+        WHERE id = ${id}
+      `);
+      invalidateSmartCache(tenantId);
+      invalidateChartsCache(tenantId);
+
+      // لا نؤخر رسالة واتساب لو تكامل بيان العميل واجه بيانات قديمة؛ هذه
+      // الإضافة idempotent وستعمل في المحاولة/التشغيل التاليين أيضاً.
+      void autoAddShipmentToClientAccountManifest(id, shipment.client_id ?? null, tenantId, "warehouse_ready")
+        .catch(err => console.error("[POST /shipments/:id/whatsapp-opened] auto-add failed", { id, err }));
+    }
+
+    res.json({
+      success: true,
+      status: canMoveToWarehouse ? "warehouse_ready" : shipment.status,
+      transitioned: canMoveToWarehouse,
+    });
+  } catch (err) {
+    console.error("[POST /shipments/:id/whatsapp-opened]", err);
+    res.status(500).json({ error: "تعذر تسجيل فتح واتساب" });
+  }
+});
+
 // ─── PATCH /shipments/:id — alias for PUT (partial update) ───────────────────
 router.patch("/shipments/:id", async (req, res): Promise<void> => {
   try {
