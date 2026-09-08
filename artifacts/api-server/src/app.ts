@@ -270,6 +270,24 @@ async function ensureShippingManifestColumns() {
 }
 if (IS_PRIMARY_INSTANCE) ensureShippingManifestColumns();
 
+// ─── Ensure shipments.whatsapp_sent_at exists ────────────────────────────────
+// This field is part of the shipments Drizzle schema and is selected by the
+// client-finance calculations.  Keeping the production schema in step here
+// prevents an old database from taking down GET /finance/clients.
+async function ensureShipmentWhatsappSentAt() {
+  try {
+    await db.execute(sql`
+      ALTER TABLE shipments ADD COLUMN IF NOT EXISTS whatsapp_sent_at DATETIME NULL
+    `);
+    logger.info("shipments.whatsapp_sent_at column ensured");
+  } catch (err: any) {
+    if (err?.message && !err.message.includes("Duplicate column")) {
+      logger.error({ err }, "Failed to ensure shipments.whatsapp_sent_at column");
+    }
+  }
+}
+if (IS_PRIMARY_INSTANCE) ensureShipmentWhatsappSentAt();
+
 // ─── Ensure shipping_companies.logo column exists ─────────────────────────────
 async function ensureShippingCompanyLogo() {
   try {
