@@ -27,6 +27,7 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { RETURN_REASONS } from "@/lib/order-constants";
 import { applyDeliveryReadyTemplate } from "@/lib/whatsapp";
 import { ProfessionalBottomNav, type NavItem } from "@/components/professional-bottom-nav";
+import { PushNotificationsCard } from "@/pages/profile";
 
 const STATUS_LABELS: Record<string, string> = {
   waiting: "قيد الانتظار", pending: "قيد الانتظار",
@@ -3959,6 +3960,9 @@ function ProfileTab({ user, company, logout, d, allShipments, onNavigate }: {
         </span>
         <ChevronLeft className="w-4 h-4 text-muted-foreground" />
       </button>
+
+      {/* إشعارات النظام (Web Push) */}
+      <PushNotificationsCard />
 
       {/* تسجيل خروج */}
       <div className="rounded-2xl border border-red-500/30 bg-red-500/5 p-4">

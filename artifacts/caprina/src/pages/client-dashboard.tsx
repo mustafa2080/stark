@@ -15,6 +15,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PushNotificationsCard } from "@/pages/profile";
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 const fc = (n: number | string) =>
@@ -564,6 +565,9 @@ export default function ClientDashboardPage() {
             </button>
           </div>
         </div>
+
+        {/* ── Push Notifications ── */}
+        <PushNotificationsCard />
 
         {/* ── Top Grid: sidebar cards + donut ── */}
         <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4">

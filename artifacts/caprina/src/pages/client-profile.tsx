@@ -14,6 +14,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { PushNotificationsCard } from "@/pages/profile";
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis,
   Tooltip, ResponsiveContainer, Cell,
@@ -452,6 +453,9 @@ export default function ClientProfilePage() {
           </div>
         )}
       </div>
+
+      {/* إشعارات النظام (Web Push) */}
+      <PushNotificationsCard />
 
     </div>
   );

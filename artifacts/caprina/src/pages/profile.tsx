@@ -2226,7 +2226,7 @@ function SettingsTab({ user, avatarB64, setAvatarB64, avatarMutation, handleSave
 }
 
 /* ── إشعارات النظام (Web Push) ── */
-function PushNotificationsCard() {
+export function PushNotificationsCard() {
   const { status, isSubscribed, isLoading, permission, subscribe, unsubscribe } = usePushNotifications();
   const { toast } = useToast();
   const { isAdmin } = useAuth();
