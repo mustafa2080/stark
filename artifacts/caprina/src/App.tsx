@@ -10,6 +10,7 @@ import { ThemeProvider } from "@/contexts/ThemeContext";
 import { BrandLogoMark } from "@/components/brand-logo";
 import Layout from "@/components/layout";
 import { SubscriptionBlocker } from "@/components/subscription-blocker";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
 
 // ─── Splash Screen ────────────────────────────────────────────────────────────
 function SplashScreen({ onDone }: { onDone: () => void }) {
@@ -411,6 +412,22 @@ function PermissionRefresher() {
   return null;
 }
 
+// مزامنة اشتراك الـ Push للأدمن فقط في كل فتح للتطبيق. لا نطلب صلاحية جديدة
+// هنا؛ لا يحدث أي prompt إلا من الزر الواضح في صفحة الملف الشخصي.
+function AdminPushSubscriptionSync() {
+  const { user, isAdmin } = useAuth();
+  const { permission, ensureSubscribed } = usePushNotifications();
+  const syncedUserId = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!user || !isAdmin || permission !== "granted" || syncedUserId.current === user.id) return;
+    syncedUserId.current = user.id;
+    void ensureSubscribed();
+  }, [user, isAdmin, permission, ensureSubscribed]);
+
+  return null;
+}
+
 // ─── Auth guard (shown once, blocks pre-auth rendering) ──────────────────────
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -676,6 +693,7 @@ function App() {
                   <ErrorBoundary onRetry={() => queryClient.clear()}>
                     <ScrollToTop />
                     <PermissionRefresher />
+                    <AdminPushSubscriptionSync />
                     <Router />
                     <SubscriptionBlocker />
                   </ErrorBoundary>

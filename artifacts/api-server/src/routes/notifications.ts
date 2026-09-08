@@ -40,7 +40,7 @@ export default router;
 // ─── Protected routes (need requireAuth applied by caller router group) ──────
 export const notificationsProtectedRouter: IRouter = Router();
 
-const ADMIN_ROLES = new Set(["admin", "super_admin"]);
+const ADMIN_ROLES = new Set(["admin", "super_admin", "super-admin"]);
 
 // GET /notifications — آخر الإشعارات (افتراضي 30)
 // الأدمن (admin/super_admin) يشوف كل الإشعارات العامة في النظام كله بغض النظر عن الـ tenant

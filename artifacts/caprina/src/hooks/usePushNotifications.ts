@@ -74,6 +74,43 @@ export function usePushNotifications() {
     }
   }, []);
 
+  // لا نطلب الإذن تلقائياً: المتصفحات تمنع ذلك وقد تعتبره تجربة مزعجة.
+  // لكن إذا كان الأدمن وافق عليه سابقاً، نعيد تسجيل الاشتراك تلقائياً عند فتح
+  // التطبيق. هذا يصلح حالة أن اشتراكاً قديماً فشل بسبب إعداد السيرفر أو تغيّر
+  // endpoint بعد تحديث المتصفح.
+  const ensureSubscribed = useCallback(async (): Promise<boolean> => {
+    if (!("Notification" in window) || detectSupportStatus() !== "supported" || Notification.permission !== "granted") return false;
+    try {
+      const { notificationsApi } = await import("@/lib/api");
+      const reg = await navigator.serviceWorker.ready;
+      const existing = await reg.pushManager.getSubscription();
+      if (!existing) {
+        const { publicKey } = await notificationsApi.getVapidKey();
+        const sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(publicKey),
+        });
+        const json = sub.toJSON();
+        await notificationsApi.subscribe({
+          endpoint: json.endpoint!,
+          keys: { p256dh: json.keys!.p256dh, auth: json.keys!.auth },
+        });
+      } else {
+        // نعيد إرساله دائماً: السيرفر قد يكون فقد الـ subscription بعد deploy.
+        const json = existing.toJSON();
+        await notificationsApi.subscribe({
+          endpoint: json.endpoint!,
+          keys: { p256dh: json.keys!.p256dh, auth: json.keys!.auth },
+        });
+      }
+      setIsSubscribed(true);
+      return true;
+    } catch (err) {
+      console.warn("[usePushNotifications] automatic subscription sync failed:", err);
+      return false;
+    }
+  }, []);
+
   const unsubscribe = useCallback(async (): Promise<boolean> => {
     setIsLoading(true);
     try {
@@ -94,5 +131,5 @@ export function usePushNotifications() {
     }
   }, []);
 
-  return { status, isSubscribed, isLoading, permission, subscribe, unsubscribe };
+  return { status, isSubscribed, isLoading, permission, subscribe, unsubscribe, ensureSubscribed };
 }

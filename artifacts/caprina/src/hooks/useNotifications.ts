@@ -57,6 +57,24 @@ export function useNotifications() {
   const [isLoading, setIsLoading] = useState(true);
   const esRef = useRef<EventSource | null>(null);
 
+  const showSystemNotification = useCallback(async (data: AppNotification) => {
+    // الـ toast يكفي والتطبيق أمام المستخدم. عند تصغير/فقدان تركيز تطبيق الأدمن
+    // نعرض إشعار نظام فعلي خارج نافذة الـPWA.
+    if (!("Notification" in window) || document.visibilityState === "visible" || Notification.permission !== "granted") return;
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      await reg.showNotification(data.title, {
+        body: data.message || "",
+        icon: "/icon-192.png",
+        badge: "/icon-192.png",
+        tag: `caprina-notification-${data.id}`,
+        data: { link: data.link || "/" },
+      });
+    } catch (err) {
+      console.warn("[notifications] system notification failed:", err);
+    }
+  }, []);
+
   const loadInitial = useCallback(async () => {
     try {
       const { notificationsApi } = await import("@/lib/api");
@@ -106,6 +124,7 @@ export function useNotifications() {
         setNotifications((prev) => [data, ...prev].slice(0, 50));
         setUnreadCount((c) => c + 1);
         playNotificationChime(data.severity);
+        void showSystemNotification(data);
         toast({
           title: data.title,
           description: data.message || undefined,
@@ -122,7 +141,7 @@ export function useNotifications() {
       es.close();
       esRef.current = null;
     };
-  }, [user, loadInitial, toast]);
+  }, [user, loadInitial, toast, showSystemNotification]);
 
   return {
     notifications,

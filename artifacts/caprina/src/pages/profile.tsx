@@ -2225,7 +2225,7 @@ function SettingsTab({ user, avatarB64, setAvatarB64, avatarMutation, handleSave
   );
 }
 
-/* ── إشعارات التليفون (Web Push) ── */
+/* ── إشعارات النظام (Web Push) ── */
 function PushNotificationsCard() {
   const { status, isSubscribed, isLoading, permission, subscribe, unsubscribe } = usePushNotifications();
   const { toast } = useToast();
@@ -2239,7 +2239,7 @@ function PushNotificationsCard() {
     } else {
       const ok = await subscribe();
       toast(ok
-        ? { title: "تم تفعيل الإشعارات 🎉", description: "هتوصلك إشعارات الشحنات على شريط التليفون" }
+        ? { title: "تم تفعيل الإشعارات 🎉", description: "هتوصلك إشعارات الشحنات كتنبية نظام حتى عند تصغير التطبيق" }
         : { title: "لم يتم التفعيل", description: permission === "denied" ? "الإشعارات ممنوعة من إعدادات المتصفح" : "حاول مرة أخرى", variant: "destructive" });
     }
   };
@@ -2247,10 +2247,10 @@ function PushNotificationsCard() {
   return (
     <Card className="border">
       <CardContent className="p-6">
-        <h3 className="font-bold text-sm mb-4 flex items-center gap-2"><Shield className="w-4 h-4 text-primary" />إشعارات التليفون</h3>
+        <h3 className="font-bold text-sm mb-4 flex items-center gap-2"><Shield className="w-4 h-4 text-primary" />إشعارات النظام</h3>
 
         {status === "unsupported" && (
-          <p className="text-xs text-muted-foreground">المتصفح ده مش بيدعم إشعارات التليفون.</p>
+          <p className="text-xs text-muted-foreground">هذا المتصفح لا يدعم إشعارات النظام.</p>
         )}
 
         {status === "ios-needs-install" && (
@@ -2263,8 +2263,8 @@ function PushNotificationsCard() {
           <div className="flex items-center justify-between gap-4">
             <p className="text-xs text-muted-foreground max-w-xs">
               {isSubscribed
-                ? "الإشعارات مفعّلة على هذا الجهاز — هتوصلك الأحداث حتى لو الموقع مقفول."
-                : "فعّل الإشعارات عشان توصلك أحداث الشحنات على شريط التليفون فورًا."}
+                ? "الإشعارات مفعّلة على هذا الجهاز — هتوصلك الأحداث حتى لو التطبيق مقفول."
+                : "فعّل الإشعارات لتصلك أحداث الشحنات كتنبية نظام فورًا."}
             </p>
             <Button size="sm" variant={isSubscribed ? "outline" : "default"} onClick={handleToggle} disabled={isLoading} className="gap-2 shrink-0">
               {isLoading

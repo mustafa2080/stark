@@ -11,7 +11,8 @@ const notifSseClientsByUser = new Map<number, Set<Response>>();
 // الإشعارات العامة (زي "شحنة جديدة من العميل") المفروض توصل لأي أدمن في النظام كله
 const notifSseAdminClients = new Set<Response>();
 
-const ADMIN_ROLES = new Set(["admin", "super_admin"]);
+// متوافق مع القيمة القديمة super-admin أيضاً.
+const ADMIN_ROLES = new Set(["admin", "super_admin", "super-admin"]);
 
 function tenantKey(tenantId: number | null | undefined): string {
   return tenantId == null ? "global" : String(tenantId);

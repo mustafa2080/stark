@@ -14,7 +14,9 @@ if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
   console.warn("[webPush] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY غير مضبوطين — إشعارات التليفون معطّلة");
 }
 
-const ADMIN_ROLES = ["admin", "super_admin"];
+// بعض الحسابات القديمة كانت محفوظة بـ super-admin، بينما الجديدة تستخدم
+// super_admin. لازم الاتنين يستقبلوا الـ Push حتى لا يضيع تنبيه المدير العام.
+const ADMIN_ROLES = ["admin", "super_admin", "super-admin"];
 
 interface WebPushPayload {
   title: string;
