@@ -403,7 +403,18 @@ router.get("/finance/clients", async (req, res): Promise<void> => {
     for (const clientId of openManifestClientIds) {
       const manifestId = latestManifestIdMap[clientId];
       if (manifestId == null) continue;
-      openManifestValueMap[clientId] = await computeClientManifestNetDue(manifestId);
+      try {
+        openManifestValueMap[clientId] = await computeClientManifestNetDue(manifestId);
+      } catch (err) {
+        // قيمة البيان المفتوح مجرد enrichment للفلتر. بيان قديم/معطوب واحد
+        // يجب ألا يمنع تحميل قائمة كل العملاء.
+        console.error("[GET /finance/clients] open manifest value failed", {
+          clientId,
+          manifestId,
+          err,
+        });
+        openManifestValueMap[clientId] = 0;
+      }
     }
 
     // ── رصيد العميل والمتبقي — نفس منطق computeClientBalancesForAllClients ────
