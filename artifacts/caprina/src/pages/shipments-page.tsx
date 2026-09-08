@@ -1516,25 +1516,23 @@ export default function Orders() {
     window.open(link, "_blank", "noopener,noreferrer");
     markWhatsAppOpened(order.id);
 
-    // واتساب يحوّل الشحنة فقط من «قيد الانتظار». كل الحالات الأخرى تبقى كما هي.
+    // السيرفر هو مصدر الحقيقة: يسجّل فتح واتساب وينقل فقط pending/waiting
+    // إلى warehouse_ready، لذلك أي حالة أخرى تظل كما هي حتى مع ضغط الزر.
     const shouldMoveToWarehouse = status === "pending" || status === "waiting";
-    if (!shouldMoveToWarehouse) {
-      toast({ title: "تم فتح واتساب ✅", description: "الرسالة جاهزة للإرسال وحالة الشحنة لم تتغير" });
-      return;
-    }
-
     void apiFetch(`/shipments/${order.id}`, {
       method: "PATCH",
-      body: JSON.stringify({ status: "warehouse_ready" }),
+      body: JSON.stringify({ whatsappSent: true }),
     }).then(() => {
       queryClient.invalidateQueries({ queryKey: ["shipments-list"] });
       queryClient.invalidateQueries({ queryKey: ["shipments-stats"] });
       toast({
         title: "تم فتح واتساب ✅",
-        description: "تم تحويل الشحنة إلى «قيد الشحن في المخزن»",
+        description: shouldMoveToWarehouse
+          ? "تم تحويل الشحنة إلى «قيد الشحن في المخزن»"
+          : "الرسالة جاهزة للإرسال وحالة الشحنة لم تتغير",
       });
     }).catch(() => {
-      toast({ title: "تعذر تحديث الحالة", description: "تم فتح الرسالة لكن لم تتحول الشحنة إلى حالة المخزن", variant: "destructive" });
+      toast({ title: "تعذر تسجيل فتح واتساب", description: "تم فتح الرسالة، لكن لم يُسجَّل الإجراء على الشحنة", variant: "destructive" });
     });
   };
 

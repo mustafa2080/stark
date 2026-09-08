@@ -1398,7 +1398,16 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
 
     const d = parsed.data;
     const updateData: any = { updatedAt: new Date() };
-    if (d.status            !== undefined) updateData.status            = d.status;
+    // فتح واتساب له انتقال حالة واحد مسموح به فقط: pending/waiting →
+    // warehouse_ready. لا نثق بحالة مرسلة من الواجهة في هذا المسار حتى لا
+    // يغيّر فتح واتساب شحنة في أي مرحلة أخرى.
+    if (d.status            !== undefined && !d.whatsappSent) updateData.status = d.status;
+    if (d.whatsappSent) {
+      updateData.whatsappSentAt = new Date();
+      if (existingShipment.status === "pending" || existingShipment.status === "waiting") {
+        updateData.status = "warehouse_ready";
+      }
+    }
     if (d.trackingNumber    !== undefined) updateData.trackingNumber    = d.trackingNumber;
     if (d.collectedAmount   !== undefined) updateData.collectedAmount   = String(d.collectedAmount);
     if (d.clientId          !== undefined) updateData.clientId          = d.clientId;
