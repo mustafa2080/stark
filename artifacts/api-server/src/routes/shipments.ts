@@ -364,6 +364,8 @@ const UpdateShipmentSchema = CreateShipmentSchema.partial().extend({
   assignedUserId: z.number().int().positive().nullish(),
   itemReceivedQuantities: z.record(z.string(), z.coerce.number().int().min(0)).nullish(),
   isReplacementRequested: z.union([z.boolean(), z.number()]).nullish(),
+  // لا يقبل العميل وقتاً من عنده؛ السيرفر هو الذي يسجل وقت ضغط زر واتساب.
+  whatsappSent: z.boolean().optional(),
   canOpen: z.union([z.boolean(), z.literal(0), z.literal(1)]).nullish(),
   isDivisible: z.union([z.boolean(), z.literal(0), z.literal(1)]).nullish(),
   rejectionPolicy: z.enum(["full_fee", "free"]).nullish(),
@@ -681,6 +683,7 @@ router.get("/shipments", async (req, res): Promise<void> => {
           totalAmount:      shipmentsTable.totalAmount,
           collectedAmount:  shipmentsTable.collectedAmount,
           status:           shipmentsTable.status,
+          whatsappSentAt:   shipmentsTable.whatsappSentAt,
           shippingCompanyId: shipmentsTable.shippingCompanyId,
           assignedUserId:   shipmentsTable.assignedUserId,
           createdByUserId:  shipmentsTable.createdByUserId,
@@ -1222,6 +1225,7 @@ router.put("/shipments/:id", async (req, res): Promise<void> => {
     if (d.canOpen           !== undefined) updateData.canOpen          = d.canOpen === null ? null : Number(d.canOpen);
     if (d.isDivisible       !== undefined) updateData.isDivisible      = d.isDivisible === null ? null : Number(d.isDivisible);
     if (d.rejectionPolicy   !== undefined) updateData.rejectionPolicy  = d.rejectionPolicy;
+    if (d.whatsappSent === true) updateData.whatsappSentAt = new Date();
 
     // totalAmount: بيتحسب دايمًا في السيرفر لو أي حقل داخل في معادلته اتغيّر
     // (paymentMethod/codAmount/shippingFee/insuranceFee) — بنفس منطق POST /shipments،
@@ -1442,6 +1446,7 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
     if (d.canOpen            !== undefined) updateData.canOpen           = d.canOpen === null ? null : Number(d.canOpen);
     if (d.isDivisible        !== undefined) updateData.isDivisible       = d.isDivisible === null ? null : Number(d.isDivisible);
     if (d.rejectionPolicy    !== undefined) updateData.rejectionPolicy   = d.rejectionPolicy;
+    if (d.whatsappSent === true) updateData.whatsappSentAt = new Date();
 
     // لو الحالة الجديدة مش returned ولا partial_received ولم يُرسَل returnReceived صريحًا
     // → نصفّره عشان ميفضلش متعلق بقيمة قديمة من حالة سابقة
