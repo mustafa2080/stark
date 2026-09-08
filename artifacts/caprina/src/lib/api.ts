@@ -2770,6 +2770,7 @@ export const notificationsApi = {
   getVapidKey: () => apiFetch<{ publicKey: string }>("/notifications/push/vapid-key"),
   subscribe: (sub: { endpoint: string; keys: { p256dh: string; auth: string } }) =>
     apiFetch<{ success: boolean }>("/notifications/push/subscribe", { method: "POST", body: JSON.stringify(sub) }),
+  testPush: () => apiFetch<{ success: boolean }>("/notifications/push/test", { method: "POST" }),
   unsubscribe: (endpoint: string) =>
     apiFetch<{ success: boolean }>("/notifications/push/subscribe", { method: "DELETE", body: JSON.stringify({ endpoint }) }),
 };

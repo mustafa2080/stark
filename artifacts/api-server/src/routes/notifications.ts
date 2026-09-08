@@ -3,7 +3,7 @@ import { desc, eq, and, sql } from "drizzle-orm";
 import { db, notificationsTable, pushSubscriptionsTable } from "@workspace/db";
 import { verifyToken } from "../lib/auth.js";
 import { registerNotifSseClient } from "../lib/notifications.js";
-import { getVapidPublicKey } from "../lib/webPush.js";
+import { getVapidPublicKey, isWebPushConfigured, sendPushToUser } from "../lib/webPush.js";
 
 const router: IRouter = Router();
 
@@ -124,6 +124,27 @@ notificationsProtectedRouter.post("/notifications/push/subscribe", async (req: R
       userId, endpoint, p256dh: keys.p256dh, auth: keys.auth,
     });
   }
+  res.json({ success: true });
+});
+
+// POST /notifications/push/test — اختبار حقيقي يصل للجهاز نفسه حتى لو الـPWA مقفول.
+// متاح للأدمن فقط ولا ينشئ سجلاً في جدول الإشعارات.
+notificationsProtectedRouter.post("/notifications/push/test", async (req: Request, res: Response): Promise<void> => {
+  const user = (req as any).user;
+  if (!user?.id) { res.status(401).json({ error: "غير مصرح" }); return; }
+  if (!ADMIN_ROLES.has(user.role)) { res.status(403).json({ error: "اختبار إشعارات النظام متاح للأدمن فقط" }); return; }
+  if (!isWebPushConfigured()) { res.status(503).json({ error: "مفاتيح إشعارات النظام غير مضبوطة على السيرفر" }); return; }
+
+  const subscriptions = await db.select({ id: pushSubscriptionsTable.id })
+    .from(pushSubscriptionsTable).where(eq(pushSubscriptionsTable.userId, user.id)).limit(1);
+  if (subscriptions.length === 0) { res.status(409).json({ error: "هذا الجهاز غير مشترك في إشعارات النظام بعد" }); return; }
+
+  await sendPushToUser(user.id, {
+    title: "اختبار إشعارات STARK",
+    message: "تم إرسال إشعار النظام بنجاح إلى هذا الجهاز.",
+    link: "/profile",
+    severity: "success",
+  });
   res.json({ success: true });
 });
 

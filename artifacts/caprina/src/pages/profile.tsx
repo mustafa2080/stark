@@ -21,7 +21,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import {
-  authApi, teamAnalyticsApi, employeeApi, ordersApi, apiFetch, attendanceApi,
+  authApi, teamAnalyticsApi, employeeApi, ordersApi, apiFetch, attendanceApi, notificationsApi,
   type TeamMemberExtStats, type EmployeeProfile,
   type EmployeeReport, type EvaluatedKpi,
   type Attendance, type AttendanceSalaryReport, type PayrollAdjustment, type MonthlySalaryReport,
@@ -2229,6 +2229,8 @@ function SettingsTab({ user, avatarB64, setAvatarB64, avatarMutation, handleSave
 function PushNotificationsCard() {
   const { status, isSubscribed, isLoading, permission, subscribe, unsubscribe } = usePushNotifications();
   const { toast } = useToast();
+  const { isAdmin } = useAuth();
+  const [isTesting, setIsTesting] = useState(false);
 
   const handleToggle = async () => {
     if (isSubscribed) {
@@ -2241,6 +2243,18 @@ function PushNotificationsCard() {
       toast(ok
         ? { title: "تم تفعيل الإشعارات 🎉", description: "هتوصلك إشعارات الشحنات كتنبية نظام حتى عند تصغير التطبيق" }
         : { title: "لم يتم التفعيل", description: permission === "denied" ? "الإشعارات ممنوعة من إعدادات المتصفح" : "حاول مرة أخرى", variant: "destructive" });
+    }
+  };
+
+  const sendTest = async () => {
+    setIsTesting(true);
+    try {
+      await notificationsApi.testPush();
+      toast({ title: "تم إرسال الاختبار", description: "صغّر أو اقفل التطبيق الآن وتأكد من ظهور تنبيه ويندوز." });
+    } catch (err: any) {
+      toast({ title: "تعذّر إرسال الاختبار", description: err?.message || "تأكد من تفعيل إشعارات النظام ثم أعد المحاولة.", variant: "destructive" });
+    } finally {
+      setIsTesting(false);
     }
   };
 
@@ -2266,12 +2280,19 @@ function PushNotificationsCard() {
                 ? "الإشعارات مفعّلة على هذا الجهاز — هتوصلك الأحداث حتى لو التطبيق مقفول."
                 : "فعّل الإشعارات لتصلك أحداث الشحنات كتنبية نظام فورًا."}
             </p>
-            <Button size="sm" variant={isSubscribed ? "outline" : "default"} onClick={handleToggle} disabled={isLoading} className="gap-2 shrink-0">
-              {isLoading
-                ? <div className="w-3.5 h-3.5 rounded-full border-2 border-current border-t-transparent animate-spin" />
-                : <Shield className="w-3.5 h-3.5" />}
-              {isSubscribed ? "إيقاف الإشعارات" : "تفعيل الإشعارات"}
-            </Button>
+            <div className="flex items-center gap-2 shrink-0">
+              {isAdmin && isSubscribed && (
+                <Button size="sm" variant="secondary" onClick={sendTest} disabled={isTesting}>
+                  {isTesting ? "جارِ الإرسال..." : "إرسال اختبار"}
+                </Button>
+              )}
+              <Button size="sm" variant={isSubscribed ? "outline" : "default"} onClick={handleToggle} disabled={isLoading} className="gap-2">
+                {isLoading
+                  ? <div className="w-3.5 h-3.5 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                  : <Shield className="w-3.5 h-3.5" />}
+                {isSubscribed ? "إيقاف الإشعارات" : "تفعيل الإشعارات"}
+              </Button>
+            </div>
           </div>
         )}
       </CardContent>

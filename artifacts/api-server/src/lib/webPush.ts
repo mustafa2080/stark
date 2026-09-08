@@ -82,3 +82,7 @@ async function sendPushToUsers(userIds: number[], payload: WebPushPayload): Prom
 export function getVapidPublicKey(): string | undefined {
   return VAPID_PUBLIC_KEY;
 }
+
+export function isWebPushConfigured(): boolean {
+  return configured;
+}
