@@ -65,8 +65,9 @@ export function useNotifications() {
       const reg = await navigator.serviceWorker.ready;
       await reg.showNotification(data.title, {
         body: data.message || "",
-        icon: "/icon-192.png",
-        badge: "/icon-192.png",
+        icon: "/icon-512.png",
+        badge: "/notification-badge.svg",
+        image: "/icon-512.png",
         tag: `caprina-notification-${data.id}`,
         data: { link: data.link || "/" },
       });

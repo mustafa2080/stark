@@ -6,7 +6,7 @@
 //   • API calls (/api/*)    → Network Only (never cache)
 //   • Video/audio files     → Network Only (Range requests / 206 not cacheable)
 
-const CACHE_VERSION = "caprina-v12";
+const CACHE_VERSION = "caprina-v13";
 const STATIC_CACHE  = `${CACHE_VERSION}-static`;
 const NAV_CACHE     = `${CACHE_VERSION}-nav`;
 const ALL_CACHES    = [STATIC_CACHE, NAV_CACHE];
@@ -160,8 +160,11 @@ self.addEventListener("push", (event) => {
   const title = data.title || "إشعار جديد";
   const options = {
     body: data.body || "",
-    icon: "/icon-192.png",
-    badge: "/icon-192.png",
+    // icon يظهر داخل بطاقة الإشعار؛ نستخدم الشعار عالي الدقة عشان يفضل واضح
+    // على شاشات الموبايل الحديثة. الـ badge له ملف أحادي اللون مخصص لأندرويد.
+    icon: "/icon-512.png",
+    badge: "/notification-badge.svg",
+    image: "/icon-512.png",
     data: { link: data.link || "/" },
     tag: data.severity === "error" || data.severity === "warning" ? "urgent" : undefined,
   };
