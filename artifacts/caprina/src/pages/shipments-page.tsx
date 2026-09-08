@@ -972,6 +972,23 @@ export default function Orders() {
   const [pageSize, setPageSize] = useState(100);
   const PAGE_SIZE = pageSize;
   const [page, setPage] = useState(1);
+  // علامة واتساب تظل محفوظة بعد refresh، من غير أن نعطل شاشة الشحنات لو كان
+  // عمود قاعدة البيانات الخاص بها لم يُرحّل بعد على السيرفر.
+  const [whatsAppOpenedIds, setWhatsAppOpenedIds] = useState<Set<number>>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("shipments-whatsapp-opened") ?? "[]");
+      return new Set(Array.isArray(saved) ? saved.filter(Number.isInteger) : []);
+    } catch {
+      return new Set();
+    }
+  });
+  const markWhatsAppOpened = (shipmentId: number) => {
+    setWhatsAppOpenedIds(previous => {
+      const next = new Set(previous).add(shipmentId);
+      localStorage.setItem("shipments-whatsapp-opened", JSON.stringify([...next]));
+      return next;
+    });
+  };
 
   // لما البحث أو الفلاتر تتغيّر، لازم نرجع لأول صفحة عشان النتايج تظهر على طول
   // بدل ما اليوزر يفضل واقف في صفحة بعيدة ملهاش نتايج
@@ -1497,27 +1514,27 @@ export default function Orders() {
 
     const link = buildWhatsAppLink(phone, message);
     window.open(link, "_blank", "noopener,noreferrer");
+    markWhatsAppOpened(order.id);
 
     // واتساب يحوّل الشحنة فقط من «قيد الانتظار». كل الحالات الأخرى تبقى كما هي.
-    // نسجل الضغط في قاعدة البيانات كي تبقى الأيقونة مطفأة بعد إعادة تحميل الصفحة.
     const shouldMoveToWarehouse = status === "pending" || status === "waiting";
+    if (!shouldMoveToWarehouse) {
+      toast({ title: "تم فتح واتساب ✅", description: "الرسالة جاهزة للإرسال وحالة الشحنة لم تتغير" });
+      return;
+    }
+
     void apiFetch(`/shipments/${order.id}`, {
       method: "PATCH",
-      body: JSON.stringify({
-        whatsappSent: true,
-        ...(shouldMoveToWarehouse ? { status: "warehouse_ready" } : {}),
-      }),
+      body: JSON.stringify({ status: "warehouse_ready" }),
     }).then(() => {
       queryClient.invalidateQueries({ queryKey: ["shipments-list"] });
       queryClient.invalidateQueries({ queryKey: ["shipments-stats"] });
       toast({
         title: "تم فتح واتساب ✅",
-        description: shouldMoveToWarehouse
-          ? "تم تحويل الشحنة إلى «قيد الشحن في المخزن»"
-          : "الرسالة جاهزة للإرسال وحالة الشحنة لم تتغير",
+        description: "تم تحويل الشحنة إلى «قيد الشحن في المخزن»",
       });
     }).catch(() => {
-      toast({ title: "تعذر تسجيل إرسال واتساب", description: "تم فتح الرسالة لكن لم يتم تحديث حالة الإرسال", variant: "destructive" });
+      toast({ title: "تعذر تحديث الحالة", description: "تم فتح الرسالة لكن لم تتحول الشحنة إلى حالة المخزن", variant: "destructive" });
     });
   };
 
@@ -2004,7 +2021,7 @@ export default function Orders() {
                           📞 {(o.receiverPhone || o.senderPhone || order.phone) || "—"}
                         </span>
                         {canWhatsApp && (
-                          <button title={(order as any).whatsappSentAt ? "تم فتح واتساب لهذه الشحنة سابقاً" : "فتح واتساب"} className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-colors ${(order as any).whatsappSentAt ? "text-muted-foreground hover:bg-muted" : "text-green-500 hover:bg-green-500/10"}`} onClick={(e) => handleWhatsApp(e, order)}>
+                          <button title={whatsAppOpenedIds.has(order.id) ? "تم فتح واتساب لهذه الشحنة سابقاً" : "فتح واتساب"} className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-colors ${whatsAppOpenedIds.has(order.id) ? "text-muted-foreground hover:bg-muted" : "text-green-500 hover:bg-green-500/10"}`} onClick={(e) => handleWhatsApp(e, order)}>
                             <MessageCircle className="w-4 h-4" />
                           </button>
                         )}
@@ -2134,7 +2151,7 @@ export default function Orders() {
                       </div>
                     </div>
                     {canWhatsApp && (
-                      <button title={(order as any).whatsappSentAt ? "تم فتح واتساب لهذه الشحنة سابقاً" : "فتح واتساب"} className={`shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-colors ${(order as any).whatsappSentAt ? "text-muted-foreground hover:bg-muted" : "text-green-500 hover:bg-green-500/10"}`} onClick={(e) => handleWhatsApp(e, order)}>
+                      <button title={whatsAppOpenedIds.has(order.id) ? "تم فتح واتساب لهذه الشحنة سابقاً" : "فتح واتساب"} className={`shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-colors ${whatsAppOpenedIds.has(order.id) ? "text-muted-foreground hover:bg-muted" : "text-green-500 hover:bg-green-500/10"}`} onClick={(e) => handleWhatsApp(e, order)}>
                         <MessageCircle className="w-4.5 h-4.5" />
                       </button>
                     )}
@@ -2388,7 +2405,7 @@ export default function Orders() {
                         </TableCell>
                         <TableCell className="text-center p-1">
                           {canWhatsApp && (
-                            <Button size="icon" variant="ghost" title={(order as any).whatsappSentAt ? "تم فتح واتساب لهذه الشحنة سابقاً" : "فتح واتساب"} className={`h-7 w-7 rounded-full ${(order as any).whatsappSentAt ? "text-muted-foreground hover:text-muted-foreground hover:bg-muted" : "text-green-500 hover:text-green-400 hover:bg-green-500/10"}`} onClick={(e) => handleWhatsApp(e, order)}>
+                            <Button size="icon" variant="ghost" title={whatsAppOpenedIds.has(order.id) ? "تم فتح واتساب لهذه الشحنة سابقاً" : "فتح واتساب"} className={`h-7 w-7 rounded-full ${whatsAppOpenedIds.has(order.id) ? "text-muted-foreground hover:text-muted-foreground hover:bg-muted" : "text-green-500 hover:text-green-400 hover:bg-green-500/10"}`} onClick={(e) => handleWhatsApp(e, order)}>
                               <MessageCircle className="w-4 h-4" />
                             </Button>
                           )}
