@@ -277,11 +277,13 @@ if (IS_PRIMARY_INSTANCE) ensureShippingManifestColumns();
 async function ensureShipmentWhatsappSentAt() {
   try {
     await db.execute(sql`
-      ALTER TABLE shipments ADD COLUMN IF NOT EXISTS whatsapp_sent_at DATETIME NULL
+      ALTER TABLE shipments ADD COLUMN whatsapp_sent_at DATETIME NULL
     `);
     logger.info("shipments.whatsapp_sent_at column ensured");
   } catch (err: any) {
-    if (err?.message && !err.message.includes("Duplicate column")) {
+    // صيغة IF NOT EXISTS ليست مدعومة في بعض إصدارات MySQL المستضافة، لذلك
+    // نستخدم الصيغة المتوافقة ونستثني فقط خطأ العمود الموجود بالفعل.
+    if (err?.message && !err.message.includes("Duplicate column") && err?.code !== "ER_DUP_FIELDNAME") {
       logger.error({ err }, "Failed to ensure shipments.whatsapp_sent_at column");
     }
   }

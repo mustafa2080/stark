@@ -1403,7 +1403,6 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
     // يغيّر فتح واتساب شحنة في أي مرحلة أخرى.
     if (d.status            !== undefined && !d.whatsappSent) updateData.status = d.status;
     if (d.whatsappSent) {
-      updateData.whatsappSentAt = new Date();
       if (existingShipment.status === "pending" || existingShipment.status === "waiting") {
         updateData.status = "warehouse_ready";
       }
