@@ -14,6 +14,7 @@ import {
 import {
   Plus, Trash2, Lock, CheckCircle2, Truck, Users, Archive,
   Wallet, Smartphone, Building2, Banknote, AlertTriangle, TrendingDown,
+  ArrowDownWideNarrow, ArrowUpNarrowWide, ArrowUpDown,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -69,6 +70,8 @@ export default function FinanceTripSettlement() {
   const [clientFilter, setClientFilter] = useState<"all" | "paid" | "pending">("all");
   const [editingRepId, setEditingRepId] = useState<number | null>(null);
   const [editingRepName, setEditingRepName] = useState("");
+  const [clientSortDesc, setClientSortDesc] = useState<boolean | null>(null);
+  const [repSortDesc, setRepSortDesc] = useState<boolean | null>(null);
 
   // ── جلب البيان الحالي (لو viewingId === "current") أو بيان مؤرشف محدد ──────
   const { data: currentData } = useQuery({
@@ -92,13 +95,19 @@ export default function FinanceTripSettlement() {
   });
 
   const settlement: Settlement | undefined = detail?.settlement;
-  const reps: Rep[] = detail?.reps ?? [];
+  const repsRaw: Rep[] = detail?.reps ?? [];
   const clients: ClientRow[] = detail?.clients ?? [];
-  const filteredClients = clients.filter(c => {
+  const reps = repSortDesc === null
+    ? repsRaw
+    : [...repsRaw].sort((a, b) => (repSortDesc ? -1 : 1) * (Number(a.balance) - Number(b.balance)));
+  const filteredClientsRaw = clients.filter(c => {
     if (clientFilter === "paid") return c.status === "paid";
     if (clientFilter === "pending") return c.status !== "paid";
     return true;
   });
+  const filteredClients = clientSortDesc === null
+    ? filteredClientsRaw
+    : [...filteredClientsRaw].sort((a, b) => (clientSortDesc ? -1 : 1) * (Number(a.balance) - Number(b.balance)));
   const isOpen = settlement?.status === "open";
 
   function invalidateAll() {
@@ -314,11 +323,25 @@ export default function FinanceTripSettlement() {
                 <h2 className="font-bold flex items-center gap-2 text-blue-500">
                   <Truck className="w-4 h-4" /> المناديب
                 </h2>
-                {isOpen && (
-                  <Button size="sm" variant="outline" onClick={() => setAddRepOpen(true)}>
-                    <Plus className="w-3.5 h-3.5 ml-1" /> إضافة مندوب
-                  </Button>
-                )}
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setRepSortDesc(v => v === true ? false : true)}
+                    title={repSortDesc === true ? "مرتب: الأعلى رصيدًا أولاً" : repSortDesc === false ? "مرتب: الأقل رصيدًا أولاً" : "ترتيب حسب الرصيد"}
+                    className={`h-8 w-8 flex items-center justify-center rounded-lg border transition-all ${
+                      repSortDesc !== null
+                        ? "bg-blue-500/15 border-blue-500/40 text-blue-500 shadow-[0_0_0_1px_rgba(59,130,246,0.15)]"
+                        : "border-border text-muted-foreground hover:border-blue-500/30 hover:text-blue-500"
+                    }`}
+                  >
+                    {repSortDesc === true ? <ArrowDownWideNarrow className="w-4 h-4" /> : repSortDesc === false ? <ArrowUpNarrowWide className="w-4 h-4" /> : <ArrowUpDown className="w-4 h-4" />}
+                  </button>
+                  {isOpen && (
+                    <Button size="sm" variant="outline" onClick={() => setAddRepOpen(true)}>
+                      <Plus className="w-3.5 h-3.5 ml-1" /> إضافة مندوب
+                    </Button>
+                  )}
+                </div>
               </div>
               <div className="space-y-2">
                 {reps.length === 0 && <p className="text-xs text-muted-foreground text-center py-6">لا يوجد مناديب في هذه الرحلة</p>}
@@ -415,11 +438,25 @@ export default function FinanceTripSettlement() {
                 <h2 className="font-bold flex items-center gap-2 text-pink-500">
                   <Users className="w-4 h-4" /> العملاء
                 </h2>
-                {isOpen && (
-                  <Button size="sm" variant="outline" onClick={() => setAddClientOpen(true)}>
-                    <Plus className="w-3.5 h-3.5 ml-1" /> إضافة عميل
-                  </Button>
-                )}
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setClientSortDesc(v => v === true ? false : true)}
+                    title={clientSortDesc === true ? "مرتب: الأعلى رصيدًا أولاً" : clientSortDesc === false ? "مرتب: الأقل رصيدًا أولاً" : "ترتيب حسب الرصيد"}
+                    className={`h-8 w-8 flex items-center justify-center rounded-lg border transition-all ${
+                      clientSortDesc !== null
+                        ? "bg-pink-500/15 border-pink-500/40 text-pink-500 shadow-[0_0_0_1px_rgba(236,72,153,0.15)]"
+                        : "border-border text-muted-foreground hover:border-pink-500/30 hover:text-pink-500"
+                    }`}
+                  >
+                    {clientSortDesc === true ? <ArrowDownWideNarrow className="w-4 h-4" /> : clientSortDesc === false ? <ArrowUpNarrowWide className="w-4 h-4" /> : <ArrowUpDown className="w-4 h-4" />}
+                  </button>
+                  {isOpen && (
+                    <Button size="sm" variant="outline" onClick={() => setAddClientOpen(true)}>
+                      <Plus className="w-3.5 h-3.5 ml-1" /> إضافة عميل
+                    </Button>
+                  )}
+                </div>
               </div>
               <div className="flex items-center gap-1.5 mb-3">
                 {([
