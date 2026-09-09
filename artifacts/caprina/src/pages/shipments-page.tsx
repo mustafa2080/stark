@@ -1046,12 +1046,13 @@ export default function Orders() {
   const [bulkInShippingCourierId, setBulkInShippingCourierId] = useState<number | null>(null);
 
   // قالب واتساب — يتحمل مرة وبيستخدمه الـ handleWhatsApp مباشرة
+  // ملحوظة: الـ endpoint متاح لأي مستخدم مسجّل دخول (requireAuth فقط في السيرفر)
+  // لازم يفضل مفعّل لغير الأدمن كمان، وإلا موظف/مندوب هياخد رسالة fallback بسيطة بدل القالب المحفوظ
   const { data: waSettings } = useQuery<WaSettings>({
     queryKey: ["whatsapp-settings"],
     queryFn: () => apiFetch<WaSettings>("/whatsapp/settings"),
     staleTime: 5 * 60 * 1000,
     retry: false,
-    enabled: isAdmin,
   });
 
   const { data: shippingCompanies = [] } = useQuery<any[]>({
