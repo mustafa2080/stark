@@ -462,13 +462,13 @@ function ShipmentFormDialog({
                       <SelectItem key={z.id} value={String(z.id)}>
                         <div className="flex items-center justify-between gap-4 w-full">
                           <span>{z.name}{z.fromGovernorate || z.toGovernorate ? ` – ${z.fromGovernorate ?? "؟"} → ${z.toGovernorate ?? "؟"}` : ""}</span>
-                          <span className="text-xs text-muted-foreground font-bold">{fc(Number(z.price))}</span>
+                          <span className="text-xs text-muted-foreground font-bold">{fc(Number(z.price) || 0)}</span>
                         </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                {selectedZone && <p className="text-[10px] text-primary mt-1">سعر التوصيل: {fc(Number(selectedZone.price))}</p>}
+                {selectedZone && <p className="text-[10px] text-primary mt-1">سعر التوصيل: {fc(Number(selectedZone.price) || 0)}</p>}
               </div>
               <div className="sm:col-span-2"><Label className="text-xs font-bold mb-1.5 block">العنوان التفصيلي</Label><Input className="text-sm" placeholder="الشارعطŒ المث¨نىطŒ الشقة..." value={form.receiverAddress} onChange={e => set("receiverAddress", e.target.value)} /></div>
             </div>
@@ -489,13 +489,13 @@ function ShipmentFormDialog({
                       <SelectItem key={p.id} value={p.parcelType}>
                         <div className="flex items-center justify-between gap-4 w-full">
                           <span>{p.label || PARCEL_LABELS[p.parcelType] || p.parcelType}</span>
-                          <span className="text-xs text-muted-foreground font-bold">{fc(Number(p.basePrice))}</span>
+                          <span className="text-xs text-muted-foreground font-bold">{fc(Number(p.basePrice) || 0)}</span>
                         </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                {selectedPricing && <p className="text-[10px] text-primary mt-1">سعر النوع: {fc(Number(selectedPricing.basePrice))}</p>}
+                {selectedPricing && <p className="text-[10px] text-primary mt-1">سعر النوع: {fc(Number(selectedPricing.basePrice) || 0)}</p>}
               </div>
               <div><Label className="text-xs font-bold mb-1.5 block">الوزن (كجم)</Label><Input type="number" className="text-sm" placeholder="0.00" value={form.weight} onChange={e => set("weight", e.target.value)} /></div>
               <div><Label className="text-xs font-bold mb-1.5 block">عدد القطع</Label><Input type="number" min="1" className="text-sm" value={form.pieces} onChange={e => set("pieces", e.target.value)} /></div>
@@ -1542,7 +1542,7 @@ function ZoneCostsTab({ onGoToZones }: { onGoToZones: () => void }) {
                             <DollarSign className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                             <span className="text-[9px] font-bold text-emerald-500/70">تكلفة التوصيل</span>
                             <span className="text-[12px] font-black text-emerald-600 dark:text-emerald-400 mr-auto">
-                              {fc(z.deliveryCost)}
+                              {fc(Number(z.deliveryCost) || 0)}
                             </span>
                           </div>
                         </div>
