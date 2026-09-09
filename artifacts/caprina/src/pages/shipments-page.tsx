@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { createPortal } from "react-dom";
 import { Link, useLocation } from "wouter";
 import { format } from "date-fns";
@@ -950,10 +949,6 @@ export default function Orders() {
       window.history.replaceState(null, "", "/shipments");
     }
   }, [location]);
-  // بنحدد mobile/desktop مرة واحدة عشان منعملش mount لجدولين (موبايل + ديسكتوب) في نفس الوقت
-  // ده كان بيضاعف عدد الصفوف المرسومة فعليًا (200 صف بيبقوا 400 في الـ DOM) ويسبب تهنيج واضح
-  // عند اختيار "200 / صفحة" — الحل: نعرض شجرة واحدة بس حسب حجم الشاشة الفعلي.
-  const isMobile = useIsMobile();
   const [search, setSearch] = useState("");
   const [customerSearch, setCustomerSearch] = useState("");
   const [status, setStatus] = useState<string>("all");
@@ -1967,7 +1962,7 @@ export default function Orders() {
             {/* بنعرض الشجرة دي بس لو فعلاً موبايل — قبل كده كانت بتتعمل mount دايمًا (مخفية بـ CSS بس)
                 فكان كل صف بيتعمل له render مرتين (موبايل + ديسكتوب) حتى لو مش ظاهر، وده كان أكبر
                 سبب للتهنيج مع 200 صف. */}
-            {isMobile && (
+            {false && (
             <div key={`mobile-${pageTransitionKey}`} className="sm:hidden divide-y divide-border animate-in fade-in slide-in-from-bottom-1 duration-300">
               {paginatedRows.map((order) => {
                 const isGroup = !!(order as any)._groupCount && (order as any)._groupCount > 1;
@@ -2178,10 +2173,10 @@ export default function Orders() {
             </div>
             )}
 
-            {/* ── Desktop ── */}
-            {!isMobile && (
-            <div className="hidden sm:block overflow-x-auto">
-              <Table>
+            {/* ── جدول موحّد: على الموبايل يتم تمريره أفقيًا بدل تحويل الصفوف إلى كروت ── */}
+            <>
+            <div className="overflow-x-auto overscroll-x-contain">
+              <Table className="min-w-[960px] text-xs sm:text-sm">
                 <TableHeader>
                   <TableRow className="border-border hover:bg-transparent">
                     {canWriteOrders && bulkSelectMode && (
@@ -2434,7 +2429,7 @@ export default function Orders() {
                 </TableBody>
               </Table>
             </div>
-            )}
+            </>
 
             {/* ── Pagination (server-side) — احترافية مع أرقام صفحات + انيميشن ── */}
             {(ordersTotal ?? 0) > 0 && (
