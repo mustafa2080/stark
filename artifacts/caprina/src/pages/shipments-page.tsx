@@ -109,8 +109,20 @@ const STATUS_OPTIONS = [
   { value: "returned",         label: "مرتجع",               color: "text-red-500"     },
 ];
 
-const formatCurrency = (amount: number) =>
-  new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(amount);
+// بيانات الشحنات القديمة والجديدة تستخدم أسماء مختلفة للمبلغ. لا نمرّر قيمة
+// مفقودة إلى Intl لأن المتصفح يعرضها "ليس رقمًا ج.م" بدلاً من قيمة الشحنة.
+const toSafeNumber = (value: unknown) => {
+  const amount = Number(value);
+  return Number.isFinite(amount) ? amount : 0;
+};
+
+const shipmentAmount = (shipment: Record<string, unknown>) => {
+  const amounts = [shipment.totalAmount, shipment.codAmount, shipment.totalPrice].map(toSafeNumber);
+  return amounts.find(amount => amount > 0) ?? amounts.find(amount => amount === 0) ?? 0;
+};
+
+const formatCurrency = (amount: unknown) =>
+  new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(toSafeNumber(amount));
 
 // ── Types للشحنات ────────────────────────────────────────────────────────────
 type PaymentMethod = "cod" | "prepaid" | "deferred";
@@ -1965,6 +1977,7 @@ export default function Orders() {
                 const isSelected = isGroupSelected(order);
                 const groupCount = (order as any)._groupCount as number | undefined;
                 const navTarget = `/shipments/${order.id}`;
+                const totalAmount = shipmentAmount(order as Record<string, unknown>);
 
                 // ── كارت موبايل مخصص لحساب "custom" — يعرض كل البيانات المطلوبة بشكل منظم ──
                 if (isCustomRole) {
@@ -2068,8 +2081,8 @@ export default function Orders() {
                         {canFinancials && (
                         <span className="font-bold text-xs text-primary shrink-0">
                           {order.status === "partial_received" && (order as any)._receivedPrice != null
-                            ? <>{formatCurrency((order as any)._receivedPrice)}<span className="line-through text-muted-foreground font-normal mr-1 text-[9px]">{formatCurrency(order.totalPrice)}</span></>
-                            : formatCurrency(order.totalPrice)}
+                            ? <>{formatCurrency((order as any)._receivedPrice)}<span className="line-through text-muted-foreground font-normal mr-1 text-[9px]">{formatCurrency(totalAmount)}</span></>
+                            : formatCurrency(totalAmount)}
                         </span>
                         )}
                       </div>
@@ -2118,7 +2131,7 @@ export default function Orders() {
                         {order.status === "partial_received" && (() => {
                           const rr = (order as any).returnReceived as 0 | 1 | null | undefined;
                           const pq = (order as any).partialQuantity as number | null | undefined;
-                          const totalPrice = ((order as any).totalPrice ?? 0) as number;
+                          const totalPrice = totalAmount;
                           return (
                             <span className="inline-flex flex-col gap-0 text-[9px] font-bold leading-tight">
                               {pq != null && <span className="text-teal-600 dark:text-teal-400">✓ استُلم {formatCurrency(pq)} من {formatCurrency(totalPrice)}</span>}
@@ -2230,6 +2243,7 @@ export default function Orders() {
                     const isSelected = isGroupSelected(order);
                     const retReason = o.returnReason as string | null;
                     const retNote   = o.returnNote   as string | null;
+                    const totalAmount = shipmentAmount(o);
                     return (
                       <TableRow
                         key={order.id}
@@ -2395,7 +2409,7 @@ export default function Orders() {
                           {order.status === "partial_received" && (() => {
                             const rr = (o as any).returnReceived as 0 | 1 | null | undefined;
                             const pq = o.partialQuantity as number | null | undefined;
-                            const totalPrice = ((o as any).totalPrice ?? 0) as number;
+                            const totalPrice = totalAmount;
                             return (
                               <div className="flex flex-col items-center gap-0 mt-1 text-[9px] font-bold leading-tight">
                                 {pq != null && <span className="text-teal-600 dark:text-teal-400">✓ استُلم {formatCurrency(pq)} من {formatCurrency(totalPrice)}</span>}
