@@ -516,7 +516,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isClient = user?.role === "client";
 
   const canViewFinancials = isAdmin || can("orders.financials");
-  const canViewProfitability = isAdmin || can("orders.financials");
+  const canViewProfitability = isAdmin || can("shipments.profitability");
 
   return (
     <AuthContext.Provider value={{

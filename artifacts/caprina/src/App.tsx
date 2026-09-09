@@ -484,7 +484,7 @@ function ProtectedRoute({ permission, component: Comp }: { permission: string; c
 
   if (!hasAccess) {
     if (permission === "dashboard.view") {
-      if (can("orders.view"))    return <Redirect to="/shipments-list" />;
+      if (can("shipments.view") || can("orders.view"))    return <Redirect to="/shipments-list" />;
       if (can("inventory.view")) return <Redirect to="/inventory" />;
       if (can("analytics.view")) return <Redirect to="/product-performance" />;
       if (can("finance.view"))   return <Redirect to="/finance" />;
@@ -586,18 +586,18 @@ function Router() {
           <Route path="/dashboard"                component={() => <ProtectedRoute permission="dashboard.view" component={Dashboard} />} />
           <Route path="/"                         component={() => <ProtectedRoute permission="dashboard.view" component={OperationsCenterPage} />} />
           <Route path="/operations-center"        component={() => <ProtectedRoute permission="dashboard.view" component={OperationsCenterPage} />} />
-          <Route path="/shipments-list"           component={() => <ProtectedRoute permission="orders.view" component={ShipmentsPage} />} />
-          <Route path="/shipments/new"            component={() => <ProtectedRoute permission="orders.create" component={NewShipmentPage} />} />
-          <Route path="/shipments/:id/edit"       component={() => <ProtectedRoute permission="orders.edit"   component={NewShipmentPage} />} />
-          <Route path="/shipments/:id"            component={() => <ProtectedRoute permission="orders.view" component={ShipmentDetailPage} />} />
+          <Route path="/shipments-list"           component={() => <ProtectedRoute permission="shipments.view" component={ShipmentsPage} />} />
+          <Route path="/shipments/new"            component={() => <ProtectedRoute permission="shipments.create" component={NewShipmentPage} />} />
+          <Route path="/shipments/:id/edit"       component={() => <ProtectedRoute permission="shipments.edit_data"   component={NewShipmentPage} />} />
+          <Route path="/shipments/:id"            component={() => <ProtectedRoute permission="shipments.view" component={ShipmentDetailPage} />} />
           <Route path="/orders/new"               component={() => <ProtectedRoute permission="orders.create" component={OrderForm} />} />
           <Route path="/invoices/:invoiceNumber"  component={() => <ProtectedRoute permission="invoices.view" component={InvoiceGroupPage} />} />
           <Route path="/orders/:id"               component={() => <ProtectedRoute permission="orders.view" component={OrderDetail} />} />
           <Route path="/inventory"                component={() => <ProtectedRoute permission="inventory.view" component={Inventory} />} />
-          <Route path="/shipping"                 component={() => <ProtectedRoute permission="shipping.view" component={ShippingCompanies} />} />
-          <Route path="/shipping/manifests/:id"          component={() => <ProtectedRoute permission="shipping.view" component={ShippingManifestPage} />} />
-          <Route path="/shipping/shipment-manifests/:id" component={() => <ProtectedRoute permission="shipping.view" component={ShipmentManifestDetailPage} />} />
-          <Route path="/shipping/company/:id"     component={() => <ProtectedRoute permission="shipping.view" component={ShippingCompanyDetail} />} />
+          <Route path="/shipping"                 component={() => <ProtectedRoute permission="reps.view" component={ShippingCompanies} />} />
+          <Route path="/shipping/manifests/:id"          component={() => <ProtectedRoute permission="reps.view" component={ShippingManifestPage} />} />
+          <Route path="/shipping/shipment-manifests/:id" component={() => <ProtectedRoute permission="reps.view" component={ShipmentManifestDetailPage} />} />
+          <Route path="/shipping/company/:id"     component={() => <ProtectedRoute permission="reps.view" component={ShippingCompanyDetail} />} />
           <Route path="/shipping/representative/:id" component={RepresentativeCompanyDetailPage} />
           <Route path="/invoices"                 component={() => <ProtectedRoute permission="invoices.view" component={Invoices} />} />
           <Route path="/import"                   component={() => <ProtectedRoute permission="import.view" component={Import} />} />
@@ -613,8 +613,8 @@ function Router() {
           <Route path="/smart"                    component={() => <ProtectedRoute permission="analytics.smart" component={SmartAnalyticsPage} />} />
           <Route path="/archive"                  component={() => <ProtectedRoute permission="orders.view" component={ArchivePage} />} />
           <Route path="/shipping-followup"        component={() => <ProtectedRoute permission="orders.view" component={ShippingFollowupPage} />} />
-          <Route path="/shipments-intelligence"   component={() => <ProtectedRoute permission="analytics.smart" component={ShipmentsIntelligencePage} />} />
-          <Route path="/representatives-intelligence" component={() => <ProtectedRoute permission="shipping.view" component={RepresentativesIntelligencePage} />} />
+          <Route path="/shipments-intelligence"   component={() => <ProtectedRoute permission="shipments.analytics" component={ShipmentsIntelligencePage} />} />
+          <Route path="/representatives-intelligence" component={() => <ProtectedRoute permission="reps.analytics" component={RepresentativesIntelligencePage} />} />
           <Route path="/zones-intelligence"       component={() => <ProtectedRoute permission="section_dashboard" component={ZonesIntelligencePage} />} />
           <Route path="/inventory-intelligence"   component={() => <ProtectedRoute permission="inventory.view" component={InventoryIntelligencePage} />} />
           <Route path="/client-intelligence"      component={() => <ProtectedRoute permission="section_dashboard" component={ClientIntelligencePage} />} />

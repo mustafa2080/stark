@@ -1023,6 +1023,7 @@ function InvoiceGroupDeliveryRow({
   repExtraCost = 0,
   repExtraReason = null,
   manifestCompanyName = null,
+  canRemove = true,
 }: {
   group: ManifestOrder[];
   manifestId: number;
@@ -1034,6 +1035,7 @@ function InvoiceGroupDeliveryRow({
   isShipmentManifest?: boolean;
   courierShippingCost?: number | null;
   courierCostMode?: "rep" | "zone";
+  canRemove?: boolean;
   repExtraCost?: number;
   repExtraReason?: string | null;
   manifestCompanyName?: string | null;
@@ -2025,16 +2027,18 @@ function InvoiceGroupDeliveryRow({
               />
             </div>
             <div className="flex gap-2 justify-between items-center">
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-7 text-[11px] text-destructive hover:text-destructive hover:bg-destructive/10 gap-1"
-                onClick={() => setConfirmCancel(true)}
-                disabled={cancelGroupMutation.isPending}
-              >
-                <Trash2 className="w-3 h-3" />
-                إلغاء من البيان
-              </Button>
+              {canRemove ? (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 text-[11px] text-destructive hover:text-destructive hover:bg-destructive/10 gap-1"
+                  onClick={() => setConfirmCancel(true)}
+                  disabled={cancelGroupMutation.isPending}
+                >
+                  <Trash2 className="w-3 h-3" />
+                  إلغاء من البيان
+                </Button>
+              ) : <div />}
               <Button
                 size="sm"
                 className="h-7 text-[11px] bg-primary text-primary-foreground hover:bg-primary/90 gap-1"
@@ -3739,7 +3743,12 @@ export default function ShippingManifestPage() {
   const id = Number(params.id);
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { canViewFinancials, isAdmin } = useAuth();
+  const { canViewFinancials, isAdmin, can } = useAuth();
+  const canAddShipments = isAdmin || can("reps.manifest_add_shipments");
+  const canCloseManifest = isAdmin || can("reps.manifest_close");
+  const canDeleteManifest = isAdmin || can("reps.manifest_delete");
+  const canRemoveOrder = isAdmin || can("reps.manifest_remove_order");
+  const canNetRevenue = isAdmin || can("reps.manifest_net_revenue");
   const { brand } = useBrand();
   // تكلفة المنطقة (لحاوية صافي المستحق) — نفس مصدر صافي الربح الحقيقي
   // costPrice = التكلفة الحقيقية من جدول "تكاليف المناطق" (zone_costs.delivery_cost)
@@ -4592,8 +4601,8 @@ export default function ShippingManifestPage() {
           >
             <Download className="w-3 h-3" />تصدير
           </Button>
-          {/* إضافة شحنات — أدمن فقط + البيان مفتوح */}
-          {isAdmin && !isLocked && (
+          {/* إضافة شحنات — البيان مفتوح */}
+          {canAddShipments && !isLocked && (
             <Button
               variant="outline"
               size="sm"
@@ -4603,8 +4612,8 @@ export default function ShippingManifestPage() {
               <PackagePlus className="w-3 h-3" />إضافة شحنات
             </Button>
           )}
-          {/* إغلاق / فتح البيان — أدمن فقط */}
-          {isAdmin && (
+          {/* إغلاق / فتح البيان */}
+          {canCloseManifest && (
             isLocked ? (
               <Button
                 variant="outline"
@@ -4625,8 +4634,8 @@ export default function ShippingManifestPage() {
               </Button>
             )
           )}
-          {/* حذف البيان — أدمن فقط */}
-          {isAdmin && (
+          {/* حذف البيان بالكامل */}
+          {canDeleteManifest && (
             <Button
               variant="outline"
               size="sm"
@@ -5004,6 +5013,7 @@ export default function ShippingManifestPage() {
                     selected={selectedGroups.has(getManifestGroupKey(group[0]))}
                     onToggleSelect={toggleGroup}
                     isShipmentManifest={true}
+                    canRemove={canRemoveOrder}
                     courierCostMode={(rawManifest as any)?.company?.costMode === "zone" ? "zone" : "rep"}
                     courierShippingCost={(() => {
                       // تكلفة الشحن تُحسب لو الحالة: مسلَّم / مسلَّم جزئي / استلام جزئي /
@@ -5309,34 +5319,36 @@ export default function ShippingManifestPage() {
               <p className="text-lg font-black text-sky-400">{formatCurrency(totalDueToCourier)}</p>
               <p className="text-[10px] text-muted-foreground mt-0.5">{deliveredOrders.length} شحنة</p>
             </Card>
-            <Card className={`col-span-2 border overflow-hidden transition-all duration-300 ${isProfit ? "border-emerald-900/50 bg-emerald-900/10" : "border-red-900/50 bg-red-900/10"}`}>
-              <button
-                type="button"
-                onClick={() => setNetDueOpen(v => !v)}
-                className="w-full flex items-center justify-between p-4 text-right"
-              >
-                <p className={`text-xs mb-0 font-bold flex items-center gap-1.5 ${isProfit ? "text-emerald-400" : "text-red-400"}`}>
-                  {netDueOpen ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-                  صافي الإيراد الحقيقي
-                </p>
-                <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-300 ${netDueOpen ? "rotate-180" : ""}`} />
-              </button>
-              <div className={`grid transition-all duration-300 ease-in-out ${netDueOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
-                <div className="overflow-hidden">
-                  <div className="flex items-center justify-between px-4 pb-1">
-                    <p className={`text-2xl font-black ${isProfit ? "text-emerald-400" : "text-red-400"}`}>
-                      {formatCurrency(Math.abs(netAmount))}
-                    </p>
-                    {isProfit
-                      ? <TrendingUp className="w-10 h-10 text-emerald-400 opacity-30" />
-                      : <TrendingDown className="w-10 h-10 text-red-400 opacity-30" />}
-                  </div>
-                  <p className="text-[10px] text-muted-foreground px-4 pb-4">
-                    {formatCurrency(totalShippingFeeForPnl)} مصروف الشحن − {formatCurrency(perOrderShippingCostSum)} تكلفة الشحن
+            {canNetRevenue && (
+              <Card className={`col-span-2 border overflow-hidden transition-all duration-300 ${isProfit ? "border-emerald-900/50 bg-emerald-900/10" : "border-red-900/50 bg-red-900/10"}`}>
+                <button
+                  type="button"
+                  onClick={() => setNetDueOpen(v => !v)}
+                  className="w-full flex items-center justify-between p-4 text-right"
+                >
+                  <p className={`text-xs mb-0 font-bold flex items-center gap-1.5 ${isProfit ? "text-emerald-400" : "text-red-400"}`}>
+                    {netDueOpen ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                    صافي الإيراد الحقيقي
                   </p>
+                  <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-300 ${netDueOpen ? "rotate-180" : ""}`} />
+                </button>
+                <div className={`grid transition-all duration-300 ease-in-out ${netDueOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
+                  <div className="overflow-hidden">
+                    <div className="flex items-center justify-between px-4 pb-1">
+                      <p className={`text-2xl font-black ${isProfit ? "text-emerald-400" : "text-red-400"}`}>
+                        {formatCurrency(Math.abs(netAmount))}
+                      </p>
+                      {isProfit
+                        ? <TrendingUp className="w-10 h-10 text-emerald-400 opacity-30" />
+                        : <TrendingDown className="w-10 h-10 text-red-400 opacity-30" />}
+                    </div>
+                    <p className="text-[10px] text-muted-foreground px-4 pb-4">
+                      {formatCurrency(totalShippingFeeForPnl)} مصروف الشحن − {formatCurrency(perOrderShippingCostSum)} تكلفة الشحن
+                    </p>
+                  </div>
                 </div>
-              </div>
-            </Card>
+              </Card>
+            )}
           </div>
         );
       })()}

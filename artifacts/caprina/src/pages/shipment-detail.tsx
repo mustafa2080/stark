@@ -2084,11 +2084,18 @@ export default function OrderDetail() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { isAdmin, canViewFinancials, canViewProfitability, user, can } = useAuth();
-  const canEdit        = isAdmin || can("orders.edit");
-  const canDelete      = isAdmin || can("orders.delete");
-  const canCreate      = isAdmin || can("orders.create");
-  const canFinancials  = isAdmin || can("orders.financials");
+  const canEditStatus  = isAdmin || can("shipments.edit_status");
+  const canEditData    = isAdmin || can("shipments.edit_data");
+  const canEdit         = canEditStatus || canEditData;
+  const canDelete      = isAdmin || can("shipments.delete");
+  const canCreate      = isAdmin || can("shipments.create");
+  const canClose       = isAdmin || can("shipments.close");
+  const canUrgent      = isAdmin || can("shipments.urgent");
+  const canFinancials  = isAdmin || can("shipments.profitability");
   const canWriteOrders = isAdmin || canEdit || canCreate;
+  // لو مفيش أي صلاحية إجرائية على الإطلاق → واجهة محدودة (طباعة + عرض + ملخص مالي فقط)
+  const hasAnyActionPerm = isAdmin || canEditStatus || canEditData || canDelete || canClose || canUrgent;
+  const readOnlyView = !hasAnyActionPerm;
   const [isEditing, setIsEditing] = useState(false);
   const [showPartialInput, setShowPartialInput] = useState(false);
   const [partialQty, setPartialQty] = useState("");
@@ -3267,8 +3274,8 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                 <Printer className="w-3.5 h-3.5" />طباعة
               </Button>
 
-              {/* الأزرار دي للأدمن فقط */}
-              {isAdmin && (<>
+              {/* أزرار إجرائية — حسب صلاحية كل مستخدم (isAdmin مضمّنة داخل كل شرط) */}
+              {hasAnyActionPerm && (<>
                 {/* حذف */}
                 {canDelete && (
                   <Button variant="outline" size="sm"
@@ -3296,7 +3303,7 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                 )}
 
                 {/* إغلاق */}
-                {(() => {
+                {canClose && (() => {
                   const isAlreadyClosed = ["received","partial_received","returned","closed"].includes(order.status);
                   return (
                     <Button variant="outline" size="sm"
@@ -3317,7 +3324,7 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
               </>)}
 
               {/* استعجال — جنب الإغلاق، يظهر طالما الشحنة قيد الشحن (بغض النظر عن وجودها في بيان) */}
-              {(["in_shipping", "in_transit", "picked_up", "out_for_delivery"].includes(order.status) ||
+              {canUrgent && (["in_shipping", "in_transit", "picked_up", "out_for_delivery"].includes(order.status) ||
                 !!((order as any).manifestId ?? (manifestStatus as any)?.manifestId)) && (
                 <ShipmentUrgentButton
                   manifestId={(order as any).manifestId ?? (manifestStatus as any)?.manifestId ?? null}
@@ -3335,8 +3342,8 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                 <MessageCircle className="w-3.5 h-3.5" />واتساب
               </Button>
 
-              {/* تغيير الحالة — للأدمن فقط */}
-              {isAdmin && canWriteOrders && (
+              {/* تغيير الحالة */}
+              {(isAdmin || canEditStatus) && (
                 <div className="mr-auto">
                   <StatusSelect
                     value={selectDisplayStatus ?? order.status}
@@ -3488,7 +3495,7 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                 <Trash2 className="w-3.5 h-3.5" />حذف
               </Button>
             )}
-            {(() => {
+            {canClose && (() => {
               const isAlreadyClosed = ["received","partial_received","returned","closed"].includes(order.status);
               return (
                 <Button variant="outline" size="sm"
@@ -3508,7 +3515,7 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
           </>)}
 
           {/* استعجال — للكل (بما فيهم الأكونت المخصص/custom)، جنب الإغلاق */}
-          {(["in_shipping", "in_transit", "picked_up", "out_for_delivery"].includes(order.status) ||
+          {canUrgent && (["in_shipping", "in_transit", "picked_up", "out_for_delivery"].includes(order.status) ||
             !!((order as any).manifestId ?? (manifestStatus as any)?.manifestId)) && (
             <ShipmentUrgentButton
               manifestId={(order as any).manifestId ?? (manifestStatus as any)?.manifestId ?? null}

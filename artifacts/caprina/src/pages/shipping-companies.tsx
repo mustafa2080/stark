@@ -1266,9 +1266,12 @@ export default function ShippingCompanies() {
   const { toast } = useToast();
   const { can, isAdmin, canViewFinancials } = useAuth();
   // ── Shipping permission shortcuts ──────────────────────────────────────────
-  const canEdit       = isAdmin || can("shipping.edit");
-  const canFinancials = isAdmin || can("shipping.financials");
-  const canManifests  = isAdmin || can("shipping.manifests");
+  const canView        = isAdmin || can("reps.view");
+  const canCreate      = isAdmin || can("reps.create");
+  const canEdit        = isAdmin || can("reps.create"); // تعديل بيانات/تفعيل المندوب — تحت نفس صلاحية الإضافة
+  const canLoginAccount = isAdmin || can("reps.login_account");
+  const canFinancials  = isAdmin || can("reps.card_total_revenue");
+  const canManifests  = isAdmin || can("reps.manifest_add_shipments");
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCompany, setEditingCompany] = useState<ShippingCompany | null>(null);
@@ -1460,7 +1463,7 @@ export default function ShippingCompanies() {
               <List className="w-4 h-4" />
             </button>
           </div>
-          {can("shipping.edit") && (
+          {canCreate && (
             <Button onClick={openAdd} className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90 font-bold text-sm">
               <Plus className="w-4 h-4" />إضافة مندوب
             </Button>
@@ -1586,10 +1589,12 @@ export default function ShippingCompanies() {
                       <Button variant="ghost" size="icon" className="h-7 w-7 hover:text-primary" onClick={() => openEdit(company)}>
                         <Edit2 className="w-3.5 h-3.5" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 hover:text-destructive" onClick={() => setDeleteCompany(company)}>
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
                     </>
+                  )}
+                  {(isAdmin || can("reps.create")) && (
+                    <Button variant="ghost" size="icon" className="h-7 w-7 hover:text-destructive" onClick={() => setDeleteCompany(company)}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
                   )}
                 </div>
               </div>
@@ -1626,7 +1631,7 @@ export default function ShippingCompanies() {
               <CompanyStats companyId={company.id} canViewFinancials={canViewFinancials && canFinancials} hidden={viewMode === "list"} />
 
               {/* ── قسم حساب الدخول ── */}
-              {canEdit && viewMode !== "list" && (
+              {canLoginAccount && viewMode !== "list" && (
                 <div className="mt-3 pt-3 border-t space-y-1.5" style={{ borderColor: `rgba(${p.rgb},0.15)` }}>
                   <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide flex items-center gap-1">
                     <KeyRound className="w-2.5 h-2.5" />
@@ -1685,7 +1690,7 @@ export default function ShippingCompanies() {
           <Truck className="w-10 h-10 mx-auto mb-3 text-muted-foreground opacity-20" />
           <p className="font-bold">لا يوجد مناديب شحن</p>
           <p className="text-sm text-muted-foreground mt-1">أضف مناديب الشحن الذين تتعامل معهم.</p>
-          {canEdit && <Button onClick={openAdd} className="mt-4 gap-2 text-sm"><Plus className="w-4 h-4" />إضافة مندوب</Button>}
+          {canCreate && <Button onClick={openAdd} className="mt-4 gap-2 text-sm"><Plus className="w-4 h-4" />إضافة مندوب</Button>}
         </Card>
       )}
 
