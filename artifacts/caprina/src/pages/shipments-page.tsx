@@ -1429,10 +1429,12 @@ export default function Orders() {
     const status = order.status;
 
     // اختيار القالب بناءً على حالة الأوردر — بالاسم بالظبط أو مطابقة مرنة
+    // ملحوظة: "in_transit" قيمة قديمة في الـ DB بتتعرض في الواجهة بنفس label "قيد الشحن" زي "in_shipping"
     const TEMPLATE_NAMES: Record<string, string> = {
       pending:         "تأكيد الأوردر",
       warehouse_ready: "إشعار الشحن",
       in_shipping:     "متابعة الشحن",
+      in_transit:      "متابعة الشحن",
       delayed:         "متابعة بعد التأجيل",
     };
 
@@ -1440,6 +1442,7 @@ export default function Orders() {
       pending:         ["تأكيد"],
       warehouse_ready: ["إشعار الشحن", "اشعار الشحن"],
       in_shipping:     ["متابعة الشحن"],
+      in_transit:      ["متابعة الشحن"],
       delayed:         ["تأجيل", "مؤجل", "متابعة بعد"],
     };
 
@@ -1466,8 +1469,11 @@ export default function Orders() {
       new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(n);
 
     let message = "";
+    // ملحوظة: "in_transit" قيمة قديمة في الـ DB بتتعرض في الواجهة بنفس label "قيد الشحن"
+    // زي "in_shipping" بالظبط، فلازم تاخد نفس قالب متابعة الشحن
+    const isShippingStatus = status === "in_shipping" || status === "in_transit";
     // حاول استخدام القالب المخزّن أولاً، لكن تحقق أنه لا يحتوي على رموز ترميز معطوبة (�)
-    if (status === "in_shipping" && tpl) {
+    if (isShippingStatus && tpl) {
       const candidate = applyShippingTemplate(tpl.body, {
         id: order.id,
         customerName,
