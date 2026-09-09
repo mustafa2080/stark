@@ -1585,6 +1585,21 @@ router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
           // ترحيل الشحنات المعلّقة لبيان جديد: مؤجل (صف جديد) + استلام جزئي (الباقي كصف جديد)
           // + مرتجع/جزئي لسه عند الشحن (يترحّل زي ما هو بدون تغيير لحد ما يُستلم)
           rolledOverManifest = await rolloverPartialShipments(manifest, items);
+
+          // ── بيان اتقفل نهائيًا من الأدمن ─ إشعار المندوب لو معروف ─────────────────
+          if (repResolved && repUserId) {
+            pushNotification({
+              tenantId: manifest.tenantId ?? null,
+              targetUserId: repUserId,
+              type: "manifest_closed",
+              severity: "info",
+              title: `تم قفل البيان ${manifest.manifestNumber} نهائيًا`,
+              message: `قام الأدمن بقفل البيان ${manifest.manifestNumber} نهائيًا وترحيل المستحقات.`,
+              entityType: "shipment_manifest",
+              entityId: manifest.id,
+              link: `/shipping/shipment-manifests/${manifest.id}`,
+            }).catch(() => {});
+          }
         }
       } catch (err) {
         console.error("[PATCH /shipment-manifests/:id] treasury entry error:", err);

@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import rateLimit from "express-rate-limit";
 import { eq, desc, and, like, or, inArray, sql, isNull, isNotNull, gte, getTableColumns } from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
-import { db, shipmentsTable, shipmentItemsTable, shipmentZonesTable, zoneCostsTable, parcelTypePricingTable, clientsTable, shippingCompaniesTable, usersTable, warehousesTable, shipmentManifestsTable, shipmentManifestItemsTable, shipmentRatingsTable, clientAccountManifestItemsTable } from "@workspace/db";
+import { db, shipmentsTable, shipmentItemsTable, shipmentZonesTable, zoneCostsTable, parcelTypePricingTable, clientsTable, shippingCompaniesTable, usersTable, warehousesTable, shipmentManifestsTable, shipmentManifestItemsTable, shipmentRatingsTable, clientAccountManifestItemsTable, SHIPMENT_STATUS_LABELS } from "@workspace/db";
 import { z } from "zod";
 import { getTenantId } from "../middlewares/requireTenant.js";
 import { processToShipping, reverseShipping, processReturn, syncShipmentItemsInventory } from "../lib/inventory.js";
@@ -1301,6 +1301,49 @@ router.put("/shipments/:id", async (req, res): Promise<void> => {
         tenantId,
         updateData.status,
       );
+    }
+
+    // ── إشعارات targetUserId للعميل والمندوب عند تغيّر حالة الشحنة ────────────────────────
+    const CLIENT_NOTIFY_STATUSES = new Set([
+      "in_transit", "out_for_delivery", "delivered", "returned", "delayed", "partial_received",
+    ]);
+    if (
+      updateData.status !== undefined &&
+      updateData.status !== existingShipment.status &&
+      existingShipment.clientId &&
+      CLIENT_NOTIFY_STATUSES.has(updateData.status)
+    ) {
+      const statusLabel = (SHIPMENT_STATUS_LABELS as Record<string, string>)[updateData.status as string] ?? updateData.status;
+      pushNotification({
+        tenantId,
+        targetUserId: existingShipment.clientId,
+        type: "shipment_updated",
+        severity: updateData.status === "returned" ? "warning" : "info",
+        title: `تحديث حالة الشحنة: ${statusLabel}`,
+        message: `الشحنة ${existingShipment.shipmentNumber ?? `#${id}`} إلى ${existingShipment.receiverName} — الحالة الآن: ${statusLabel}`,
+        entityType: "shipment",
+        entityId: id,
+        link: `/shipments/${id}`,
+      }).catch(() => {});
+    }
+
+    // نبعت للمندوب لو اتوكّلت له شحنة جديدة (أول تعيين أو تغيير المندوب المسؤول)
+    if (
+      d.assignedUserId !== undefined &&
+      d.assignedUserId != null &&
+      d.assignedUserId !== existingShipment.assignedUserId
+    ) {
+      pushNotification({
+        tenantId,
+        targetUserId: d.assignedUserId,
+        type: "shipment_new",
+        severity: "info",
+        title: "شحنة جديدة موكّلة لك",
+        message: `تم إسناد الشحنة ${existingShipment.shipmentNumber ?? `#${id}`} إلى ${existingShipment.receiverName} إليك`,
+        entityType: "shipment",
+        entityId: id,
+        link: `/shipments/${id}`,
+      }).catch(() => {});
     }
 
     const updated = await db.select().from(shipmentsTable).where(eq(shipmentsTable.id, id)).limit(1);
