@@ -341,19 +341,6 @@ const SECTION_GROUPS: Array<{
     ],
   },
   {
-    id: "orders", label: "الطلبات", color: "text-amber-400", bgColor: "bg-amber-500/10 border-amber-500/30",
-    icon: <ShoppingCart className="w-4 h-4" />,
-    permissions: [
-      { key: "orders.view",       label: "رؤية الطلبات",           desc: "دخول صفحة الطلبات" },
-      { key: "orders.create",     label: "إضافة طلب",              desc: "زر إضافة طلب جديد" },
-      { key: "orders.edit",       label: "تعديل طلب",              desc: "تعديل بيانات طلب موجود" },
-      { key: "orders.delete",     label: "حذف طلب",                desc: "حذف طلب بشكل نهائي" },
-      { key: "orders.financials",    label: "إظهار التكلفة والربح في الطلب", desc: "إظهار التكلفة والربح داخل الطلب", sensitive: true },
-      { key: "orders.export",        label: "تصدير الطلبات",          desc: "تصدير Excel / PDF" },
-      { key: "invoices.view",        label: "رؤية الفواتير",           desc: "دخول صفحة الفواتير" },
-    ],
-  },
-  {
     id: "inventory", label: "المنتجات والمخزون", color: "text-emerald-400", bgColor: "bg-emerald-500/10 border-emerald-500/30",
     icon: <Package className="w-4 h-4" />,
     permissions: [
