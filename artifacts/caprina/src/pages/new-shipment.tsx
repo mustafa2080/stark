@@ -471,7 +471,7 @@ export default function NewShipmentPage() {
                       <div className="flex items-center justify-between gap-4 w-full">
                         <span>{p.label || PARCEL_LABELS[p.parcelType as ParcelType] || p.parcelType}</span>
                         <span className="flex items-center gap-2 text-xs font-bold shrink-0">
-                          <span className="text-muted-foreground" title="سعر العميل">{fc(Number(p.basePrice))}</span>
+                          <span className="text-muted-foreground" title="سعر العميل">{fc(Number(p.basePrice) || 0)}</span>
                           {Number(p.repExtraCost) > 0 && (
                             <span className="text-emerald-600 dark:text-emerald-400" title="سعر المندوب">
                               +{fc(Number(p.repExtraCost))} مندوب
@@ -483,7 +483,7 @@ export default function NewShipmentPage() {
                   ))}
                 </SelectContent>
               </Select>
-              {selectedPricing && <p className="text-[10px] text-primary mt-1">سعر النوع: {fc(selectedPricing.basePrice)}</p>}
+              {selectedPricing && <p className="text-[10px] text-primary mt-1">سعر النوع: {fc(Number(selectedPricing.basePrice) || 0)}</p>}
             </div>
             <div><Label className="text-xs font-bold mb-1.5 block">الوزن (كجم)</Label><Input type="number" className="text-sm" placeholder="0.00" value={form.weight} onChange={e => set("weight", e.target.value)} /></div>
 
