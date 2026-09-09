@@ -1477,7 +1477,7 @@ export default function Layout({ children }: LayoutProps) {
           id="main-scroll-area"
           className="flex-1 overflow-y-auto overflow-x-hidden min-w-0"
         >
-          <div className="w-full max-w-screen-2xl mx-auto p-3 sm:p-4 md:p-5 xl:p-6 2xl:p-8 min-w-0 overflow-x-hidden pb-20 md:pb-8">
+          <div className="w-full max-w-screen-2xl mx-auto p-3 sm:p-4 md:p-5 xl:p-6 2xl:p-8 min-w-0 overflow-x-hidden pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-8">
             {children}
           </div>
         </div>

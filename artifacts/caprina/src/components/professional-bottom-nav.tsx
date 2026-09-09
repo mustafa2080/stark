@@ -240,9 +240,8 @@ export function ProfessionalBottomNav({
             transition={{ type: "spring", stiffness: 300, damping: 28 }}
             className="flex items-stretch gap-0.5 w-full max-w-md rounded-[26px] px-1.5"
             style={{
-              background: "hsl(var(--card)/0.85)",
-              backdropFilter: "blur(20px) saturate(180%)",
-              WebkitBackdropFilter: "blur(20px) saturate(180%)",
+              // الشريط ثابت فوق المحتوى؛ الخلفية المعتمة تمنع ظهور صفوف الشحنات تحته أثناء التمرير.
+              background: "hsl(var(--card))",
               border: "1px solid hsl(var(--border))",
               boxShadow: "0 -8px 32px -8px rgba(0,0,0,0.28), 0 1px 0 rgba(255,255,255,0.04) inset",
             }}
