@@ -902,6 +902,9 @@ const emptyZoneForm = (): ZoneFormState => ({ name: "", fromGovernorate: "", toG
 function ZonesTab() {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { can } = useAuth();
+  const canEdit   = can("zones.edit");
+  const canDelete = can("zones.delete");
   const [form, setForm] = useState<ZoneFormState>(emptyZoneForm());
   const [editId, setEditId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<ZoneFormState>(emptyZoneForm());
@@ -1071,7 +1074,8 @@ function ZonesTab() {
           </div>
 
           <Button className="gap-2 text-xs" size="sm"
-            disabled={!form.name || addMutation.isPending}
+            disabled={!form.name || addMutation.isPending || !canEdit}
+            title={!canEdit ? "لا تملك صلاحية إضافة منطقة" : undefined}
             onClick={submitAdd}>
             {addMutation.isPending ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
             إضافة المنطقة
@@ -1143,23 +1147,29 @@ function ZonesTab() {
                           <MapPin className="w-4 h-4 text-cyan-500" />
                         </div>
                         <div className="flex gap-1 shrink-0 mr-auto">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className={`h-7 px-2 gap-1 text-[10px] font-bold ${z.isActive === false ? "text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20" : "text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"}`}
-                            disabled={updateMutation.isPending}
-                            onClick={() => updateMutation.mutate({ id: z.id, isActive: z.isActive === false })}
-                          >
-                            {z.isActive === false ? <XCircle className="w-3.5 h-3.5" /> : <CheckCircle className="w-3.5 h-3.5" />}
-                            {z.isActive === false ? "غير نشط" : "نشط"}
-                          </Button>
-                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => startEdit(z)}>
-                            <Edit className="w-3.5 h-3.5" />
-                          </Button>
-                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
-                            onClick={() => { if (confirm("حذف المنطقة؟")) deleteMutation.mutate(z.id); }}>
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </Button>
+                          {canEdit && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className={`h-7 px-2 gap-1 text-[10px] font-bold ${z.isActive === false ? "text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20" : "text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"}`}
+                              disabled={updateMutation.isPending}
+                              onClick={() => updateMutation.mutate({ id: z.id, isActive: z.isActive === false })}
+                            >
+                              {z.isActive === false ? <XCircle className="w-3.5 h-3.5" /> : <CheckCircle className="w-3.5 h-3.5" />}
+                              {z.isActive === false ? "غير نشط" : "نشط"}
+                            </Button>
+                          )}
+                          {canEdit && (
+                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => startEdit(z)}>
+                              <Edit className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
+                          {canDelete && (
+                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                              onClick={() => { if (confirm("حذف المنطقة؟")) deleteMutation.mutate(z.id); }}>
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
                         </div>
                       </div>
 
@@ -1311,6 +1321,9 @@ function ZoneSingleSelect({
 function ZoneCostsTab({ onGoToZones }: { onGoToZones: () => void }) {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { can } = useAuth();
+  const canEdit   = can("zones.edit");
+  const canDelete = can("zones.delete");
   const [form, setForm] = useState<ZoneCostFormState>(emptyZoneCostForm());
   const [editId, setEditId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<ZoneCostFormState>(emptyZoneCostForm());
@@ -1432,7 +1445,8 @@ function ZoneCostsTab({ onGoToZones }: { onGoToZones: () => void }) {
               </div>
 
               <Button className="gap-2 text-xs" size="sm"
-                disabled={!form.zoneId || !form.deliveryCost || addMutation.isPending}
+                disabled={!form.zoneId || !form.deliveryCost || addMutation.isPending || !canEdit}
+                title={!canEdit ? "لا تملك صلاحية إضافة منطقة" : undefined}
                 onClick={submitAdd}>
                 {addMutation.isPending ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
                 إضافة المنطقة
@@ -1497,23 +1511,29 @@ function ZoneCostsTab({ onGoToZones }: { onGoToZones: () => void }) {
                           <MapPin className="w-4 h-4 text-emerald-500" />
                         </div>
                         <div className="flex gap-1 shrink-0 mr-auto">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className={`h-7 px-2 gap-1 text-[10px] font-bold ${z.isActive === false ? "text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20" : "text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"}`}
-                            disabled={updateMutation.isPending}
-                            onClick={() => updateMutation.mutate({ id: z.id, isActive: z.isActive === false })}
-                          >
-                            {z.isActive === false ? <XCircle className="w-3.5 h-3.5" /> : <CheckCircle className="w-3.5 h-3.5" />}
-                            {z.isActive === false ? "غير نشط" : "نشط"}
-                          </Button>
-                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => startEdit(z)}>
-                            <Edit className="w-3.5 h-3.5" />
-                          </Button>
-                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
-                            onClick={() => { if (confirm("حذف منطقة التكلفة؟")) deleteMutation.mutate(z.id); }}>
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </Button>
+                          {canEdit && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className={`h-7 px-2 gap-1 text-[10px] font-bold ${z.isActive === false ? "text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20" : "text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"}`}
+                              disabled={updateMutation.isPending}
+                              onClick={() => updateMutation.mutate({ id: z.id, isActive: z.isActive === false })}
+                            >
+                              {z.isActive === false ? <XCircle className="w-3.5 h-3.5" /> : <CheckCircle className="w-3.5 h-3.5" />}
+                              {z.isActive === false ? "غير نشط" : "نشط"}
+                            </Button>
+                          )}
+                          {canEdit && (
+                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => startEdit(z)}>
+                              <Edit className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
+                          {canDelete && (
+                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                              onClick={() => { if (confirm("حذف منطقة التكلفة؟")) deleteMutation.mutate(z.id); }}>
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
                         </div>
                       </div>
 

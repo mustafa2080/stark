@@ -615,7 +615,7 @@ function Router() {
           <Route path="/shipping-followup"        component={() => <ProtectedRoute permission="orders.view" component={ShippingFollowupPage} />} />
           <Route path="/shipments-intelligence"   component={() => <ProtectedRoute permission="shipments.analytics" component={ShipmentsIntelligencePage} />} />
           <Route path="/representatives-intelligence" component={() => <ProtectedRoute permission="reps.analytics" component={RepresentativesIntelligencePage} />} />
-          <Route path="/zones-intelligence"       component={() => <ProtectedRoute permission="section_dashboard" component={ZonesIntelligencePage} />} />
+          <Route path="/zones-intelligence"       component={() => <ProtectedRoute permission="zones.view" component={ZonesIntelligencePage} />} />
           <Route path="/inventory-intelligence"   component={() => <ProtectedRoute permission="inventory.view" component={InventoryIntelligencePage} />} />
           <Route path="/client-intelligence"      component={() => <ProtectedRoute permission="section_dashboard" component={ClientIntelligencePage} />} />
           <Route path="/whatsapp"                 component={() => <ProtectedRoute permission="settings.whatsapp" component={WhatsAppSettingsPage} />} />
@@ -655,7 +655,7 @@ function Router() {
           {/* Profile */}
           <Route path="/profile" component={ProfilePage} />
           {/* Shipments */}
-          <Route path="/shipments" component={() => <ProtectedRoute permission="dashboard.view" component={ShipmentsSettingsPage} />} />
+          <Route path="/shipments" component={() => <ProtectedRoute permission="zones.view" component={ShipmentsSettingsPage} />} />
           <Route path="/parcel-types" component={() => <ProtectedRoute permission="inventory.view" component={ParcelTypesPage} />} />
           <Route path="/clients-showcase" component={() => <ProtectedRoute permission="dashboard.view" component={ClientsShowcasePage} />} />
           {/* Subscription Expired */}

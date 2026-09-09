@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
-import { UserPlus, Edit2, Trash2, Shield, Users, Eye, EyeOff, TrendingUp, Package, BarChart3, LayoutGrid, Lock, User, Settings2, ChevronDown, ChevronUp, ToggleLeft, Camera, X, Crown, AlertTriangle, Search, KeyRound, Power, Home, ShoppingCart, Truck, BarChart2, Wallet, Wrench, Cog, MonitorCheck } from "lucide-react";
+import { UserPlus, Edit2, Trash2, Shield, Users, Eye, EyeOff, TrendingUp, Package, BarChart3, LayoutGrid, Lock, User, Settings2, ChevronDown, ChevronUp, ToggleLeft, Camera, X, Crown, AlertTriangle, Search, KeyRound, Power, Home, ShoppingCart, Truck, BarChart2, Wallet, Wrench, Cog, MonitorCheck, MapPin } from "lucide-react";
 
 // helper محلي — نفس المنطق الموجود في AuthContext
 function flattenPermissions(raw: any): string[] {
@@ -206,6 +206,10 @@ const PERM_TO_SECTION: Record<string, string> = {
   "shipments.close":            "section_shipments",
   "shipments.urgent":           "section_shipments",
   "shipments.profitability":    "section_shipments",
+  // المناطق والأسعار
+  "zones.view":                 "section_zones",
+  "zones.edit":                 "section_zones",
+  "zones.delete":               "section_zones",
   // مناديب الشحن
   "reps.view":                    "section_reps",
   "reps.create":                  "section_reps",
@@ -257,6 +261,7 @@ const SECTION_TO_PRIMARY_PERM: Record<string, string> = {
   "section_shipments_analytics": "analytics.smart",
   "section_shipping":            "shipping.view",
   "section_shipments":           "shipments.view",
+  "section_zones":               "zones.view",
   "section_reps":                "reps.view",
   "section_inventory":           "inventory.view",
   "section_warehouses":          "inventory.warehouses",
@@ -286,6 +291,7 @@ const ALL_SECTIONS: Array<{ key: string; label: string; icon: string; color: str
   { key: "section_shipments_analytics", label: "تحليل الشحنات الذكي",  icon: "🧠", color: "text-violet-400",  bg: "bg-violet-500/10 border-violet-500/30" },
   { key: "section_shipping",            label: "شركات الشحن",          icon: "🚚", color: "text-sky-400",     bg: "bg-sky-500/10 border-sky-500/30" },
   { key: "section_shipments",           label: "الشحنات",               icon: "🚛", color: "text-orange-400",  bg: "bg-orange-500/10 border-orange-500/30" },
+  { key: "section_zones",               label: "المناطق والأسعار",     icon: "🗺️", color: "text-cyan-400",    bg: "bg-cyan-500/10 border-cyan-500/30" },
   { key: "section_reps",                label: "مناديب الشحن",          icon: "🧑‍✈️", color: "text-teal-400",    bg: "bg-teal-500/10 border-teal-500/30" },
   { key: "section_inventory",           label: "المنتجات والمخزون",    icon: "🏪", color: "text-violet-400",  bg: "bg-violet-500/10 border-violet-500/30" },
   { key: "section_warehouses",          label: "المخازن",              icon: "🏭", color: "text-indigo-400",  bg: "bg-indigo-500/10 border-indigo-500/30" },
@@ -377,6 +383,15 @@ const SECTION_GROUPS: Array<{
       { key: "shipments.close",          label: "إغلاق الشحنة",              desc: "إغلاق الشحنة" },
       { key: "shipments.urgent",         label: "استعجال الشحنة",            desc: "إرسال إشعار استعجال للمندوب" },
       { key: "shipments.profitability",  label: "رؤية تحليل الربحية",        desc: "إظهار تحليل الربحية الخاص بالشحنة", sensitive: true },
+    ],
+  },
+  {
+    id: "zones", label: "المناطق والأسعار", color: "text-cyan-400", bgColor: "bg-cyan-500/10 border-cyan-500/30",
+    icon: <MapPin className="w-4 h-4" />,
+    permissions: [
+      { key: "zones.view",   label: "رؤية المناطق والأسعار",   desc: "دخول صفحة المناطق وأسعار التوصيل وأنواع الشحنات" },
+      { key: "zones.edit",   label: "إضافة/تعديل منطقة أو سعر", desc: "إضافة منطقة جديدة أو تعديل سعر منطقة/نوع شحنة موجود" },
+      { key: "zones.delete", label: "حذف منطقة",                desc: "حذف منطقة تكلفة بشكل نهائي" },
     ],
   },
   {
@@ -483,6 +498,8 @@ const DEFAULT_PERMISSIONS: Record<string, () => string[]> = {
     // صلاحيات الشحنات
     "shipments.view", "shipments.create", "shipments.invoices_btn", "shipments.tracking_btn", "shipments.analytics",
     "shipments.edit_status", "shipments.edit_data", "shipments.delete", "shipments.close", "shipments.urgent", "shipments.profitability",
+    // صلاحيات المناطق والأسعار
+    "zones.view", "zones.edit", "zones.delete",
     // صلاحيات مناديب الشحن
     "reps.view", "reps.create", "reps.analytics", "reps.manifest_add_shipments", "reps.manifest_close",
     "reps.manifest_delete", "reps.manifest_remove_order", "reps.manifest_net_revenue", "reps.card_total_revenue", "reps.login_account",
