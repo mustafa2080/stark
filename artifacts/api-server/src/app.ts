@@ -283,7 +283,11 @@ async function ensureShipmentWhatsappSentAt() {
   } catch (err: any) {
     // صيغة IF NOT EXISTS ليست مدعومة في بعض إصدارات MySQL المستضافة، لذلك
     // نستخدم الصيغة المتوافقة ونستثني فقط خطأ العمود الموجود بالفعل.
-    if (err?.message && !err.message.includes("Duplicate column") && err?.code !== "ER_DUP_FIELDNAME") {
+    const isDuplicateColumn =
+      err?.code === "ER_DUP_FIELDNAME" ||
+      err?.message?.includes("Duplicate column") ||
+      err?.cause?.message?.includes("Duplicate column");
+    if (!isDuplicateColumn) {
       logger.error({ err }, "Failed to ensure shipments.whatsapp_sent_at column");
     }
   }

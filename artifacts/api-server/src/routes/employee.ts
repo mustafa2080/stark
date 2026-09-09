@@ -916,6 +916,7 @@ router.get("/analytics/my-report", async (req, res): Promise<void> => {
       rating: noProfileRating,
       salary: 0,
     });
+    return;
   }
 
   // Has profile â€” run full report logic directly (no redirect)
