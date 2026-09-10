@@ -232,7 +232,7 @@ const ROLE_DEFAULT_PERMISSIONS: Record<string, string[]> = {
     "import", "analytics", "users", "audit", "whatsapp", "finance",
     "view_financials", "edit_inventory", "edit_delete_inventory",
     "view_product_performance", "add_team_member", "edit_brand",
-    "section_dashboard", "section_product_performance", "section_team_performance",
+    "section_dashboard", "section_clients_business", "section_zones", "section_product_performance", "section_team_performance",
     "section_team_management", "section_smart_analytics", "section_ads_analytics",
     "section_orders", "section_new_order", "section_archive", "section_shipping_followup",
     "section_whatsapp", "section_inventory", "section_warehouses", "section_movements",
