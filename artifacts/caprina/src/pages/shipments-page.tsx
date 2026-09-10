@@ -1031,14 +1031,14 @@ export default function Orders() {
     }
     return map;
   }, [shipmentClients]);
-  // ── Orders permission shortcuts ──────────────────────────────────────
-  const canView        = isAdmin || can("orders.view");
-  const canCreate      = isAdmin || can("orders.create");
-  const canEdit        = isAdmin || can("orders.edit");
-  const canDelete      = isAdmin || can("orders.delete");
-  const canFinancials  = isAdmin || can("orders.financials");
+  // ── Shipments permission shortcuts ──────────────────────────────────────
+  const canView        = isAdmin || can("shipments.view");
+  const canCreate      = isAdmin || can("shipments.create");
+  const canEdit        = isAdmin || can("shipments.edit_data");
+  const canDelete      = isAdmin || can("shipments.delete");
+  const canFinancials  = isAdmin || can("shipments.profitability");
   const isCustomRole   = user?.role === "custom";
-  const canExport      = isAdmin || can("orders.export");
+  const canExport      = isAdmin || can("shipments.export");
   const canInvoices    = isAdmin || can("invoices.view");
   // canWriteOrders: للـ bulk select والواتساب (أي صلاحية تعديل)
   const canWriteOrders = isAdmin || canEdit || canCreate;

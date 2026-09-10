@@ -234,6 +234,7 @@ const PERM_TO_SECTION: Record<string, string> = {
   "shipments.close":            "section_shipments",
   "shipments.urgent":           "section_shipments",
   "shipments.profitability":    "section_shipments",
+  "shipments.export":           "section_shipments",
   // المناطق والأسعار
   "zones.view":                 "section_zones",
   "zones.edit":                 "section_zones",
@@ -529,6 +530,7 @@ const SECTION_GROUPS: Array<{
       { key: "shipments.close",          label: "إغلاق الشحنة",              desc: "إغلاق الشحنة" },
       { key: "shipments.urgent",         label: "استعجال الشحنة",            desc: "إرسال إشعار استعجال للمندوب" },
       { key: "shipments.profitability",  label: "رؤية تحليل الربحية",        desc: "إظهار تحليل الربحية الخاص بالشحنة", sensitive: true },
+      { key: "shipments.export",         label: "تصدير الشحنات",             desc: "تصدير قائمة الشحنات (Excel/CSV)" },
     ],
   },
   {
@@ -791,7 +793,7 @@ const DEFAULT_PERMISSIONS: Record<string, () => string[]> = {
     "shipping.view", "shipping.edit", "shipping.financials", "shipping.manifests",
     // صلاحيات الشحنات
     "shipments.view", "shipments.create", "shipments.invoices_btn", "shipments.tracking_btn", "shipments.analytics",
-    "shipments.edit_status", "shipments.edit_data", "shipments.delete", "shipments.close", "shipments.urgent", "shipments.profitability",
+    "shipments.edit_status", "shipments.edit_data", "shipments.delete", "shipments.close", "shipments.urgent", "shipments.profitability", "shipments.export",
     // صلاحيات المناطق والأسعار
     "zones.view", "zones.edit", "zones.delete",
     // صلاحيات مناديب الشحن
