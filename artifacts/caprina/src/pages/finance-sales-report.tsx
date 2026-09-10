@@ -180,8 +180,8 @@ export default function SalesReportPage() {
   const [period, setPeriod] = useState("30");
 
   // ── Finance access guard ───────────────────────────────────────────────────
-  const { isAdmin: _fAdmin, can: _fCan } = useAuth();
-  if (!_fAdmin && !_fCan("finance.reports")) {
+  const { isAdmin: _fAdmin, can } = useAuth();
+  if (!_fAdmin && !can("finance.reports")) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center px-4">
         <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center">
@@ -300,6 +300,7 @@ export default function SalesReportPage() {
           </div>
         </div>
         {/* Period Selector */}
+        {can("finance_sales_report.period_filter") && (
         <div className="flex items-center gap-1 bg-muted/20 rounded-xl p-1">
           {PERIOD_OPTIONS.map(opt => (
             <button key={opt.key} onClick={() => setPeriod(opt.key)}
@@ -308,9 +309,11 @@ export default function SalesReportPage() {
               }`}>{opt.label}</button>
           ))}
         </div>
+        )}
       </div>
 
       {/* ── 6 KPI Cards ── */}
+      {can("finance_sales_report.kpi_cards") && (
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {[
           { label: "إجمالي الشحنات",   value: fmtNum(totalOrders),  icon: <ShoppingCart className="w-5 h-5" />, color: "text-primary",      bg: "bg-primary/10" },
@@ -329,11 +332,13 @@ export default function SalesReportPage() {
           </Card>
         ))}
       </div>
+      )}
 
       {/* ── Revenue Chart + Payment Pie ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
         {/* Area chart */}
+        {can("finance_sales_report.daily_chart") && (
         <Card className="lg:col-span-2 border-border bg-card p-4">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-bold text-sm">الشحنات اليومية</h2>
@@ -354,8 +359,10 @@ export default function SalesReportPage() {
             </AreaChart>
           </ResponsiveContainer>
         </Card>
+        )}
 
         {/* Payment Donut — pro animated */}
+        {can("finance_sales_report.payment_donut") && (
         <Card className="border-border bg-card p-4">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-bold text-sm">حالة الدفع</h2>
@@ -370,12 +377,14 @@ export default function SalesReportPage() {
             <PaymentDonut data={donutData} total={totalOrders} />
           )}
         </Card>
+        )}
       </div>
 
       {/* ── Top Clients + Order Status ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
         {/* Top Clients Bar */}
+        {can("finance_sales_report.top_clients") && (
         <Card className="border-border bg-card p-4">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-bold text-sm">أفضل العملاء</h2>
@@ -405,8 +414,10 @@ export default function SalesReportPage() {
             </div>
           )}
         </Card>
+        )}
 
         {/* Order Status Bars */}
+        {can("finance_sales_report.status_breakdown") && (
         <Card className="border-border bg-card p-4">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-bold text-sm">حالة الشحنات</h2>
@@ -442,9 +453,11 @@ export default function SalesReportPage() {
             </span>
           </div>
         </Card>
+        )}
       </div>
 
       {/* ── Recent Invoices Table ── */}
+      {can("finance_sales_report.recent_shipments_table") && (
       <Card className="border-border bg-card">
         <div className="flex items-center justify-between p-4 border-b border-border">
           <h2 className="font-bold text-sm">آخر الشحنات</h2>
@@ -489,8 +502,7 @@ export default function SalesReportPage() {
           )}
         </div>
       </Card>
-
-
+      )}
 
     </div>
   );

@@ -10,6 +10,7 @@ import {
   ResponsiveContainer, CartesianGrid, Legend, PieChart, Pie, Cell, Sector,
 } from "recharts";
 import { apiFetch as _apiFetch } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 
 const apiFetch = (url: string) => _apiFetch<any>(url.replace(/^\/api/, ""));
 
@@ -214,6 +215,20 @@ function TxDonut({ data }: { data: { type: string; total: number; count: number 
 }
 
 export default function FinanceCashAnalyticsPage() {
+  // ── Finance access guard ───────────────────────────────────────────────────
+  const { isAdmin: _fAdmin, can } = useAuth();
+  if (!_fAdmin && !can("finance.cash_analytics")) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center px-4">
+        <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center">
+          <span className="text-3xl">🔒</span>
+        </div>
+        <h2 className="text-xl font-bold">غير مصرح بالوصول</h2>
+        <p className="text-muted-foreground text-sm max-w-xs">ليس لديك صلاحية لعرض صفحة الماليات. تواصل مع المدير.</p>
+      </div>
+    );
+  }
+
   const { data, isLoading } = useQuery<Analytics>({
     queryKey: ["/api/cash-registers/analytics"],
     queryFn: () => apiFetch("/api/cash-registers/analytics"),
@@ -265,6 +280,7 @@ export default function FinanceCashAnalyticsPage() {
       </div>
 
       {/* KPI Cards */}
+      {can("finance_cash_analytics.kpi_cards") && (
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard label="إجمالي الدخل" value={currentMonth.totalIn}  sub={`الشهر السابق: ${fmtFull(lastMonth.totalIn)}`}  pct={changes.inPct}  color="emerald"/>
         <StatCard label="إجمالي الخروج" value={currentMonth.totalOut} sub={`الشهر السابق: ${fmtFull(lastMonth.totalOut)}`} pct={changes.outPct} color="rose"/>
@@ -278,8 +294,10 @@ export default function FinanceCashAnalyticsPage() {
           </div>
         </div>
       </div>
+      )}
 
       {/* Chart شهري — Glass Style */}
+      {can("finance_cash_analytics.monthly_chart") && (
       <div
         className="rounded-[26px] p-4 sm:p-5"
         dir="rtl"
@@ -415,11 +433,13 @@ export default function FinanceCashAnalyticsPage() {
           </div>
         )}
       </div>
+      )}
 
       {/* توزيع + مقارنة الخزن */}
       <div className="grid gap-4 lg:grid-cols-2">
 
         {/* Donut Chart توزيع نوع الحركة — احترافي */}
+        {can("finance_cash_analytics.type_breakdown") && (
         <div className="rounded-xl border border-border bg-card p-4">
           <p className="text-sm font-bold mb-4 flex items-center gap-2">
             <Activity className="w-4 h-4 text-purple-500"/> توزيع الحركات (الشهر الحالي)
@@ -430,8 +450,10 @@ export default function FinanceCashAnalyticsPage() {
             <TxDonut data={typeBreakdown} />
           )}
         </div>
+        )}
 
         {/* مقارنة الخزن */}
+        {can("finance_cash_analytics.register_comparison") && (
         <div className="rounded-xl border border-border bg-card p-4">
           <p className="text-sm font-bold mb-3 flex items-center gap-2"><Wallet className="w-4 h-4 text-sky-500"/> مقارنة الخزن (الشهر الحالي)</p>
           {registerComparison.length === 0 ? (
@@ -465,9 +487,11 @@ export default function FinanceCashAnalyticsPage() {
             </div>
           )}
         </div>
+        )}
       </div>
 
       {/* أكبر حركات الشهر */}
+      {can("finance_cash_analytics.top_transactions") && (
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         <div className="p-4 border-b border-border bg-muted/30">
           <p className="text-sm font-bold flex items-center gap-2"><TrendingUp className="w-4 h-4 text-amber-500"/> أكبر 5 حركات هذا الشهر</p>
@@ -498,6 +522,7 @@ export default function FinanceCashAnalyticsPage() {
           </div>
         )}
       </div>
+      )}
 
     </div>
   );

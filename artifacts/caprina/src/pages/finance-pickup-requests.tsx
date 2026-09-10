@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -75,6 +76,20 @@ export default function FinancePickupRequestsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [refreshing, setRefreshing] = useState(false);
 
+  // ── Finance access guard ───────────────────────────────────────────────────
+  const { isAdmin: _fAdmin, can } = useAuth();
+  if (!_fAdmin && !can("finance.pickup_requests")) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center px-4">
+        <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center">
+          <span className="text-3xl">🔒</span>
+        </div>
+        <h2 className="text-xl font-bold">غير مصرح بالوصول</h2>
+        <p className="text-muted-foreground text-sm max-w-xs">ليس لديك صلاحية لعرض صفحة الماليات. تواصل مع المدير.</p>
+      </div>
+    );
+  }
+
   // نجيب كل الطلبات مرة واحدة (بدون فلترة سيرفر) عشان نقدر نعرض عداد لكل حالة
   // في شريط التابات، والتبديل بين الحالات يبقى فوري من غير ريكوست جديد.
   const { data, isLoading, isError, error, refetch } = useQuery<{ data: AdminPickupRequest[]; total: number }>({
@@ -125,14 +140,17 @@ export default function FinancePickupRequestsPage() {
               {pendingCount} بانتظار الموافقة
             </Badge>
           )}
+          {can("finance_pickup_requests.refresh_button") && (
           <Button variant="outline" size="sm" className="h-9 text-sm gap-1.5" onClick={handleRefresh} disabled={refreshing}>
             <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
             تحديث
           </Button>
+          )}
         </div>
       </div>
 
       {/* شريط فلتر الحالات — تابات ثابتة فوق عشان تعرف الطلبات الحالية من غير نزول لتحت */}
+      {can("finance_pickup_requests.status_filter_tabs") && (
       <div className="sticky top-0 z-10 -mx-1 px-1 py-1 bg-background/80 backdrop-blur-sm">
         <div className="flex items-center gap-1.5 flex-wrap">
           {STATUS_FILTERS.map(f => {
@@ -164,6 +182,7 @@ export default function FinancePickupRequestsPage() {
           })}
         </div>
       </div>
+      )}
 
       {isError && (
         <Card>
@@ -192,6 +211,7 @@ export default function FinancePickupRequestsPage() {
           </CardContent>
         </Card>
       ) : (
+        can("finance_pickup_requests.requests_list") && (
         <div className="space-y-3">
           {requests.map(r => {
             const meta = STATUS_META[r.status] ?? STATUS_META.pending;
@@ -208,6 +228,7 @@ export default function FinancePickupRequestsPage() {
                     </Badge>
                     <span className="text-xs opacity-60">{formatDate(r.createdAt)}</span>
                   </div>
+                  {can("finance_pickup_requests.status_select") && (
                   <Select
                     value={r.status}
                     onValueChange={(status) => updateStatusMutation.mutate({ id: r.id, status })}
@@ -221,6 +242,7 @@ export default function FinancePickupRequestsPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                  )}
                 </div>
 
                 {/* اسم العميل + الهاتف */}
@@ -298,6 +320,7 @@ export default function FinancePickupRequestsPage() {
             );
           })}
         </div>
+        )
       )}
     </div>
   );

@@ -21,7 +21,8 @@ interface CashRegister {
 export default function FinanceCashArchivePage() {
 
   // ── Finance access guard ───────────────────────────────────────────────────
-  const { isAdmin: _fAdmin, can: _fCan } = useAuth();
+  const { isAdmin: _fAdmin, can } = useAuth();
+  const _fCan = can;
   if (!_fAdmin && !_fCan("finance.cash")) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center px-4">
@@ -133,6 +134,7 @@ export default function FinanceCashArchivePage() {
               )}
 
               <div className="flex gap-2 mt-3">
+                {can("finance_cash_archive.restore_button") && (
                 <Button
                   size="sm"
                   variant="outline"
@@ -145,6 +147,8 @@ export default function FinanceCashArchivePage() {
                   <RotateCcw className="w-3 h-3" />
                   استعادة
                 </Button>
+                )}
+                {can("finance_cash_archive.delete_button") && (
                 <Button
                   size="sm"
                   variant="outline"
@@ -157,6 +161,7 @@ export default function FinanceCashArchivePage() {
                   <Trash2 className="w-3 h-3" />
                   حذف نهائي
                 </Button>
+                )}
               </div>
             </div>
           ))}

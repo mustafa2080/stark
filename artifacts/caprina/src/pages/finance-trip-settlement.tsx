@@ -19,6 +19,7 @@ import {
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { apiFetch } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 
 const api = {
   get:   (url: string) => apiFetch<any>(url),
@@ -58,6 +59,20 @@ type Settlement = {
 export default function FinanceTripSettlement() {
   const { toast } = useToast();
   const qc = useQueryClient();
+
+  // ── Finance access guard ───────────────────────────────────────────────────
+  const { isAdmin: _fAdmin, can } = useAuth();
+  if (!_fAdmin && !can("finance.trip_settlement")) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center px-4">
+        <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center">
+          <span className="text-3xl">🔒</span>
+        </div>
+        <h2 className="text-xl font-bold">غير مصرح بالوصول</h2>
+        <p className="text-muted-foreground text-sm max-w-xs">ليس لديك صلاحية لعرض صفحة الماليات. تواصل مع المدير.</p>
+      </div>
+    );
+  }
 
   const [viewingId, setViewingId] = useState<number | "current" | null>("current");
   const [showArchive, setShowArchive] = useState(false);
@@ -217,10 +232,12 @@ export default function FinanceTripSettlement() {
           )}
         </div>
         <div className="flex items-center gap-2">
+          {can("finance_trip_settlement.archive_button") && (
           <Button variant="outline" size="sm" onClick={() => setShowArchive(v => !v)}>
             <Archive className="w-4 h-4 ml-1" /> الأرشيف
           </Button>
-          {isOpen && (
+          )}
+          {isOpen && can("finance_trip_settlement.close_button") && (
             <Button size="sm" className="bg-orange-600 hover:bg-orange-700" onClick={() => setCloseConfirmOpen(true)}>
               <Lock className="w-4 h-4 ml-1" /> إغلاق الرحلة / البيان
             </Button>
@@ -262,7 +279,7 @@ export default function FinanceTripSettlement() {
       ) : (
         <>
           {/* شريط جاهزية الإغلاق */}
-          {isOpen && totalItems > 0 && (
+          {can("finance_trip_settlement.readiness_bar") && isOpen && totalItems > 0 && (
             <Card className="p-3">
               <div className="flex items-center justify-between text-xs mb-2">
                 <span className="text-muted-foreground">جاهزية الإغلاق</span>
@@ -281,6 +298,7 @@ export default function FinanceTripSettlement() {
           )}
 
           {/* شريط الإجماليات */}
+          {can("finance_trip_settlement.totals_summary") && (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             <Card className="p-3 text-center">
               <p className="text-[11px] text-muted-foreground mb-1">إجمالي المناديب</p>
@@ -297,9 +315,10 @@ export default function FinanceTripSettlement() {
               </p>
             </Card>
           </div>
+          )}
 
           {/* تنبيه العملاء المعلّقين ومتكرري السالب */}
-          {(clientsPendingCount > 0 || repeatNegativeClients.length > 0) && (
+          {can("finance_trip_settlement.alerts") && (clientsPendingCount > 0 || repeatNegativeClients.length > 0) && (
             <div className="flex items-start gap-2 text-xs bg-amber-500/10 border border-amber-500/20 rounded-lg p-3">
               <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
               <div className="space-y-1">
@@ -318,6 +337,7 @@ export default function FinanceTripSettlement() {
 
           <div className="grid md:grid-cols-2 gap-4">
             {/* عمود المناديب (يسار) */}
+            {can("finance_trip_settlement.reps_column") && (
             <Card className="p-4">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="font-bold flex items-center gap-2 text-blue-500">
@@ -431,8 +451,10 @@ export default function FinanceTripSettlement() {
                 ))}
               </div>
             </Card>
+            )}
 
             {/* عمود العملاء (يمين) */}
+            {can("finance_trip_settlement.clients_column") && (
             <Card className="p-4">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="font-bold flex items-center gap-2 text-pink-500">
@@ -540,6 +562,7 @@ export default function FinanceTripSettlement() {
                 })}
               </div>
             </Card>
+            )}
           </div>
         </>
       )}

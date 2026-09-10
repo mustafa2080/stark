@@ -182,6 +182,8 @@ export const ALL_PERMISSIONS = {
     { key: "finance.suppliers", label: "الموردين والمشتريات",       desc: "حسابات الموردين" },
     { key: "finance.reports",   label: "تقارير الأرباح والخسائر",   desc: "التقارير المالية الشاملة" },
     { key: "finance.trip_settlement", label: "تسوية الرحلات والتحصيل", desc: "إدارة رحلات المناديب وتحصيل العملاء" },
+    { key: "finance.pickup_requests", label: "طلبات الالتقاط",        desc: "طلبات استلام الشحنات من العملاء" },
+    { key: "finance.cash_analytics",  label: "تحليلات الخزنة",        desc: "تحليلات مالية مقارنة للخزنة" },
   ],
   // 6.5. صفحة العملاء التجاريون (حاويات داخلية)
   finance_clients_page: [
@@ -240,6 +242,46 @@ export const ALL_PERMISSIONS = {
     { key: "finance_expenses.filters",         label: "فلاتر البحث",                  desc: "إخفاء إذا لم يُمنح" },
     { key: "finance_expenses.expenses_list",   label: "قائمة المصروفات",              desc: "إخفاء إذا لم يُمنح", sensitive: true },
     { key: "finance_expenses.delete_button",   label: "زرار: حذف مصروف",              desc: "إخفاء إذا لم يُمنح" },
+  ],
+  // 6.9. صفحة تسوية الرحلات والتحصيل
+  finance_trip_settlement_page: [
+    { key: "finance_trip_settlement.archive_button",  label: "زرار: الأرشيف",                  desc: "إخفاء إذا لم يُمنح" },
+    { key: "finance_trip_settlement.close_button",    label: "زرار: إغلاق الرحلة",             desc: "إخفاء إذا لم يُمنح" },
+    { key: "finance_trip_settlement.readiness_bar",   label: "شريط جاهزية الإغلاق",             desc: "إخفاء إذا لم يُمنح" },
+    { key: "finance_trip_settlement.totals_summary",  label: "كروت الإجماليات",                 desc: "إخفاء إذا لم يُمنح", sensitive: true },
+    { key: "finance_trip_settlement.alerts",          label: "تنبيه العملاء المعلقين",          desc: "إخفاء إذا لم يُمنح" },
+    { key: "finance_trip_settlement.reps_column",     label: "عمود المناديب",                   desc: "إخفاء إذا لم يُمنح", sensitive: true },
+    { key: "finance_trip_settlement.clients_column",  label: "عمود العملاء",                    desc: "إخفاء إذا لم يُمنح", sensitive: true },
+  ],
+  // 6.10. صفحة أرشيف الخزن
+  finance_cash_archive_page: [
+    { key: "finance_cash_archive.restore_button", label: "زرار: استعادة",     desc: "إخفاء إذا لم يُمنح" },
+    { key: "finance_cash_archive.delete_button",  label: "زرار: حذف نهائي",   desc: "إخفاء إذا لم يُمنح" },
+  ],
+  // 6.11. صفحة طلبات الالتقاط
+  finance_pickup_requests_page: [
+    { key: "finance_pickup_requests.status_filter_tabs", label: "شريط فلتر الحالات",     desc: "إخفاء إذا لم يُمنح" },
+    { key: "finance_pickup_requests.refresh_button",     label: "زرار: تحديث",           desc: "إخفاء إذا لم يُمنح" },
+    { key: "finance_pickup_requests.status_select",      label: "تغيير حالة الطلب",      desc: "إخفاء إذا لم يُمنح" },
+    { key: "finance_pickup_requests.requests_list",      label: "قائمة الطلبات",         desc: "إخفاء إذا لم يُمنح", sensitive: true },
+  ],
+  // 6.12. صفحة تحليلات الخزنة
+  finance_cash_analytics_page: [
+    { key: "finance_cash_analytics.kpi_cards",           label: "كروت KPI (دخل/خروج/صافي/حركات)", desc: "إخفاء إذا لم يُمنح", sensitive: true },
+    { key: "finance_cash_analytics.monthly_chart",       label: "الرسم الشهري (6 شهور)",          desc: "إخفاء إذا لم يُمنح", sensitive: true },
+    { key: "finance_cash_analytics.type_breakdown",      label: "دونات توزيع الحركات",            desc: "إخفاء إذا لم يُمنح" },
+    { key: "finance_cash_analytics.register_comparison", label: "مقارنة الخزن",                   desc: "إخفاء إذا لم يُمنح" },
+    { key: "finance_cash_analytics.top_transactions",    label: "أكبر 5 حركات",                   desc: "إخفاء إذا لم يُمنح", sensitive: true },
+  ],
+  // 6.13. صفحة تقرير الشحنات (المبيعات)
+  finance_sales_report_page: [
+    { key: "finance_sales_report.period_filter",          label: "فلتر الفترة",              desc: "إخفاء إذا لم يُمنح" },
+    { key: "finance_sales_report.kpi_cards",               label: "كروت KPI (6 كروت)",         desc: "إخفاء إذا لم يُمنح", sensitive: true },
+    { key: "finance_sales_report.daily_chart",             label: "شارت الشحنات اليومية",       desc: "إخفاء إذا لم يُمنح" },
+    { key: "finance_sales_report.payment_donut",           label: "دونات حالة الدفع",           desc: "إخفاء إذا لم يُمنح" },
+    { key: "finance_sales_report.top_clients",             label: "أفضل العملاء",               desc: "إخفاء إذا لم يُمنح", sensitive: true },
+    { key: "finance_sales_report.status_breakdown",        label: "حالة الشحنات ونسبة التحصيل",  desc: "إخفاء إذا لم يُمنح" },
+    { key: "finance_sales_report.recent_shipments_table",  label: "جدول آخر الشحنات",           desc: "إخفاء إذا لم يُمنح", sensitive: true },
   ],
   // 7. الفريق والإدارة
   team: [
@@ -308,7 +350,7 @@ const ROLE_DEFAULT_PERMISSIONS: Record<string, string[]> = {
     "smart_analytics.return_insights","smart_analytics.stock_predictor","smart_analytics.cash_flow",
     "smart_analytics.ads_details_link",
     "ads_analytics.date_filters","ads_analytics.kpi_cards","ads_analytics.source_summary","ads_analytics.campaigns_list",
-    "finance.view","finance.sales","finance.expenses","finance.cash","finance.suppliers","finance.reports","finance.trip_settlement",
+    "finance.view","finance.sales","finance.expenses","finance.cash","finance.suppliers","finance.reports","finance.trip_settlement","finance.pickup_requests","finance.cash_analytics",
     "finance_clients.kpi_total_clients","finance_clients.kpi_monthly_collected","finance_clients.kpi_total_outstanding",
     "finance_clients.kpi_total_shipments","finance_clients.top_clients","finance_clients.shipments_chart",
     "finance_clients.sales_report_link","finance_clients.clients_table","finance_clients.add_client_btn",
@@ -323,6 +365,16 @@ const ROLE_DEFAULT_PERMISSIONS: Record<string, string[]> = {
     "finance_cash.add_register_button","finance_cash.transfer_button",
     "finance_expenses.export_buttons","finance_expenses.add_button","finance_expenses.kpi_page_total",
     "finance_expenses.kpi_cash_linked","finance_expenses.filters","finance_expenses.expenses_list","finance_expenses.delete_button",
+    "finance_trip_settlement.archive_button","finance_trip_settlement.close_button","finance_trip_settlement.readiness_bar",
+    "finance_trip_settlement.totals_summary","finance_trip_settlement.alerts","finance_trip_settlement.reps_column","finance_trip_settlement.clients_column",
+    "finance_cash_archive.restore_button","finance_cash_archive.delete_button",
+    "finance_pickup_requests.status_filter_tabs","finance_pickup_requests.refresh_button",
+    "finance_pickup_requests.status_select","finance_pickup_requests.requests_list",
+    "finance_cash_analytics.kpi_cards","finance_cash_analytics.monthly_chart","finance_cash_analytics.type_breakdown",
+    "finance_cash_analytics.register_comparison","finance_cash_analytics.top_transactions",
+    "finance_sales_report.period_filter","finance_sales_report.kpi_cards","finance_sales_report.daily_chart",
+    "finance_sales_report.payment_donut","finance_sales_report.top_clients","finance_sales_report.status_breakdown",
+    "finance_sales_report.recent_shipments_table",
     "team.view","team.performance","team.manage","team.salaries",
     "tools.import","tools.export",
     "settings.brand","settings.users","settings.audit","settings.sessions","settings.whatsapp",

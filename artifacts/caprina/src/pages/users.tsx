@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
-import { UserPlus, Edit2, Trash2, Shield, Users, Eye, EyeOff, TrendingUp, Package, BarChart3, LayoutGrid, Lock, User, Settings2, ChevronDown, ChevronUp, ToggleLeft, Camera, X, Crown, AlertTriangle, Search, KeyRound, Power, Home, ShoppingCart, Truck, BarChart2, Wallet, Wrench, Cog, MonitorCheck, MapPin, Receipt } from "lucide-react";
+import { UserPlus, Edit2, Trash2, Shield, Users, Eye, EyeOff, TrendingUp, Package, BarChart3, LayoutGrid, Lock, User, Settings2, ChevronDown, ChevronUp, ToggleLeft, Camera, X, Crown, AlertTriangle, Search, KeyRound, Power, Home, ShoppingCart, Truck, BarChart2, Wallet, Wrench, Cog, MonitorCheck, MapPin, Receipt, Archive } from "lucide-react";
 
 // helper محلي — نفس المنطق الموجود في AuthContext
 function flattenPermissions(raw: any): string[] {
@@ -326,6 +326,36 @@ const PERM_TO_SECTION: Record<string, string> = {
   "finance_expenses.filters":         "section_finance",
   "finance_expenses.expenses_list":   "section_finance",
   "finance_expenses.delete_button":   "section_finance",
+  // صفحة تسوية الرحلات والتحصيل
+  "finance_trip_settlement.archive_button": "section_finance",
+  "finance_trip_settlement.close_button":   "section_finance",
+  "finance_trip_settlement.readiness_bar":  "section_finance",
+  "finance_trip_settlement.totals_summary": "section_finance",
+  "finance_trip_settlement.alerts":         "section_finance",
+  "finance_trip_settlement.reps_column":    "section_finance",
+  "finance_trip_settlement.clients_column": "section_finance",
+  // صفحة أرشيف الخزن
+  "finance_cash_archive.restore_button": "section_finance",
+  "finance_cash_archive.delete_button":  "section_finance",
+  // صفحة طلبات الالتقاط
+  "finance_pickup_requests.status_filter_tabs": "section_finance",
+  "finance_pickup_requests.refresh_button":     "section_finance",
+  "finance_pickup_requests.status_select":      "section_finance",
+  "finance_pickup_requests.requests_list":      "section_finance",
+  // صفحة تحليلات الخزنة
+  "finance_cash_analytics.kpi_cards":           "section_finance",
+  "finance_cash_analytics.monthly_chart":       "section_finance",
+  "finance_cash_analytics.type_breakdown":      "section_finance",
+  "finance_cash_analytics.register_comparison": "section_finance",
+  "finance_cash_analytics.top_transactions":    "section_finance",
+  // صفحة تقرير الشحنات (المبيعات)
+  "finance_sales_report.period_filter":          "section_finance",
+  "finance_sales_report.kpi_cards":              "section_finance",
+  "finance_sales_report.daily_chart":            "section_finance",
+  "finance_sales_report.payment_donut":          "section_finance",
+  "finance_sales_report.top_clients":            "section_finance",
+  "finance_sales_report.status_breakdown":       "section_finance",
+  "finance_sales_report.recent_shipments_table": "section_finance",
   // الفريق
   "team.view":                 "section_team_management",
   "team.manage":               "section_team_management",
@@ -641,6 +671,61 @@ const SECTION_GROUPS: Array<{
       { key: "finance_expenses.filters",         label: "فلاتر البحث",                  desc: "إخفاء إذا لم يُمنح" },
       { key: "finance_expenses.expenses_list",   label: "قائمة المصروفات",              desc: "إخفاء إذا لم يُمنح", sensitive: true },
       { key: "finance_expenses.delete_button",   label: "زرار: حذف مصروف",              desc: "إخفاء إذا لم يُمنح" },
+    ],
+  },
+  {
+    id: "finance_trip_settlement_page", label: "صفحة تسوية الرحلات والتحصيل", color: "text-orange-400", bgColor: "bg-orange-500/10 border-orange-500/30",
+    icon: <Truck className="w-4 h-4" />,
+    permissions: [
+      { key: "finance_trip_settlement.archive_button",  label: "زرار: الأرشيف",             desc: "إخفاء إذا لم يُمنح" },
+      { key: "finance_trip_settlement.close_button",    label: "زرار: إغلاق الرحلة",        desc: "إخفاء إذا لم يُمنح" },
+      { key: "finance_trip_settlement.readiness_bar",   label: "شريط جاهزية الإغلاق",        desc: "إخفاء إذا لم يُمنح" },
+      { key: "finance_trip_settlement.totals_summary",  label: "كروت الإجماليات",            desc: "إخفاء إذا لم يُمنح", sensitive: true },
+      { key: "finance_trip_settlement.alerts",          label: "تنبيه العملاء المعلقين",     desc: "إخفاء إذا لم يُمنح" },
+      { key: "finance_trip_settlement.reps_column",     label: "عمود المناديب",              desc: "إخفاء إذا لم يُمنح", sensitive: true },
+      { key: "finance_trip_settlement.clients_column",  label: "عمود العملاء",               desc: "إخفاء إذا لم يُمنح", sensitive: true },
+    ],
+  },
+  {
+    id: "finance_cash_archive_page", label: "صفحة أرشيف الخزن", color: "text-slate-400", bgColor: "bg-slate-500/10 border-slate-500/30",
+    icon: <Archive className="w-4 h-4" />,
+    permissions: [
+      { key: "finance_cash_archive.restore_button", label: "زرار: استعادة",   desc: "إخفاء إذا لم يُمنح" },
+      { key: "finance_cash_archive.delete_button",  label: "زرار: حذف نهائي", desc: "إخفاء إذا لم يُمنح" },
+    ],
+  },
+  {
+    id: "finance_pickup_requests_page", label: "صفحة طلبات الالتقاط", color: "text-cyan-400", bgColor: "bg-cyan-500/10 border-cyan-500/30",
+    icon: <Truck className="w-4 h-4" />,
+    permissions: [
+      { key: "finance_pickup_requests.status_filter_tabs", label: "شريط فلتر الحالات", desc: "إخفاء إذا لم يُمنح" },
+      { key: "finance_pickup_requests.refresh_button",     label: "زرار: تحديث",       desc: "إخفاء إذا لم يُمنح" },
+      { key: "finance_pickup_requests.status_select",      label: "تغيير حالة الطلب",  desc: "إخفاء إذا لم يُمنح" },
+      { key: "finance_pickup_requests.requests_list",      label: "قائمة الطلبات",     desc: "إخفاء إذا لم يُمنح", sensitive: true },
+    ],
+  },
+  {
+    id: "finance_cash_analytics_page", label: "صفحة تحليلات الخزنة", color: "text-blue-400", bgColor: "bg-blue-500/10 border-blue-500/30",
+    icon: <BarChart2 className="w-4 h-4" />,
+    permissions: [
+      { key: "finance_cash_analytics.kpi_cards",           label: "كروت KPI (دخل/خروج/صافي/حركات)", desc: "إخفاء إذا لم يُمنح", sensitive: true },
+      { key: "finance_cash_analytics.monthly_chart",       label: "الرسم الشهري (6 شهور)",          desc: "إخفاء إذا لم يُمنح", sensitive: true },
+      { key: "finance_cash_analytics.type_breakdown",      label: "دونات توزيع الحركات",            desc: "إخفاء إذا لم يُمنح" },
+      { key: "finance_cash_analytics.register_comparison", label: "مقارنة الخزن",                   desc: "إخفاء إذا لم يُمنح" },
+      { key: "finance_cash_analytics.top_transactions",    label: "أكبر 5 حركات",                   desc: "إخفاء إذا لم يُمنح", sensitive: true },
+    ],
+  },
+  {
+    id: "finance_sales_report_page", label: "صفحة تقرير الشحنات (المبيعات)", color: "text-emerald-400", bgColor: "bg-emerald-500/10 border-emerald-500/30",
+    icon: <BarChart2 className="w-4 h-4" />,
+    permissions: [
+      { key: "finance_sales_report.period_filter",          label: "فلتر الفترة",              desc: "إخفاء إذا لم يُمنح" },
+      { key: "finance_sales_report.kpi_cards",               label: "كروت KPI (6 كروت)",         desc: "إخفاء إذا لم يُمنح", sensitive: true },
+      { key: "finance_sales_report.daily_chart",             label: "شارت الشحنات اليومية",       desc: "إخفاء إذا لم يُمنح" },
+      { key: "finance_sales_report.payment_donut",           label: "دونات حالة الدفع",           desc: "إخفاء إذا لم يُمنح" },
+      { key: "finance_sales_report.top_clients",             label: "أفضل العملاء",               desc: "إخفاء إذا لم يُمنح", sensitive: true },
+      { key: "finance_sales_report.status_breakdown",        label: "حالة الشحنات ونسبة التحصيل",  desc: "إخفاء إذا لم يُمنح" },
+      { key: "finance_sales_report.recent_shipments_table",  label: "جدول آخر الشحنات",           desc: "إخفاء إذا لم يُمنح", sensitive: true },
     ],
   },
   {
