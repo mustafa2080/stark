@@ -175,6 +175,13 @@ const ROLE_DEFAULT_PERMISSIONS: Record<string, string[]> = {
     "section_users", "section_sessions_report", "section_audit", "section_finance",
     // الجديدة
     "dashboard.view","dashboard.financials","dashboard.shipping_stats","dashboard.returns","dashboard.team",
+    "dashboard.cash_registers","dashboard.status_distribution","dashboard.weekly_shipments",
+    "dashboard.delayed_shipments","dashboard.problem_shipments","dashboard.online_reps",
+    "dashboard.clients_followup","dashboard.live_map","dashboard.performance_metrics",
+    "dashboard.revenue_summary","dashboard.revenue_trend","dashboard.ai_center",
+    "dashboard.top_clients","dashboard.top_reps","dashboard.recent_events",
+    "dashboard.recent_shipments","dashboard.quick_actions","dashboard.reps_daily_table",
+    "dashboard.executive_summary",
     "orders.view","orders.create","orders.edit","orders.delete","orders.financials","orders.export","orders.profitability",
     "inventory.view","inventory.edit","inventory.delete","inventory.cost","inventory.movements","inventory.warehouses",
     "shipping.view","shipping.edit","shipping.financials","shipping.manifests",
