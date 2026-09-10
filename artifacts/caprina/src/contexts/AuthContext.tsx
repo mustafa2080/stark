@@ -166,6 +166,13 @@ export const ALL_PERMISSIONS = {
     { key: "smart_analytics.cash_flow",        label: "كارت: التدفق المالي",             desc: "إخفاء إذا لم يُمنح" },
     { key: "smart_analytics.ads_details_link", label: "زرار: تفاصيل الحملات",            desc: "إخفاء إذا لم يُمنح" },
   ],
+  // 5.6. صفحة تحليل الإعلانات (حاويات داخلية)
+  ads_analytics_page: [
+    { key: "ads_analytics.date_filters",   label: "فلاتر التاريخ والمصدر",       desc: "إخفاء إذا لم يُمنح" },
+    { key: "ads_analytics.kpi_cards",      label: "كروت KPI (إيرادات/تكاليف/ROI)", desc: "إخفاء إذا لم يُمنح" },
+    { key: "ads_analytics.source_summary", label: "كارت: ملخص حسب المصدر",       desc: "إخفاء إذا لم يُمنح" },
+    { key: "ads_analytics.campaigns_list", label: "قائمة كروت الحملات",          desc: "إخفاء إذا لم يُمنح" },
+  ],
   // 6. الماليات
   finance: [
     { key: "finance.view",      label: "دخول الماليات",            desc: "الصفحة الرئيسية للماليات" },
@@ -257,6 +264,7 @@ const ROLE_DEFAULT_PERMISSIONS: Record<string, string[]> = {
     "smart_analytics.summary_bar","smart_analytics.ad_attribution","smart_analytics.stars_deadstock",
     "smart_analytics.return_insights","smart_analytics.stock_predictor","smart_analytics.cash_flow",
     "smart_analytics.ads_details_link",
+    "ads_analytics.date_filters","ads_analytics.kpi_cards","ads_analytics.source_summary","ads_analytics.campaigns_list",
     "finance.view","finance.sales","finance.expenses","finance.cash","finance.suppliers","finance.reports","finance.trip_settlement",
     "finance_clients.kpi_total_clients","finance_clients.kpi_monthly_collected","finance_clients.kpi_total_outstanding",
     "finance_clients.kpi_total_shipments","finance_clients.top_clients","finance_clients.shipments_chart",

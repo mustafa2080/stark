@@ -202,54 +202,58 @@ export default function AdsAnalyticsPage() {
           </h1>
           <p className="text-muted-foreground text-xs mt-0.5">قياس أداء كل حملة وحساب العائد على الإنفاق الإعلاني</p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="space-y-0.5">
-            <Label className="text-[10px] text-muted-foreground">من</Label>
-            <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="h-7 text-xs w-32" />
+        {(isAdmin || can("ads_analytics.date_filters")) && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="space-y-0.5">
+              <Label className="text-[10px] text-muted-foreground">من</Label>
+              <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="h-7 text-xs w-32" />
+            </div>
+            <div className="space-y-0.5">
+              <Label className="text-[10px] text-muted-foreground">إلى</Label>
+              <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="h-7 text-xs w-32" />
+            </div>
+            <div className="space-y-0.5">
+              <Label className="text-[10px] text-muted-foreground">المصدر</Label>
+              <select
+                className="h-7 text-xs bg-card border border-input rounded-md px-2"
+                value={filterSource}
+                onChange={e => setFilterSource(e.target.value)}
+              >
+                <option value="">الكل</option>
+                {Object.entries(SOURCE_META).map(([k, v]) => (
+                  <option key={k} value={k}>{v.label}</option>
+                ))}
+              </select>
+            </div>
           </div>
-          <div className="space-y-0.5">
-            <Label className="text-[10px] text-muted-foreground">إلى</Label>
-            <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="h-7 text-xs w-32" />
-          </div>
-          <div className="space-y-0.5">
-            <Label className="text-[10px] text-muted-foreground">المصدر</Label>
-            <select
-              className="h-7 text-xs bg-card border border-input rounded-md px-2"
-              value={filterSource}
-              onChange={e => setFilterSource(e.target.value)}
-            >
-              <option value="">الكل</option>
-              {Object.entries(SOURCE_META).map(([k, v]) => (
-                <option key={k} value={k}>{v.label}</option>
-              ))}
-            </select>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        {[
-          { label: "إجمالي الطلبات", value: fmtNum(totals.orders), icon: Package, color: "text-primary" },
-          { label: "إيرادات", value: fmt(totals.revenue), icon: DollarSign, color: "text-blue-400" },
-          { label: "تكاليف", value: fmt(totals.cost), icon: TrendingDown, color: "text-amber-400" },
-          { label: "صافي الربح", value: fmt(totals.profit), icon: TrendingUp, color: totals.profit >= 0 ? "text-emerald-400" : "text-red-400" },
-          { label: "ROI الإجمالي", value: `${totalRoi >= 0 ? "+" : ""}${fmtPct(totalRoi)}`, icon: Target, color: totalRoi >= 0 ? "text-emerald-400" : "text-red-400" },
-        ].map(card => (
-          <Card key={card.label} className="border-border bg-card">
-            <CardContent className="px-4 py-3 flex items-center gap-3">
-              <card.icon className={`w-4 h-4 shrink-0 ${card.color}`} />
-              <div>
-                <p className="text-sm font-bold">{card.value}</p>
-                <p className="text-[10px] text-muted-foreground">{card.label}</p>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {(isAdmin || can("ads_analytics.kpi_cards")) && (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          {[
+            { label: "إجمالي الطلبات", value: fmtNum(totals.orders), icon: Package, color: "text-primary" },
+            { label: "إيرادات", value: fmt(totals.revenue), icon: DollarSign, color: "text-blue-400" },
+            { label: "تكاليف", value: fmt(totals.cost), icon: TrendingDown, color: "text-amber-400" },
+            { label: "صافي الربح", value: fmt(totals.profit), icon: TrendingUp, color: totals.profit >= 0 ? "text-emerald-400" : "text-red-400" },
+            { label: "ROI الإجمالي", value: `${totalRoi >= 0 ? "+" : ""}${fmtPct(totalRoi)}`, icon: Target, color: totalRoi >= 0 ? "text-emerald-400" : "text-red-400" },
+          ].map(card => (
+            <Card key={card.label} className="border-border bg-card">
+              <CardContent className="px-4 py-3 flex items-center gap-3">
+                <card.icon className={`w-4 h-4 shrink-0 ${card.color}`} />
+                <div>
+                  <p className="text-sm font-bold">{card.value}</p>
+                  <p className="text-[10px] text-muted-foreground">{card.label}</p>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
       {/* Source breakdown */}
-      {campaigns.length > 0 && !filterSource && (
+      {(isAdmin || can("ads_analytics.source_summary")) && campaigns.length > 0 && !filterSource && (
         <div>
           <h2 className="text-sm font-bold mb-3 text-muted-foreground">ملخص حسب المصدر</h2>
           <SourceSummary campaigns={campaigns} />
@@ -267,7 +271,7 @@ export default function AdsAnalyticsPage() {
       )}
 
       {/* Campaign cards */}
-      {filtered.length > 0 && (
+      {(isAdmin || can("ads_analytics.campaigns_list")) && filtered.length > 0 && (
         <div>
           <h2 className="text-sm font-bold mb-3 text-muted-foreground">الحملات ({fmtNum(filtered.length)})</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">

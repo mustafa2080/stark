@@ -264,6 +264,11 @@ const PERM_TO_SECTION: Record<string, string> = {
   "smart_analytics.stock_predictor":  "section_smart_analytics",
   "smart_analytics.cash_flow":        "section_smart_analytics",
   "smart_analytics.ads_details_link": "section_smart_analytics",
+  // حاويات صفحة تحليل الإعلانات
+  "ads_analytics.date_filters":   "section_ads_analytics",
+  "ads_analytics.kpi_cards":      "section_ads_analytics",
+  "ads_analytics.source_summary": "section_ads_analytics",
+  "ads_analytics.campaigns_list": "section_ads_analytics",
   // الماليات
   "finance.view":              "section_finance",
   "finance.sales":             "section_finance",
@@ -512,6 +517,16 @@ const SECTION_GROUPS: Array<{
       { key: "smart_analytics.stock_predictor",  label: "كارت: التنبؤ بالمخزون",           desc: "إخفاء إذا لم يُمنح" },
       { key: "smart_analytics.cash_flow",        label: "كارت: التدفق المالي",             desc: "إخفاء إذا لم يُمنح", sensitive: true },
       { key: "smart_analytics.ads_details_link", label: "زرار: تفاصيل الحملات",            desc: "إخفاء إذا لم يُمنح" },
+    ],
+  },
+  {
+    id: "ads_analytics_page", label: "تحليل الإعلانات (حاويات)", color: "text-blue-400", bgColor: "bg-blue-500/10 border-blue-500/30",
+    icon: <BarChart2 className="w-4 h-4" />,
+    permissions: [
+      { key: "ads_analytics.date_filters",   label: "فلاتر التاريخ والمصدر",         desc: "إخفاء إذا لم يُمنح" },
+      { key: "ads_analytics.kpi_cards",      label: "كروت KPI (إيرادات/تكاليف/ROI)", desc: "إخفاء إذا لم يُمنح", sensitive: true },
+      { key: "ads_analytics.source_summary", label: "كارت: ملخص حسب المصدر",         desc: "إخفاء إذا لم يُمنح" },
+      { key: "ads_analytics.campaigns_list", label: "قائمة كروت الحملات",            desc: "إخفاء إذا لم يُمنح" },
     ],
   },
   {
