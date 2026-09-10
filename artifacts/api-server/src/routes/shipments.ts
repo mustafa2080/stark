@@ -124,6 +124,52 @@ async function rejectIfShipmentLocked(res: any, shipmentId: number, callerRole?:
   return false;
 }
 
+// بطلب صريح من مصطفى (2026-09-10): assignedUserId (الراسل/المندوب الداخلي
+// المسؤول عن الشحنة) بيتغيّر من غير أي فحص أو تحذير حتى لو الشحنة already
+// معينة لمندوب مختلف وعليها شغل فعلي (زي in_transit/out_for_delivery). ده مش
+// "شحنة عند مندوبين في نفس الوقت" (العمود فردي أصلًا) لكن "تحويل من مندوب
+// لمندوب من غير تأكيد إن ده مقصود". بنمنع التحديث الصامت ده ونطلب confirmReassign
+// صريح لو الشرطين اتحققوا مع بعض: (1) فيه مندوب قديم فعلي مختلف عن الجديد،
+// و(2) الحالة خرجت من "waiting" (يعني الشحنة already اتفتح عليها شغل).
+async function checkAssignmentReassignmentConflict(
+  existingShipment: { assignedUserId: number | null; status: string },
+  newAssignedUserId: number | null | undefined,
+  confirmReassign: boolean | undefined,
+): Promise<{ previousUserId: number; previousUserName: string | null } | null> {
+  if (newAssignedUserId === undefined) return null; // مفيش تغيير في الحقل أصلًا
+  if (confirmReassign === true) return null;        // اتأكد صراحةً من الفرونت
+
+  const previousUserId = existingShipment.assignedUserId;
+  if (!previousUserId) return null;                  // مفيش مندوب قديم أصلًا
+  if (previousUserId === newAssignedUserId) return null; // نفس المندوب — مفيش تحويل حقيقي
+  if (existingShipment.status === "waiting") return null; // لسه معلقة، لم يبدأ عليها شغل
+
+  const [prevUser] = await db.select({ displayName: usersTable.displayName })
+    .from(usersTable).where(eq(usersTable.id, previousUserId)).limit(1);
+  return { previousUserId, previousUserName: prevUser?.displayName ?? null };
+}
+
+// Helper موحّد يبعت رد 409 (Conflict) لو فيه محاولة تحويل شحنة من مندوب لمندوب
+// من غير تأكيد صريح — يُستخدم في PUT وPATCH /shipments/:id.
+async function rejectIfReassignmentUnconfirmed(
+  res: any,
+  existingShipment: { assignedUserId: number | null; status: string },
+  newAssignedUserId: number | null | undefined,
+  confirmReassign: boolean | undefined,
+): Promise<boolean> {
+  const conflict = await checkAssignmentReassignmentConflict(existingShipment, newAssignedUserId, confirmReassign);
+  if (conflict) {
+    res.status(409).json({
+      error: `هذه الشحنة معينة بالفعل للمندوب${conflict.previousUserName ? ` "${conflict.previousUserName}"` : ""} وعليها شغل فعلي. أكّد التحويل صراحةً للمتابعة.`,
+      previousUserId: conflict.previousUserId,
+      previousUserName: conflict.previousUserName,
+      requiresConfirmation: true,
+    });
+    return true;
+  }
+  return false;
+}
+
 // ملاحظة: shippingCompaniesTable في هذا النظام تحمل اسم المندوب نفسه
 // (كل "شركة شحن" في الواقع هي مندوب مستقل). فاسم المندوب = manifestShippingCompanyTable.name
 // أو shippingCompaniesTable.name مباشرة — مفيش داعي لجلبه من usersTable.
@@ -362,6 +408,9 @@ const UpdateShipmentSchema = CreateShipmentSchema.partial().extend({
   trackingNumber: z.string().nullish(),
   collectedAmount: z.coerce.number().nullish(),
   assignedUserId: z.number().int().positive().nullish(),
+  // تأكيد صريح مطلوب لو الشحنة already معينة لمندوب مختلف وحالتها متقدمة —
+  // راجع checkAssignmentReassignmentConflict لتفاصيل الفحص.
+  confirmReassign: z.boolean().optional(),
   itemReceivedQuantities: z.record(z.string(), z.coerce.number().int().min(0)).nullish(),
   isReplacementRequested: z.union([z.boolean(), z.number()]).nullish(),
   // لا يقبل العميل وقتاً من عنده؛ السيرفر هو الذي يسجل وقت ضغط زر واتساب.
@@ -1189,6 +1238,7 @@ router.put("/shipments/:id", async (req, res): Promise<void> => {
     if (await rejectIfShipmentLocked(res, id, (req as any).user?.role)) return;
 
     const d = parsed.data;
+    if (await rejectIfReassignmentUnconfirmed(res, existingShipment, d.assignedUserId, d.confirmReassign)) return;
     const updateData: any = { updatedAt: new Date() };
 
     if (d.status           !== undefined) updateData.status           = d.status;
@@ -1501,6 +1551,7 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
     if (await rejectIfShipmentLocked(res, id, (req as any).user?.role)) return;
 
     const d = parsed.data;
+    if (await rejectIfReassignmentUnconfirmed(res, existingShipment, d.assignedUserId, d.confirmReassign)) return;
     const updateData: any = { updatedAt: new Date() };
     // فتح واتساب له انتقال حالة واحد مسموح به فقط: pending/waiting →
     // warehouse_ready. لا نثق بحالة مرسلة من الواجهة في هذا المسار حتى لا

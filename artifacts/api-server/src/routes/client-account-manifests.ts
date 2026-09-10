@@ -1159,6 +1159,25 @@ router.patch("/client-account-manifests/:id/items/:shipmentId", async (req, res)
       }
     }
 
+    // ─── منع تأكيد "تم استلام المرتجع" طول ما الشحنة لسه مربوطة بمندوب (assignedUserId) ──
+    // (بطلب مصطفى 2026-09-10): "تم الاستلام" هنا معناها المرتجع رجع فعليًا للمخزن/الراسل،
+    // فلو الشحنة لسه معلّقة على مندوب معيّن في shipmentsTable فده يعني إنه لسه شايلها فعليًا
+    // ولازم يترحّل المرتجع منه الأول (أو يتشال منه assignedUserId) قبل ما يتقفل كـ"مُستلم" هنا. ──
+    if (body.returnReceived === true) {
+      const [shipmentRow] = await db
+        .select({ assignedUserId: shipmentsTable.assignedUserId, assignedUserName: usersTable.displayName })
+        .from(shipmentsTable)
+        .leftJoin(usersTable, eq(shipmentsTable.assignedUserId, usersTable.id))
+        .where(eq(shipmentsTable.id, shipmentId))
+        .limit(1);
+      if (shipmentRow?.assignedUserId) {
+        res.status(400).json({
+          error: `لا يمكن تأكيد الاستلام — الشحنة ما زالت مرتبطة بالمندوب ${shipmentRow.assignedUserName || "غير معروف"}`,
+        });
+        return;
+      }
+    }
+
     await db.update(clientAccountManifestItemsTable)
       .set({
         deliveryStatus:  body.deliveryStatus,

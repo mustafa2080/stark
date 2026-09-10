@@ -699,6 +699,25 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
       }
     }
 
+    // ─── منع تأكيد "تم استلام المرتجع" طول ما الشحنة لسه مربوطة بمندوب (assignedUserId) ──
+    // (بطلب مصطفى 2026-09-10): نفس فحص /client-account-manifests — المرتجع ميتأكدش
+    // استلامه (رجع فعليًا للمخزن/الراسل) طول ما لسه في shipmentsTable.assignedUserId
+    // مندوب معيّن شايله فعليًا. ────────────────────────────────────────────────────
+    if (body.returnReceived === true) {
+      const [shipmentRow] = await db
+        .select({ assignedUserId: shipmentsTable.assignedUserId, assignedUserName: usersTable.displayName })
+        .from(shipmentsTable)
+        .leftJoin(usersTable, eq(shipmentsTable.assignedUserId, usersTable.id))
+        .where(eq(shipmentsTable.id, shipmentId))
+        .limit(1);
+      if (shipmentRow?.assignedUserId) {
+        res.status(400).json({
+          error: `لا يمكن تأكيد الاستلام — الشحنة ما زالت مرتبطة بالمندوب ${shipmentRow.assignedUserName || "غير معروف"}`,
+        });
+        return;
+      }
+    }
+
     // ─── الحفاظ على بادئة [ROLLED_OVER] عبر أي تعديل ───────────────────────────
     // البند المُرحَّل من بيان مقفول معلَّم بـ "[ROLLED_OVER]" في deliveryNote عشان
     // يفضل no-op مالي (لا إيراد ولا تكلفة شحن) في البيان الجديد. أي تعديل عليه —
@@ -1462,6 +1481,17 @@ router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
           const userName = (req as any).user?.displayName ?? null;
           await createTreasuryEntryOnClose(manifest, items, userId, userName);
 
+          // ⚠️ فيكس (2026-09-10): كانت متعرّفة (let) جوه if (netDue >= 0) بس
+          // مستخدمة تاني بعدين في إشعار "قفل البيان نهائيًا" برّه نطاقها —
+          // TS2304/TS2552 (Cannot find name) كان بيوقف الـ build بالكامل.
+          // رفعناها هنا لنطاق أوسع (جوه if (manifest) مباشرة) عشان تفضل
+          // متاحة لحد الاستخدام الثاني. القيم الافتراضية (null/"مندوب"/false)
+          // بتضمن إن لو netDue < 0 (الشرط اللي بيحسبهم مش هيتنفذ)، الإشعار
+          // ببساطة مش هيتبعت (repResolved تفضل false) — نفس السلوك المنطقي.
+          let repUserId: number | null = null;
+          let repName = "مندوب";
+          let repResolved = false;
+
           // ── ترحيل تلقائي لـ "تسوية الرحلات والتحصيل" ──────────────────────
           // نفس netDueToCompany اللي اترحّل للخزنة فوق بالظبط. أولوية تحديد
           // "المندوب صاحب البيان" بقت كالتالي (تصحيح جذري بتاريخ 2026-09-03):
@@ -1478,9 +1508,9 @@ router.patch("/shipment-manifests/:id", async (req, res): Promise<void> => {
             // حتى لو صافي التحصيل صفر، نرحّل صفًا باسم المندوب لتوثيق إغلاق
             // بيانه في تسوية الرحلات. القيمة السالبة وحدها لا تمثل تحصيلاً.
             if (netDue >= 0) {
-              let repUserId: number | null = null;
-              let repName = "مندوب";
-              let repResolved = false;
+              // repUserId/repName/repResolved معرّفين فوق (نطاق أوسع) عشان
+              // يفضلوا متاحين لاستخدام الإشعار بعد نهاية الـ if ده — راجع
+              // فيكس 2026-09-10 فوق.
 
               // (صفر) المندوب صف في shipping_companies مش في users (حالة
               // شركات/مناديب مسجلين كـ "شركة شحن" بدل يوزر نظام حقيقي — زي
