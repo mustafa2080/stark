@@ -514,8 +514,9 @@ function ClientForm({ open, onClose, editClient, onSuccess }: {
 export default function FinanceClients() {
 
   // ── Finance access guard ───────────────────────────────────────────────────
-  const { isAdmin: _fAdmin, can: _fCan } = useAuth();
-  if (!_fAdmin && !_fCan("finance.view")) {
+  const { isAdmin: _fAdmin, can } = useAuth();
+  const canSee = (key: string) => _fAdmin || can(key);
+  if (!_fAdmin && !can("finance.view")) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center px-4">
         <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center">
@@ -863,19 +864,21 @@ export default function FinanceClients() {
           <h1 className="text-2xl font-bold">العملاء التجاريون</h1>
           <p className="text-muted-foreground text-sm mt-0.5">إدارة عملائك التجاريين وكل ما يتعلق بمبيعاتك</p>
         </div>
+        {canSee("finance_clients.add_client_btn") && (
         <Button onClick={openAdd} className="gap-2 bg-primary text-primary-foreground font-bold text-sm">
           <Plus className="w-4 h-4" />إضافة عميل تجاري
         </Button>
+        )}
       </div>
 
       {/* ── 4 KPI Cards ── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: "إجمالي العملاء",    value: totalClients, sub: `+${clients.filter(c => { const d = new Date(c.createdAt); const now = new Date(); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear(); }).length} هذا الشهر`, icon: <Users className="w-6 h-6" />, color: "text-foreground" },
-          { label: "المحصّل هذا الشهر", value: `${fmt(monthlyCollected)} ج.م`, sub: "من الشحنات المحصّلة", icon: <Receipt className="w-6 h-6" />, color: "text-emerald-400" },
-          { label: "المستحق الإجمالي",  value: `${fmt(totalOutstanding)} ج.م`, sub: "على كل العملاء", icon: <ShoppingCart className="w-6 h-6" />, color: "text-amber-400" },
-          { label: "إجمالي الشحنات",    value: totalShipmentsCount, sub: `عدد شحنات جميع الحالات`, icon: <TrendingUp className="w-6 h-6" />, color: "text-primary" },
-        ].map((kpi, i) => (
+          { key: "finance_clients.kpi_total_clients", label: "إجمالي العملاء",    value: totalClients, sub: `+${clients.filter(c => { const d = new Date(c.createdAt); const now = new Date(); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear(); }).length} هذا الشهر`, icon: <Users className="w-6 h-6" />, color: "text-foreground" },
+          { key: "finance_clients.kpi_monthly_collected", label: "المحصّل هذا الشهر", value: `${fmt(monthlyCollected)} ج.م`, sub: "من الشحنات المحصّلة", icon: <Receipt className="w-6 h-6" />, color: "text-emerald-400" },
+          { key: "finance_clients.kpi_total_outstanding", label: "المستحق الإجمالي",  value: `${fmt(totalOutstanding)} ج.م`, sub: "على كل العملاء", icon: <ShoppingCart className="w-6 h-6" />, color: "text-amber-400" },
+          { key: "finance_clients.kpi_total_shipments", label: "إجمالي الشحنات",    value: totalShipmentsCount, sub: `عدد شحنات جميع الحالات`, icon: <TrendingUp className="w-6 h-6" />, color: "text-primary" },
+        ].filter(kpi => canSee(kpi.key)).map((kpi, i) => (
           <Card key={i} className="border-border bg-card p-4">
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs text-muted-foreground">{kpi.label}</p>
@@ -892,7 +895,7 @@ export default function FinanceClients() {
       {/* ── أفضل العملاء + الرسم البياني ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-        {/* أفضل العملاء */}
+        {canSee("finance_clients.top_clients") && (
         <Card className="border-border bg-card p-4">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-bold text-sm flex items-center gap-1.5">
@@ -935,12 +938,15 @@ export default function FinanceClients() {
               });
             })()}
           </div>
+          {canSee("finance_clients.view_all_clients_btn") && (
           <Button variant="outline" className="w-full mt-4 h-8 text-xs border-primary/30 text-primary hover:bg-primary/10" onClick={() => navigate("/finance/all-clients")}>
             عرض جميع العملاء
           </Button>
+          )}
         </Card>
+        )}
 
-        {/* الرسم البياني */}
+        {canSee("finance_clients.shipments_chart") && (
         <Card className="border-border bg-card p-4">
           <div className="flex items-center justify-between mb-1">
             <h2 className="font-bold text-sm">شحنات العملاء التجاريون</h2>
@@ -1077,9 +1083,10 @@ export default function FinanceClients() {
             )}
           </ResponsiveContainer>
         </Card>
+        )}
       </div>
 
-      {/* ── تقرير المبيعات ── */}
+      {canSee("finance_clients.sales_report_link") && (
       <Card
         onClick={() => navigate("/finance/sales-report")}
         className="relative overflow-hidden border-border bg-card p-5 cursor-pointer group hover:border-primary/40 transition-all"
@@ -1098,8 +1105,10 @@ export default function FinanceClients() {
           <ChevronLeft className="w-5 h-5 text-muted-foreground group-hover:text-primary group-hover:-translate-x-1 transition-all" />
         </div>
       </Card>
+      )}
 
       {/* ── الجدول الرئيسي ── */}
+      {canSee("finance_clients.clients_table") && (
       <Card id="clients-table" className="border-border bg-card">
         {/* Tabs + Search */}
         <div className="flex items-center justify-between p-3 sm:p-4 border-b border-border gap-2 sm:gap-3 flex-wrap">
@@ -1228,6 +1237,7 @@ export default function FinanceClients() {
                         {/* إجراءات */}
                         <td className="px-3 py-3">
                           <div className="flex items-center gap-1.5">
+                            {canSee("finance_clients.edit_client_btn") && (
                             <Button
                               variant="outline" size="icon"
                               className="h-7 w-7 rounded-full border-border hover:border-primary/50 hover:bg-primary/10 hover:text-primary transition-colors"
@@ -1236,6 +1246,8 @@ export default function FinanceClients() {
                             >
                               <Edit2 className="w-3 h-3" />
                             </Button>
+                            )}
+                            {canSee("finance_clients.delete_client_btn") && (
                             <Button
                               variant="outline" size="icon"
                               className="h-7 w-7 rounded-full border-border hover:border-destructive/50 hover:bg-destructive/10 hover:text-destructive transition-colors"
@@ -1244,6 +1256,7 @@ export default function FinanceClients() {
                             >
                               <Trash2 className="w-3 h-3" />
                             </Button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -1281,6 +1294,7 @@ export default function FinanceClients() {
           </div>
         )}
       </Card>
+      )}
 
       {/* Forms & Dialogs */}
       {formOpen && (

@@ -166,6 +166,21 @@ export const ALL_PERMISSIONS = {
     { key: "finance.reports",   label: "تقارير الأرباح والخسائر",   desc: "التقارير المالية الشاملة" },
     { key: "finance.trip_settlement", label: "تسوية الرحلات والتحصيل", desc: "إدارة رحلات المناديب وتحصيل العملاء" },
   ],
+  // 6.5. صفحة العملاء التجاريون (حاويات داخلية)
+  finance_clients_page: [
+    { key: "finance_clients.kpi_total_clients",     label: "كارت: إجمالي العملاء",           desc: "إخفاء إذا لم يُمنح" },
+    { key: "finance_clients.kpi_monthly_collected",  label: "كارت: المحصّل هذا الشهر",        desc: "إخفاء إذا لم يُمنح" },
+    { key: "finance_clients.kpi_total_outstanding",  label: "كارت: المستحق الإجمالي",         desc: "إخفاء إذا لم يُمنح" },
+    { key: "finance_clients.kpi_total_shipments",    label: "كارت: إجمالي الشحنات",           desc: "إخفاء إذا لم يُمنح" },
+    { key: "finance_clients.top_clients",            label: "كارت: أفضل العملاء",             desc: "إخفاء إذا لم يُمنح" },
+    { key: "finance_clients.shipments_chart",        label: "كارت: الرسم البياني للشحنات",     desc: "إخفاء إذا لم يُمنح" },
+    { key: "finance_clients.sales_report_link",      label: "كارت: تقرير المبيعات",           desc: "إخفاء إذا لم يُمنح" },
+    { key: "finance_clients.clients_table",          label: "الجدول الرئيسي للعملاء",         desc: "إخفاء إذا لم يُمنح" },
+    { key: "finance_clients.add_client_btn",         label: "زرار: إضافة عميل تجاري",         desc: "إخفاء إذا لم يُمنح" },
+    { key: "finance_clients.edit_client_btn",        label: "زرار: تعديل عميل (بالجدول)",      desc: "إخفاء إذا لم يُمنح" },
+    { key: "finance_clients.delete_client_btn",      label: "زرار: حذف عميل (بالجدول)",        desc: "إخفاء إذا لم يُمنح" },
+    { key: "finance_clients.view_all_clients_btn",   label: "زرار: عرض جميع العملاء",         desc: "إخفاء إذا لم يُمنح" },
+  ],
   // 7. الفريق والإدارة
   team: [
     { key: "team.view",        label: "رؤية أعضاء الفريق",         desc: "قائمة الموظفين" },
@@ -230,6 +245,10 @@ const ROLE_DEFAULT_PERMISSIONS: Record<string, string[]> = {
     "shipping.view","shipping.edit","shipping.financials","shipping.manifests",
     "analytics.view","analytics.financial","analytics.products","analytics.ads","analytics.smart",
     "finance.view","finance.sales","finance.expenses","finance.cash","finance.suppliers","finance.reports","finance.trip_settlement",
+    "finance_clients.kpi_total_clients","finance_clients.kpi_monthly_collected","finance_clients.kpi_total_outstanding",
+    "finance_clients.kpi_total_shipments","finance_clients.top_clients","finance_clients.shipments_chart",
+    "finance_clients.sales_report_link","finance_clients.clients_table","finance_clients.add_client_btn",
+    "finance_clients.edit_client_btn","finance_clients.delete_client_btn","finance_clients.view_all_clients_btn",
     "team.view","team.performance","team.manage","team.salaries",
     "tools.import","tools.export",
     "settings.brand","settings.users","settings.audit","settings.sessions","settings.whatsapp",
