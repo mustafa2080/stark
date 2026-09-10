@@ -473,8 +473,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const can = useCallback(
     (permission: string): boolean => {
       if (!user) return false;
-      // super_admin / super-admin عنده كل الصلاحيات دايماً
-      if (user.role === "super_admin" || user.role === ("super-admin" as any)) return true;
       const rawPerms = flattenPermissions(user.permissions);
 
       // "*" يعني كل الصلاحيات
@@ -503,18 +501,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return realPerms.some(p => p.startsWith(permission + "."));
       }
 
-      // ── استثناء: حاويات لوحة التحكم (Opt-out) ──────────────────────
-      // "dashboard.view" لوحدها تكفي لإظهار كل حاويات الداشبورد تلقائياً.
-      // الإخفاء الصريح لحاوية معينة بيتم بإضافة "!dashboard.xxx" في الصلاحيات.
-      if (permission.startsWith("dashboard.") && permission !== "dashboard.view") {
-        if (realPerms.includes(permission)) return true; // مُنحت صراحةً
-        if (realPerms.includes("!" + permission)) return false; // اتخفت صراحةً
-        // لو dashboard.view ممنوحة ومفيش إخفاء صريح → ظاهرة تلقائياً
-        if (realPerms.includes("dashboard.view")) return true;
-        return false;
-      }
-
-      // صلاحية تفصيلية (مثلاً "orders.view") — لازم تكون موجودة بالضبط
+      // صلاحية تفصيلية (مثلاً "orders.view" أو "dashboard.xxx") — لازم تكون موجودة بالضبط (opt-in)
       return realPerms.includes(permission);
     },
     [user]
