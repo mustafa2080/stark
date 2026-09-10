@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import rateLimit from "express-rate-limit";
 import { eq, desc, and, like, or, inArray, sql, isNull, isNotNull, gte, getTableColumns } from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
-import { db, shipmentsTable, shipmentItemsTable, shipmentZonesTable, zoneCostsTable, parcelTypePricingTable, clientsTable, shippingCompaniesTable, usersTable, warehousesTable, shipmentManifestsTable, shipmentManifestItemsTable, shipmentRatingsTable, clientAccountManifestItemsTable, SHIPMENT_STATUS_LABELS } from "@workspace/db";
+import { db, shipmentsTable, shipmentItemsTable, shipmentZonesTable, zoneCostsTable, parcelTypePricingTable, clientsTable, shippingCompaniesTable, usersTable, warehousesTable, shipmentManifestsTable, shipmentManifestItemsTable, shipmentRatingsTable, clientAccountManifestItemsTable, SHIPMENT_STATUS_LABELS, getShipmentLocationNote } from "@workspace/db";
 import { z } from "zod";
 import { getTenantId } from "../middlewares/requireTenant.js";
 import { processToShipping, reverseShipping, processReturn, syncShipmentItemsInventory } from "../lib/inventory.js";
@@ -691,6 +691,7 @@ router.get("/shipments", async (req, res): Promise<void> => {
           internalNotes:    shipmentsTable.internalNotes,
           returnReason:     shipmentsTable.returnReason,
           returnReceived:   shipmentsTable.returnReceived,
+          returnReceivedBy: shipmentsTable.returnReceivedBy,
           returnNote:       shipmentsTable.returnNote,
           partialQuantity:  shipmentsTable.partialQuantity,
           productId:        shipmentsTable.productId,
@@ -761,12 +762,24 @@ router.get("/shipments", async (req, res): Promise<void> => {
       const senderGov = (r as any).senderGovernorate || (r as any).senderCityGovernorate || (r as any).sender_governorate || (r as any).sender_city_governorate || null;
       // اسم المخزن: أولاً مخزن الشحنة نفسها، ثم مخزن العميل التجاري كـ fallback
       const warehouseName = (r as any).warehouseName || (r as any).clientWarehouseName || null;
+      // ── ملحوظة الموقع الحالي للشحنة (مخزن/مندوب/سبب تأجيل/تفاصيل مرتجع) ──
+      const locationNote = getShipmentLocationNote({
+        status: (r as any).status,
+        warehouseName,
+        assignedUserName: (r as any).assignedUserName || null,
+        // بطلب مصطفى: سبب التأجيل بييجي من delayNote (آخر بيان مندوب) لو موجود،
+        // وإلا fallback على returnReason (الحقل القديم اللي كان بيتخزن فيه سبب التأجيل)
+        returnReason: (r as any).delayNote || (r as any).returnReason || null,
+        returnReceived: (r as any).returnReceived,
+        returnReceivedBy: (r as any).returnReceivedBy || null,
+      });
       return {
         ...r,
         receiverCity: city,
         zoneGovernorate: r.zoneGovernorate || (r as any).zone_governorate || null,
         senderGovernorate: senderGov,
         warehouseName,
+        locationNote,
       };
     });
 

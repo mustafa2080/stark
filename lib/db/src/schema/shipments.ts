@@ -105,7 +105,11 @@ export const shipmentsTable = mysqlTable("shipments", {
   notes:           text("notes"),
   internalNotes:   text("internal_notes"),       // ملاحظات داخلية
   returnReason:    varchar("return_reason", { length: 100 }),  // سبب الإرجاع
-  returnReceived:  int("return_received"),                      // 1=تم الاستلام في المخزن، 0/null=ما زال عند شركة الشحن (للـ returned و partial_received)
+  returnReceived:  int("return_received"),                      // 1=تم الاستلام، 0/null=ما زال عند شركة الشحن/المندوب (للـ returned و partial_received)
+  // مين استلم المرتجع فعليًا (بيتحدد بس لما returnReceived = 1):
+  // "warehouse" = رجع لمخزن (warehouseId بيحدد الفرع)، "sender" = تم تسليمه للراسل نفسه.
+  // null مع returnReceived=1 = بيانات قديمة قبل إضافة العمود ده (نعرضها كـ"استُلم" بدون تفصيل).
+  returnReceivedBy: varchar("return_received_by", { length: 20 }),
   returnNote:      text("return_note"),                         // ملاحظة الإرجاع (لو other)
   partialQuantity: int("partial_quantity"),                     // الكمية المستلمة جزئياً
   isReplacementRequested: int("is_replacement_requested").default(0), // 1 = العميل طلب استبدال الشحنة
@@ -174,3 +178,72 @@ export const shipmentItemsTable = mysqlTable("shipment_items", {
 
 export type InsertShipmentItem = typeof shipmentItemsTable.$inferInsert;
 export type ShipmentItem       = typeof shipmentItemsTable.$inferSelect;
+
+// ─── مين استلم المرتجع (returnReceivedBy) ────────────────────────────────────
+export const RETURN_RECEIVED_BY_VALUES = ["warehouse", "sender"] as const;
+export type ReturnReceivedBy = (typeof RETURN_RECEIVED_BY_VALUES)[number];
+
+// ─── ملحوظة موقع الشحنة (تُعرض تحت الحالة في أي مكان بتظهر فيه الشحنة) ───────
+// المدخل: بيانات الشحنة الخام + أسماء المخزن/المندوب الحاليين (بعد أي join
+// يعملها الـ caller). دالة pure بدون DB access عشان تصلح في الـ backend
+// والفرونت مع بعض.
+//
+// ⚠️ ملحوظة عن حالات الشحنة: shipmentsTable.status عمود varchar حر (مش enum
+// حقيقي في MySQL)، وبمرور الوقت اتراكم فيه مسميات قديمة وجديدة مع بعض
+// (waiting/confirmed/picked_up القديمة، جنب pending/warehouse_ready/in_shipping
+// الجديدة، وdelayed/postponed كمترادفين). مصدر الحقيقة الموحّد لتصنيفها هو
+// SHIPMENT_STATUS_TO_DELIVERY في artifacts/api-server/src/lib/manifestSync.ts.
+// الدالة هنا بتتعامل مع أي قيمة status جاية بمرونة (بدل الاعتماد على
+// SHIPMENT_STATUSES الأقدم والأقصر فوق في الملف ده) عشان تغطي كل الحالات
+// الفعلية الموجودة في قاعدة البيانات دلوقتي.
+export interface ShipmentLocationNoteInput {
+  status: string | null | undefined;
+  warehouseName?: string | null;      // اسم المخزن الحالي (من warehousesTable.name عبر warehouseId)
+  assignedUserName?: string | null;   // اسم المندوب الحالي (من usersTable.displayName عبر assignedUserId)
+  returnReason?: string | null;
+  returnReceived?: number | null;     // 1 = استُلم، 0/null = لسه عند شركة الشحن/المندوب
+  returnReceivedBy?: string | null;   // "warehouse" | "sender" | null
+}
+
+const WAREHOUSE_STATUSES = new Set(["warehouse_ready", "picked_up"]);
+const WITH_REP_STATUSES = new Set(["in_shipping", "in_transit", "out_for_delivery"]);
+const DELAYED_STATUSES = new Set(["delayed", "postponed"]);
+
+export function getShipmentLocationNote(input: ShipmentLocationNoteInput): string | null {
+  const status = input.status ?? "";
+  const warehouseName = input.warehouseName?.trim() || null;
+  const repName = input.assignedUserName?.trim() || null;
+
+  // ── مرتجع: 3 احتمالات حسب returnReceived/returnReceivedBy ──────────────────
+  if (status === "returned") {
+    const received = input.returnReceived === 1;
+    if (!received) {
+      return repName ? `مرتجع - ما زال مع المندوب ${repName}` : "مرتجع - ما زال مع المندوب";
+    }
+    if (input.returnReceivedBy === "sender") {
+      return "مرتجع - تم تسليمه للراسل";
+    }
+    // "warehouse" أو null (بيانات قديمة قبل إضافة returnReceivedBy)
+    return warehouseName ? `مرتجع - في مخزن ${warehouseName}` : "مرتجع - تم استلامه في المخزن";
+  }
+
+  // ── مؤجل: سبب التأجيل + اسم المندوب ─────────────────────────────────────────
+  if (DELAYED_STATUSES.has(status)) {
+    const parts: string[] = [];
+    if (input.returnReason?.trim()) parts.push(input.returnReason.trim());
+    if (repName) parts.push(`مع المندوب ${repName}`);
+    return parts.length ? parts.join(" - ") : null;
+  }
+
+  // ── مع المندوب / في الطريق ──────────────────────────────────────────────────
+  if (WITH_REP_STATUSES.has(status)) {
+    return repName ? `مع المندوب ${repName}` : null;
+  }
+
+  // ── في المخزن ────────────────────────────────────────────────────────────
+  if (WAREHOUSE_STATUSES.has(status)) {
+    return warehouseName ? `ما زال في مخزن ${warehouseName}` : null;
+  }
+
+  return null;
+}

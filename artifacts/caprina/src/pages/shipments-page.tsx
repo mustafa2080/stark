@@ -2144,11 +2144,18 @@ export default function Orders() {
                           return <span className="inline-flex items-center gap-0.5 text-[9px] text-red-600 dark:text-red-400"><RotateCcw className="w-2.5 h-2.5 shrink-0" />{reason}</span>;
                         })()}
                         {order.status === "returned" && (() => {
-                          // لو المرتجع اتأكد استلامه فعليًا في المخزن، نعرض اسم المخزن
-                          // بدل اسم المندوب/شركة الشحن (نفس منطق partial_received فوق)
+                          // لو المرتجع اتأكد استلامه فعليًا، نفرّق بين "رجع للمخزن" و"اتسلّم للراسل نفسه"
+                          // (returnReceivedBy — بطلب مصطفى 2026-09-10). null مع returnReceived=1
+                          // = بيانات قديمة قبل إضافة العمود، نعرضها زي ما كانت (في المخزن).
                           const rr = (order as any).returnReceived as 0 | 1 | boolean | null | undefined;
                           const isReceived = rr === 1 || rr === true;
                           if (isReceived) {
+                            const receivedBy = (order as any).returnReceivedBy as "warehouse" | "sender" | null | undefined;
+                            if (receivedBy === "sender") {
+                              return (
+                                <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-emerald-600 dark:text-emerald-400">↪ تم تسليمه للراسل</span>
+                              );
+                            }
                             return (
                               <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-emerald-600 dark:text-emerald-400">↪ في مخزن {(order as any).warehouseName || "—"}</span>
                             );
@@ -2378,11 +2385,22 @@ export default function Orders() {
                             );
                           })()}
                           {order.status === "returned" && (() => {
-                            // لو المرتجع اتأكد استلامه فعليًا في المخزن، نعرض اسم المخزن
-                            // بدل اسم المندوب/شركة الشحن (نفس منطق partial_received تحت)
+                            // لو المرتجع اتأكد استلامه فعليًا، نفرّق بين "رجع للمخزن" و"اتسلّم للراسل نفسه"
+                            // (returnReceivedBy — بطلب مصطفى 2026-09-10). null مع returnReceived=1
+                            // = بيانات قديمة قبل إضافة العمود، نعرضها زي ما كانت (في المخزن).
                             const rr = (o as any).returnReceived as 0 | 1 | boolean | null | undefined;
                             const isReceived = rr === 1 || rr === true;
                             if (isReceived) {
+                              const receivedBy = (order as any).returnReceivedBy as "warehouse" | "sender" | null | undefined;
+                              if (receivedBy === "sender") {
+                                return (
+                                  <div className="flex items-center justify-center gap-0.5 mt-1">
+                                    <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-600 dark:text-emerald-400 leading-none">
+                                      ↪ تم تسليمه للراسل
+                                    </span>
+                                  </div>
+                                );
+                              }
                               return (
                                 <div className="flex items-center justify-center gap-0.5 mt-1">
                                   <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-600 dark:text-emerald-400 leading-none">
