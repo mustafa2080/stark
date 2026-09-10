@@ -853,7 +853,7 @@ export default function FinanceHub() {
       </div>
 
       {/* ── Smart Alerts ────────────────────────────────────────────────────── */}
-      {alts.length > 0 && (
+      {can("finance_hub.smart_alerts") && alts.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-2">
           {alts.map((a:any, i:number) => {
             const s = ALERT_STYLE[a.type] ?? ALERT_STYLE.info;
@@ -872,34 +872,43 @@ export default function FinanceHub() {
 
       {/* ── KPI Cards ───────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
-        <KpiCard label="إجمالي الكاش" value={totalCash} sub={`${cash?.registers?.length ?? 0} خزنة نشطة`}
-          icon={Banknote} hexColor="#f59e0b" theme="yellow"
-          link="/finance/cash"
-        />
-        <KpiCard label="الإيراد" value={pnl?.revenue ?? 0} sub={`${fmt(ords?.delivered ?? 0)} طلب مسلّم`}
-          icon={TrendingUp} hexColor="#10b981" theme="emerald"
-          delta={pnl?.changes?.revenue}
-        />
-        <KpiCard label="صافي الربح" value={pnl?.netProfit ?? 0} sub={`هامش ${pnl?.netMargin ?? 0}%`}
-          icon={PiggyBank}
-          hexColor={(pnl?.netProfit ?? 0) >= 0 ? "#3b82f6" : "#f43f5e"}
-          theme={(pnl?.netProfit ?? 0) >= 0 ? "blue" : "rose"}
-          delta={pnl?.changes?.netProfit}
-        />
-        <KpiCard label="المصروفات" value={pnl?.expenses ?? 0} sub={`${expCat.length} فئة مصروفات`}
-          icon={Receipt} hexColor="#f43f5e" theme="rose"
-          delta={pnl?.changes?.expenses} link="/finance/expenses"
-        />
+        {can("finance_hub.kpi_cash") && (
+          <KpiCard label="إجمالي الكاش" value={totalCash} sub={`${cash?.registers?.length ?? 0} خزنة نشطة`}
+            icon={Banknote} hexColor="#f59e0b" theme="yellow"
+            link="/finance/cash"
+          />
+        )}
+        {can("finance_hub.kpi_revenue") && (
+          <KpiCard label="الإيراد" value={pnl?.revenue ?? 0} sub={`${fmt(ords?.delivered ?? 0)} طلب مسلّم`}
+            icon={TrendingUp} hexColor="#10b981" theme="emerald"
+            delta={pnl?.changes?.revenue}
+          />
+        )}
+        {can("finance_hub.kpi_net_profit") && (
+          <KpiCard label="صافي الربح" value={pnl?.netProfit ?? 0} sub={`هامش ${pnl?.netMargin ?? 0}%`}
+            icon={PiggyBank}
+            hexColor={(pnl?.netProfit ?? 0) >= 0 ? "#3b82f6" : "#f43f5e"}
+            theme={(pnl?.netProfit ?? 0) >= 0 ? "blue" : "rose"}
+            delta={pnl?.changes?.netProfit}
+          />
+        )}
+        {can("finance_hub.kpi_expenses") && (
+          <KpiCard label="المصروفات" value={pnl?.expenses ?? 0} sub={`${expCat.length} فئة مصروفات`}
+            icon={Receipt} hexColor="#f43f5e" theme="rose"
+            delta={pnl?.changes?.expenses} link="/finance/expenses"
+          />
+        )}
       </div>
 
 
       {/* ── Chart المبيعات والأرباح (آخر 6 شهور) ───────────────────────────── */}
-      <MonthlyFlowChart data={monthlyChartData} isLoading={isLoading} />
+      {can("finance_hub.monthly_chart") && <MonthlyFlowChart data={monthlyChartData} isLoading={isLoading} />}
 
       {/* ── التدفق النقدي + الخزنة (always 2 cols on md+) ───────────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
         {/* التدفق النقدي اليومي */}
+        {can("finance_hub.daily_cashflow") && (
         <Card className="border-border p-5">
           <SectionHeader icon={Activity} title="التدفق النقدي اليومي" sub="آخر 30 يوم" link="/finance/cash/analytics"/>
           {isLoading ? (
@@ -932,12 +941,15 @@ export default function FinanceHub() {
             </ResponsiveContainer>
           )}
         </Card>
+        )}
 
         {/* خريطة الخزن */}
+        {can("finance_hub.cash_map") && (
         <Card className="border-border p-5">
           <SectionHeader icon={Wallet} title="الخزنة وتدفق الأموال" sub={`إجمالي الكاش: ${fmtF(totalCash)}`} link="/finance/cash"/>
           <CashFlowMap registers={cash?.registers ?? []}/>
         </Card>
+        )}
       </div>
 
 
@@ -945,6 +957,7 @@ export default function FinanceHub() {
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
 
         {/* P&L Statement */}
+        {can("finance_hub.pnl_statement") && (
         <Card className="border-border overflow-hidden lg:col-span-3">
           <div className="px-5 py-4 border-b border-border bg-muted/30 flex items-center justify-between">
             <SectionHeader icon={FileText} title="قائمة الأرباح والخسائر" sub="مقارنة بالفترة السابقة"/>
@@ -988,8 +1001,10 @@ export default function FinanceHub() {
             </div>
           </div>
         </Card>
+        )}
 
         {/* مؤشرات الطلبات */}
+        {can("finance_hub.order_metrics") && (
         <div className="lg:col-span-2 space-y-3">
           <SectionHeader icon={Package} title="مؤشرات الطلبات"/>
           {[
@@ -1010,6 +1025,7 @@ export default function FinanceHub() {
             </div>
           ))}
         </div>
+        )}
       </div>
 
 
@@ -1017,6 +1033,7 @@ export default function FinanceHub() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
         {/* Pie: توزيع المصروفات */}
+        {can("finance_hub.expense_pie") && (
         <div className="relative overflow-hidden rounded-[22px] p-5"
           style={{
             background: "linear-gradient(135deg, rgba(244,63,94,0.10) 0%, rgba(251,113,133,0.04) 60%, rgba(0,0,0,0) 100%)",
@@ -1124,8 +1141,10 @@ export default function FinanceHub() {
           })()}
           </div>
         </div>
+        )}
 
         {/* آخر حركات الخزنة */}
+        {can("finance_hub.recent_transactions") && (
         <div className="relative overflow-hidden rounded-[22px] p-5"
           style={{
             background: "linear-gradient(135deg, rgba(16,185,129,0.10) 0%, rgba(52,211,153,0.04) 60%, rgba(0,0,0,0) 100%)",
@@ -1176,19 +1195,21 @@ export default function FinanceHub() {
           )}
           </div>
         </div>
+        )}
       </div>
 
 
       {/* ── Break-Even Tracker ──────────────────────────────────────────────── */}
-      <BreakEvenTracker pnl={pnl} orders={ords} isLoading={isLoading} />
+      {can("finance_hub.break_even") && <BreakEvenTracker pnl={pnl} orders={ords} isLoading={isLoading} />}
 
       {/* ── MoM Expense Comparison ──────────────────────────────────────────── */}
-      <MoMExpenseReport />
+      {can("finance_hub.mom_expense_report") && <MoMExpenseReport />}
 
       {/* ── مستحقات + أوامر الشراء + وصول سريع ────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
 
         {/* مستحقات الشحن — sky glow */}
+        {can("finance_hub.shipping_dues") && (
         <Link href="/shipping">
           <div className="relative overflow-hidden rounded-[22px] p-5 group transition-all duration-300 hover:-translate-y-1.5 cursor-pointer"
             style={{
@@ -1234,8 +1255,10 @@ export default function FinanceHub() {
             </div>
           </div>
         </Link>
+        )}
 
         {/* أوامر الشراء — violet glow */}
+        {can("finance_hub.pending_purchases") && (
         <Link href="/finance/purchases">
           <div className="relative overflow-hidden rounded-[22px] p-5 group transition-all duration-300 hover:-translate-y-1.5 cursor-pointer"
             style={{
@@ -1268,8 +1291,10 @@ export default function FinanceHub() {
             </div>
           </div>
         </Link>
+        )}
 
         {/* وصول سريع — multi-color subtle glow */}
+        {can("finance_hub.quick_access") && (
         <div className="relative overflow-hidden rounded-[22px] p-5"
           style={{
             background: "linear-gradient(135deg, rgba(99,102,241,0.08) 0%, rgba(139,92,246,0.03) 50%, rgba(0,0,0,0) 100%)",
@@ -1307,6 +1332,7 @@ export default function FinanceHub() {
             </div>
           </div>
         </div>
+        )}
       </div>
 
     </div>
