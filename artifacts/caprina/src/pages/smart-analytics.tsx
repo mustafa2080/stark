@@ -635,6 +635,7 @@ function SummaryBar({ data, showProfit }: { data: {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function SmartAnalytics() {
   const { isAdmin, canViewFinancials, can } = useAuth();
+  const canSee = (key: string) => isAdmin || can(key);
   const [, navigate] = useLocation();
   const { data, isLoading } = useQuery({
     queryKey: ["smart-insights"],
@@ -663,11 +664,13 @@ export default function SmartAnalytics() {
           </div>
           <p className="text-muted-foreground text-sm">قرارات مبنية على البيانات — إعلانات، منتجات، مرتجعات، مخزون</p>
         </div>
+        {canSee("smart_analytics.ads_details_link") && (
         <Link href="/ads-analytics">
           <button className="flex items-center gap-2 text-xs text-primary border border-primary/30 hover:bg-primary/5 px-3 py-1.5 rounded-lg transition-colors">
             <ArrowUpRight className="w-3.5 h-3.5" />تفاصيل الحملات
           </button>
         </Link>
+        )}
       </div>
 
       {isLoading && (
@@ -685,23 +688,30 @@ export default function SmartAnalytics() {
 
       {data && (
         <>
+          {canSee("smart_analytics.summary_bar") && (
           <SummaryBar data={data} showProfit={canViewFinancials} />
+          )}
 
           {/* Ad Attribution */}
+          {canSee("smart_analytics.ad_attribution") && (
           <Card className="border-border bg-card">
             <CardContent className="p-5">
               <AdAttributionSection bestSource={data.adAttribution.bestSource} breakdown={data.adAttribution.breakdown} showProfit={canViewFinancials} />
             </CardContent>
           </Card>
+          )}
 
           {/* Stars vs Dead Stock */}
+          {canSee("smart_analytics.stars_deadstock") && (
           <Card className="border-border bg-card">
             <CardContent className="p-5">
               <StarsSection stars={data.stars} deadStock={data.deadStock} showProfit={canViewFinancials} />
             </CardContent>
           </Card>
+          )}
 
           {/* Return Insights */}
+          {canSee("smart_analytics.return_insights") && (
           <Card className="border-border bg-card">
             <CardContent className="p-5">
               <ReturnInsightsSection
@@ -712,20 +722,25 @@ export default function SmartAnalytics() {
               />
             </CardContent>
           </Card>
+          )}
 
           {/* Stock Predictor */}
+          {canSee("smart_analytics.stock_predictor") && (
           <Card className="border-border bg-card">
             <CardContent className="p-5">
               <StockPredictorSection items={data.stockPredictor} />
             </CardContent>
           </Card>
+          )}
 
           {/* Cash Flow */}
+          {canSee("smart_analytics.cash_flow") && (
           <Card className="border-border bg-card">
             <CardContent className="p-5">
               <CashFlowSection />
             </CardContent>
           </Card>
+          )}
         </>
       )}
     </div>

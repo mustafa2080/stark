@@ -256,6 +256,14 @@ const PERM_TO_SECTION: Record<string, string> = {
   "analytics.ads":             "section_ads_analytics",
   "analytics.smart":           "section_smart_analytics",
   "analytics.team":            "section_team_management",
+  // حاويات صفحة التحليل الذكي
+  "smart_analytics.summary_bar":      "section_smart_analytics",
+  "smart_analytics.ad_attribution":   "section_smart_analytics",
+  "smart_analytics.stars_deadstock":  "section_smart_analytics",
+  "smart_analytics.return_insights":  "section_smart_analytics",
+  "smart_analytics.stock_predictor":  "section_smart_analytics",
+  "smart_analytics.cash_flow":        "section_smart_analytics",
+  "smart_analytics.ads_details_link": "section_smart_analytics",
   // الماليات
   "finance.view":              "section_finance",
   "finance.sales":             "section_finance",
@@ -491,6 +499,19 @@ const SECTION_GROUPS: Array<{
       { key: "analytics.ads",       label: "تحليل الإعلانات",        desc: "ربط مصادر الإعلانات بالطلبات" },
       { key: "analytics.smart",     label: "التحليل الذكي",          desc: "التوصيات الذكية والتنبيهات" },
       { key: "analytics.team",      label: "تحليلات الفريق",         desc: "إحصائيات وأداء أعضاء الفريق" },
+    ],
+  },
+  {
+    id: "smart_analytics_page", label: "التحليل الذكي (حاويات)", color: "text-blue-400", bgColor: "bg-blue-500/10 border-blue-500/30",
+    icon: <BarChart2 className="w-4 h-4" />,
+    permissions: [
+      { key: "smart_analytics.summary_bar",      label: "شريط الملخص العلوي",              desc: "إخفاء إذا لم يُمنح" },
+      { key: "smart_analytics.ad_attribution",   label: "كارت: أفضل منصة إعلانية",         desc: "إخفاء إذا لم يُمنح" },
+      { key: "smart_analytics.stars_deadstock",  label: "كارت: المنتجات النجوم والمخزون الراكد", desc: "إخفاء إذا لم يُمنح" },
+      { key: "smart_analytics.return_insights",  label: "كارت: أسباب المرتجعات وتحذيراتها", desc: "إخفاء إذا لم يُمنح", sensitive: true },
+      { key: "smart_analytics.stock_predictor",  label: "كارت: التنبؤ بالمخزون",           desc: "إخفاء إذا لم يُمنح" },
+      { key: "smart_analytics.cash_flow",        label: "كارت: التدفق المالي",             desc: "إخفاء إذا لم يُمنح", sensitive: true },
+      { key: "smart_analytics.ads_details_link", label: "زرار: تفاصيل الحملات",            desc: "إخفاء إذا لم يُمنح" },
     ],
   },
   {

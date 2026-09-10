@@ -156,6 +156,16 @@ export const ALL_PERMISSIONS = {
     { key: "analytics.ads",       label: "تحليل الإعلانات",         desc: "ربط مصادر الإعلانات بالطلبات" },
     { key: "analytics.smart",     label: "التحليل الذكي",           desc: "التوصيات الذكية والتنبيهات" },
   ],
+  // 5.5. صفحة التحليل الذكي (حاويات داخلية)
+  smart_analytics_page: [
+    { key: "smart_analytics.summary_bar",      label: "شريط الملخص العلوي",              desc: "إخفاء إذا لم يُمنح" },
+    { key: "smart_analytics.ad_attribution",   label: "كارت: أفضل منصة إعلانية",         desc: "إخفاء إذا لم يُمنح" },
+    { key: "smart_analytics.stars_deadstock",  label: "كارت: المنتجات النجوم والمخزون الراكد", desc: "إخفاء إذا لم يُمنح" },
+    { key: "smart_analytics.return_insights",  label: "كارت: أسباب المرتجعات وتحذيراتها", desc: "إخفاء إذا لم يُمنح" },
+    { key: "smart_analytics.stock_predictor",  label: "كارت: التنبؤ بالمخزون",           desc: "إخفاء إذا لم يُمنح" },
+    { key: "smart_analytics.cash_flow",        label: "كارت: التدفق المالي",             desc: "إخفاء إذا لم يُمنح" },
+    { key: "smart_analytics.ads_details_link", label: "زرار: تفاصيل الحملات",            desc: "إخفاء إذا لم يُمنح" },
+  ],
   // 6. الماليات
   finance: [
     { key: "finance.view",      label: "دخول الماليات",            desc: "الصفحة الرئيسية للماليات" },
@@ -244,6 +254,9 @@ const ROLE_DEFAULT_PERMISSIONS: Record<string, string[]> = {
     "inventory.view","inventory.edit","inventory.delete","inventory.cost","inventory.movements","inventory.warehouses",
     "shipping.view","shipping.edit","shipping.financials","shipping.manifests",
     "analytics.view","analytics.financial","analytics.products","analytics.ads","analytics.smart",
+    "smart_analytics.summary_bar","smart_analytics.ad_attribution","smart_analytics.stars_deadstock",
+    "smart_analytics.return_insights","smart_analytics.stock_predictor","smart_analytics.cash_flow",
+    "smart_analytics.ads_details_link",
     "finance.view","finance.sales","finance.expenses","finance.cash","finance.suppliers","finance.reports","finance.trip_settlement",
     "finance_clients.kpi_total_clients","finance_clients.kpi_monthly_collected","finance_clients.kpi_total_outstanding",
     "finance_clients.kpi_total_shipments","finance_clients.top_clients","finance_clients.shipments_chart",
