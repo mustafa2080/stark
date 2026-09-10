@@ -231,6 +231,16 @@ export const ALL_PERMISSIONS = {
     { key: "finance_cash.add_register_button",  label: "زرار: خزنة جديدة",              desc: "إخفاء إذا لم يُمنح" },
     { key: "finance_cash.transfer_button",      label: "زرار: تحويل بين الخزن",         desc: "إخفاء إذا لم يُمنح" },
   ],
+  // 6.8. صفحة المصروفات
+  finance_expenses_page: [
+    { key: "finance_expenses.export_buttons",  label: "أزرار تصدير CSV / Excel",     desc: "إخفاء إذا لم يُمنح" },
+    { key: "finance_expenses.add_button",      label: "زرار: مصروف جديد",            desc: "إخفاء إذا لم يُمنح" },
+    { key: "finance_expenses.kpi_page_total",  label: "كارت: إجمالي الصفحة الحالية", desc: "إخفاء إذا لم يُمنح", sensitive: true },
+    { key: "finance_expenses.kpi_cash_linked", label: "كارت: مربوطة بخزنة",           desc: "إخفاء إذا لم يُمنح" },
+    { key: "finance_expenses.filters",         label: "فلاتر البحث",                  desc: "إخفاء إذا لم يُمنح" },
+    { key: "finance_expenses.expenses_list",   label: "قائمة المصروفات",              desc: "إخفاء إذا لم يُمنح", sensitive: true },
+    { key: "finance_expenses.delete_button",   label: "زرار: حذف مصروف",              desc: "إخفاء إذا لم يُمنح" },
+  ],
   // 7. الفريق والإدارة
   team: [
     { key: "team.view",        label: "رؤية أعضاء الفريق",         desc: "قائمة الموظفين" },
@@ -311,6 +321,8 @@ const ROLE_DEFAULT_PERMISSIONS: Record<string, string[]> = {
     "finance_cash.low_balance_alerts","finance_cash.smart_alerts","finance_cash.total_balance_banner","finance_cash.registers_grid",
     "finance_cash.register_summary_stats","finance_cash.cash_flow_chart","finance_cash.export_buttons","finance_cash.transactions_table",
     "finance_cash.add_register_button","finance_cash.transfer_button",
+    "finance_expenses.export_buttons","finance_expenses.add_button","finance_expenses.kpi_page_total",
+    "finance_expenses.kpi_cash_linked","finance_expenses.filters","finance_expenses.expenses_list","finance_expenses.delete_button",
     "team.view","team.performance","team.manage","team.salaries",
     "tools.import","tools.export",
     "settings.brand","settings.users","settings.audit","settings.sessions","settings.whatsapp",

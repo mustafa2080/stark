@@ -55,7 +55,7 @@ const defaultForm = () => ({
 export default function FinanceExpenses() {
 
   // ── Finance access guard ───────────────────────────────────────────────────
-  const { isAdmin: _fAdmin, can: _fCan } = useAuth();
+  const { isAdmin: _fAdmin, can: _fCan, can } = useAuth();
   if (!_fAdmin && !_fCan("finance.expenses")) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center px-4">
@@ -204,6 +204,7 @@ export default function FinanceExpenses() {
           <p className="text-muted-foreground text-sm">تسجيل ومتابعة كل مصروفات الشركة — مع الربط التلقائي بالخزنة</p>
         </div>
         <div className="flex gap-2 flex-wrap">
+          {can("finance_expenses.export_buttons") && (<>
           <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs rounded-xl" onClick={handleExportCSV}>
             <Download className="w-3.5 h-3.5"/> CSV
           </Button>
@@ -214,14 +215,18 @@ export default function FinanceExpenses() {
             onClick={handleExportExcel}>
             <FileSpreadsheet className="w-3.5 h-3.5"/> Excel
           </Button>
+          </>)}
+          {can("finance_expenses.add_button") && (
           <Button onClick={() => setOpen(true)} className="gap-2 h-8 text-sm">
             <Plus className="w-4 h-4"/>مصروف جديد
           </Button>
+          )}
         </div>
       </div>
 
       {/* ── KPI ── */}
       <div className="grid grid-cols-2 gap-3">
+        {can("finance_expenses.kpi_page_total") && (
         <div className="relative overflow-hidden rounded-[20px] p-4 transition-all duration-300"
           style={{
             background: "linear-gradient(135deg, rgba(239,68,68,0.42) 0%, rgba(239,68,68,0.16) 52%, rgba(255,255,255,0.06) 100%)",
@@ -234,6 +239,8 @@ export default function FinanceExpenses() {
           <p className="text-2xl font-black" style={{ color: "#EF4444", textShadow: "0 0 16px rgba(239,68,68,0.55)" }}>{fmt(pageTotal)}</p>
           <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.40)" }}>{total} مصروف إجمالي</p>
         </div>
+        )}
+        {can("finance_expenses.kpi_cash_linked") && (
         <div className="relative overflow-hidden rounded-[20px] p-4 transition-all duration-300"
           style={{
             background: "linear-gradient(135deg, rgba(16,185,129,0.42) 0%, rgba(16,185,129,0.16) 52%, rgba(255,255,255,0.06) 100%)",
@@ -246,9 +253,11 @@ export default function FinanceExpenses() {
           <p className="text-2xl font-black" style={{ color: "#10B981", textShadow: "0 0 16px rgba(16,185,129,0.55)" }}>{withCash}</p>
           <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.40)" }}>خُصمت تلقائياً</p>
         </div>
+        )}
       </div>
 
       {/* ── فلاتر ── */}
+      {can("finance_expenses.filters") && (
       <div className="rounded-2xl border border-border/50 bg-card p-4 space-y-3">
         <div className="flex items-center justify-between">
           <p className="text-xs font-semibold flex items-center gap-1.5"><Filter className="w-3.5 h-3.5"/> فلاتر البحث</p>
@@ -291,9 +300,10 @@ export default function FinanceExpenses() {
           <p className="text-[11px] text-muted-foreground">عرض {total} نتيجة</p>
         )}
       </div>
+      )}
 
       {/* ── قائمة المصروفات ── */}
-      {isLoading ? (
+      {can("finance_expenses.expenses_list") && (isLoading ? (
         <div className="p-8 text-center text-muted-foreground text-sm">جاري التحميل...</div>
       ) : expenses.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
@@ -343,16 +353,18 @@ export default function FinanceExpenses() {
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
                   <p className="font-black text-sm" style={{ color, textShadow: `0 0 10px ${glow}` }}>{fmt(e.amount)}</p>
+                  {can("finance_expenses.delete_button") && (
                   <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-rose-500/10"
                     onClick={() => del.mutate(e.id)}>
                     <Trash2 className="w-3.5 h-3.5 text-rose-400"/>
                   </Button>
+                  )}
                 </div>
               </div>
             );
           })}
         </div>
-      )}
+      ))}
 
       {/* ── Pagination ── */}
       {totalPages > 1 && (

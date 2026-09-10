@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
-import { UserPlus, Edit2, Trash2, Shield, Users, Eye, EyeOff, TrendingUp, Package, BarChart3, LayoutGrid, Lock, User, Settings2, ChevronDown, ChevronUp, ToggleLeft, Camera, X, Crown, AlertTriangle, Search, KeyRound, Power, Home, ShoppingCart, Truck, BarChart2, Wallet, Wrench, Cog, MonitorCheck, MapPin } from "lucide-react";
+import { UserPlus, Edit2, Trash2, Shield, Users, Eye, EyeOff, TrendingUp, Package, BarChart3, LayoutGrid, Lock, User, Settings2, ChevronDown, ChevronUp, ToggleLeft, Camera, X, Crown, AlertTriangle, Search, KeyRound, Power, Home, ShoppingCart, Truck, BarChart2, Wallet, Wrench, Cog, MonitorCheck, MapPin, Receipt } from "lucide-react";
 
 // helper محلي — نفس المنطق الموجود في AuthContext
 function flattenPermissions(raw: any): string[] {
@@ -318,6 +318,14 @@ const PERM_TO_SECTION: Record<string, string> = {
   "finance_cash.transactions_table":    "section_finance",
   "finance_cash.add_register_button":   "section_finance",
   "finance_cash.transfer_button":       "section_finance",
+  // صفحة المصروفات
+  "finance_expenses.export_buttons":  "section_finance",
+  "finance_expenses.add_button":      "section_finance",
+  "finance_expenses.kpi_page_total":  "section_finance",
+  "finance_expenses.kpi_cash_linked": "section_finance",
+  "finance_expenses.filters":         "section_finance",
+  "finance_expenses.expenses_list":   "section_finance",
+  "finance_expenses.delete_button":   "section_finance",
   // الفريق
   "team.view":                 "section_team_management",
   "team.manage":               "section_team_management",
@@ -620,6 +628,19 @@ const SECTION_GROUPS: Array<{
       { key: "finance_cash.transactions_table",    label: "جدول الحركات",              desc: "إخفاء إذا لم يُمنح" },
       { key: "finance_cash.add_register_button",   label: "زرار: خزنة جديدة",          desc: "إخفاء إذا لم يُمنح" },
       { key: "finance_cash.transfer_button",       label: "زرار: تحويل بين الخزن",     desc: "إخفاء إذا لم يُمنح" },
+    ],
+  },
+  {
+    id: "finance_expenses_page", label: "صفحة المصروفات", color: "text-rose-400", bgColor: "bg-rose-500/10 border-rose-500/30",
+    icon: <Receipt className="w-4 h-4" />,
+    permissions: [
+      { key: "finance_expenses.export_buttons",  label: "أزرار تصدير CSV / Excel",     desc: "إخفاء إذا لم يُمنح" },
+      { key: "finance_expenses.add_button",      label: "زرار: مصروف جديد",            desc: "إخفاء إذا لم يُمنح" },
+      { key: "finance_expenses.kpi_page_total",  label: "كارت: إجمالي الصفحة الحالية", desc: "إخفاء إذا لم يُمنح", sensitive: true },
+      { key: "finance_expenses.kpi_cash_linked", label: "كارت: مربوطة بخزنة",           desc: "إخفاء إذا لم يُمنح" },
+      { key: "finance_expenses.filters",         label: "فلاتر البحث",                  desc: "إخفاء إذا لم يُمنح" },
+      { key: "finance_expenses.expenses_list",   label: "قائمة المصروفات",              desc: "إخفاء إذا لم يُمنح", sensitive: true },
+      { key: "finance_expenses.delete_button",   label: "زرار: حذف مصروف",              desc: "إخفاء إذا لم يُمنح" },
     ],
   },
   {
