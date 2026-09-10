@@ -218,6 +218,19 @@ export const ALL_PERMISSIONS = {
     { key: "finance_hub.pending_purchases",    label: "كارت: أوامر الشراء المعلقة",         desc: "إخفاء إذا لم يُمنح" },
     { key: "finance_hub.quick_access",         label: "كارت: وصول سريع",                    desc: "إخفاء إذا لم يُمنح" },
   ],
+  // 6.7. صفحة الخزنة
+  finance_cash_page: [
+    { key: "finance_cash.low_balance_alerts",   label: "تنبيهات الرصيد المنخفض",       desc: "إخفاء إذا لم يُمنح" },
+    { key: "finance_cash.smart_alerts",         label: "التنبيهات الذكية",              desc: "إخفاء إذا لم يُمنح" },
+    { key: "finance_cash.total_balance_banner", label: "بانر إجمالي الكاش",             desc: "إخفاء إذا لم يُمنح", sensitive: true },
+    { key: "finance_cash.registers_grid",       label: "كروت كل الخزن",                 desc: "إخفاء إذا لم يُمنح" },
+    { key: "finance_cash.register_summary_stats", label: "ملخص إحصائيات الخزنة",        desc: "إخفاء إذا لم يُمنح" },
+    { key: "finance_cash.cash_flow_chart",      label: "رسم تدفق الكاش",                desc: "إخفاء إذا لم يُمنح", sensitive: true },
+    { key: "finance_cash.export_buttons",       label: "أزرار تصدير CSV / Excel",       desc: "إخفاء إذا لم يُمنح" },
+    { key: "finance_cash.transactions_table",   label: "جدول الحركات",                  desc: "إخفاء إذا لم يُمنح" },
+    { key: "finance_cash.add_register_button",  label: "زرار: خزنة جديدة",              desc: "إخفاء إذا لم يُمنح" },
+    { key: "finance_cash.transfer_button",      label: "زرار: تحويل بين الخزن",         desc: "إخفاء إذا لم يُمنح" },
+  ],
   // 7. الفريق والإدارة
   team: [
     { key: "team.view",        label: "رؤية أعضاء الفريق",         desc: "قائمة الموظفين" },
@@ -295,6 +308,9 @@ const ROLE_DEFAULT_PERMISSIONS: Record<string, string[]> = {
     "finance_hub.pnl_statement","finance_hub.order_metrics","finance_hub.expense_pie","finance_hub.recent_transactions",
     "finance_hub.break_even","finance_hub.mom_expense_report","finance_hub.shipping_dues","finance_hub.pending_purchases",
     "finance_hub.quick_access",
+    "finance_cash.low_balance_alerts","finance_cash.smart_alerts","finance_cash.total_balance_banner","finance_cash.registers_grid",
+    "finance_cash.register_summary_stats","finance_cash.cash_flow_chart","finance_cash.export_buttons","finance_cash.transactions_table",
+    "finance_cash.add_register_button","finance_cash.transfer_button",
     "team.view","team.performance","team.manage","team.salaries",
     "tools.import","tools.export",
     "settings.brand","settings.users","settings.audit","settings.sessions","settings.whatsapp",

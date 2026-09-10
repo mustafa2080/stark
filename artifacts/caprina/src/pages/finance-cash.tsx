@@ -60,7 +60,7 @@ interface Alert { registerId: number; name: string; balance: number; threshold: 
 export default function FinanceCashPage() {
 
   // ── Finance access guard ───────────────────────────────────────────────────
-  const { isAdmin: _fAdmin, can: _fCan } = useAuth();
+  const { isAdmin: _fAdmin, can: _fCan, can } = useAuth();
   if (!_fAdmin && !_fCan("finance.cash")) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center px-4">
@@ -326,17 +326,21 @@ export default function FinanceCashPage() {
           <Button variant="outline" size="sm" className="gap-1.5 h-9 text-xs rounded-xl border-border/60" onClick={() => navigate("/finance/cash/analytics")}>
             <BarChart3 className="w-3.5 h-3.5" /> تحليلات
           </Button>
+          {can("finance_cash.transfer_button") && (
           <Button variant="outline" size="sm" className="gap-1.5 h-9 text-xs rounded-xl border-border/60" onClick={() => setTransferOpen(true)}>
             <ArrowRightLeft className="w-3.5 h-3.5" /> تحويل
           </Button>
+          )}
+          {can("finance_cash.add_register_button") && (
           <Button size="sm" className="gap-1.5 h-9 text-xs rounded-xl font-bold shadow-md text-black" style={{background:"#DEA821"}} onMouseEnter={e=>(e.currentTarget.style.background="#c8931c")} onMouseLeave={e=>(e.currentTarget.style.background="#DEA821")} onClick={() => setAddRegOpen(true)}>
             <Plus className="w-3.5 h-3.5" /> خزنة جديدة
           </Button>
+          )}
         </div>
       </div>
 
       {/* ── تنبيهات الرصيد المنخفض ── */}
-      {alerts.length > 0 && (
+      {can("finance_cash.low_balance_alerts") && alerts.length > 0 && (
         <div className="rounded-xl border border-rose-400/30 bg-rose-50/40 dark:bg-rose-950/20 px-4 py-3 space-y-2">
           <p className="text-xs font-semibold text-rose-600 flex items-center gap-1.5"><Bell className="w-3.5 h-3.5" /> تنبيهات الرصيد المنخفض</p>
           <div className="flex flex-wrap gap-2">
@@ -352,7 +356,7 @@ export default function FinanceCashPage() {
       )}
 
       {/* ── التنبيهات الذكية ── */}
-      {smartAlerts.length > 0 && (
+      {can("finance_cash.smart_alerts") && smartAlerts.length > 0 && (
         <div className="rounded-xl border border-amber-400/30 bg-amber-50/30 dark:bg-amber-950/20 px-4 py-3 space-y-2">
           <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-1.5"><Bell className="w-3.5 h-3.5" /> تنبيهات ذكية</p>
           <div className="space-y-1.5">
@@ -367,6 +371,7 @@ export default function FinanceCashPage() {
       )}
 
       {/* ── إجمالي الكاش ── */}
+      {can("finance_cash.total_balance_banner") && (
       <div className="relative overflow-hidden rounded-2xl text-black p-6 shadow-2xl" style={{background:"linear-gradient(135deg, #DEA821 0%, #f5c842 50%, #DEA821 100%)", boxShadow:"0 20px 60px #DEA82140"}}>
         <div className="absolute -top-8 -left-8 w-40 h-40 rounded-full bg-black/5" />
         <div className="absolute -bottom-10 -right-6 w-52 h-52 rounded-full bg-black/8" />
@@ -384,6 +389,7 @@ export default function FinanceCashPage() {
           </div>
         </div>
       </div>
+      )}
 
       {/* ── Tabs ── */}
       <div className="flex gap-1.5 flex-wrap border-b border-border/40 pb-3">
@@ -398,7 +404,7 @@ export default function FinanceCashPage() {
       </div>
 
       {/* ── كل الخزن ── */}
-      {activeTab === "all" && (
+      {can("finance_cash.registers_grid") && activeTab === "all" && (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           {registers.map(r => {
             const net = r.monthlyIn - r.monthlyOut; const hasAlert = alerts.some(a=>a.registerId===r.id); const isMain = r.type==="main";
@@ -468,13 +474,15 @@ export default function FinanceCashPage() {
             </div>
             <div className="flex gap-2 flex-wrap">
               <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs rounded-xl flex-1 sm:flex-none" onClick={() => { setSelectedReg(activeReg); setTxOpen(true); }}><Plus className="w-3.5 h-3.5"/> حركة جديدة</Button>
+              {can("finance_cash.export_buttons") && (<>
               <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs rounded-xl" onClick={handleExportCSV}><Download className="w-3.5 h-3.5"/> CSV</Button>
               <Button size="sm" className="gap-1.5 h-8 text-xs rounded-xl text-black font-bold" style={{background:"#DEA821"}} onMouseEnter={e=>(e.currentTarget.style.background="#c8931c")} onMouseLeave={e=>(e.currentTarget.style.background="#DEA821")} onClick={handleExportExcel}><FileSpreadsheet className="w-3.5 h-3.5"/> Excel</Button>
+              </>)}
             </div>
           </div>
 
           {/* ملخص stats */}
-          {stats && (
+          {can("finance_cash.register_summary_stats") && stats && (
             <div className="grid grid-cols-3 gap-2 sm:gap-3">
               {[
                 { label: "إجمالي الدخل",  shortLabel: "دخل",   icon: <ArrowUpCircle className="w-3 h-3"/>, value: fmt(stats.totalIn),  color: "#26A69A", glow: "rgba(38,166,154,0.28)",  bg: "linear-gradient(135deg, rgba(38,166,154,0.44) 0%, rgba(38,166,154,0.16) 52%, rgba(255,255,255,0.08) 100%)" },
@@ -496,7 +504,7 @@ export default function FinanceCashPage() {
           )}
 
           {/* تدفق المال chart */}
-          {flowData && flowData.length > 0 && (
+          {can("finance_cash.cash_flow_chart") && flowData && flowData.length > 0 && (
             <div className="rounded-2xl border border-border/50 bg-card p-3 sm:p-4">
               <p className="text-xs font-semibold text-muted-foreground mb-3 flex items-center gap-1.5"><TrendingUp className="w-3.5 h-3.5"/> تدفق الكاش — آخر 30 يوم</p>
               <ResponsiveContainer width="100%" height={100}>
@@ -519,8 +527,10 @@ export default function FinanceCashPage() {
           {/* ── أزرار التصدير + فلتر ── */}
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex gap-2">
+              {can("finance_cash.export_buttons") && (<>
               <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs rounded-xl" onClick={handleExportCSV}><Download className="w-3.5 h-3.5"/> <span className="hidden sm:inline">CSV</span></Button>
               <Button size="sm" className="gap-1.5 h-8 text-xs rounded-xl text-black font-bold" style={{background:"#DEA821"}} onMouseEnter={e=>(e.currentTarget.style.background="#c8931c")} onMouseLeave={e=>(e.currentTarget.style.background="#DEA821")} onClick={handleExportExcel}><FileSpreadsheet className="w-3.5 h-3.5"/> <span className="hidden sm:inline">Excel</span></Button>
+              </>)}
             </div>
             <div className="flex gap-2">
               {colFilterActive && Object.values(colFilters).some(v => v) && (
@@ -539,6 +549,7 @@ export default function FinanceCashPage() {
           </div>
 
           {/* ── جدول الحركات (desktop) / كاردات (mobile) ── */}
+          {can("finance_cash.transactions_table") && (
           <div className="relative overflow-hidden rounded-[22px]"
             style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06), 0 8px 32px rgba(0,0,0,0.18)" }}>
             <div className="absolute inset-x-0 top-0 h-px"
@@ -661,9 +672,10 @@ export default function FinanceCashPage() {
               </>
             )}
           </div>
+          )}
 
           {/* ── Pagination ── */}
-          {pagination && pagination.total > pagination.limit && (
+          {can("finance_cash.transactions_table") && pagination && pagination.total > pagination.limit && (
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span>{pagination.total} حركة إجمالي</span>
               <div className="flex items-center gap-1">
