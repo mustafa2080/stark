@@ -260,6 +260,8 @@ function printProductInventory(product: Product, variants: ProductVariant[], war
 
 // ─── Shipment Insights Tab (مستنبط من شحنات Stark) ──────────────────────────
 function ShipmentInsightsTab() {
+  const { can, isAdmin } = useAuth();
+  const canSee = (key: string) => isAdmin || can(key);
   const fc3 = (n: number | string) =>
     new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(Number(n) || 0);
   const pct = (a: number, b: number) => b === 0 ? 0 : Math.round((a / b) * 100);
@@ -422,6 +424,7 @@ function ShipmentInsightsTab() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
 
         {/* صافي المحصّل */}
+        {canSee("inventory_page.net_collected") && (
         <Card className={`p-3 sm:p-4 border ${netProfit >= 0 ? "border-emerald-200 dark:border-emerald-800/40 bg-emerald-50 dark:bg-emerald-900/10" : "border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-900/10"}`}>
           <div className="flex items-center justify-between mb-2">
             <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${netProfit >= 0 ? "bg-emerald-500/15" : "bg-red-500/15"}`}>
@@ -433,8 +436,10 @@ function ShipmentInsightsTab() {
           <p className="text-[10px] text-muted-foreground mt-0.5">محصّل – رسوم الشحن</p>
           <p className="text-[9px] text-muted-foreground/60 mt-1">رسوم: {fc3(totalFee)}</p>
         </Card>
+        )}
 
         {/* COD المعلق في الطريق */}
+        {canSee("inventory_page.cod_pending") && (
         <Card className="p-3 sm:p-4 border border-amber-200 dark:border-amber-800/40 bg-amber-50 dark:bg-amber-900/10">
           <div className="flex items-center justify-between mb-2">
             <div className="w-8 h-8 rounded-lg bg-amber-500/15 flex items-center justify-center">
@@ -446,8 +451,10 @@ function ShipmentInsightsTab() {
           <p className="text-[10px] text-muted-foreground mt-0.5">COD في الطريق</p>
           <p className="text-[9px] text-muted-foreground/60 mt-1">{inTransit} شحنة</p>
         </Card>
+        )}
 
         {/* معدل التسليم */}
+        {canSee("inventory_page.delivery_rate") && (
         <Card className={`p-3 sm:p-4 border ${deliveryRate >= 70 ? "border-blue-200 dark:border-blue-800/40 bg-blue-50 dark:bg-blue-900/10" : "border-orange-200 dark:border-orange-800/40 bg-orange-50 dark:bg-orange-900/10"}`}>
           <div className="flex items-center justify-between mb-2">
             <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${deliveryRate >= 70 ? "bg-blue-500/15" : "bg-orange-500/15"}`}>
@@ -464,8 +471,10 @@ function ShipmentInsightsTab() {
             <div className={`h-full rounded-full transition-all ${deliveryRate >= 70 ? "bg-blue-500" : "bg-orange-500"}`} style={{ width: `${deliveryRate}%` }} />
           </div>
         </Card>
+        )}
 
         {/* معدل الإرجاع */}
+        {canSee("inventory_page.return_rate") && (
         <Card className={`p-3 sm:p-4 border ${returnRate <= 15 ? "border-border bg-card" : "border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-900/10"}`}>
           <div className="flex items-center justify-between mb-2">
             <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${returnRate <= 15 ? "bg-muted/30" : "bg-red-500/15"}`}>
@@ -477,6 +486,7 @@ function ShipmentInsightsTab() {
           <p className="text-[10px] text-muted-foreground mt-0.5">معدل الإرجاع</p>
           <p className="text-[9px] text-muted-foreground/60 mt-1">{returned} من {closedAll} شحنة</p>
         </Card>
+        )}
       </div>
 
       {/* ── Action Alerts ────────────────────────────────────────────────── */}
@@ -563,6 +573,7 @@ function ShipmentInsightsTab() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
 
         {/* أكثر مناطق الإرجاع */}
+        {canSee("inventory_page.top_return_zones") && (
         <Card className="border-border bg-card overflow-hidden">
           <div className="px-4 py-3 border-b border-border flex items-center gap-2 bg-red-50/50 dark:bg-red-900/5">
             <MapPin className="w-4 h-4 text-red-500 shrink-0" />
@@ -629,8 +640,10 @@ function ShipmentInsightsTab() {
             </div>
           )}
         </Card>
+        )}
 
         {/* أداء شركات الشحن — مرتبة من الأفضل للأقل (composite score) */}
+        {canSee("inventory_page.company_performance") && (
         <Card className="border-border bg-card overflow-hidden">
           <div className="px-4 py-3 border-b border-border flex items-center gap-2 bg-violet-50/50 dark:bg-violet-900/5">
             <Activity className="w-4 h-4 text-violet-500 shrink-0" />
@@ -680,12 +693,14 @@ function ShipmentInsightsTab() {
             </div>
           )}
         </Card>
+        )}
       </div>
 
       {/* ── Row 2.5: الشحنات حسب الفرع + حسب نوع الطرد ────────────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
 
         {/* الشحنات حسب الفرع */}
+        {canSee("inventory_page.by_branch") && (
         <Card className="border-border bg-card overflow-hidden">
           <div className="px-4 py-3 border-b border-border flex items-center gap-2 bg-blue-50/50 dark:bg-blue-900/5">
             <WarehouseIcon className="w-4 h-4 text-blue-500 shrink-0" />
@@ -723,8 +738,10 @@ function ShipmentInsightsTab() {
             </div>
           )}
         </Card>
+        )}
 
         {/* الشحنات حسب نوع الطرد */}
+        {canSee("inventory_page.by_parcel_type") && (
         <Card className="border-border bg-card overflow-hidden">
           <div className="px-4 py-3 border-b border-border flex items-center gap-2 bg-violet-50/50 dark:bg-violet-900/5">
             <Boxes className="w-4 h-4 text-violet-500 shrink-0" />
@@ -764,12 +781,14 @@ function ShipmentInsightsTab() {
             </div>
           )}
         </Card>
+        )}
       </div>
 
       {/* ── Row 3: توزيع الحالات + ملخص مالي ─────────────────────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
 
         {/* توزيع الحالات */}
+        {canSee("inventory_page.status_distribution") && (
         <Card className="border-border bg-card overflow-hidden">
           <div className="px-4 py-3 border-b border-border flex items-center gap-2">
             <PieChart className="w-4 h-4 text-primary shrink-0" />
@@ -795,8 +814,10 @@ function ShipmentInsightsTab() {
             ))}
           </div>
         </Card>
+        )}
 
         {/* ملخص مالي */}
+        {canSee("inventory_page.financial_summary") && (
         <Card className="border-border bg-card overflow-hidden">
           <div className="px-4 py-3 border-b border-border flex items-center gap-2">
             <DollarSign className="w-4 h-4 text-emerald-500 shrink-0" />
@@ -821,6 +842,7 @@ function ShipmentInsightsTab() {
             })}
           </div>
         </Card>
+        )}
       </div>
 
     </div>
@@ -929,6 +951,8 @@ const WAREHOUSE_TABS = [
 type TabId = typeof WAREHOUSE_TABS[number]["id"];
 
 function ShipmentWarehouseTab() {
+  const { can, isAdmin } = useAuth();
+  const canSee = (key: string) => isAdmin || can(key);
   const [activeTab, setActiveTab] = useState<TabId>("warehouse_ready");
   const [search,          setSearch]          = useState("");
   const [dateFrom,        setDateFrom]        = useState("");
@@ -1398,6 +1422,7 @@ function ShipmentWarehouseTab() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
 
         {/* قيد الشحن في المخزن */}
+        {canSee("inventory_page.warehouse_ready_card") && (
         <Card onClick={() => setActiveTab("warehouse_ready")}
           className="border-cyan-200 dark:border-cyan-800/40 bg-cyan-50 dark:bg-cyan-900/10 p-3 sm:p-4 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all active:scale-100">
           <div className="flex items-center justify-between mb-2">
@@ -1410,8 +1435,10 @@ function ShipmentWarehouseTab() {
           <p className="text-[10px] text-muted-foreground mt-0.5">قيد الشحن في المخزن</p>
           <p className="text-[10px] font-bold text-cyan-600/70 mt-1 truncate">{isLoading ? "" : fc2(activeCOD)}</p>
         </Card>
+        )}
 
         {/* مرتجع */}
+        {canSee("inventory_page.returned_card") && (
         <Card onClick={() => setActiveTab("returned")}
           className={`p-3 sm:p-4 border cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all active:scale-100 ${returnedCount > 0 ? "border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-900/10" : "border-border bg-card"}`}>
           <div className="flex items-center justify-between mb-2">
@@ -1423,8 +1450,10 @@ function ShipmentWarehouseTab() {
           <p className={`text-2xl sm:text-3xl font-black ${returnedCount > 0 ? "text-red-600 dark:text-red-400" : ""}`}>{isLoading ? "—" : returnedCount}</p>
           <p className="text-[10px] text-muted-foreground mt-0.5">شحنة مرتجعة</p>
         </Card>
+        )}
 
         {/* مؤجل */}
+        {canSee("inventory_page.delayed_card") && (
         <Card
           className={`p-3 sm:p-4 border transition-all ${delayedCount > 0 ? "border-orange-200 dark:border-orange-800/40 bg-orange-50 dark:bg-orange-900/10" : "border-border bg-card"}`}>
           <div className="flex items-center justify-between mb-2">
@@ -1436,8 +1465,10 @@ function ShipmentWarehouseTab() {
           <p className={`text-2xl sm:text-3xl font-black ${delayedCount > 0 ? "text-orange-600 dark:text-orange-400" : ""}`}>{isLoading ? "—" : delayedCount}</p>
           <p className="text-[10px] text-muted-foreground mt-0.5">شحنة مؤجلة</p>
         </Card>
+        )}
 
         {/* تجاوزت SLA */}
+        {canSee("inventory_page.sla_card") && (
         <Card onClick={() => setSlaOnly(v => !v)}
           className={`p-3 sm:p-4 border cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all active:scale-100 ${slaOnly ? "ring-2 ring-rose-500" : ""} ${slaBreachCount > 0 ? "border-rose-300 dark:border-rose-700/50 bg-rose-50 dark:bg-rose-950/20" : "border-border bg-card"}`}>
           <div className="flex items-center justify-between mb-2">
@@ -1450,10 +1481,11 @@ function ShipmentWarehouseTab() {
           <p className="text-[10px] text-muted-foreground mt-0.5">تجاوزت الوقت الطبيعي</p>
           <p className="text-[10px] font-bold text-rose-600/70 mt-1 truncate">{isLoading ? "" : fc2(slaBreachCOD)}</p>
         </Card>
+        )}
       </div>
 
       {/* ── Phase 4: لوحة التنبيهات الاستباقية ─────────────────────────── */}
-      {!isLoading && (upcomingSlaWarnings.length > 0 || anomalousCompanies.length > 0) && (
+      {canSee("inventory_page.proactive_alerts") && !isLoading && (upcomingSlaWarnings.length > 0 || anomalousCompanies.length > 0) && (
         <div className="space-y-2">
 
           {/* تنبيه 1: شحنات ستتجاوز الوقت المسموح خلال 24 ساعة */}
@@ -1596,6 +1628,7 @@ function ShipmentWarehouseTab() {
       </div>
 
       {/* ── Table ───────────────────────────────────────────────────────── */}
+      {canSee("inventory_page.shipments_table") && (
       <Card className="border-border bg-card overflow-hidden">
         <div className={`px-3 sm:px-4 py-2.5 border-b flex items-center gap-2 ${activeTab_def.bg} ${activeTab_def.border}`}>
           {(() => { const Icon = activeTab_def.icon; return <Icon className={`w-4 h-4 shrink-0 ${activeTab_def.color}`} />; })()}
@@ -1725,9 +1758,10 @@ function ShipmentWarehouseTab() {
           </div>
         )}
       </Card>
+      )}
 
       {/* ── Cash Reconciliation: مطابقة الكاش مع شركات الشحن ──────────────── */}
-      {!isLoading && cashReconciliation.shortfallCount > 0 && (
+      {canSee("inventory_page.cash_reconciliation") && !isLoading && cashReconciliation.shortfallCount > 0 && (
         <Card className="border-amber-200 dark:border-amber-800/40 bg-amber-50/60 dark:bg-amber-950/10 overflow-hidden">
           <div className="px-3 sm:px-4 py-2.5 border-b border-amber-200 dark:border-amber-800/40 flex items-center gap-2">
             <Wallet className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
@@ -1759,7 +1793,7 @@ function ShipmentWarehouseTab() {
       )}
 
       {/* ── Summary Footer ───────────────────────────────────────────────── */}
-      {!isLoading && activeShipments.length > 0 && (
+      {canSee("inventory_page.summary_footer") && !isLoading && activeShipments.length > 0 && (
         <div className="flex flex-col xs:flex-row items-start xs:items-center justify-between gap-2 rounded-xl border border-border bg-card/60 px-4 py-3 text-xs">
           <div className="flex items-center gap-3 flex-wrap">
             <span className="text-muted-foreground">{activeShipments.length} شحنة</span>
@@ -1831,6 +1865,8 @@ function getStatusInfo(status: string) {
 }
 
 function ParcelTypesTab() {
+  const { can, isAdmin } = useAuth();
+  const canSee = (key: string) => isAdmin || can(key);
   const qc = useQueryClient();
   const { toast } = useToast();
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -1969,6 +2005,7 @@ function ParcelTypesTab() {
         const minPrice = Math.min(...pricing.map(p => Number(p.basePrice)));
         return (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            {canSee("inventory_page.parcel_types_count") && (
             <Card className="border-violet-200 dark:border-violet-900/40 bg-violet-50 dark:bg-violet-900/10 p-3.5">
               <div className="flex items-center gap-2 mb-2">
                 <div className="w-7 h-7 rounded-lg bg-violet-500/15 flex items-center justify-center">
@@ -1979,6 +2016,8 @@ function ParcelTypesTab() {
               <p className="text-2xl font-black text-violet-600 dark:text-violet-400">{pricing.length}</p>
               <p className="text-[10px] text-muted-foreground mt-0.5">نوع شحنة مُعرَّف</p>
             </Card>
+            )}
+            {canSee("inventory_page.parcel_shipments_count") && (
             <Card className="border-primary/20 dark:border-primary/30 bg-primary/5 dark:bg-primary/10 p-3.5">
               <div className="flex items-center gap-2 mb-2">
                 <div className="w-7 h-7 rounded-lg bg-primary/15 flex items-center justify-center">
@@ -1989,6 +2028,8 @@ function ParcelTypesTab() {
               <p className="text-2xl font-black text-primary">{totalShipmentsAll}</p>
               <p className="text-[10px] text-muted-foreground mt-0.5">عبر كل الأنواع</p>
             </Card>
+            )}
+            {canSee("inventory_page.parcel_total_revenue") && (
             <Card className="border-emerald-200 dark:border-emerald-900/40 bg-emerald-50 dark:bg-emerald-900/10 p-3.5">
               <div className="flex items-center gap-2 mb-2">
                 <div className="w-7 h-7 rounded-lg bg-emerald-500/15 flex items-center justify-center">
@@ -1999,6 +2040,8 @@ function ParcelTypesTab() {
               <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">{totalRevenueAll > 0 ? totalRevenueAll.toLocaleString() : "—"}</p>
               <p className="text-[10px] text-muted-foreground mt-0.5">جنيه</p>
             </Card>
+            )}
+            {canSee("inventory_page.parcel_price_range") && (
             <Card className="border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-900/10 p-3.5">
               <div className="flex items-center gap-2 mb-2">
                 <div className="w-7 h-7 rounded-lg bg-amber-500/15 flex items-center justify-center">
@@ -2009,12 +2052,13 @@ function ParcelTypesTab() {
               <p className="text-lg font-black text-amber-600 dark:text-amber-400">{minPrice} – {maxPrice}</p>
               <p className="text-[10px] text-muted-foreground mt-0.5">جنيه (أدنى – أعلى)</p>
             </Card>
+            )}
           </div>
         );
       })()}
 
       {/* ── Content ──────────────────────────────────────────────────────── */}
-      {isLoading ? (
+      {canSee("inventory_page.parcel_types_table") && (isLoading ? (
         <div className="text-center py-16 text-muted-foreground text-sm flex flex-col items-center gap-3">
           <RefreshCw className="w-6 h-6 animate-spin opacity-40" />
           <span>جاري التحميل...</span>
@@ -2268,7 +2312,7 @@ function ParcelTypesTab() {
             );
           })}
         </div>
-      )}
+      ))}
 
       {/* ── Add Dialog ───────────────────────────────────────────────────── */}
       {addOpen && (
@@ -2484,6 +2528,7 @@ function ParcelTypesTab() {
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function Inventory() {
   const { can, isAdmin } = useAuth();
+  const canSee = (key: string) => isAdmin || can(key);
   // ── Inventory permission shortcuts ────────────────────────────────────────
   const canEdit        = isAdmin || can("inventory.edit");
   const canDelete      = isAdmin || can("inventory.delete");
@@ -2860,6 +2905,7 @@ export default function Inventory() {
 
       {/* Tab Switcher */}
       <div className="flex items-center gap-1 p-1 bg-muted/40 rounded-xl border border-border w-fit">
+        {canSee("inventory_page.tab_shipments") && (
         <button
           onClick={() => setActiveTab("shipments")}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[12px] font-bold transition-all ${
@@ -2871,6 +2917,8 @@ export default function Inventory() {
           <Truck className="w-3.5 h-3.5" />
           مستودع الشحنات
         </button>
+        )}
+        {canSee("inventory_page.tab_parcel_types") && (
         <button
           onClick={() => setActiveTab("parcel-types")}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[12px] font-bold transition-all ${
@@ -2882,6 +2930,8 @@ export default function Inventory() {
           <Layers className="w-3.5 h-3.5" />
           أنواع الشحنات
         </button>
+        )}
+        {canSee("inventory_page.tab_insights") && (
         <button
           onClick={() => setActiveTab("insights")}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[12px] font-bold transition-all ${
@@ -2893,16 +2943,17 @@ export default function Inventory() {
           <Activity className="w-3.5 h-3.5" />
           تحليلات الشحن
         </button>
+        )}
       </div>
 
       {/* Shipment Warehouse Tab */}
-      {activeTab === "shipments" && <ShipmentWarehouseTab />}
+      {activeTab === "shipments" && canSee("inventory_page.tab_shipments") && <ShipmentWarehouseTab />}
 
       {/* Shipment Insights Tab */}
-      {activeTab === "insights" && <ShipmentInsightsTab />}
+      {activeTab === "insights" && canSee("inventory_page.tab_insights") && <ShipmentInsightsTab />}
 
       {/* Parcel Types Tab */}
-      {activeTab === "parcel-types" && <ParcelTypesTab />}
+      {activeTab === "parcel-types" && canSee("inventory_page.tab_parcel_types") && <ParcelTypesTab />}
 
       {/* Products Tab removed */}
       {false && (<>
