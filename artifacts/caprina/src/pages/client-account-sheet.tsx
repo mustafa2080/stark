@@ -3351,7 +3351,10 @@ function ReturnReceivedButton({
       shipmentManifestsApi.updateItem(manifestId, order.id, {
         deliveryStatus: order.deliveryStatus,
         deliveryNote: order.deliveryNote ?? null,
-        partialQuantity: order.partialQuantity ?? null,
+        // مبنبعتش partialQuantity لو مفيش قيمة جديدة عندنا — لو بعتناها null صراحةً
+        // بيدخل الباك إند في فرع "قيمة جديدة" ويرفض الحفظ حتى لو فيه قيمة قديمة
+        // محفوظة بالفعل في البيان (زرار "تم الاستلام" السريع مبيسألش عن قيمة جديدة).
+        ...(order.partialQuantity != null ? { partialQuantity: order.partialQuantity } : {}),
         returnReceived: received,
       }),
     onSuccess: () => {
