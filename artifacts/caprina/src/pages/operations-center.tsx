@@ -1705,6 +1705,8 @@ export default function OperationsCenterPage() {
       )}
 
       {/* ── صف الكروت العلوي ────────────────────────────────────────────── */}
+      {can("dashboard.overview_kpis") && (
+      <>
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <span className="text-xs text-muted-foreground font-semibold">نظرة عامة على الشحنات والإيرادات</span>
         <OcPeriodFilterBar value={ocPeriodFilter} onChange={setOcPeriodFilter} />
@@ -1755,6 +1757,8 @@ export default function OperationsCenterPage() {
           })
         )}
       </div>
+      </>
+      )}
 
       {/* ── إجمالي أرصدة الخزن (منقول من لوحة التحكم) ────────────────────── */}
       {can("dashboard.cash_registers") && (

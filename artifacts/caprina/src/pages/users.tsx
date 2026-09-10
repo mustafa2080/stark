@@ -151,6 +151,7 @@ const ROLE_COLORS: Record<string, string> = {
 const PERM_TO_SECTION: Record<string, string> = {
   // لوحة التحكم
   "dashboard.view":                  "section_dashboard",
+  "dashboard.overview_kpis":         "section_dashboard",
   "dashboard.cash_registers":        "section_dashboard",
   "dashboard.status_distribution":   "section_dashboard",
   "dashboard.weekly_shipments":      "section_dashboard",
@@ -325,6 +326,7 @@ const SECTION_GROUPS: Array<{
     icon: <Home className="w-4 h-4" />,
     permissions: [
       { key: "dashboard.view",           label: "دخول لوحة التحكم",            desc: "يشوف الصفحة الرئيسية — لازمة لظهور أي حاوية تحتها" },
+      { key: "dashboard.overview_kpis",         label: "نظرة عامة على الشحنات والإيرادات",     desc: "ظاهرة تلقائياً إلا لو اتشالت" },
       { key: "dashboard.cash_registers",        label: "إجمالي أرصدة الخزن",                  desc: "ظاهرة تلقائياً إلا لو اتشالت", sensitive: true },
       { key: "dashboard.status_distribution",   label: "توزيع الشحنات",                        desc: "ظاهرة تلقائياً إلا لو اتشالت" },
       { key: "dashboard.weekly_shipments",      label: "الشحنات الأسبوعية",                    desc: "ظاهرة تلقائياً إلا لو اتشالت" },

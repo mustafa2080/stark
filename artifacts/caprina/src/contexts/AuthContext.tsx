@@ -63,6 +63,7 @@ export const ALL_PERMISSIONS = {
   dashboard: [
     { key: "dashboard.view",                  label: "رؤية لوحة التحكم",             desc: "الدخول الأساسي على الداشبورد" },
     // ── الحاويات الرئيسية (الكروت العلوية) ────────────────────────────
+    { key: "dashboard.overview_kpis",         label: "رؤية نظرة عامة على الشحنات والإيرادات", desc: "إخفاء إذا لم يُمنح" },
     { key: "dashboard.cash_registers",        label: "رؤية إجمالي أرصدة الخزن",      desc: "إخفاء إذا لم يُمنح" },
     { key: "dashboard.status_distribution",   label: "رؤية توزيع الشحنات",            desc: "إخفاء إذا لم يُمنح" },
     { key: "dashboard.weekly_shipments",      label: "رؤية الشحنات الأسبوعية",        desc: "إخفاء إذا لم يُمنح" },
@@ -175,6 +176,7 @@ const ROLE_DEFAULT_PERMISSIONS: Record<string, string[]> = {
     "section_users", "section_sessions_report", "section_audit", "section_finance",
     // الجديدة
     "dashboard.view","dashboard.financials","dashboard.shipping_stats","dashboard.returns","dashboard.team",
+    "dashboard.overview_kpis",
     "dashboard.cash_registers","dashboard.status_distribution","dashboard.weekly_shipments",
     "dashboard.delayed_shipments","dashboard.problem_shipments","dashboard.online_reps",
     "dashboard.clients_followup","dashboard.live_map","dashboard.performance_metrics",
