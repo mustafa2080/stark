@@ -7,6 +7,7 @@ import {
   clientAccountManifestItemsTable,
   shipmentsTable,
   clientsTable,
+  usersTable,
 } from "@workspace/db";
 import { z } from "zod";
 import { requireAuth } from "../middlewares/requireAuth";
@@ -72,6 +73,22 @@ router.post("/client-return-manifests/:clientId/confirm-delivery/:shipmentId", a
 
     const [shipment] = await db.select().from(shipmentsTable).where(eq(shipmentsTable.id, shipmentId)).limit(1);
     if (!shipment) { res.status(404).json({ error: "الشحنة غير موجودة" }); return; }
+
+    // ─── منع تأكيد "تم استلام المرتجع" طول ما الشحنة لسه مربوطة بمندوب (assignedUserId) ──
+    // (بطلب مصطفى 2026-09-11): نفس منطق /client-account-manifests — "تم الاستلام" هنا
+    // معناها المرتجع رجع فعليًا للعميل، فلو الشحنة لسه معلّقة على مندوب معيّن في
+    // shipmentsTable فده يعني إنه لسه شايلها فعليًا (عند مندوب الشحن) ومتسلمتش للعميل بعد. ──
+    if ((shipment as any).assignedUserId) {
+      const [assignedUser] = await db
+        .select({ displayName: usersTable.displayName })
+        .from(usersTable)
+        .where(eq(usersTable.id, (shipment as any).assignedUserId))
+        .limit(1);
+      res.status(400).json({
+        error: `لا يمكن تأكيد الاستلام — الشحنة ما زالت مرتبطة بالمندوب ${assignedUser?.displayName || "غير معروف"}`,
+      });
+      return;
+    }
 
     // ─── منع تكرار الترحيل: لو الشحنة دي اترحلت بالفعل لبند في بيان مرتجعات، متتضافش تاني
     const [existingItem] = await db
