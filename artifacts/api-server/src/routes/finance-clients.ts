@@ -1167,6 +1167,11 @@ router.get("/finance/clients/:id/shipments", async (req, res): Promise<void> => 
       pieces:         shipmentsTable.pieces,
       returnReason:   shipmentsTable.returnReason,
       returnReceived: shipmentsTable.returnReceived,
+      // ─── هل الشحنة لسه مربوطة بمندوب داخلي؟ (بطلب مصطفى 2026-09-11) ───────
+      // لازم الفرونت يعرف ده عشان مايسمحش بزرار "تم الاستلام" في تاب المرتجعات
+      // طول ما المرتجع لسه فعليًا شايله مندوب ولسه ما رجعش المخزن/الراسل.
+      assignedUserId:   shipmentsTable.assignedUserId,
+      assignedUserName: usersTable.displayName,
       manifestId:          clientAccountManifestItemsTable.manifestId,
       manifestNumber:      clientAccountManifestsTable.manifestNumber,
       manifestDeliveryStatus: clientAccountManifestItemsTable.deliveryStatus,
@@ -1175,6 +1180,7 @@ router.get("/finance/clients/:id/shipments", async (req, res): Promise<void> => 
     }).from(shipmentsTable)
       .leftJoin(clientAccountManifestItemsTable, eq(clientAccountManifestItemsTable.shipmentId, shipmentsTable.id))
       .leftJoin(clientAccountManifestsTable, eq(clientAccountManifestsTable.id, clientAccountManifestItemsTable.manifestId))
+      .leftJoin(usersTable, eq(usersTable.id, shipmentsTable.assignedUserId))
       .where(and(...shipConds))
       .orderBy(desc(shipmentsTable.createdAt), desc(clientAccountManifestItemsTable.manifestId))
       .limit(400);
