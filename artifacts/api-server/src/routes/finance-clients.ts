@@ -1180,7 +1180,13 @@ router.get("/finance/clients/:id/shipments", async (req, res): Promise<void> => 
       manifestNumber:      clientAccountManifestsTable.manifestNumber,
       manifestDeliveryStatus: clientAccountManifestItemsTable.deliveryStatus,
       manifestPartialQty:  clientAccountManifestItemsTable.partialQuantity,
-      manifestReturnReceived: clientAccountManifestItemsTable.returnReceived,
+      // ⚠️ فيكس (2026-09-12): كان بياخد القيمة من clientAccountManifestItemsTable
+      // بس، وده بيتحدث فقط لما حد يضغط زرار "تم الاستلام" يدويًا في تاب
+      // المرتجعات. لو المندوب رجّع الشحنة فعليًا للمخزن من صفحة الشحنة العادية
+      // (shipments.returnReceived بيتحدث تلقائي)، القيمة القديمة هنا كانت بتفضل
+      // واقفة فتظهر الشحنة "لسه مع المندوب" غلط رغم إنها فعليًا رجعت. بناخد أعلى
+      // قيمة بين المصدرين (COALESCE) عشان أي تحديث من أي مكان يظهر صح فورًا.
+      manifestReturnReceived: sql<number | null>`COALESCE(${clientAccountManifestItemsTable.returnReceived}, ${shipmentsTable.returnReceived})`,
     }).from(shipmentsTable)
       .leftJoin(clientAccountManifestItemsTable, eq(clientAccountManifestItemsTable.shipmentId, shipmentsTable.id))
       .leftJoin(clientAccountManifestsTable, eq(clientAccountManifestsTable.id, clientAccountManifestItemsTable.manifestId))
