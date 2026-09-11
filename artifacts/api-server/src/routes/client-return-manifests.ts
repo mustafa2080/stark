@@ -8,6 +8,7 @@ import {
   shipmentsTable,
   clientsTable,
   usersTable,
+  shippingCompaniesTable,
 } from "@workspace/db";
 import { z } from "zod";
 import { requireAuth } from "../middlewares/requireAuth";
@@ -74,18 +75,33 @@ router.post("/client-return-manifests/:clientId/confirm-delivery/:shipmentId", a
     const [shipment] = await db.select().from(shipmentsTable).where(eq(shipmentsTable.id, shipmentId)).limit(1);
     if (!shipment) { res.status(404).json({ error: "الشحنة غير موجودة" }); return; }
 
-    // ─── منع تأكيد "تم استلام المرتجع" طول ما الشحنة لسه مربوطة بمندوب (assignedUserId) ──
-    // (بطلب مصطفى 2026-09-11): نفس منطق /client-account-manifests — "تم الاستلام" هنا
-    // معناها المرتجع رجع فعليًا للعميل، فلو الشحنة لسه معلّقة على مندوب معيّن في
-    // shipmentsTable فده يعني إنه لسه شايلها فعليًا (عند مندوب الشحن) ومتسلمتش للعميل بعد. ──
-    if ((shipment as any).assignedUserId) {
-      const [assignedUser] = await db
-        .select({ displayName: usersTable.displayName })
-        .from(usersTable)
-        .where(eq(usersTable.id, (shipment as any).assignedUserId))
-        .limit(1);
+    // ─── منع تأكيد "تم استلام المرتجع" طول ما لسه ما اتأكدش رجوعه فعليًا للمخزن ──
+    // (تصحيح 2026-09-11 بطلب مصطفى): الفحص الصح هو shipmentsTable.returnReceived،
+    // مش assignedUserId — لأن مرتجعات كتير بتترحّل لشركة شحن خارجية (shippingCompanyId)
+    // مش لمندوب داخلي، فـ assignedUserId بيفضل null عليها برضو وهي لسه فعليًا هناك.
+    // returnReceived=1 هو مصدر الحقيقة الوحيد اللي بيستخدمه باقي النظام (شوف نفس
+    // المنطق في routes/shipments.ts) للتفرقة بين "لسه عند الشحن" و"رجع المخزن فعلًا".
+    const isActualReturn = (shipment as any).status === "returned" || (shipment as any).status === "partial_received";
+    const isReturnConfirmedReceived = (shipment as any).returnReceived === 1;
+    if (isActualReturn && !isReturnConfirmedReceived) {
+      let stillWithLabel = "شركة الشحن";
+      if ((shipment as any).assignedUserId) {
+        const [assignedUser] = await db
+          .select({ displayName: usersTable.displayName })
+          .from(usersTable)
+          .where(eq(usersTable.id, (shipment as any).assignedUserId))
+          .limit(1);
+        stillWithLabel = `المندوب ${assignedUser?.displayName || "غير معروف"}`;
+      } else if ((shipment as any).shippingCompanyId) {
+        const [company] = await db
+          .select({ name: shippingCompaniesTable.name })
+          .from(shippingCompaniesTable)
+          .where(eq(shippingCompaniesTable.id, (shipment as any).shippingCompanyId))
+          .limit(1);
+        stillWithLabel = `شركة الشحن ${company?.name || "غير معروفة"}`;
+      }
       res.status(400).json({
-        error: `لا يمكن تأكيد الاستلام — الشحنة ما زالت مرتبطة بالمندوب ${assignedUser?.displayName || "غير معروف"}`,
+        error: `لا يمكن تأكيد الاستلام — المرتجع ما زال لم يُستلم فعليًا من ${stillWithLabel}`,
       });
       return;
     }
