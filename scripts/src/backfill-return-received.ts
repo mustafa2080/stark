@@ -9,6 +9,7 @@
  * تشغيل: npx tsx scripts/src/backfill-return-received.ts
  * (dry-run افتراضي — يطبع بس. شغله بـ --apply عشان يعدل فعليًا)
  */
+import "dotenv/config";
 import { db, shipmentsTable } from "@workspace/db";
 import { and, eq, isNotNull, or } from "drizzle-orm";
 
