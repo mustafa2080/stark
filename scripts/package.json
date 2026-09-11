@@ -8,7 +8,9 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@workspace/db": "workspace:*",
     "dotenv": "^16.4.7",
+    "drizzle-orm": "catalog:",
     "mysql2": "^3.22.1"
   },
   "devDependencies": {
