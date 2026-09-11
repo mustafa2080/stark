@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, clientsTable, saleOrdersTable, saleOrderItemsTable, shipmentsTable, warehousesTable, usersTable, clientAccountManifestItemsTable, clientAccountManifestsTable, pickupRequestsTable, shipmentZonesTable, shipmentManifestsTable, shipmentManifestItemsTable } from "@workspace/db";
+import { db, clientsTable, saleOrdersTable, saleOrderItemsTable, shipmentsTable, warehousesTable, usersTable, clientAccountManifestItemsTable, clientAccountManifestsTable, pickupRequestsTable, shipmentZonesTable, shipmentManifestsTable, shipmentManifestItemsTable, shippingCompaniesTable } from "@workspace/db";
 import { eq, desc, and, sql, or, like, isNull, inArray, notInArray, ne } from "drizzle-orm";
 import { getTenantId } from "../middlewares/requireTenant.js";
 import { hashPassword } from "../lib/auth.js";
@@ -1167,11 +1167,15 @@ router.get("/finance/clients/:id/shipments", async (req, res): Promise<void> => 
       pieces:         shipmentsTable.pieces,
       returnReason:   shipmentsTable.returnReason,
       returnReceived: shipmentsTable.returnReceived,
-      // ─── هل الشحنة لسه مربوطة بمندوب داخلي؟ (بطلب مصطفى 2026-09-11) ───────
-      // لازم الفرونت يعرف ده عشان مايسمحش بزرار "تم الاستلام" في تاب المرتجعات
-      // طول ما المرتجع لسه فعليًا شايله مندوب ولسه ما رجعش المخزن/الراسل.
+      // ─── هل الشحنة لسه مربوطة بمندوب داخلي أو شركة شحن خارجية؟ (بطلب مصطفى
+      // 2026-09-11) — لازم الفرونت يعرف ده عشان مايسمحش بزرار "تم الاستلام" في
+      // تاب المرتجعات طول ما المرتجع لسه فعليًا شايله حد (مندوب داخلي أو شركة
+      // شحن خارجية) ولسه ما رجعش المخزن/الراسل. نفس منطق shippingCompanyId
+      // المستخدم في client-return-manifests.ts / client-account-manifests.ts.
       assignedUserId:   shipmentsTable.assignedUserId,
       assignedUserName: usersTable.displayName,
+      shippingCompanyId:   shipmentsTable.shippingCompanyId,
+      shippingCompanyName: shippingCompaniesTable.name,
       manifestId:          clientAccountManifestItemsTable.manifestId,
       manifestNumber:      clientAccountManifestsTable.manifestNumber,
       manifestDeliveryStatus: clientAccountManifestItemsTable.deliveryStatus,
@@ -1181,6 +1185,7 @@ router.get("/finance/clients/:id/shipments", async (req, res): Promise<void> => 
       .leftJoin(clientAccountManifestItemsTable, eq(clientAccountManifestItemsTable.shipmentId, shipmentsTable.id))
       .leftJoin(clientAccountManifestsTable, eq(clientAccountManifestsTable.id, clientAccountManifestItemsTable.manifestId))
       .leftJoin(usersTable, eq(usersTable.id, shipmentsTable.assignedUserId))
+      .leftJoin(shippingCompaniesTable, eq(shippingCompaniesTable.id, shipmentsTable.shippingCompanyId))
       .where(and(...shipConds))
       .orderBy(desc(shipmentsTable.createdAt), desc(clientAccountManifestItemsTable.manifestId))
       .limit(400);

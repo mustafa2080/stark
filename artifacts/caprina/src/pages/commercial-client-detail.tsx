@@ -160,10 +160,13 @@ type ClientShipment = {
   codAmount: string | null; shippingFee: string | null;
   createdAt: string; pieces: number | null;
   returnReason?: string | null; returnReceived?: number | null;
-  // هل الشحنة لسه مربوطة بمندوب داخلي؟ لو موجودة يبقى المرتجع لسه فعليًا عنده
-  // ولازم منمنعش تأكيد "تم الاستلام" (بطلب مصطفى 2026-09-11).
+  // هل الشحنة لسه مربوطة بمندوب داخلي أو شركة شحن خارجية؟ لو أي واحد فيهم
+  // موجود يبقى المرتجع لسه فعليًا عند حد ولازم منمنعش تأكيد "تم الاستلام"
+  // (بطلب مصطفى 2026-09-11).
   assignedUserId?: number | null;
   assignedUserName?: string | null;
+  shippingCompanyId?: number | null;
+  shippingCompanyName?: string | null;
   manifestId?: number | null;
   manifestNumber?: string | null;
   manifestDeliveryStatus?: string | null;
@@ -2189,11 +2192,14 @@ function SimpleReturnReceivedButton({ shipment, clientId }: { shipment: ClientSh
   const qc = useQueryClient();
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  // ─── لسه مربوطة بمندوب؟ (بطلب مصطفى 2026-09-11) ───────────────────────────
+  // ─── لسه مربوطة بمندوب داخلي أو شركة شحن خارجية؟ (بطلب مصطفى 2026-09-11) ──
   // نفس فحص الـ backend بالظبط، بس هنا بنمنع الزرار وهنوضح السبب من غير
   // ما ننتظر ريسبونس السيرفر أصلًا — العميل ميستلمش المرتجع طول ما لسه
-  // فعليًا عند المندوب ومارجعش المخزن/الراسل.
-  const stillWithRep = !!shipment.assignedUserId;
+  // فعليًا عند مندوب أو شركة شحن خارجية ومارجعش المخزن/الراسل.
+  const stillWithRep = !!shipment.assignedUserId || !!shipment.shippingCompanyId;
+  const stillWithLabel = shipment.assignedUserId
+    ? (shipment.assignedUserName || "مندوب")
+    : (shipment.shippingCompanyName || "شركة الشحن");
 
   const mutation = useMutation({
     mutationFn: () => clientReturnManifestsApi.confirmDelivery(clientId, shipment.id),
@@ -2207,9 +2213,9 @@ function SimpleReturnReceivedButton({ shipment, clientId }: { shipment: ClientSh
 
   if (stillWithRep) {
     return (
-      <div className="flex flex-1 sm:flex-initial flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg border border-amber-700/60 bg-amber-900/10 text-[10px] font-bold text-amber-400 min-w-[72px]" title={`لسه مع المندوب: ${shipment.assignedUserName || "غير معروف"}`}>
-        <span className="text-sm">🚴</span>
-        <span>مع {shipment.assignedUserName || "مندوب"}</span>
+      <div className="flex flex-1 sm:flex-initial flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg border border-amber-700/60 bg-amber-900/10 text-[10px] font-bold text-amber-400 min-w-[72px]" title={`لسه مع: ${stillWithLabel}`}>
+        <span className="text-sm">{shipment.assignedUserId ? "🚴" : "🚚"}</span>
+        <span>مع {stillWithLabel}</span>
       </div>
     );
   }
