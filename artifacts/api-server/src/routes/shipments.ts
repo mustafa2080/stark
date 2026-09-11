@@ -1280,6 +1280,19 @@ router.put("/shipments/:id", async (req, res): Promise<void> => {
     if (d.internalNotes    !== undefined) updateData.internalNotes    = d.internalNotes;
     if (d.returnReason     !== undefined) updateData.returnReason     = d.returnReason;
     if (d.returnReceived   !== undefined) updateData.returnReceived   = d.returnReceived === true || d.returnReceived === 1 ? 1 : (d.returnReceived === false || d.returnReceived === 0 ? 0 : null);
+    // ─── لما المرتجع يتأكد استلامه فعليًا بالمخزن/الراسل (returnReceived=1)، ───
+    // (بطلب مصطفى 2026-09-12): لازم نفصل الشحنة تلقائيًا عن المندوب/شركة الشحن
+    // اللي كانت شايلاه (assignedUserId/shippingCompanyId) — عشان شارة "مع فلان"
+    // في تاب المرتجعات (finance/clients/:id) تتحول أوتوماتيك لزرار "تم الاستلام"
+    // القابل للضغط، بدل ما تفضل عالقة على اسم المندوب رغم إنه رجّعها فعليًا.
+    // ما بنلمسش d.assignedUserId/d.shippingCompanyId لو اتبعتوا صراحة مع نفس
+    // الطلب (يبقى فيه قيمة جديدة مقصودة)، وبنطبّق بس لو returnReceived بيتحول
+    // لـ 1 دلوقتي فعلاً (مش لو كان already 1 قبل كده).
+    const isFlippingToReturnReceived = updateData.returnReceived === 1 && existingShipment.returnReceived !== 1;
+    if (isFlippingToReturnReceived) {
+      if (d.assignedUserId === undefined) updateData.assignedUserId = null;
+      if (d.shippingCompanyId === undefined) updateData.shippingCompanyId = null;
+    }
     if (d.returnNote       !== undefined) updateData.returnNote       = d.returnNote;
     if (d.partialQuantity  !== undefined) updateData.partialQuantity  = d.partialQuantity;
     if (d.shippingCompanyId !== undefined) updateData.shippingCompanyId = d.shippingCompanyId;
@@ -1613,6 +1626,19 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
     const effectiveStatus = updateData.status ?? existingShipment.status;
     if (d.returnReceived === undefined && effectiveStatus !== "returned" && effectiveStatus !== "partial_received") {
       updateData.returnReceived = null;
+    }
+
+    // ─── لما المرتجع يتأكد استلامه فعليًا بالمخزن/الراسل (returnReceived=1)، ───
+    // (بطلب مصطفى 2026-09-12): لازم نفصل الشحنة تلقائيًا عن المندوب/شركة الشحن
+    // اللي كانت شايلاه (assignedUserId/shippingCompanyId) — عشان شارة "مع فلان"
+    // في تاب المرتجعات (finance/clients/:id) تتحول أوتوماتيك لزرار "تم الاستلام"
+    // القابل للضغط، بدل ما تفضل عالقة على اسم المندوب رغم إنه رجّعها فعليًا.
+    // نفس منطق PUT /shipments/:id بالظبط — ده هو المسار الحقيقي اللي "مهامي"
+    // المندوب بتستخدمه فعليًا، فمعظم حالات "المندوب رجّع البضاعة" بتعدي من هنا.
+    const isFlippingToReturnReceived = updateData.returnReceived === 1 && existingShipment.returnReceived !== 1;
+    if (isFlippingToReturnReceived) {
+      if (d.assignedUserId === undefined) updateData.assignedUserId = null;
+      if (d.shippingCompanyId === undefined) updateData.shippingCompanyId = null;
     }
 
     // ربط المخزون: خصم/إرجاع تلقائي حسب التغييرات (منتج جديد / مرتجع / استلام جزئي)
