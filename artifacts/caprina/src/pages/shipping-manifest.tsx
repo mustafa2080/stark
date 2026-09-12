@@ -3598,6 +3598,7 @@ function ReturnReceivedButton({
   const { toast } = useToast();
   const isPartial = order.deliveryStatus === "partial_received" || order.deliveryStatus === "partial_delivered";
   const currentRR = (order as any).returnReceived; // 0 | 1 | null
+  const [confirmReceive, setConfirmReceive] = useState(false);
 
   // هل الزر ده هو الحالة الحالية (مظلَّل)؟
   const isActive = received
@@ -3630,19 +3631,42 @@ function ReturnReceivedButton({
 
   if (received) {
     return (
-      <button
-        type="button"
-        onClick={() => !locked && !isActive && mutation.mutate()}
-        disabled={locked || mutation.isPending}
-        className={`flex flex-1 sm:flex-initial flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg border text-[10px] font-bold transition-all min-w-[72px] ${
-          isActive
-            ? "border-emerald-500 bg-emerald-900/40 text-emerald-300"
-            : "border-border text-muted-foreground hover:border-emerald-700 hover:text-emerald-400 hover:bg-emerald-900/10"
-        } disabled:opacity-50 disabled:cursor-not-allowed`}
-      >
-        <span className="text-sm">✅</span>
-        <span>تم الاستلام</span>
-      </button>
+      <>
+        <button
+          type="button"
+          onClick={() => !locked && !isActive && setConfirmReceive(true)}
+          disabled={locked || mutation.isPending}
+          className={`flex flex-1 sm:flex-initial flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg border text-[10px] font-bold transition-all min-w-[72px] ${
+            isActive
+              ? "border-emerald-500 bg-emerald-900/40 text-emerald-300"
+              : "border-border text-muted-foreground hover:border-emerald-700 hover:text-emerald-400 hover:bg-emerald-900/10"
+          } disabled:opacity-50 disabled:cursor-not-allowed`}
+        >
+          <span className="text-sm">✅</span>
+          <span>تم الاستلام</span>
+        </button>
+
+        <AlertDialog open={confirmReceive} onOpenChange={setConfirmReceive}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>تأكيد الاستلام</AlertDialogTitle>
+              <AlertDialogDescription>
+                هل أنت متأكد من استلام طلبية <strong>{order.customerName}</strong> ({order.product}) من مندوب الشحن؟
+                <br />سيتم إضافة البضاعة للمخزن.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>إلغاء</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-emerald-600 text-white hover:bg-emerald-700"
+                onClick={() => { setConfirmReceive(false); mutation.mutate(); }}
+              >
+                نعم، تم الاستلام
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </>
     );
   }
 
