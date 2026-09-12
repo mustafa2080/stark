@@ -2195,6 +2195,7 @@ function ReturnShipmentRow({ s, clientId }: { s: ClientShipment; clientId: numbe
 function SimpleReturnReceivedButton({ shipment, clientId }: { shipment: ClientShipment; clientId: number }) {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [markedNotDelivered, setMarkedNotDelivered] = useState(false);
 
   const mutation = useMutation({
@@ -2208,29 +2209,51 @@ function SimpleReturnReceivedButton({ shipment, clientId }: { shipment: ClientSh
   });
 
   return (
-    <div className="flex flex-1 sm:flex-initial gap-1.5">
-      <button
-        type="button"
-        onClick={() => mutation.mutate()}
-        disabled={mutation.isPending}
-        className="flex flex-1 sm:flex-initial flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg border text-[10px] font-bold transition-all min-w-[72px] border-border text-muted-foreground hover:border-emerald-700 hover:text-emerald-400 hover:bg-emerald-900/10 disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        <span className="text-sm">✅</span>
-        <span>تم التسليم للراسل</span>
-      </button>
-      <button
-        type="button"
-        onClick={() => setMarkedNotDelivered((v) => !v)}
-        className={`flex flex-1 sm:flex-initial flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg border text-[10px] font-bold transition-all min-w-[72px] ${
-          markedNotDelivered
-            ? "border-amber-700 text-amber-400 bg-amber-900/10"
-            : "border-border text-muted-foreground hover:border-amber-700 hover:text-amber-400 hover:bg-amber-900/10"
-        }`}
-      >
-        <span className="text-sm">⏳</span>
-        <span>لم يتم التسليم</span>
-      </button>
-    </div>
+    <>
+      <div className="flex flex-1 sm:flex-initial gap-1.5">
+        <button
+          type="button"
+          onClick={() => setConfirmOpen(true)}
+          disabled={mutation.isPending}
+          className="flex flex-1 sm:flex-initial flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg border text-[10px] font-bold transition-all min-w-[72px] border-border text-muted-foreground hover:border-emerald-700 hover:text-emerald-400 hover:bg-emerald-900/10 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <span className="text-sm">✅</span>
+          <span>تم التسليم للراسل</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setMarkedNotDelivered((v) => !v)}
+          className={`flex flex-1 sm:flex-initial flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg border text-[10px] font-bold transition-all min-w-[72px] ${
+            markedNotDelivered
+              ? "border-amber-700 text-amber-400 bg-amber-900/10"
+              : "border-border text-muted-foreground hover:border-amber-700 hover:text-amber-400 hover:bg-amber-900/10"
+          }`}
+        >
+          <span className="text-sm">⏳</span>
+          <span>لم يتم التسليم</span>
+        </button>
+      </div>
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>تأكيد تسليم المرتجع للعميل</AlertDialogTitle>
+            <AlertDialogDescription>
+              هل أنت متأكد من تسليم مرتجع الشحنة <strong>{shipment.shipmentNumber}</strong> ({shipment.receiverName}) للعميل؟
+              <br />سيتم ترحيله لبيان المرتجعات المفتوح الخاص بالعميل.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>لا، تراجع</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-emerald-700 text-white hover:bg-emerald-600"
+              onClick={() => { setConfirmOpen(false); mutation.mutate(); }}
+            >
+              نعم، تم التسليم
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 
