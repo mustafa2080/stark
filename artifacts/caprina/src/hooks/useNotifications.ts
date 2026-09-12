@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 
@@ -52,6 +53,7 @@ function playNotificationChime(severity: string) {
 export function useNotifications() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -131,6 +133,17 @@ export function useNotifications() {
           description: data.message || undefined,
           variant: data.severity === "critical" ? "destructive" : "default",
         });
+        // ─── (بطلب مصطفى 2026-09-12): لما شحنة مرتجعة ترجع المخزن وتتفصل ───
+        // تلقائيًا عن المندوب/شركة الشحن، نعمل invalidate لكل الـ queries
+        // المرتبطة بصفحة العميل التجاري (finance/clients/:id) عشان الشارة
+        // "مع فلان" تتحول لزرار "تم الاستلام" فورًا realtime من غير ما اليوزر
+        // يحتاج يعمل refresh يدوي للصفحة. entityId هنا هو clientId (targetUserId
+        // بتاع الإشعار)، والصفحة المفتوحة بتقرا نفس الـ queryKeys دي.
+        if (data.type === "shipment_return_received") {
+          queryClient.invalidateQueries({ queryKey: ["client-shipments"] });
+          queryClient.invalidateQueries({ queryKey: ["client-return-manifests"] });
+          queryClient.invalidateQueries({ queryKey: ["client-account-manifests"] });
+        }
       } catch (_) {}
     });
 
@@ -142,7 +155,7 @@ export function useNotifications() {
       es.close();
       esRef.current = null;
     };
-  }, [user, loadInitial, toast, showSystemNotification]);
+  }, [user, loadInitial, toast, showSystemNotification, queryClient]);
 
   return {
     notifications,

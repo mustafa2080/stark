@@ -1329,6 +1329,25 @@ router.put("/shipments/:id", async (req, res): Promise<void> => {
 
     await db.update(shipmentsTable).set(updateData).where(cond);
 
+    // ─── إشعار realtime: الشحنة اتفصلت تلقائيًا عن المندوب/شركة الشحن لأنها ───
+    // رجعت المخزن فعليًا (بطلب مصطفى 2026-09-12) — نبعت للعميل التجاري صاحب
+    // الشحنة عشان تاب "المرتجعات" في صفحته (finance/clients/:id) يعمل refetch
+    // تلقائي فورًا، فتختفي شارة "مع فلان" ويظهر بدالها زرار "تم الاستلام" من
+    // غير ما يحتاج يعمل refresh يدوي للصفحة.
+    if (isFlippingToReturnReceived && existingShipment.clientId) {
+      pushNotification({
+        tenantId,
+        targetUserId: existingShipment.clientId,
+        type: "shipment_return_received",
+        severity: "info",
+        title: "مرتجع وصل المخزن",
+        message: `الشحنة ${existingShipment.shipmentNumber ?? `#${id}`} رجعت المخزن — جاهزة لتأكيد الاستلام`,
+        entityType: "shipment",
+        entityId: id,
+        link: `/finance/clients/${existingShipment.clientId}`,
+      }).catch(() => {});
+    }
+
     // مزامنة حالة الشحنة مع أي بيان (حساب عميل / شركة شحن) مرتبطة بيها — لازم
     // تتنفذ هنا في PUT بالظبط زي PATCH، وإلا أي تحديث حالة (زي "مرتجع") جاي من
     // صفحة الشحنات (اللي بتستخدم PUT) هيفضل مش منعكس على كارت البيان.
@@ -1762,6 +1781,26 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
           link: `/shipments/${s.id}`,
         });
       }
+    }
+
+    // ─── إشعار realtime: الشحنة اتفصلت تلقائيًا عن المندوب/شركة الشحن لأنها ───
+    // رجعت المخزن فعليًا (بطلب مصطفى 2026-09-12) — نبعت للعميل التجاري صاحب
+    // الشحنة عشان تاب "المرتجعات" في صفحته (finance/clients/:id) يعمل refetch
+    // تلقائي فورًا، فتختفي شارة "مع فلان" ويظهر بدالها زرار "تم الاستلام" من
+    // غير ما يحتاج يعمل refresh يدوي للصفحة. المسار ده (PATCH) هو اللي "مهامي"
+    // المندوب بتستخدمه فعليًا، فمعظم حالات "المندوب رجّع البضاعة" بتعدي من هنا.
+    if (isFlippingToReturnReceived && existingShipment.clientId) {
+      pushNotification({
+        tenantId,
+        targetUserId: existingShipment.clientId,
+        type: "shipment_return_received",
+        severity: "info",
+        title: "مرتجع وصل المخزن",
+        message: `الشحنة ${existingShipment.shipmentNumber ?? `#${id}`} رجعت المخزن — جاهزة لتأكيد الاستلام`,
+        entityType: "shipment",
+        entityId: id,
+        link: `/finance/clients/${existingShipment.clientId}`,
+      }).catch(() => {});
     }
 
     // إشعار موجّه للعميل نفسه — أول مرة يتحدد فيها المخزن (يعني الأدمن استلم شحنته)

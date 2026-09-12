@@ -7,6 +7,10 @@ export const NOTIFICATION_TYPES = [
   "shipment_delivered",
   "shipment_received",
   "shipment_updated",
+  // (بطلب مصطفى 2026-09-12): بيتبعت لما شحنة مرتجعة ترجع فعليًا للمخزن (تنفصل
+  // تلقائيًا عن المندوب/شركة الشحن) — عشان تاب مرتجعات العميل التجاري يتحدث
+  // realtime ويحول الشارة "مع فلان" لزرار "تم الاستلام" من غير ما اليوزر يعمل refresh.
+  "shipment_return_received",
   "client_followup",
   "inventory_low",
   "invoice_created",
