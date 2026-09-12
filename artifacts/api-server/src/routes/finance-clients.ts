@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, clientsTable, saleOrdersTable, saleOrderItemsTable, shipmentsTable, warehousesTable, usersTable, clientAccountManifestItemsTable, clientAccountManifestsTable, pickupRequestsTable, shipmentZonesTable, shipmentManifestsTable, shipmentManifestItemsTable, shippingCompaniesTable } from "@workspace/db";
+import { db, clientsTable, saleOrdersTable, saleOrderItemsTable, shipmentsTable, warehousesTable, usersTable, clientAccountManifestItemsTable, clientAccountManifestsTable, pickupRequestsTable, shipmentZonesTable, shipmentManifestsTable, shipmentManifestItemsTable, shippingCompaniesTable, clientReturnManifestsTable, clientReturnManifestItemsTable } from "@workspace/db";
 import { eq, desc, and, sql, or, like, isNull, inArray, notInArray, ne } from "drizzle-orm";
 import { getTenantId } from "../middlewares/requireTenant.js";
 import { hashPassword } from "../lib/auth.js";
@@ -1181,13 +1181,22 @@ router.get("/finance/clients/:id/shipments", async (req, res): Promise<void> => 
       manifestDeliveryStatus: clientAccountManifestItemsTable.deliveryStatus,
       manifestPartialQty:  clientAccountManifestItemsTable.partialQuantity,
       manifestReturnReceived: clientAccountManifestItemsTable.returnReceived,
+      // ─── رقم بيان المرتجعات (client_return_manifests) — منفصل تمامًا عن بيان
+      // الحساب العادي (manifestNumber فوق). ده البيان اللي بيتفتح تلقائيًا أول
+      // ما مرتجع يتأكد تسليمه للعميل (زرار "تم التسليم للراسل" في تاب
+      // المرتجعات) — لازم الفرونت يعرض رقم البيان ده في تاب المرتجعات، مش رقم
+      // بيان الحساب العادي (بطلب مصطفى 2026-09-12). ──────────────────────────
+      returnManifestId:     clientReturnManifestItemsTable.manifestId,
+      returnManifestNumber: clientReturnManifestsTable.manifestNumber,
     }).from(shipmentsTable)
       .leftJoin(clientAccountManifestItemsTable, eq(clientAccountManifestItemsTable.shipmentId, shipmentsTable.id))
       .leftJoin(clientAccountManifestsTable, eq(clientAccountManifestsTable.id, clientAccountManifestItemsTable.manifestId))
       .leftJoin(usersTable, eq(usersTable.id, shipmentsTable.assignedUserId))
       .leftJoin(shippingCompaniesTable, eq(shippingCompaniesTable.id, shipmentsTable.shippingCompanyId))
+      .leftJoin(clientReturnManifestItemsTable, eq(clientReturnManifestItemsTable.shipmentId, shipmentsTable.id))
+      .leftJoin(clientReturnManifestsTable, eq(clientReturnManifestsTable.id, clientReturnManifestItemsTable.manifestId))
       .where(and(...shipConds))
-      .orderBy(desc(shipmentsTable.createdAt), desc(clientAccountManifestItemsTable.manifestId))
+      .orderBy(desc(shipmentsTable.createdAt), desc(clientAccountManifestItemsTable.manifestId), desc(clientReturnManifestItemsTable.manifestId))
       .limit(400);
 
     // ✅ "مؤجل" الحقيقي مش عمود فى shipmentsTable.status ولا فى

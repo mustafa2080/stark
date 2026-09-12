@@ -172,6 +172,10 @@ type ClientShipment = {
   manifestDeliveryStatus?: string | null;
   manifestPartialQty?: number | null;
   manifestReturnReceived?: number | null;
+  // رقم بيان المرتجعات (client_return_manifests) — منفصل عن manifestNumber
+  // اللي فوق (بيان الحساب العادي). ده اللي المفروض يظهر في تاب المرتجعات.
+  returnManifestId?: number | null;
+  returnManifestNumber?: string | null;
   isDelayed?: boolean;
 };
 
@@ -1901,7 +1905,7 @@ function ReturnsTabContent({ shipments, clientId }: { shipments: ClientShipment[
                   )}
                   <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
                     {s.shipmentNumber}
-                    {s.manifestNumber && <span className="text-muted-foreground/70"> — بيان: {s.manifestNumber}</span>}
+                    {s.returnManifestNumber && <span className="text-muted-foreground/70"> — بيان: {s.returnManifestNumber}</span>}
                   </p>
                   {s.returnReason && (
                     <p className="text-[10px] font-semibold text-emerald-400/80 mt-0.5">{returnReasonLabel(s.returnReason)}</p>
@@ -2162,7 +2166,7 @@ function ReturnShipmentRow({ s, clientId }: { s: ClientShipment; clientId: numbe
         )}
         <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
           {s.shipmentNumber}
-          {s.manifestNumber && <span className="text-muted-foreground/70"> — بيان: {s.manifestNumber}</span>}
+          {s.returnManifestNumber && <span className="text-muted-foreground/70"> — بيان: {s.returnManifestNumber}</span>}
         </p>
         {s.returnReason && (
           <p className="text-[10px] font-semibold text-red-400 mt-0.5">{returnReasonLabel(s.returnReason)}</p>
