@@ -2166,7 +2166,8 @@ function ReturnShipmentRow({ s, clientId }: { s: ClientShipment; clientId: numbe
         )}
         <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
           {s.shipmentNumber}
-          {s.returnManifestNumber && <span className="text-muted-foreground/70"> — بيان: {s.returnManifestNumber}</span>}
+          {s.manifestNumber && <span className="text-muted-foreground/70"> — بيان: {s.manifestNumber}</span>}
+          {s.returnManifestNumber && <span className="text-muted-foreground/70"> — بيان مرتجعات: {s.returnManifestNumber}</span>}
         </p>
         {s.returnReason && (
           <p className="text-[10px] font-semibold text-red-400 mt-0.5">{returnReasonLabel(s.returnReason)}</p>
