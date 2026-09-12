@@ -299,7 +299,7 @@ function ShipmentsTransferDialog({ onClose }: { onClose: () => void }) {
     queryFn: () => shipmentsApi.list({
       ...(debouncedSearch ? { search: debouncedSearch } : {}),
       ...(statusFilter !== "all" ? { status: statusFilter } : {}),
-      limit: 50,
+      limit: 1000,
     }),
   });
 
