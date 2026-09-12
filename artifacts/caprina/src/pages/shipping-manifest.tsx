@@ -3604,14 +3604,6 @@ function ReturnReceivedButton({
     ? currentRR === 1
     : currentRR === 0;
 
-  const [confirmReceive, setConfirmReceive] = useState(false);
-  // البند "استلام جزئي" بدون قيمة partialQuantity محفوظة مسبقًا — لازم نطلب من
-  // المستخدم يدخلها هنا وإلا الباك إند هيرفض الحفظ (مفيش قيمة يرجع لها).
-  const needsPartialInput = isPartial && order.partialQuantity == null;
-  const [partialInput, setPartialInput] = useState("");
-  const partialInputValue = Number(partialInput);
-  const partialInputValid = partialInput.trim() !== "" && Number.isFinite(partialInputValue) && partialInputValue > 0;
-
   const mutation = useMutation({
     mutationFn: () =>
       shipmentManifestsApi.updateItem(manifestId, order.shipmentId, {
@@ -3620,12 +3612,7 @@ function ReturnReceivedButton({
         // مبنبعتش partialQuantity لو مفيش قيمة جديدة عندنا — لو بعتناها null صراحةً
         // بيدخل الباك إند في فرع "قيمة جديدة" ويرفض الحفظ حتى لو فيه قيمة قديمة
         // محفوظة بالفعل في البيان (زرار "تم الاستلام" السريع مبيسألش عن قيمة جديدة).
-        // لو البند مالوش قيمة محفوظة أصلًا، بنبعت القيمة اللي المستخدم دخلها هنا.
-        ...(order.partialQuantity != null
-          ? { partialQuantity: order.partialQuantity }
-          : needsPartialInput && partialInputValid
-            ? { partialQuantity: Math.trunc(partialInputValue) }
-            : {}),
+        ...(order.partialQuantity != null ? { partialQuantity: order.partialQuantity } : {}),
         returnReceived: received,
       }),
     onSuccess: () => {
@@ -3643,60 +3630,19 @@ function ReturnReceivedButton({
 
   if (received) {
     return (
-      <>
-        <button
-          type="button"
-          onClick={() => !locked && !isActive && setConfirmReceive(true)}
-          disabled={locked || mutation.isPending}
-          className={`flex flex-1 sm:flex-initial flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg border text-[10px] font-bold transition-all min-w-[72px] ${
-            isActive
-              ? "border-emerald-500 bg-emerald-900/40 text-emerald-300"
-              : "border-border text-muted-foreground hover:border-emerald-700 hover:text-emerald-400 hover:bg-emerald-900/10"
-          } disabled:opacity-50 disabled:cursor-not-allowed`}
-        >
-          <span className="text-sm">✅</span>
-          <span>تم الاستلام</span>
-        </button>
-        <AlertDialog open={confirmReceive} onOpenChange={(open) => { setConfirmReceive(open); if (!open) setPartialInput(""); }}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>تأكيد استلام البضاعة</AlertDialogTitle>
-              <AlertDialogDescription>
-                هل أنت متأكد من استلام بضاعة طلبية <strong>{order.customerName}</strong> ({order.product}) من مندوب الشحن؟
-                <br />سيتم إضافتها للمخزن فورًا.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            {needsPartialInput && (
-              <div className="space-y-1.5 pt-1">
-                <label htmlFor={`partial-qty-${order.shipmentId}`} className="text-xs font-semibold text-muted-foreground">
-                  الكمية/المبلغ المستلم جزئيًا (لا يوجد قيمة مسجّلة لهذا الطلب)
-                </label>
-                <input
-                  id={`partial-qty-${order.shipmentId}`}
-                  type="number"
-                  min={1}
-                  inputMode="numeric"
-                  value={partialInput}
-                  onChange={(e) => setPartialInput(e.target.value)}
-                  placeholder="أدخل قيمة أكبر من صفر"
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600"
-                  autoFocus
-                />
-              </div>
-            )}
-            <AlertDialogFooter>
-              <AlertDialogCancel>لا، تراجع</AlertDialogCancel>
-              <AlertDialogAction
-                className="bg-emerald-700 text-white hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={needsPartialInput && !partialInputValid}
-                onClick={() => { setConfirmReceive(false); mutation.mutate(); }}
-              >
-                نعم، تم الاستلام
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </>
+      <button
+        type="button"
+        onClick={() => !locked && !isActive && mutation.mutate()}
+        disabled={locked || mutation.isPending}
+        className={`flex flex-1 sm:flex-initial flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg border text-[10px] font-bold transition-all min-w-[72px] ${
+          isActive
+            ? "border-emerald-500 bg-emerald-900/40 text-emerald-300"
+            : "border-border text-muted-foreground hover:border-emerald-700 hover:text-emerald-400 hover:bg-emerald-900/10"
+        } disabled:opacity-50 disabled:cursor-not-allowed`}
+      >
+        <span className="text-sm">✅</span>
+        <span>تم الاستلام</span>
+      </button>
     );
   }
 
