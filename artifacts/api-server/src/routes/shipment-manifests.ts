@@ -668,16 +668,26 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
           return;
         }
       } else {
-        const [existingPartialItem] = await db.select({ partialQuantity: shipmentManifestItemsTable.partialQuantity })
+        const [existingPartialItem] = await db.select({
+          partialQuantity: shipmentManifestItemsTable.partialQuantity,
+          deliveryNote: shipmentManifestItemsTable.deliveryNote,
+          isRolledOver: shipmentManifestItemsTable.isRolledOver,
+        })
           .from(shipmentManifestItemsTable)
           .where(and(
             eq(shipmentManifestItemsTable.manifestId, manifestId),
             eq(shipmentManifestItemsTable.shipmentId, shipmentId),
           )).limit(1);
-        const existingPq = existingPartialItem?.partialQuantity != null ? Number(existingPartialItem.partialQuantity) : 0;
-        if (!existingPq || existingPq <= 0) {
-          res.status(400).json({ error: "يجب إدخال قيمة صحيحة أكبر من صفر للمبلغ/الكمية المستلمة جزئيًا" });
-          return;
+        // بند مُرحَّل من بيان مقفول: قيمته الفعلية اتحسبت وترحّلت للخزنة وقت قفل
+        // البيان القديم — القيمة القديمة محفوظة كمرجع تاريخي في deliveryNote بس
+        // (مش partialQuantity، اللي بيترحّلش وقت النقل). بند "لا شيء مالي" زي ده
+        // مايستأهلش نطلب من المستخدم يدخل قيمة جديدة تاني قبل ما يقفل نقله.
+        if (!isRolledOverItem(existingPartialItem)) {
+          const existingPq = existingPartialItem?.partialQuantity != null ? Number(existingPartialItem.partialQuantity) : 0;
+          if (!existingPq || existingPq <= 0) {
+            res.status(400).json({ error: "يجب إدخال قيمة صحيحة أكبر من صفر للمبلغ/الكمية المستلمة جزئيًا" });
+            return;
+          }
         }
       }
     }
