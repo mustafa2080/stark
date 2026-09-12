@@ -1,10 +1,11 @@
-import { useState, useCallback, useMemo, useRef, useEffect } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect, memo } from "react";
 import { createPortal } from "react-dom";
+import { format } from "date-fns";
 import {
   ArrowDownCircle, ArrowUpCircle, BarChart3, CalendarDays,
   Filter, Package, Plus, X, TrendingDown, TrendingUp, Activity, Printer, Pencil,
   ArrowRightLeft, Trash2, CheckSquare, ChevronUp, ChevronDown, Warehouse as WarehouseIcon,
-  Search, PackageCheck, Loader2,
+  Search, PackageCheck, Loader2, MapPin,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -87,19 +88,38 @@ function formatMovementDate(raw: string | Date): string {
 type ColKey = "date" | "type" | "product" | "variant" | "qty" | "reason" | "order" | "customer" | "phone" | "location" | "notes";
 type ColFilters = Record<ColKey, Set<string>>;
 
-function ColFilterBtn({ col, colFilters, getColOptions, toggleColFilter, clearColFilter }: {
-  col: ColKey;
-  colFilters: ColFilters;
-  getColOptions: (col: ColKey) => string[];
-  toggleColFilter: (col: ColKey, val: string) => void;
-  clearColFilter: (col: ColKey) => void;
+// ColFilterBtn معمول generic (<K extends string>) عشان يتقدر يتستخدم مع أي
+// نوع أعمدة (ColKey لجدول الحركات، أو ShipmentColKey لجدول الشحنات جوه حاوية
+// نقل الشحنات) من غير تكرار نفس الكومبوننت مرتين.
+function ColFilterBtn<K extends string>({ col, colFilters, getColOptions, toggleColFilter, clearColFilter }: {
+  col: K;
+  colFilters: Record<K, Set<string>>;
+  getColOptions: (col: K) => string[];
+  toggleColFilter: (col: K, val: string) => void;
+  clearColFilter: (col: K) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<"asc" | "desc">("asc");
   const btnRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const listRef = useRef<HTMLDivElement>(null);
+  // بدل ما نعمل createPortal لـ document.body دايمًا (اللي بيخرج البانل من
+  // شجرة الـ FocusScope بتاع أي Radix Dialog مفتوح ويخليه "مرفوض" منه)،
+  // بنلاقي أقرب [role="dialog"] مفتوح فعليًا وقت الضغط على الزرار ونعمل
+  // الـ portal جواه. كده Radix بيعتبر البانل جزء طبيعي من شجرته فمايحاولش
+  // يرجّع الفوكس منه، ومفيش داعي نتسابق مع الـ FocusScope بـ event listeners.
+  // لو الزرار مش جوه أي Dialog (استخدام عادي برة مودال)، بيرجع document.body
+  // زي ما كان بالظبط — فمفيش أي كسر لأي استخدام حالي.
+  const [portalTarget, setPortalTarget] = useState<Element>(() =>
+    typeof document !== "undefined" ? document.body : (null as unknown as Element)
+  );
+  // panelStyle بيتحسب ديناميكيًا (بدل top/left ثابتين) عشان يراعي حدود
+  // الشاشة الفعلية من كل الاتجاهات: لو مفيش مساحة كافية تحت الزرار، البانل
+  // بيفتح لفوق بدل ما ينزل تحت حافة الشاشة ويتقطع. maxHeight بيتحسب هو
+  // كمان من المساحة الفعلية المتاحة بدل رقم ثابت، عشان الـ scroll الداخلي
+  // يبقى له معنى (مفيش جزء "مقطوع" برة الشاشة أصلًا).
+  const [panelStyle, setPanelStyle] = useState<React.CSSProperties>({ top: 0, left: 0 });
   const active = colFilters[col].size > 0;
 
   useEffect(() => {
@@ -114,17 +134,103 @@ function ColFilterBtn({ col, colFilters, getColOptions, toggleColFilter, clearCo
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
+  // ملحوظة: كان هنا useEffect بيحاول يسبق Radix's FocusScope بـ
+  // stopImmediatePropagation على focusin/pointerdown/keydown مسجلة على
+  // window، عشان نمنعه يرجّع الفوكس بالقوة لجوه الـ Dialog كل ما نحاول
+  // نضغط أو نكتب جوه البانل. اتأكد إنه مش شغال لأن Radix مسجل هو كمان على
+  // window بنفس مرحلة الـ capture، وسبقنا بالتسجيل زمنيًا (وقت ما الـ Dialog
+  // نفسه يتفتح، قبل ما بانل الفلتر يتفتح أصلاً) — فبينفذ هو الأول دايمًا
+  // بغض النظر عن أي شيء تاني. الحل الجذري الفعلي مش إننا نتسابق مع Radix،
+  // لكن إننا خلينا الـ portal (تحت) يترندر جوه شجرة الـ Dialog نفسها (عن
+  // طريق portalTarget) بدل document.body، فـ Radix بقى يعتبر البانل جزء
+  // طبيعي من الـ scope بتاعه ومابيحاولش يرجّع الفوكس منه أصلاً.
+
+  // React's onWheel prop بيتسجل كـ passive listener افتراضيًا في المتصفحات
+  // الحديثة، وده بيخلي e.preventDefault() جواه يتجاهله المتصفح تمامًا (بدون
+  // أي خطأ ظاهر، بس من غير تأثير حقيقي) — وده كان بيخلي حركة العجلة تكمل
+  // طريقها لأقرب عنصر تاني خلف البانل بصريًا (الجدول) حتى بعد إضافة
+  // preventDefault/stopPropagation كـ prop عادي. الحل الوحيد المضمون هو
+  // تسجيل الـ listener يدويًا بـ addEventListener مع { passive: false }
+  // صراحة، وده بيتاح بس لما نستخدم الـ DOM API مباشرة مش الـ React prop.
+  // نفس مبدأ الـ bypass اللي فوق: نسجل على window بمرحلة الـ capture عشان
+  // نسبق أي listener تاني (زي overflow-y-auto بتاع جدول الشحنات تحت البانل)
+  // ونمنعه يستحوذ على حركة العجلة أصلاً. التسجيل على listRef لوحده (زي
+  // قبل كده) كان بيوقف الانتشار من جوه العنصر، لكن معتمدًا على إن الـ
+  // event.target يبقى فعلاً جوه البانل — ولو فيه أي عنصر تاني (الجدول
+  // تحت الـ portal) بياخد الـ event الأول بسبب ترتيب الـ DOM/الـ
+  // event-delegation، السكرول كان بيسرّب للجدول. التسجيل على window
+  // بالـ capture هنا بيضمن تنفيذنا الأول دايمًا، بنفس منطق الـ
+  // pointerdown/focusin/keydown اللي فوق بالظبط.
+  useEffect(() => {
+    if (!open) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!panelRef.current || !panelRef.current.contains(e.target as Node)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const el = listRef.current;
+      if (el) el.scrollTop += e.deltaY;
+    };
+    window.addEventListener("wheel", onWheel, { capture: true, passive: false });
+    return () => window.removeEventListener("wheel", onWheel, { capture: true } as EventListenerOptions);
+  }, [open]);
+
+  const PANEL_MARGIN = 8; // مسافة أمان من حواف الشاشة
+  const PANEL_GAP = 6;    // مسافة بين الزرار والبانل
+
+  // البانل بيتعمله createPortal لـ document.body وposition:fixed، يعني هو
+  // مش محبوس بصريًا جوه أي container داخلي (زي جدول بارتفاع محدود 45vh جوه
+  // مودال أكبر) — البانل ظاهر فوق كل حاجة. فالمساحة الصح اللي نحسب عليها
+  // هي الشاشة (viewport) كاملة، مش أقرب overflow-y-auto (اللي ممكن يكون
+  // صغير جدًا، زي جدول 45vh جوه مودال 90vh، فيدي مساحة أصغر بكتير من
+  // الحقيقة الظاهرة على الشاشة فعليًا).
+  const MIN_PANEL_HEIGHT = 220; // كفاية لهيدر + ترتيب + بحث + كذا صف مع سكرول حقيقي
+
   const handleOpen = () => {
     if (!open && btnRef.current) {
+      // أقرب Dialog مفتوح فعليًا حوالين الزرار (Radix بيحط role="dialog" على
+      // الـ DialogContent). لو موجود، بنعمل الـ portal جواه بدل document.body
+      // — كده البانل بيبقى جزء من شجرة الـ FocusScope فمايترفضش منها.
+      const dialogEl = btnRef.current.closest('[role="dialog"]');
+      setPortalTarget(dialogEl ?? document.body);
+
       const r = btnRef.current.getBoundingClientRect();
-      const panelW = window.innerWidth < 640 ? window.innerWidth - 16 : 208;
-      const left = window.innerWidth < 640
-        ? 8
-        : Math.max(4, Math.min(r.left, window.innerWidth - panelW - 4));
-      const top = window.innerWidth < 640
-        ? Math.max(8, Math.min(r.bottom + 4, window.innerHeight - 360))
-        : r.bottom + 4;
-      setPos({ top, left });
+      const isMobile = window.innerWidth < 640;
+      const panelW = isMobile ? window.innerWidth - PANEL_MARGIN * 2 : 224;
+
+      // نحاول نحاذي حافة البانل اليمنى مع حافة الزرار اليمنى (طبيعي في RTL:
+      // البانل يمتد من الزرار لناحية الشمال) بدل ما نحاذي الحافة الشمال زي
+      // كود LTR. لو ده هيخرّج البانل برة الشاشة من أي ناحية، نلزّقه بأقرب
+      // حافة (يمين أو شمال) مع هامش أمان — بدل ما نعتمد بس على r.left اللي
+      // بيطلّع البانل خارج حدود الشاشة لما الزرار يبقى قريب من حافة الشاشة
+      // اليمنى (عمود "الكود" أول عمود في جدول RTL).
+      const idealLeft = r.right - panelW;
+      const left = isMobile
+        ? PANEL_MARGIN
+        : Math.max(PANEL_MARGIN, Math.min(idealLeft, window.innerWidth - panelW - PANEL_MARGIN));
+
+      const spaceBelow = window.innerHeight - r.bottom - PANEL_GAP - PANEL_MARGIN;
+      const spaceAbove = r.top - PANEL_GAP - PANEL_MARGIN;
+      // نفتح لفوق لو المساحة تحت أقل من الحد الأدنى المريح والمساحة فوق أكبر منها فعليًا.
+      const openUpward = spaceBelow < MIN_PANEL_HEIGHT && spaceAbove > spaceBelow;
+      const availableSpace = Math.max(MIN_PANEL_HEIGHT, openUpward ? spaceAbove : spaceBelow);
+      const maxHeight = Math.min(availableSpace, 420);
+
+      // height (مش بس maxHeight) ضرورية هنا: من غيرها، الـ flex-column
+      // container بياخد ارتفاعه من مجموع محتواه الطبيعي (هيدر+ترتيب+بحث+كل
+      // الخيارات) طول ما هو أصغر من الـ max-height، فـ flex-1 الداخلية
+      // (القايمة القابلة للسكرول) ملهاش أي مساحة "فايضة" تتقص وتعمل scroll
+      // فيها — البانل كله كان بيتمدد بدل ما يقف عند حد ثابت ويسيب القايمة تسكرول.
+      const style: React.CSSProperties = {
+        left,
+        height: maxHeight,
+        maxHeight,
+      };
+      if (openUpward) {
+        style.bottom = window.innerHeight - r.top + PANEL_GAP;
+      } else {
+        style.top = r.bottom + PANEL_GAP;
+      }
+      setPanelStyle(style);
     }
     setOpen(o => !o);
     setSearch("");
@@ -142,8 +248,7 @@ function ColFilterBtn({ col, colFilters, getColOptions, toggleColFilter, clearCo
         onClick={handleOpen}
         title="فلتر"
         className={`flex items-center justify-center w-5 h-5 rounded transition-all shrink-0 ${active ? "text-primary" : "text-muted-foreground/40 hover:text-muted-foreground"}`}
-      >
-        {active ? (
+      >{active ? (
           <svg viewBox="0 0 24 24" className="w-3 h-3" fill="currentColor">
             <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
           </svg>
@@ -153,54 +258,76 @@ function ColFilterBtn({ col, colFilters, getColOptions, toggleColFilter, clearCo
           </svg>
         )}
       </button>
-      {open && typeof document !== "undefined" && createPortal(
+      {open && portalTarget && createPortal(
         <div
           ref={panelRef}
-          style={{ position: "fixed", top: pos.top, left: pos.left, zIndex: 9999 }}
-          className="bg-background border border-border rounded-lg shadow-2xl text-[11px] w-[calc(100vw-16px)] sm:w-52 max-h-[70vh]"
+          style={{
+            position: "fixed",
+            ...panelStyle,
+            zIndex: 2147483002,
+            display: "flex",
+            flexDirection: "column",
+            // كان لازم pointerEvents: "auto" صراحة هنا زمان لأن الـ portal
+            // كان بيروح لـ document.body، واللي Radix بيحط عليه
+            // pointer-events: none وقت ما أي Dialog يفتح — فالبانل كان بيرث
+            // القيمة دي ومفيش حدث ماوس بيوصله. دلوقتي الـ portal بيروح
+            // لـ portalTarget (جوه الـ Dialog نفسه لو موجود)، فالمشكلة
+            // مبقتش موجودة من الأساس، بس سايبينها كـ safety net مايضرش.
+            pointerEvents: "auto",
+          }}
+          className="bg-background border border-border rounded-xl shadow-2xl text-[11px] w-[calc(100vw-16px)] sm:w-56 overflow-hidden"
           dir="rtl"
         >
-          <div className="flex gap-1 p-2 border-b border-border/50">
-            <button type="button" onClick={() => setSort("asc")}
-              className={`flex-1 flex items-center justify-center gap-1 px-2 py-1 rounded border text-[10px] transition-all ${sort === "asc" ? "border-primary bg-primary/10 text-primary font-bold" : "border-border text-muted-foreground hover:bg-muted/30"}`}>
-              <ChevronUp className="w-2.5 h-2.5" />أ→ي
-            </button>
-            <button type="button" onClick={() => setSort("desc")}
-              className={`flex-1 flex items-center justify-center gap-1 px-2 py-1 rounded border text-[10px] transition-all ${sort === "desc" ? "border-primary bg-primary/10 text-primary font-bold" : "border-border text-muted-foreground hover:bg-muted/30"}`}>
-              <ChevronDown className="w-2.5 h-2.5" />ي→أ
-            </button>
+          <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border bg-muted/20 shrink-0">
+            <span className="text-[11px] font-bold text-foreground">فلتر العمود</span>
             {active && (
               <button type="button" onClick={() => clearColFilter(col)}
-                className="flex items-center justify-center w-7 rounded border border-destructive/40 text-destructive hover:bg-destructive/10 transition-all">
-                <X className="w-3 h-3" />
+                className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] text-destructive hover:bg-destructive/10 transition-all">
+                <X className="w-3 h-3" />مسح
               </button>
             )}
           </div>
-          <div className="px-2 pt-2">
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="بحث..."
-              className="w-full h-7 text-[10px] px-2 rounded border border-border bg-muted/30 focus:outline-none focus:ring-1 focus:ring-primary mb-1"
-            />
+          <div className="flex gap-1.5 p-2 border-b border-border/50 shrink-0">
+            <button type="button" onClick={() => setSort("asc")}
+              className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg border text-[10px] transition-all ${sort === "asc" ? "border-primary bg-primary/10 text-primary font-bold" : "border-border text-muted-foreground hover:bg-muted/30"}`}>
+              <ChevronUp className="w-2.5 h-2.5" />أ→ي
+            </button>
+            <button type="button" onClick={() => setSort("desc")}
+              className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg border text-[10px] transition-all ${sort === "desc" ? "border-primary bg-primary/10 text-primary font-bold" : "border-border text-muted-foreground hover:bg-muted/30"}`}>
+              <ChevronDown className="w-2.5 h-2.5" />ي→أ
+            </button>
           </div>
-          <div className="max-h-48 overflow-y-auto px-1 pb-2">
+          <div className="px-2 pt-2 shrink-0">
+            <div className="relative">
+              <Search className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground pointer-events-none" />
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="بحث..."
+                className="w-full h-7 text-[10px] pr-6 pl-2 rounded-lg border border-border bg-muted/30 focus:outline-none focus:ring-1 focus:ring-primary mb-1"
+              />
+            </div>
+          </div>
+          <div
+            ref={listRef}
+            className="overflow-y-auto overscroll-contain px-1.5 pb-2 pt-1 min-h-0 flex-1"
+          >
             {opts.length === 0 ? (
-              <p className="text-center text-muted-foreground py-3 text-[10px]">لا توجد خيارات</p>
+              <p className="text-center text-muted-foreground py-4 text-[10px]">لا توجد خيارات</p>
             ) : opts.map(val => (
-              <label key={val} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-muted/40 cursor-pointer">
+              <label key={val} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-muted/40 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={colFilters[col].has(val)}
                   onChange={() => toggleColFilter(col, val)}
-                  className="w-3 h-3 accent-primary"
+                  className="w-3 h-3 accent-primary shrink-0"
                 />
                 <span className="truncate">{val}</span>
               </label>
             ))}
           </div>
         </div>,
-        document.body
+        portalTarget
       )}
     </>
   );
@@ -225,48 +352,74 @@ const TRANSFER_STATUS_MAP: Record<string, { label: string; color: string; bg: st
   partial_received: { label: "مرتجع جزئي",          color: "text-teal-600",         bg: "bg-teal-500/10" },
 };
 
-function ShipmentTransferRow({
+const formatTransferCurrency = (value: number) =>
+  new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(value || 0);
+
+// ─── فلاتر الأعمدة لجدول الشحنات (حاوية نقل الشحنات) — نفس نمط ColFilterBtn
+// المستخدم في جدول الحركات الرئيسي، بأعمدة خاصة بجدول الشحنات.
+type ShipmentColKey = "code" | "date" | "sender" | "receiver" | "phone" | "city" | "price";
+type ShipmentColFilters = Record<ShipmentColKey, Set<string>>;
+const EMPTY_SHIPMENT_COL_FILTERS: ShipmentColFilters = {
+  code: new Set(), date: new Set(), sender: new Set(), receiver: new Set(),
+  phone: new Set(), city: new Set(), price: new Set(),
+};
+
+function ShipmentTransferTableRow({
   shipment, checked, onToggle,
 }: {
   shipment: Shipment;
   checked: boolean;
   onToggle: () => void;
 }) {
-  const currentWarehouseName = (shipment as any).warehouseName as string | undefined;
+  const s = shipment as any;
+  const currentWarehouseName = s.warehouseName as string | undefined;
   const si = TRANSFER_STATUS_MAP[shipment.status];
+  const shippingPrice = Number(s.totalAmount ?? s.shippingFee ?? 0);
   return (
-    <label
-      className={`flex items-center gap-3 px-3 py-2 rounded-lg border cursor-pointer transition-all ${
-        checked ? "border-primary bg-primary/5" : "border-border hover:bg-muted/30"
-      }`}
+    <TableRow
+      className={`cursor-pointer border-border ${checked ? "bg-primary/5" : "hover:bg-muted/20"}`}
+      onClick={onToggle}
     >
-      <Checkbox checked={checked} onCheckedChange={onToggle} />
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-bold text-sm truncate">
-            {shipment.shipmentNumber ?? `#${shipment.id}`}
-          </span>
-          <span className="text-xs text-muted-foreground truncate">{shipment.receiverName}</span>
-          <span
-            className={`shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${si?.bg ?? "bg-muted"} ${si?.color ?? "text-muted-foreground"}`}
-          >
-            {si?.label ?? shipment.status}
-          </span>
-        </div>
-        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-          <span className="text-[10px] text-muted-foreground" dir="ltr">
-            {shipment.receiverPhone ?? "—"}
-          </span>
-          <span className="text-[10px] text-muted-foreground">•</span>
-          <span className="text-[10px] text-muted-foreground">{shipment.receiverCity ?? "—"}</span>
-          {currentWarehouseName && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-teal-600 dark:text-teal-400">
-              <WarehouseIcon className="w-2.5 h-2.5" />{currentWarehouseName}
-            </span>
-          )}
-        </div>
-      </div>
-    </label>
+      <TableCell className="text-center p-2" onClick={e => e.stopPropagation()}>
+        <Checkbox checked={checked} onCheckedChange={onToggle} />
+      </TableCell>
+      <TableCell className="text-center font-mono text-xs text-primary font-bold whitespace-nowrap">
+        {shipment.shipmentNumber ?? `#${shipment.id}`}
+      </TableCell>
+      <TableCell className="text-center text-xs text-muted-foreground whitespace-nowrap">
+        {shipment.createdAt ? format(new Date(shipment.createdAt), "yyyy/MM/dd") : "—"}
+      </TableCell>
+      <TableCell className="text-center text-xs font-medium whitespace-nowrap">
+        {shipment.senderName ?? "—"}
+      </TableCell>
+      <TableCell className="text-center text-xs font-medium whitespace-nowrap">
+        {shipment.receiverName ?? "—"}
+      </TableCell>
+      <TableCell className="text-center text-xs text-muted-foreground whitespace-nowrap" dir="ltr">
+        {shipment.receiverPhone ?? "—"}
+      </TableCell>
+      <TableCell className="text-center text-xs whitespace-nowrap">
+        <span className="inline-flex items-center justify-center gap-1">
+          <MapPin className="w-3 h-3 text-muted-foreground shrink-0" />
+          {shipment.receiverCity ?? "—"}
+        </span>
+      </TableCell>
+      <TableCell className="text-center text-xs font-bold text-primary whitespace-nowrap">
+        {formatTransferCurrency(shippingPrice)}
+      </TableCell>
+      <TableCell className="text-center whitespace-nowrap">
+        <span
+          className={`shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${si?.bg ?? "bg-muted"} ${si?.color ?? "text-muted-foreground"}`}
+        >
+          {si?.label ?? shipment.status}
+        </span>
+        {currentWarehouseName && (
+          <div className="inline-flex items-center gap-1 text-[9px] font-semibold text-teal-600 dark:text-teal-400 mt-0.5">
+            <WarehouseIcon className="w-2.5 h-2.5" />{currentWarehouseName}
+          </div>
+        )}
+      </TableCell>
+    </TableRow>
   );
 }
 
@@ -278,9 +431,18 @@ function ShipmentsTransferDialog({ onClose }: { onClose: () => void }) {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("warehouse_ready");
   const [selectedShipmentIds, setSelectedShipmentIds] = useState<Set<number>>(new Set());
+  const [fromWarehouseId, setFromWarehouseId] = useState<string>("all");
   const [toWarehouseId, setToWarehouseId] = useState<string>("none");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // ─── فلاتر الأعمدة (زي الإكسيل): زرار "إنشاء فلتر" بيظهر أيقونة فلتر فوق
+  // كل عمود؛ "إلغاء الفلتر" بيمسح كل الفلاتر المطبقة ويخفي الأيقونات.
+  const [showShipmentColFilters, setShowShipmentColFilters] = useState(false);
+  const [shipmentColFilters, setShipmentColFilters] = useState<ShipmentColFilters>(EMPTY_SHIPMENT_COL_FILTERS);
+  const shipmentColFilterHasActive = Object.values(shipmentColFilters).some(s => s.size > 0);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search.trim()), 350);
@@ -291,6 +453,14 @@ function ShipmentsTransferDialog({ onClose }: { onClose: () => void }) {
     queryKey: ["warehouses"],
     queryFn: warehousesApi.list,
   });
+
+  // لو المستخدم اختار "نقل من" مخزن معيّن، نمنع اختيار نفس المخزن كوجهة —
+  // ولو الوجهة الحالية بقت نفس المصدر، نرجّعها لـ "بدون مخزن" تلقائيًا.
+  useEffect(() => {
+    if (fromWarehouseId !== "all" && toWarehouseId === fromWarehouseId) {
+      setToWarehouseId("none");
+    }
+  }, [fromWarehouseId]);
 
   // افتراضياً نعرض الشحنات "قيد الشحن في المخزن" — وهي أكثر حالة محتاجة نقل بين مخازن.
   // البحث (رقم شحنة/اسم/فون) بيشتغل جنب فلتر الحالة، مش بدلاً منه — إلا لو المستخدم اختار "كل الحالات".
@@ -303,7 +473,72 @@ function ShipmentsTransferDialog({ onClose }: { onClose: () => void }) {
     }),
   });
 
-  const shipments = shipmentsRes?.data ?? [];
+  // استخراج قيمة نصية من الشحنة لعمود فلتر معيّن — نفس مبدأ getColVal في جدول
+  // الحركات، لكن بأعمدة جدول الشحنات (الكود، التاريخ، الراسل، المستلم، الهاتف،
+  // المحافظة، سعر الشحنة).
+  const getShipmentColVal = useCallback((col: ShipmentColKey, s: Shipment): string => {
+    switch (col) {
+      case "code":     return s.shipmentNumber ?? `#${s.id}`;
+      case "date":     return s.createdAt ? format(new Date(s.createdAt), "yyyy/MM/dd") : "—";
+      case "sender":   return s.senderName ?? "—";
+      case "receiver": return s.receiverName ?? "—";
+      case "phone":    return s.receiverPhone ?? "—";
+      case "city":     return s.receiverCity ?? "—";
+      case "price":    return formatTransferCurrency(Number((s as any).totalAmount ?? (s as any).shippingFee ?? 0));
+      default:         return "—";
+    }
+  }, []);
+
+  // فلاتر "نقل من" (المخزن الحالي) والتاريخ + فلاتر الأعمدة (زي الإكسيل)
+  // بتتطبق كلها على الفرونت — العدد محدود (limit 1000) فمفيش داعي لتعديل
+  // الـ backend عشانهم.
+  const shipments = useMemo(() => {
+    let list = shipmentsRes?.data ?? [];
+    if (fromWarehouseId !== "all") {
+      list = list.filter(s => String((s as any).warehouseId ?? "") === fromWarehouseId);
+    }
+    if (dateFrom) {
+      const from = new Date(dateFrom);
+      list = list.filter(s => s.createdAt && new Date(s.createdAt) >= from);
+    }
+    if (dateTo) {
+      const to = new Date(dateTo);
+      to.setHours(23, 59, 59, 999);
+      list = list.filter(s => s.createdAt && new Date(s.createdAt) <= to);
+    }
+    if (shipmentColFilterHasActive) {
+      list = list.filter(s =>
+        (Object.keys(shipmentColFilters) as ShipmentColKey[]).every(col => {
+          const set = shipmentColFilters[col];
+          if (set.size === 0) return true;
+          return set.has(getShipmentColVal(col, s));
+        })
+      );
+    }
+    return list;
+  }, [shipmentsRes, fromWarehouseId, dateFrom, dateTo, shipmentColFilters, shipmentColFilterHasActive, getShipmentColVal]);
+
+  // خيارات كل عمود مبنية من كامل نتيجة البحث/الحالة (قبل فلاتر الأعمدة نفسها
+  // وقبل فلاتر نقل-من/التاريخ) — زي الإكسيل بالظبط: قايمة الخيارات ثابتة
+  // ومتأثرتش بفلاتر الأعمدة التانية المطبقة حاليًا.
+  const getShipmentColOptions = useCallback((col: ShipmentColKey): string[] => {
+    const base = shipmentsRes?.data ?? [];
+    const vals = [...new Set(base.map(s => getShipmentColVal(col, s)))]
+      .filter(v => v && v !== "—");
+    return vals.sort((a, b) => a.localeCompare(b, "ar"));
+  }, [shipmentsRes, getShipmentColVal]);
+
+  const toggleShipmentColFilter = useCallback((col: ShipmentColKey, val: string) => {
+    setShipmentColFilters(prev => {
+      const next = new Set(prev[col]);
+      next.has(val) ? next.delete(val) : next.add(val);
+      return { ...prev, [col]: next };
+    });
+  }, []);
+
+  const clearShipmentColFilter = useCallback((col: ShipmentColKey) => {
+    setShipmentColFilters(prev => ({ ...prev, [col]: new Set() }));
+  }, []);
 
   const toggleShipment = (id: number) => {
     setSelectedShipmentIds(prev => {
@@ -359,20 +594,32 @@ function ShipmentsTransferDialog({ onClose }: { onClose: () => void }) {
 
   const allSelected = shipments.length > 0 && selectedShipmentIds.size === shipments.length;
 
+  // منع الإغلاق التلقائي عند الضغط بره الحاوية — الإغلاق بقى مخصص لزر (X) فقط
+  // عشان منضيعش التحديدات لو المستخدم ضغط بالغلط برة الشاشة أثناء العمل.
   return (
-    <Dialog open onOpenChange={v => !v && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto" dir="rtl">
+    <Dialog open onOpenChange={() => {}}>
+      <DialogContent
+        className="max-w-[min(1400px,95vw)]! w-full max-h-[90vh] overflow-y-auto"
+        dir="rtl"
+        onInteractOutside={e => e.preventDefault()}
+        onEscapeKeyDown={e => e.preventDefault()}
+      >
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-sm">
-            <PackageCheck className="w-4 h-4 text-teal-600" />
-            نقل شحنات بين المخازن
-          </DialogTitle>
+          <div className="flex items-center justify-between">
+            <DialogTitle className="flex items-center gap-2 text-sm">
+              <PackageCheck className="w-4 h-4 text-teal-600" />
+              نقل شحنات بين المخازن
+            </DialogTitle>
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}>
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
         </DialogHeader>
 
         <div className="space-y-3 py-1">
           {/* بحث + فلتر حالة */}
-          <div className="flex gap-2">
-            <div className="relative flex-1">
+          <div className="flex gap-2 flex-wrap">
+            <div className="relative flex-1 min-w-[220px]">
               <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
               <Input
                 value={search}
@@ -396,18 +643,61 @@ function ShipmentsTransferDialog({ onClose }: { onClose: () => void }) {
             </Select>
           </div>
 
-          {/* قائمة الشحنات القابلة للاختيار */}
+          {/* فلاتر: نقل من (المخزن الحالي) + التاريخ من/إلى */}
+          <div className="flex gap-2 flex-wrap">
+            <div className="space-y-1 flex-1 min-w-[180px]">
+              <Label className="text-xs flex items-center gap-1"><WarehouseIcon className="w-3 h-3" />نقل من</Label>
+              <Select value={fromWarehouseId} onValueChange={setFromWarehouseId}>
+                <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="كل الفروع" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">كل الفروع</SelectItem>
+                  {warehouses.map((w: any) => (
+                    <SelectItem key={w.id} value={String(w.id)}>
+                      {w.name}{w.city ? ` — ${w.city}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1 flex-1 min-w-[140px]">
+              <Label className="text-xs flex items-center gap-1"><CalendarDays className="w-3 h-3" />من تاريخ</Label>
+              <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="h-9 text-xs" />
+            </div>
+            <div className="space-y-1 flex-1 min-w-[140px]">
+              <Label className="text-xs flex items-center gap-1"><CalendarDays className="w-3 h-3" />إلى تاريخ</Label>
+              <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="h-9 text-xs" />
+            </div>
+          </div>
+
+          {/* جدول الشحنات القابلة للاختيار — نفس تصميم جدول الشحنات الرئيسي */}
           <div className="border border-border rounded-lg overflow-hidden">
             <div className="flex items-center justify-between px-3 py-1.5 bg-muted/30 border-b border-border">
               <label className="flex items-center gap-2 text-xs font-bold cursor-pointer">
                 <Checkbox checked={allSelected} onCheckedChange={toggleSelectAllShipments} />
                 تحديد الكل ({shipments.length})
               </label>
-              {selectedShipmentIds.size > 0 && (
-                <span className="text-[11px] font-bold text-primary">{selectedShipmentIds.size} محدد</span>
-              )}
+              <div className="flex items-center gap-2">
+                {selectedShipmentIds.size > 0 && (
+                  <span className="text-[11px] font-bold text-primary">{selectedShipmentIds.size} محدد</span>
+                )}
+                {shipments.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (showShipmentColFilters) {
+                        setShipmentColFilters(EMPTY_SHIPMENT_COL_FILTERS);
+                      }
+                      setShowShipmentColFilters(v => !v);
+                    }}
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-medium transition-all ${showShipmentColFilters ? "border-destructive/50 text-destructive bg-destructive/5 hover:bg-destructive/10" : "border-primary/40 text-primary bg-primary/5 hover:bg-primary/10"}`}
+                  >
+                    <svg viewBox="0 0 24 24" className="w-3 h-3" fill={showShipmentColFilters ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+                    {showShipmentColFilters ? "إلغاء الفلتر" : "إنشاء فلتر"}
+                  </button>
+                )}
+              </div>
             </div>
-            <div className="max-h-64 overflow-y-auto p-1.5 space-y-1">
+            <div className="max-h-[45vh] overflow-y-auto overflow-x-auto">
               {isLoading ? (
                 <div className="flex items-center justify-center py-8 text-muted-foreground gap-2 text-sm">
                   <Loader2 className="w-4 h-4 animate-spin" />جاري التحميل...
@@ -415,14 +705,45 @@ function ShipmentsTransferDialog({ onClose }: { onClose: () => void }) {
               ) : shipments.length === 0 ? (
                 <p className="text-center text-muted-foreground py-8 text-sm">لا توجد شحنات مطابقة</p>
               ) : (
-                shipments.map(s => (
-                  <ShipmentTransferRow
-                    key={s.id}
-                    shipment={s}
-                    checked={selectedShipmentIds.has(s.id)}
-                    onToggle={() => toggleShipment(s.id)}
-                  />
-                ))
+                <Table className="min-w-[900px] text-xs">
+                  <TableHeader>
+                    <TableRow className="border-border hover:bg-transparent">
+                      <TableHead className="w-10 text-center"></TableHead>
+                      <TableHead className="text-center text-xs">
+                        <div className="flex items-center justify-center gap-1">الكود {showShipmentColFilters && <ColFilterBtn col="code" colFilters={shipmentColFilters} getColOptions={getShipmentColOptions} toggleColFilter={toggleShipmentColFilter} clearColFilter={clearShipmentColFilter} />}</div>
+                      </TableHead>
+                      <TableHead className="text-center text-xs">
+                        <div className="flex items-center justify-center gap-1">التاريخ {showShipmentColFilters && <ColFilterBtn col="date" colFilters={shipmentColFilters} getColOptions={getShipmentColOptions} toggleColFilter={toggleShipmentColFilter} clearColFilter={clearShipmentColFilter} />}</div>
+                      </TableHead>
+                      <TableHead className="text-center text-xs">
+                        <div className="flex items-center justify-center gap-1">الراسل {showShipmentColFilters && <ColFilterBtn col="sender" colFilters={shipmentColFilters} getColOptions={getShipmentColOptions} toggleColFilter={toggleShipmentColFilter} clearColFilter={clearShipmentColFilter} />}</div>
+                      </TableHead>
+                      <TableHead className="text-center text-xs">
+                        <div className="flex items-center justify-center gap-1">المستلم {showShipmentColFilters && <ColFilterBtn col="receiver" colFilters={shipmentColFilters} getColOptions={getShipmentColOptions} toggleColFilter={toggleShipmentColFilter} clearColFilter={clearShipmentColFilter} />}</div>
+                      </TableHead>
+                      <TableHead className="text-center text-xs">
+                        <div className="flex items-center justify-center gap-1">الهاتف {showShipmentColFilters && <ColFilterBtn col="phone" colFilters={shipmentColFilters} getColOptions={getShipmentColOptions} toggleColFilter={toggleShipmentColFilter} clearColFilter={clearShipmentColFilter} />}</div>
+                      </TableHead>
+                      <TableHead className="text-center text-xs">
+                        <div className="flex items-center justify-center gap-1">المحافظة {showShipmentColFilters && <ColFilterBtn col="city" colFilters={shipmentColFilters} getColOptions={getShipmentColOptions} toggleColFilter={toggleShipmentColFilter} clearColFilter={clearShipmentColFilter} />}</div>
+                      </TableHead>
+                      <TableHead className="text-center text-xs">
+                        <div className="flex items-center justify-center gap-1">سعر الشحنة {showShipmentColFilters && <ColFilterBtn col="price" colFilters={shipmentColFilters} getColOptions={getShipmentColOptions} toggleColFilter={toggleShipmentColFilter} clearColFilter={clearShipmentColFilter} />}</div>
+                      </TableHead>
+                      <TableHead className="text-center text-xs">الحالة</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {shipments.map(s => (
+                      <ShipmentTransferTableRow
+                        key={s.id}
+                        shipment={s}
+                        checked={selectedShipmentIds.has(s.id)}
+                        onToggle={() => toggleShipment(s.id)}
+                      />
+                    ))}
+                  </TableBody>
+                </Table>
               )}
             </div>
           </div>
@@ -434,11 +755,13 @@ function ShipmentsTransferDialog({ onClose }: { onClose: () => void }) {
               <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="اختر المخزن..." /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">— بدون مخزن —</SelectItem>
-                {warehouses.map((w: any) => (
-                  <SelectItem key={w.id} value={String(w.id)}>
-                    {w.name}{w.city ? ` — ${w.city}` : ""}
-                  </SelectItem>
-                ))}
+                {warehouses
+                  .filter((w: any) => fromWarehouseId === "all" || String(w.id) !== fromWarehouseId)
+                  .map((w: any) => (
+                    <SelectItem key={w.id} value={String(w.id)}>
+                      {w.name}{w.city ? ` — ${w.city}` : ""}
+                    </SelectItem>
+                  ))}
               </SelectContent>
             </Select>
           </div>
@@ -469,6 +792,121 @@ function ShipmentsTransferDialog({ onClose }: { onClose: () => void }) {
   );
 }
 
+// ─── صف الجدول كمكوّن منفصل + memo ─────────────────────────────────────────────
+// فحص بطء الماوس/التهنيج عند تحديد الشحنات: السبب كان رسم كل الـ 76+ صف من
+// جديد عند أي تحديد واحد، لأن الصف كان JSX مضمّن (inline) جوه خريطة map()
+// في الكومبوننت الرئيسي بدون أي memoization — أي setState (زي toggleSelect)
+// كان بيعيد رسم الجدول بالكامل. الحل: فصل الصف في مكوّن مستقل بـ React.memo،
+// وتمرير `checked` كـ boolean بدل الـ Set كامل (selectedIds) عشان الصف
+// ميعملش re-render إلا لو حالة التحديد الخاصة بيه هو نفسه اتغيرت.
+interface MovementTableRowProps {
+  m: InventoryMovement;
+  checked: boolean;
+  isAdmin: boolean;
+  onToggleSelect: (id: number) => void;
+  onEdit: (m: InventoryMovement) => void;
+  onDelete: (id: number) => void;
+  deleteDisabled: boolean;
+}
+
+const MovementTableRow = memo(function MovementTableRow({
+  m, checked, isAdmin, onToggleSelect, onEdit, onDelete, deleteDisabled,
+}: MovementTableRowProps) {
+  const isTransfer = m.reason === "transfer";
+  return (
+    <TableRow className={`border-border hover:bg-muted/20 ${checked ? "bg-destructive/5" : ""}`}>
+      {isAdmin && (
+        <TableCell className="text-center">
+          <Checkbox
+            checked={checked}
+            onCheckedChange={() => onToggleSelect(m.id)}
+            aria-label="تحديد الصف"
+          />
+        </TableCell>
+      )}
+      <TableCell className="text-[11px] text-muted-foreground whitespace-nowrap">
+        {formatMovementDate(m.createdAt)}
+      </TableCell>
+      <TableCell className="text-center">
+        {isTransfer ? (
+          <div className="flex items-center justify-center gap-1">
+            <ArrowRightLeft className="w-3 h-3 text-violet-600 dark:text-violet-400" />
+            <span className="text-[9px] font-bold text-violet-600 dark:text-violet-400">تحويل</span>
+          </div>
+        ) : m.type === "IN" ? (
+          <div className="flex items-center justify-center gap-1">
+            <TrendingDown className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+            <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400">دخول</span>
+          </div>
+        ) : (
+          <div className="flex items-center justify-center gap-1">
+            <TrendingUp className="w-3 h-3 text-red-600 dark:text-red-400" />
+            <span className="text-[9px] font-bold text-red-600 dark:text-red-400">خروج</span>
+          </div>
+        )}
+      </TableCell>
+      <TableCell className="text-[11px] font-semibold truncate max-w-[96px]">{m.product}</TableCell>
+      <TableCell className="text-[11px] text-muted-foreground">
+        {m.color || m.size ? (
+          <div className="flex items-center gap-1">
+            {m.color && <Badge variant="outline" className="text-[9px] border-border px-1">{m.color}</Badge>}
+            {m.size && <Badge variant="outline" className="text-[9px] border-primary/40 text-primary px-1">{m.size}</Badge>}
+          </div>
+        ) : "—"}
+      </TableCell>
+      <TableCell className="text-center">
+        <span className={`font-bold text-[12px] ${isTransfer ? "text-violet-600 dark:text-violet-400" : m.type === "IN" ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
+          {isTransfer ? m.quantity : formatQty(m.type, m.quantity)}
+        </span>
+      </TableCell>
+      <TableCell className="text-center">
+        <Badge variant="outline" className={`text-[9px] font-bold border px-1 ${REASON_COLORS[m.reason] ?? "bg-muted text-muted-foreground border-border"}`}>
+          {REASON_LABELS[m.reason] ?? m.reason}
+        </Badge>
+      </TableCell>
+      <TableCell className="text-center">
+        {m.shipmentId ? (
+          <a href={`/shipments/${m.shipmentId}`} onClick={e => e.stopPropagation()} className="text-[9px] font-mono text-teal-600 dark:text-teal-400 hover:underline">
+            {m.shipmentNumber ?? `#${m.shipmentId}`}
+          </a>
+        ) : m.orderId ? (
+          <a href={`/orders/${m.orderId}`} onClick={e => e.stopPropagation()} className="text-[9px] font-mono text-primary hover:underline">
+            #{String(m.orderId).padStart(4, "0")}
+          </a>
+        ) : "—"}
+      </TableCell>
+      <TableCell className="text-[11px] truncate max-w-[80px]">
+        {m.customerName ?? "—"}
+      </TableCell>
+      <TableCell className="text-[11px] text-muted-foreground whitespace-nowrap text-right" style={{ unicodeBidi: "plaintext" }}>
+        {m.customerPhone ?? "—"}
+      </TableCell>
+      <TableCell className="text-[11px] text-muted-foreground whitespace-nowrap">
+        {isTransfer && m.fromLocation && m.toLocation ? (
+          <div className="flex items-center gap-1 text-violet-700 dark:text-violet-300 font-medium">
+            <span className="text-[9px]">{m.fromLocation}</span>
+            <ArrowRightLeft className="w-2.5 h-2.5 shrink-0" />
+            <span className="text-[9px]">{m.toLocation}</span>
+          </div>
+        ) : (m as any).warehouseName ?? "—"}
+      </TableCell>
+      <TableCell className="text-[11px] text-muted-foreground max-w-[80px] truncate">{m.notes || "—"}</TableCell>
+      <TableCell className="text-center">
+        <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-primary hover:bg-primary/10" title="تعديل" onClick={() => onEdit(m)}>
+          <Pencil className="w-3 h-3" />
+        </Button>
+      </TableCell>
+      {isAdmin && (
+        <TableCell className="text-center">
+          <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10" title="حذف" onClick={() => onDelete(m.id)} disabled={deleteDisabled}>
+            <Trash2 className="w-3 h-3" />
+          </Button>
+        </TableCell>
+      )}
+    </TableRow>
+  );
+});
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function Movements() {
@@ -482,13 +920,16 @@ export default function Movements() {
   // ─── نقل شحنات بين المخازن ────────────────────────────────────────────────
   const [showShipmentsTransfer, setShowShipmentsTransfer] = useState(false);
 
-  const toggleSelect = (id: number) => {
+  // useCallback هنا مش رفاهية: toggleSelect بتتمرر كـ prop لكل صف في الجدول (76+ صف)،
+  // ولو الـ reference بتاعها بيتغير كل render هيكسر الـ React.memo على MovementTableRow
+  // ويرجّعنا لنفس مشكلة إعادة رسم كل الصفوف عند أي تحديد.
+  const toggleSelect = useCallback((id: number) => {
     setSelectedIds(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
-  };
+  }, []);
 
   const toggleSelectAll = () => {
     if (selectedIds.size === movements.length) {
@@ -724,10 +1165,11 @@ export default function Movements() {
     onError: () => toast({ title: "خطأ", description: "فشل حذف الحركات المحددة.", variant: "destructive" }),
   });
 
-  const handleDelete = (id: number) => {
+  // useCallback لنفس سبب toggleSelect — بتتمرر لكل صف في الجدول.
+  const handleDelete = useCallback((id: number) => {
     if (!window.confirm("هل أنت متأكد من حذف هذه الحركة؟")) return;
     deleteMutation.mutate(id);
-  };
+  }, [deleteMutation]);
 
   const handleBulkDelete = () => {
     if (selectedIds.size === 0) return;
@@ -794,7 +1236,8 @@ export default function Movements() {
     setForm(f => ({ ...f, type: t, reason: t === "IN" ? "manual_in" : "manual_out" }));
   };
 
-  const openEdit = (m: InventoryMovement) => {
+  // useCallback لنفس سبب toggleSelect — بتتمرر لكل صف في الجدول.
+  const openEdit = useCallback((m: InventoryMovement) => {
     setEditingMovement(m);
     setDialogMode(m.reason === "transfer" ? "transfer" : "manual");
     setForm({
@@ -807,7 +1250,7 @@ export default function Movements() {
       fromLocation: m.fromLocation ?? "",
       toLocation: m.toLocation ?? "",
     });
-  };
+  }, []);
 
   const handleSave = () => {
     if (!form.product.trim()) { toast({ title: "خطأ", description: "أدخل اسم المنتج.", variant: "destructive" }); return; }
@@ -1092,7 +1535,7 @@ ${filtersRow}
               type="button"
               onClick={() => {
                 if (showColFilters) {
-                  setColFilters({ date: new Set(), type: new Set(), product: new Set(), variant: new Set(), qty: new Set(), reason: new Set(), order: new Set(), location: new Set(), notes: new Set() });
+                  setColFilters({ date: new Set(), type: new Set(), product: new Set(), variant: new Set(), qty: new Set(), reason: new Set(), order: new Set(), customer: new Set(), phone: new Set(), location: new Set(), notes: new Set() });
                 }
                 setShowColFilters(v => !v);
               }}
@@ -1170,101 +1613,18 @@ ${filtersRow}
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {colFilteredMovements.map((m: InventoryMovement) => {
-                  const isTransfer = m.reason === "transfer";
-                  return (
-                  <TableRow key={m.id} className={`border-border hover:bg-muted/20 ${selectedIds.has(m.id) ? "bg-destructive/5" : ""}`}>
-                    {isAdmin && (
-                      <TableCell className="text-center">
-                        <Checkbox
-                          checked={selectedIds.has(m.id)}
-                          onCheckedChange={() => toggleSelect(m.id)}
-                          aria-label="تحديد الصف"
-                        />
-                      </TableCell>
-                    )}
-                    <TableCell className="text-[11px] text-muted-foreground whitespace-nowrap">
-                      {formatMovementDate(m.createdAt)}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {isTransfer ? (
-                        <div className="flex items-center justify-center gap-1">
-                          <ArrowRightLeft className="w-3 h-3 text-violet-600 dark:text-violet-400" />
-                          <span className="text-[9px] font-bold text-violet-600 dark:text-violet-400">تحويل</span>
-                        </div>
-                      ) : m.type === "IN" ? (
-                        <div className="flex items-center justify-center gap-1">
-                          <TrendingDown className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                          <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400">دخول</span>
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-center gap-1">
-                          <TrendingUp className="w-3 h-3 text-red-600 dark:text-red-400" />
-                          <span className="text-[9px] font-bold text-red-600 dark:text-red-400">خروج</span>
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-[11px] font-semibold truncate max-w-[96px]">{m.product}</TableCell>
-                    <TableCell className="text-[11px] text-muted-foreground">
-                      {m.color || m.size ? (
-                        <div className="flex items-center gap-1">
-                          {m.color && <Badge variant="outline" className="text-[9px] border-border px-1">{m.color}</Badge>}
-                          {m.size && <Badge variant="outline" className="text-[9px] border-primary/40 text-primary px-1">{m.size}</Badge>}
-                        </div>
-                      ) : "—"}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <span className={`font-bold text-[12px] ${isTransfer ? "text-violet-600 dark:text-violet-400" : m.type === "IN" ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
-                        {isTransfer ? m.quantity : formatQty(m.type, m.quantity)}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Badge variant="outline" className={`text-[9px] font-bold border px-1 ${REASON_COLORS[m.reason] ?? "bg-muted text-muted-foreground border-border"}`}>
-                        {REASON_LABELS[m.reason] ?? m.reason}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {m.shipmentId ? (
-                        <a href={`/shipments/${m.shipmentId}`} onClick={e => e.stopPropagation()} className="text-[9px] font-mono text-teal-600 dark:text-teal-400 hover:underline">
-                          {m.shipmentNumber ?? `#${m.shipmentId}`}
-                        </a>
-                      ) : m.orderId ? (
-                        <a href={`/orders/${m.orderId}`} onClick={e => e.stopPropagation()} className="text-[9px] font-mono text-primary hover:underline">
-                          #{String(m.orderId).padStart(4, "0")}
-                        </a>
-                      ) : "—"}
-                    </TableCell>
-                    <TableCell className="text-[11px] truncate max-w-[80px]">
-                      {m.customerName ?? "—"}
-                    </TableCell>
-                    <TableCell className="text-[11px] text-muted-foreground whitespace-nowrap text-right" style={{ unicodeBidi: "plaintext" }}>
-                      {m.customerPhone ?? "—"}
-                    </TableCell>
-                    <TableCell className="text-[11px] text-muted-foreground whitespace-nowrap">
-                      {isTransfer && m.fromLocation && m.toLocation ? (
-                        <div className="flex items-center gap-1 text-violet-700 dark:text-violet-300 font-medium">
-                          <span className="text-[9px]">{m.fromLocation}</span>
-                          <ArrowRightLeft className="w-2.5 h-2.5 shrink-0" />
-                          <span className="text-[9px]">{m.toLocation}</span>
-                        </div>
-                      ) : (m as any).warehouseName ?? "—"}
-                    </TableCell>
-                    <TableCell className="text-[11px] text-muted-foreground max-w-[80px] truncate">{m.notes || "—"}</TableCell>
-                    <TableCell className="text-center">
-                      <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-primary hover:bg-primary/10" title="تعديل" onClick={() => openEdit(m)}>
-                        <Pencil className="w-3 h-3" />
-                      </Button>
-                    </TableCell>
-                    {isAdmin && (
-                      <TableCell className="text-center">
-                        <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10" title="حذف" onClick={() => handleDelete(m.id)} disabled={deleteMutation.isPending}>
-                          <Trash2 className="w-3 h-3" />
-                        </Button>
-                      </TableCell>
-                    )}
-                  </TableRow>
-                  );
-                })}
+                {colFilteredMovements.map((m: InventoryMovement) => (
+                  <MovementTableRow
+                    key={m.id}
+                    m={m}
+                    checked={selectedIds.has(m.id)}
+                    isAdmin={isAdmin}
+                    onToggleSelect={toggleSelect}
+                    onEdit={openEdit}
+                    onDelete={handleDelete}
+                    deleteDisabled={deleteMutation.isPending}
+                  />
+                ))}
               </TableBody>
             </Table>
           </div>
