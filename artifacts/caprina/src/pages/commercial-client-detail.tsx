@@ -2184,22 +2184,19 @@ function ReturnShipmentRow({ s, clientId }: { s: ClientShipment; clientId: numbe
   );
 }
 
-// ─── زرار "تم الاستلام" (= تأكيد تسليم المرتجع للعميل) ─────────────────────
-// دوسة الزرار = ترحيل المرتجع لبيان مرتجعات مفتوح + وضع علامة returnReceived=1
-// على بند البيان الأصلي (يختفي من "لم يتم تسليمها بعد").
+// ─── زرارين "تم التسليم للراسل" / "لم يتم التسليم" (بطلب مصطفى 2026-09-12) ──
+// اتلغى الشرط اللي كان بيخفي زرار "تم الاستلام" لو الشحنة لسه مربوطة بمندوب/
+// شركة شحن (stillWithRep) — دلوقتي الزرارين ظاهرين دايمًا بدون أي شرط:
+// - "تم التسليم للراسل": نفس سلوك زرار "تم الاستلام" القديم بالظبط (نفس الـ
+//   mutation) — بيرحّل المرتجع لبيان المرتجعات المفتوح ويعلّم returnReceived=1.
+// - "لم يتم التسليم": مجرد تأشير بصري محلي (state في الواجهة بس)، من غير أي
+//   نداء API أو تعديل في الداتابيز — بيرجع لحالته الطبيعية لو ضغطت زرار تاني
+//   أو الصفحة اتعمللها refresh.
 function SimpleReturnReceivedButton({ shipment, clientId }: { shipment: ClientShipment; clientId: number }) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [confirmOpen, setConfirmOpen] = useState(false);
-
-  // ─── لسه مربوطة بمندوب داخلي أو شركة شحن خارجية؟ (بطلب مصطفى 2026-09-11) ──
-  // نفس فحص الـ backend بالظبط، بس هنا بنمنع الزرار وهنوضح السبب من غير
-  // ما ننتظر ريسبونس السيرفر أصلًا — العميل ميستلمش المرتجع طول ما لسه
-  // فعليًا عند مندوب أو شركة شحن خارجية ومارجعش المخزن/الراسل.
-  const stillWithRep = !!shipment.assignedUserId || !!shipment.shippingCompanyId;
-  const stillWithLabel = shipment.assignedUserId
-    ? (shipment.assignedUserName || "مندوب")
-    : (shipment.shippingCompanyName || "شركة الشحن");
+  const [markedNotDelivered, setMarkedNotDelivered] = useState(false);
 
   const mutation = useMutation({
     mutationFn: () => clientReturnManifestsApi.confirmDelivery(clientId, shipment.id),
@@ -2211,26 +2208,31 @@ function SimpleReturnReceivedButton({ shipment, clientId }: { shipment: ClientSh
     onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
   });
 
-  if (stillWithRep) {
-    return (
-      <div className="flex flex-1 sm:flex-initial flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg border border-amber-700/60 bg-amber-900/10 text-[10px] font-bold text-amber-400 min-w-[72px]" title={`لسه مع: ${stillWithLabel}`}>
-        <span className="text-sm">{shipment.assignedUserId ? "🚴" : "🚚"}</span>
-        <span>مع {stillWithLabel}</span>
-      </div>
-    );
-  }
-
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setConfirmOpen(true)}
-        disabled={mutation.isPending}
-        className="flex flex-1 sm:flex-initial flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg border text-[10px] font-bold transition-all min-w-[72px] border-border text-muted-foreground hover:border-emerald-700 hover:text-emerald-400 hover:bg-emerald-900/10 disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        <span className="text-sm">✅</span>
-        <span>تم الاستلام</span>
-      </button>
+      <div className="flex flex-1 sm:flex-initial gap-1.5">
+        <button
+          type="button"
+          onClick={() => setConfirmOpen(true)}
+          disabled={mutation.isPending}
+          className="flex flex-1 sm:flex-initial flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg border text-[10px] font-bold transition-all min-w-[72px] border-border text-muted-foreground hover:border-emerald-700 hover:text-emerald-400 hover:bg-emerald-900/10 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <span className="text-sm">✅</span>
+          <span>تم التسليم للراسل</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setMarkedNotDelivered((v) => !v)}
+          className={`flex flex-1 sm:flex-initial flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg border text-[10px] font-bold transition-all min-w-[72px] ${
+            markedNotDelivered
+              ? "border-amber-700 text-amber-400 bg-amber-900/10"
+              : "border-border text-muted-foreground hover:border-amber-700 hover:text-amber-400 hover:bg-amber-900/10"
+          }`}
+        >
+          <span className="text-sm">⏳</span>
+          <span>لم يتم التسليم</span>
+        </button>
+      </div>
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent dir="rtl">
           <AlertDialogHeader>
