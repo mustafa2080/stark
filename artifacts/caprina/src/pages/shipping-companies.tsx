@@ -494,6 +494,16 @@ function CompanyStats({ companyId, canViewFinancials, hidden }: { companyId: num
         .filter(m => (m as any).closedByRole === "representative")
         .sort((a, b) => new Date((b as any).closedAt ?? b.createdAt).getTime() - new Date((a as any).closedAt ?? a.createdAt).getTime())[0] ?? null
     : null;
+  // ─── تنبيه: بيان مفتوح من أكثر من 72 ساعة ──────────────────────────────────
+  // يخص المتابعة الإدارية بس (بيان لسه شغال عند المندوب من غير حركة/تقفيل لمدة
+  // طويلة) — منفصل تمامًا عن activeManifestAllCollected (اللي بتتابع حالة
+  // "المندوب قفل وانتظر الاستلام"). البيانين ممكن يظهروا مع بعض لو حصل الاتنين.
+  const STALE_MANIFEST_HOURS = 72;
+  const manifestOpenHours = activeManifest
+    ? (Date.now() - new Date(activeManifest.createdAt).getTime()) / (1000 * 60 * 60)
+    : 0;
+  const isManifestStale = !!activeManifest && manifestOpenHours >= STALE_MANIFEST_HOURS;
+  const manifestOpenDays = Math.floor(manifestOpenHours / 24);
   if (hidden) return null;
   if (!stats && !shipmentStats) return null;
 
@@ -513,6 +523,15 @@ function CompanyStats({ companyId, canViewFinancials, hidden }: { companyId: num
 
   return (
     <div className="mt-4 pt-4 border-t border-border space-y-3">
+      {/* بانر تنبيه: البيان مفتوح من أكثر من 72 ساعة بدون تقفيل */}
+      {isManifestStale && (
+        <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/40 text-amber-400 animate-pulse">
+          <Clock className="w-4 h-4 shrink-0 mt-0.5" />
+          <span className="text-[11px] sm:text-xs font-bold leading-snug flex-1 min-w-0 break-words">
+            ⏰ تنبيه: البيان مفتوح منذ أكثر من {manifestOpenDays >= 1 ? `${manifestOpenDays} يوم` : "72 ساعة"} — يُرجى المتابعة مع المندوب وإغلاقه في أقرب وقت
+          </span>
+        </div>
+      )}
       {/* بانر تنبيه: البيان مُغلق من المندوب ومحتاج استلام من الأدمن */}
       {activeManifestAllCollected && (
         <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400">

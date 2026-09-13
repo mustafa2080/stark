@@ -11,7 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { analyticsApi, shipmentsApi, financeClientsApi, shippingApi, cashRegistersApi, type Shipment, type FinanceClientSearchResult, type ShippingCompany, type TopPerformersResponse, type OperationsKpisResponse, type OperationsCenterResponse, type StatusDistributionResponse, type RecentEventsResponse, type RecentShipmentsResponse, type FinancialDashboardResponse, type FinancialDashboardPeriod, type ExecutiveSummaryResponse, type OpsAlertsResponse, type PerformanceMetricsResponse, type RevenueTrendResponse, type RepsDailyResponse, type LiveMapResponse, type FinancialSummary, type ManifestsPnlSummary, type ShipmentChartsData, type ShipmentChartsRangeResponse, type AlertsResponse, type ProfitAnalytics } from "@/lib/api";
+import { analyticsApi, shipmentsApi, financeClientsApi, shippingApi, cashRegistersApi, type Shipment, type FinanceClientSearchResult, type ShippingCompany, type TopPerformersResponse, type OperationsKpisResponse, type OperationsCenterResponse, type StatusDistributionResponse, type RecentEventsResponse, type RecentShipmentsResponse, type FinancialDashboardResponse, type FinancialDashboardPeriod, type ExecutiveSummaryResponse, type OpsAlertsResponse, type StaleManifestsResponse, type PerformanceMetricsResponse, type RevenueTrendResponse, type RepsDailyResponse, type LiveMapResponse, type FinancialSummary, type ManifestsPnlSummary, type ShipmentChartsData, type ShipmentChartsRangeResponse, type AlertsResponse, type ProfitAnalytics } from "@/lib/api";
 import { LiveMap } from "@/components/live-map";
 import { NotificationBell } from "@/components/notification-bell";
 import { ShipmentStatusDonut, WeeklyShipmentBars } from "@/components/charts-section";
@@ -345,6 +345,18 @@ function useOpsAlerts() {
     refetchOnWindowFocus: false,
     refetchInterval: 2 * 60_000,
     placeholderData: (prev: OpsAlertsResponse | undefined) => prev,
+  });
+}
+
+// ── جلب البيانات المفتوحة من أكتر من 72 ساعة (حاوية مستقلة) ───────────────────
+function useStaleManifests() {
+  return useQuery({
+    queryKey: ["analytics-stale-manifests"],
+    queryFn: analyticsApi.staleManifests,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+    refetchInterval: 2 * 60_000,
+    placeholderData: (prev: StaleManifestsResponse | undefined) => prev,
   });
 }
 
@@ -1542,6 +1554,8 @@ export default function OperationsCenterPage() {
   }, [financialData?.month.orders, financialData?.month.revenue, manifestsPnlSummary]);
   const { data: opsAlertsData, isLoading: opsAlertsLoading } = useOpsAlerts();
   const aiInsights = opsAlertsData?.alerts ?? [];
+  const { data: staleManifestsData, isLoading: staleManifestsLoading } = useStaleManifests();
+  const staleManifestsItems = staleManifestsData?.items ?? [];
   const { data: executiveSummary, isLoading: executiveSummaryLoading } = useExecutiveSummary();
   const { data: perfMetricsData, isLoading: perfMetricsLoading } = usePerformanceMetrics(ocPeriodFilter);
   const performanceMetrics = perfMetricsData?.metrics ?? [];
@@ -2322,6 +2336,81 @@ export default function OperationsCenterPage() {
         </Card>
         )}
       </div>
+
+      {/* ── بيانات مفتوحة تحتاج متابعة (أكتر من 72 ساعة) — حاوية مستقلة بعرض كامل ── */}
+      {can("dashboard.ai_center") && (
+      <Card className="oc-kpi-card border-amber-500/30 overflow-hidden" style={{ ["--tone" as any]: "#f59e0b" }}>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm flex items-center justify-between gap-2 flex-wrap">
+            <span className="flex items-center gap-2">
+              <div className="flex items-center justify-center w-8 h-8 rounded-xl bg-amber-500/15">
+                <Clock className="w-4.5 h-4.5 text-amber-500" />
+              </div>
+              <span>
+                <span className="block">بيانات تحتاج متابعة</span>
+                <span className="block text-[10px] font-normal text-muted-foreground">بيانات شحن مفتوحة لدى المناديب منذ أكثر من 72 ساعة</span>
+              </span>
+            </span>
+            {staleManifestsItems.length > 0 && (
+              <span className="flex items-center gap-1.5 rounded-full bg-amber-500 px-3 py-1.5 text-xs font-black text-white shadow-sm animate-pulse">
+                <AlertTriangle className="w-3.5 h-3.5" />
+                {staleManifestsItems.length} بيان متأخر
+              </span>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {staleManifestsLoading && staleManifestsItems.length === 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-28 rounded-xl bg-muted animate-pulse" />
+              ))}
+            </div>
+          ) : staleManifestsItems.length === 0 ? (
+            <div className="flex flex-col items-center gap-3 py-10 text-center">
+              <div className="flex items-center justify-center w-14 h-14 rounded-full bg-emerald-500/10">
+                <PackageCheck className="w-7 h-7 text-emerald-500" />
+              </div>
+              <div>
+                <p className="text-sm font-bold">كل البيانات المفتوحة حديثة</p>
+                <p className="text-xs text-muted-foreground mt-0.5">لا توجد بيانات شحن متأخرة عن 72 ساعة حاليًا</p>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+              {staleManifestsItems.map((m) => (
+                <div
+                  key={m.id}
+                  className="flex flex-col gap-2.5 rounded-xl border border-amber-500/25 bg-amber-500/[0.07] p-3.5 transition-colors hover:bg-amber-500/[0.12]"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <RepAvatar avatar={null} name={m.shippingCompanyName} />
+                      <span className="font-bold text-sm truncate">{m.shippingCompanyName}</span>
+                    </div>
+                    <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-muted-foreground">بيان رقم {m.manifestNumber}</span>
+                    <span className="shrink-0 rounded-full bg-amber-500/20 px-2.5 py-1 text-[11px] font-black text-amber-700 dark:text-amber-300">
+                      {m.daysOpen >= 1 ? `${m.daysOpen} يوم` : `${m.hoursOpen} ساعة`}
+                    </span>
+                  </div>
+                  {m.shippingCompanyPhone && (
+                    <a
+                      href={`tel:${m.shippingCompanyPhone}`}
+                      className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-amber-500/30 bg-background/60 py-1.5 text-xs font-bold text-amber-700 dark:text-amber-300 transition-colors hover:bg-amber-500/15"
+                    >
+                      <Phone className="w-3 h-3" /> {m.shippingCompanyPhone}
+                    </a>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+      )}
 
       {/* ── أفضل العملاء / أفضل المندوبين ───────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

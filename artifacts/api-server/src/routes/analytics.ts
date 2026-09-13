@@ -3438,6 +3438,66 @@ router.get("/analytics/ops-alerts", requireAuth, async (req, res): Promise<void>
   }
 });
 
+// ─── GET /analytics/stale-manifests ───────────────────────────────────────────
+// حاوية مستقلة: كل البيانات (manifests) المفتوحة لدى المناديب من أكتر من 72
+// ساعة — بالتفصيل، بيان بيان، عشان تُعرض في حاوية تحذيرية خاصة بيها.
+router.get("/analytics/stale-manifests", requireAuth, async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const cacheKey = `stale-manifests:${tenantId ?? "global"}`;
+    const cached = getCached<any>(cacheKey);
+    if (cached) { res.json(cached); return; }
+
+    const cond = tenantId !== null
+      ? and(eq(shippingManifestsTable.tenantId, tenantId), eq(shippingManifestsTable.status, "open"))
+      : eq(shippingManifestsTable.status, "open");
+
+    const [openManifests, companies] = await Promise.all([
+      db.select({
+          id: shippingManifestsTable.id,
+          manifestNumber: shippingManifestsTable.manifestNumber,
+          createdAt: shippingManifestsTable.createdAt,
+          shippingCompanyId: shippingManifestsTable.shippingCompanyId,
+        })
+        .from(shippingManifestsTable)
+        .where(cond),
+      tenantId !== null
+        ? db.select({ id: shippingCompaniesTable.id, name: shippingCompaniesTable.name, phone: shippingCompaniesTable.phone })
+            .from(shippingCompaniesTable).where(eq(shippingCompaniesTable.tenantId, tenantId))
+        : db.select({ id: shippingCompaniesTable.id, name: shippingCompaniesTable.name, phone: shippingCompaniesTable.phone })
+            .from(shippingCompaniesTable),
+    ]);
+
+    const companyById = new Map(companies.map((c) => [c.id, c]));
+    const now = new Date();
+    const seventyTwoHoursAgo = new Date(now.getTime() - 72 * 60 * 60 * 1000);
+
+    const items = openManifests
+      .filter((m) => new Date(m.createdAt) <= seventyTwoHoursAgo)
+      .map((m) => {
+        const hoursOpen = Math.floor((now.getTime() - new Date(m.createdAt).getTime()) / (1000 * 60 * 60));
+        const company = companyById.get(m.shippingCompanyId);
+        return {
+          id: m.id,
+          manifestNumber: m.manifestNumber,
+          createdAt: m.createdAt,
+          hoursOpen,
+          daysOpen: Math.floor(hoursOpen / 24),
+          shippingCompanyId: m.shippingCompanyId,
+          shippingCompanyName: company?.name ?? "مندوب غير معروف",
+          shippingCompanyPhone: company?.phone ?? null,
+        };
+      })
+      .sort((a, b) => b.hoursOpen - a.hoursOpen);
+
+    const result = { items, count: items.length, generatedAt: now.toISOString() };
+    setCached(cacheKey, result, 2 * 60 * 1000); // cache دقيقتين
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── GET /analytics/operations-center ────────────────────────────────────────
 // صفحة "مركز العمليات": نفس منطق ops-alerts لكن برجّع القوائم التفصيلية الكاملة
 // (شحنة بشحنة، مندوب بمندوب، عميل بعميل) بدل الأرقام الملخصة فقط.

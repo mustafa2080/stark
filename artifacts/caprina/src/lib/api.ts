@@ -792,6 +792,22 @@ export interface OpsAlertsResponse {
   generatedAt: string;
 }
 
+export interface StaleManifestItem {
+  id: number;
+  manifestNumber: string;
+  createdAt: string;
+  hoursOpen: number;
+  daysOpen: number;
+  shippingCompanyId: number;
+  shippingCompanyName: string;
+  shippingCompanyPhone: string | null;
+}
+export interface StaleManifestsResponse {
+  items: StaleManifestItem[];
+  count: number;
+  generatedAt: string;
+}
+
 // ─── مركز العمليات (تفصيلي) ──────────────────────────────────────────────────
 export interface OpsDelayedShipment {
   id: number;
@@ -1367,6 +1383,7 @@ export const analyticsApi = {
   },
   cityActivity: () => apiFetch<CityActivityResponse>("/analytics/city-activity"),
   opsAlerts: () => apiFetch<OpsAlertsResponse>("/analytics/ops-alerts"),
+  staleManifests: () => apiFetch<StaleManifestsResponse>("/analytics/stale-manifests"),
   operationsCenter: () => apiFetch<OperationsCenterResponse>("/analytics/operations-center"),
   liveMap: () => apiFetch<LiveMapResponse>("/analytics/live-map"),
   financialDashboard: () => apiFetch<FinancialDashboardResponse>("/analytics/financial-dashboard"),
