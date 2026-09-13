@@ -229,6 +229,17 @@ export async function computeClosedManifestsForClient(clientId: number): Promise
     };
     const rolledOverShipmentIdsByManifest: Record<number, Set<number>> = {};
     if (shipmentIds.length && manifestIds.length) {
+      // ⚠️⚠️⚠️ إصلاح جوهري (2026-09-13، طلب مصطفى — العميل مكتب بركة للتوزيع،
+      // shipment_id=247): الاستعلام القديم كان بيجيب صفوف olderItemRows من *أي*
+      // بيان (client_account_manifest_items) بغض النظر عن حالة البيان نفسه —
+      // بما فيها بيانات لسه "open" (مش مقفولة). البيان ده اسمه
+      // computeClosedManifestsForClient وكل حساباته مبنية على افتراض إن
+      // manifestIds هنا = بيانات مقفولة بس (allManifests فوق بالفعل مفلترة على
+      // status="closed"). بيان مفتوح لسه مالوش قيمة "نهائية محسوبة" فعليًا —
+      // ممكن يتغيّر أو يتقفل بحالة مختلفة تمامًا. لو فيه بيان مفتوح أقدم فيه
+      // نفس الشحنة بحالة delivered، كان بيتعتبر غلط "اتحسبت هناك خلاص" ويستبعد
+      // الشحنة من البيان المقفول الحالي، فتضيع قيمتها بالكامل من الرصيد. لازم
+      // نفس الفلترة هنا: نجيب الصفوف الأقدم بس من بيانات مقفولة (IN manifestIds).
       const olderItemRows = await db
         .select({
           shipmentId: clientAccountManifestItemsTable.shipmentId,
@@ -237,7 +248,10 @@ export async function computeClosedManifestsForClient(clientId: number): Promise
           returnReason: clientAccountManifestItemsTable.returnReason,
         })
         .from(clientAccountManifestItemsTable)
-        .where(inArray(clientAccountManifestItemsTable.shipmentId, shipmentIds));
+        .where(and(
+          inArray(clientAccountManifestItemsTable.shipmentId, shipmentIds),
+          inArray(clientAccountManifestItemsTable.manifestId, manifestIds),
+        ));
       for (const currentManifestId of manifestIds) {
         const set = new Set<number>();
         for (const row of olderItemRows) {

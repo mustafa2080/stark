@@ -1255,13 +1255,20 @@ async function rolloverPartialShipments(
   //    قيد الانتظار → يترحّل كصف pending جديد زي ما هو
   for (const item of delayedItems) {
     if (existingIds.has(item.shipmentId)) continue;
+    // نحافظ على ملاحظة المستخدم الأصلية (زي "مسافر"، سبب التأجيل..) بدل ما نمسحها
+    // ونستبدلها بنص تلقائي — بنفس أسلوب stillAtShippingItems/partialItems تحت:
+    // لو فيه ملاحظة أصلية بنسيبها زي ما هي، وإلا (مفيش ملاحظة خالص) نرجع للنص
+    // التلقائي القديم كـ fallback بس عشان يوضّح مصدر البند في البيان الجديد.
+    const originalNote = (item.deliveryNote ?? "").trim();
     rowsToInsert.push({
       manifestId:     targetManifestId,
       shipmentId:     item.shipmentId,
       deliveryStatus: item.deliveryStatus === "delayed" ? "delayed" : "pending",
-      deliveryNote:   item.deliveryStatus === "delayed"
-        ? `مؤجل من بيان ${closedManifest.manifestNumber}`
-        : `مرحّل من بيان ${closedManifest.manifestNumber} — لسه قيد الانتظار`,
+      deliveryNote:   originalNote.length > 0
+        ? originalNote
+        : (item.deliveryStatus === "delayed"
+            ? `مؤجل من بيان ${closedManifest.manifestNumber}`
+            : `مرحّل من بيان ${closedManifest.manifestNumber} — لسه قيد الانتظار`),
       addedAt:        now,
     });
     shipmentIdsToMarkInTransit.push(item.shipmentId);

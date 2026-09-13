@@ -4083,14 +4083,17 @@ export default function ShippingManifestPage() {
       // (in_shipping) فعليًا. الاستبعاد بـ dStatus === "pending" كان بيخفي
       // شحنات in_shipping غلط رغم وصولها للمخزن.
       if (shipmentStatus === "pending" || shipmentStatus === "waiting") return false;
-      // ⚠️ تصحيح (2026-08-28، ١٢): بند "مُرحّل" (rolledOver) من بيان أقدم اتقفل
-      // خلاص — قيمته المالية اتحسبت هناك بالفعل. في البيان الجديد المُرحّل ده،
-      // البند يظهر بس لو لسه فعليًا "مؤجل"/"قيد الانتظار" (يعني السبب الحقيقي
-      // لترحيله كان إنه معلّق عند شركة الشحن). أي حالة نهائية تانية (مسلَّم،
-      // مرتجع، جزئي) للبند المُرحّل تُستبعد من الجدول هنا — قيمتها ظهرت فعلاً
-      // في البيان القديم وقت قفله، وعرضها هنا كمان تكرار. البند غير المُرحّل
-      // مش متأثر بالشرط ده إطلاقًا.
-      if ((o as any).rolledOver === true) {
+      // ⚠️⚠️ إصلاح (2026-09-13، طلب مصطفى — العميل مؤسسة نور للتجارة، شحنة منى
+      // سعيد SHP26090208 / shipment_id=248، الجولة الثانية): الجولة الأولى هنا
+      // شالت الاستبعاد بالكامل، لكن ده سبب باگ عكسي — نفس الشحنة بقت تتحسب
+      // "مسلَّم" في *كل* البيانات اللي مرّت عليها (كل بيان اترحّلت منه)، مش بس
+      // في البيان اللي اتسجّل تسليمها فيه فعليًا. المعيار الصح: بند "خلّصت
+      // مهمته" هو اللي فيه بيان **أحدث** بنفس الشحنة (supersededByNewer، بيجي
+      // صريح من الباك إند) ووصل لحالة نهائية غير مؤجل/قيد الانتظار — ده وبس ده
+      // يُستبعد. rolledOver (معناه "فيه بيان أقدم") مش المعيار الصح هنا؛
+      // supersededByNewer هو المعادل الصحيح لمعيار الباك إند
+      // (supersededByNewerShipmentIds في financialItems، client-account-manifests.ts).
+      if ((o as any).supersededByNewer === true) {
         const dStatus = o.deliveryStatus;
         if (dStatus !== "delayed" && dStatus !== "postponed" && dStatus !== "pending") return false;
       }
@@ -5820,11 +5823,18 @@ export default function ShippingManifestPage() {
         const ordersForTopCards = (manifest.orders ?? []).filter(o => {
           const shipmentStatus = (o as any).status;
           if (shipmentStatus === "pending" || shipmentStatus === "waiting") return false;
-          // ⚠️ تصحيح (2026-08-28، ١٢): بند مُرحّل قيمته صفر دايمًا (getCollectedAmount/
-          // getChargeableShipping فوق)، فمنستبعدهوش من العدد كمان — إلا لو حالته
-          // مؤجل/قيد الانتظار (نفس شرط ordersWithoutPendingReturns فوق بالظبط)،
-          // عشان عدد الشحنات تحت الكارتين يطابق عدد الصفوف الظاهرة فعليًا في الجدول.
-          if ((o as any).rolledOver === true) {
+          // ⚠️⚠️ إصلاح جوهري (2026-09-13، طلب مصطفى — العميل مكتب بركة للتوزيع،
+          // shipment_id=251): الشرط القديم هنا كان بيستبعد أي بند "rolledOver"
+          // (معناها الحقيقي: فيه بيان *أقدم* بنفس الشحنة) طالما حالته الحالية
+          // مش pending/delayed/postponed — حتى لو البند ده نفسه في *آخر* بيان
+          // بالسلسلة (مفيش بيان أحدث منه) ولسه فعليًا مسلَّم لأول مرة هنا. شحنة
+          // اترحّلت لعدة بيانات (كلها rolledOver=true بمعنى "فيه أقدم") وبمجرد
+          // ما تتسلّم في آخر بيان، كانت بتختفي بالكامل من الكروت (إجمالي
+          // الإيرادات/تكلفة الشحن/الرصيد المستحق) رغم ظهورها "مسلَّم" في الجدول.
+          // المعيار الصح (نفس supersededByNewer في الباك إند): بند يُستبعد بس
+          // لو فيه بيان *أحدث* منه (يبقى مش آخر نسخة) ولسه حالته غير نهائية.
+          // البند في آخر بيان بالسلسلة (supersededByNewer=false) يتحسب دايمًا.
+          if ((o as any).supersededByNewer === true) {
             const dStatus = o.deliveryStatus;
             if (dStatus !== "delayed" && dStatus !== "postponed" && dStatus !== "pending") return false;
           }

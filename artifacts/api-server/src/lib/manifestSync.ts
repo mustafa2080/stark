@@ -1,4 +1,4 @@
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import {
   db,
   clientAccountManifestItemsTable,
@@ -127,17 +127,42 @@ export async function syncShipmentStatusToManifests(
     : {};
 
   try {
-    await dbOrTx.update(clientAccountManifestItemsTable)
-      .set({
-        deliveryStatus: mapped,
-        ...(deliveredAt ? { deliveredAt } : {}),
-        ...returnReasonPatch,
-        ...deliveryNotePatch,
-        ...deliveredValuePatch,
-        ...partialQuantityPatch,
-        ...returnValuePatch,
-      })
-      .where(eq(clientAccountManifestItemsTable.shipmentId, shipmentId));
+    // ⚠️⚠️ إصلاح جوهري (2026-09-13، طلب مصطفى — العميل مؤسسة نور للتجارة
+    // shipment_id=248، والعميل مكتب بركة للتوزيع shipment_id=249): الشرط
+    // القديم هنا كان بيحدّث deliveryStatus لأي صف بنفس shipmentId في *كل*
+    // البيانات (client_account_manifest_items) دفعة واحدة — بما فيها البيانات
+    // المقفولة القديمة اللي المفروض تفضل كسجل تاريخي/أرشيف من غير أي تعديل
+    // (نفس نص التعليق في rolloverPendingItemsToNewManifest). شحنة اتأجلت
+    // واترحّلت لعدة بيانات، بمجرد ما تتسجّل "مسلَّم" لاحقًا، كانت كل نسخها في
+    // كل البيانات (المقفولة والمفتوحة) بتتحدّث لـ"مسلَّم" مرة واحدة — تضخيم
+    // نفس القيمة في أكتر من بيان، وتزييف الأرشيف التاريخي للبيانات المقفولة.
+    // الإصلاح: نحدّث بس البند اللي في *آخر* بيان لنفس الشحنة (مفيش بيان
+    // أحدث منه) — هو ده مكان الحدث المالي الحقيقي دايمًا (بيان جديد بيتفتح
+    // تلقائيًا عند القفل ولسه فيه بند pending/delayed لنفس الشحنة). البيانات
+    // الأقدم تفضل بحالتها القديمة زي ما كانت وقت الترحيل، بدون أي تعديل.
+    const [latestItem] = await db
+      .select({ manifestId: clientAccountManifestItemsTable.manifestId })
+      .from(clientAccountManifestItemsTable)
+      .where(eq(clientAccountManifestItemsTable.shipmentId, shipmentId))
+      .orderBy(desc(clientAccountManifestItemsTable.manifestId))
+      .limit(1);
+
+    if (latestItem) {
+      await dbOrTx.update(clientAccountManifestItemsTable)
+        .set({
+          deliveryStatus: mapped,
+          ...(deliveredAt ? { deliveredAt } : {}),
+          ...returnReasonPatch,
+          ...deliveryNotePatch,
+          ...deliveredValuePatch,
+          ...partialQuantityPatch,
+          ...returnValuePatch,
+        })
+        .where(and(
+          eq(clientAccountManifestItemsTable.shipmentId, shipmentId),
+          eq(clientAccountManifestItemsTable.manifestId, latestItem.manifestId),
+        ));
+    }
   } catch (e) {
     console.error("[syncShipmentStatusToManifests] client-account-manifests error:", e);
   }

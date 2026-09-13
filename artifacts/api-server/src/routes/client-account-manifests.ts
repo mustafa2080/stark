@@ -241,26 +241,46 @@ router.get("/client-account-manifests", async (req, res): Promise<void> => {
         received: "delivered",
       };
 
-      // ⚠️ إصلاح (2026-09-03، تحقيق العميل مجدي عرفة CAM-98-003 + شحنة "أحمد"
-      // CAM-84-003): باگ قديم في منطق الترحيل بين البيانات (اتصلح في الكود
-      // الحالي) كان بينسخ بند شحنة "مسلَّم/مرتجع" بالفعل لبيان جديد وكأنها لسه
-      // معلّقة، فبقت نفس الشحنة الحقيقية (سطر واحد فعلي في shipments) عندها
-      // أكتر من بند في أكتر من بيان بنفس الحالة النهائية وبلا أي قيمة جديدة.
-      // جدول تفاصيل البيان (filteredManifestOrders في الفرونت) بيستبعد البند
-      // "المُرحّل" ده صح لو حالته النهائية مش pending/delayed/postponed — لازم
-      // العدّ هنا (وكارت "إجمالي عدد الشحنات") يطابق نفس المنطق، وإلا الكارت
-      // يعدّ شحنات اتحسبت فعلًا في بيانها الأصلي زيادة عن اللي ظاهر في الجدول.
-      const olderManifestRows = await db
+      // ⚠️⚠️ إصلاح (2026-09-13، طلب مصطفى — العميل مؤسسة نور للتجارة، شحنة منى
+      // سعيد SHP26090208 / shipment_id=248): الاستبعاد القديم هنا (تعليق
+      // 2026-09-03، تحقيق CAM-98-003) كان بيشيل من العدّ أي بند "مُرحّل" (فيه
+      // صف بنفس الشحنة في بيان أقدم) وصل لحالة نهائية غير pending/delayed —
+      // بافتراض إن قيمته "اتحسبت فعلًا في بيانه الأصلي". الافتراض ده غلط: كل
+      // itemRows هنا بنود فعلية موجودة في manifestId المحدد (mid) نفسه — وجود
+      // بيان **أقدم** بنفس الشحنة معناه بس إن السلسلة اترحّلت تاريخيًا قبل كده،
+      // مش إن البند الحالي (في البيان الحالي) نسخة قديمة اتجاوزتها نسخة أحدث.
+      // فالشحنة اللي اتأجلت واترحّلت لعدة بيانات، وبمجرد ما اتسجّل تسليمها في
+      // آخر بيان مفتوح، كانت بتختفي بالكامل من countMap/statusCountMap (كارت
+      // العميل في صفحة "العملاء التجاريون") رغم كونها delivered فعليًا — نفس
+      // الباگ اللي اتصلح في financialItems (الباك إند) و baseManifestGroups
+      // (صفحة تفاصيل البيان، الفرونت إند)، لكن في مكان تالت منفصل هنا. الاستبعاد
+      // الصحيح لبند "مُرحّل بمعناه الحقيقي" يتطلب معرفة وجود بيان **أحدث** بنفس
+      // الشحنة — مش متاح من oldestManifestIdByShipment (اللي معناه "أقدم")،
+      // فبنشيل الاستبعاد بالكامل: أي بند فعلي في manifestId يتحسب عادي.
+      // ⚠️⚠️ إصلاح (2026-09-13، طلب مصطفى — العميل مؤسسة نور للتجارة، شحنة منى
+      // سعيد SHP26090208 / shipment_id=248، الجولة الثانية): الإصلاح الأول هنا
+      // شال الاستبعاد بالكامل، لكن ده كان زيادة عن اللزوم وسبب باگ عكسي: نفس
+      // الشحنة بقت تتحسب "مسلَّم" في *كل* البيانات اللي مرّت عليها (كل بيان
+      // اترحّلت منه) مش بس في البيان اللي اتسجّل تسليمها فيه فعليًا — تضخيم
+      // عدد وقيمة نفس الشحنة عبر بيانات متعددة. المعيار الصح: شحنة مؤجلة
+      // بتترحّل من بيان لبيان لحد ما توصل لحالة نهائية في *آخر* بيان — البيانات
+      // الأقدم في السلسلة لازم تفضل تعرض الشحنة دي كأرشيف تاريخي بس (زي ما كانت
+      // وقت الترحيل: مؤجل/قيد الانتظار)، ومتتحسبش تاني بحالتها النهائية الجديدة.
+      // فالاستبعاد الصح هو: فيه بيان **أحدث** (manifestId أكبر) بنفس الشحنة →
+      // البند ده مش آخر نسخة، يتحسب بس لو لسه pending/delayed (وإلا يتخطّى).
+      // البند في *آخر* بيان (مفيش بيان أحدث منه) يتحسب دايمًا بحالته الفعلية —
+      // هو ده مكان الحدث المالي الحقيقي.
+      const newerManifestRows = await db
         .select({
           shipmentId: clientAccountManifestItemsTable.shipmentId,
           manifestId: clientAccountManifestItemsTable.manifestId,
         })
         .from(clientAccountManifestItemsTable)
         .where(inArray(clientAccountManifestItemsTable.shipmentId, itemShipmentIds));
-      const oldestManifestIdByShipment: Record<number, number> = {};
-      olderManifestRows.forEach(r => {
-        const cur = oldestManifestIdByShipment[r.shipmentId];
-        if (cur === undefined || r.manifestId < cur) oldestManifestIdByShipment[r.shipmentId] = r.manifestId;
+      const newestManifestIdByShipment: Record<number, number> = {};
+      newerManifestRows.forEach(r => {
+        const cur = newestManifestIdByShipment[r.shipmentId];
+        if (cur === undefined || r.manifestId > cur) newestManifestIdByShipment[r.shipmentId] = r.manifestId;
       });
 
       itemRows.forEach(r => {
@@ -278,10 +298,10 @@ router.get("/client-account-manifests", async (req, res): Promise<void> => {
           const shStatus = shipmentStatusById[r.shipmentId];
           if (shStatus && SHIPMENT_TO_DELIVERY[shStatus]) st = SHIPMENT_TO_DELIVERY[shStatus];
         }
-        // بند مُرحّل من بيان أقدم (فيه صف بنفس الشحنة في manifestId أصغر) وحالته
-        // النهائية مش pending/delayed → اتحسب فعلًا في بيانه الأصلي، تخطّاه هنا.
-        const isRolledOver = (oldestManifestIdByShipment[r.shipmentId] ?? mid) < mid;
-        if (isRolledOver && st !== "pending" && st !== "delayed") return;
+        // فيه بيان أحدث بنفس الشحنة (البند ده مش آخر نسخة) وحالته النهائية مش
+        // pending/delayed → اتحسب فعلًا (أو هيتحسب) في البيان الأحدث، تخطّاه هنا.
+        const isSupersededByNewer = (newestManifestIdByShipment[r.shipmentId] ?? mid) > mid;
+        if (isSupersededByNewer && st !== "pending" && st !== "delayed") return;
         countMap[mid] = (countMap[mid] ?? 0) + 1;
         if (!statusCountMap[mid]) statusCountMap[mid] = { pending: 0, delayed: 0, returned: 0, delivered: 0, partial: 0 };
         if (st === "delayed") statusCountMap[mid].delayed += 1;
@@ -748,9 +768,50 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
     // الكروت تتطابق مع اللي المستخدم شايفه فعليًا في جدول "الشحنات في البيان".
     // enrichedItems (اللي بترجع في items: للفرونت) تفضل مبنية على visibleItems
     // الكاملة عشان الفرونت لسه يقدر يعرض الأرشيف التاريخي لو احتاج.
+    // ⚠️⚠️ إصلاح (2026-09-13، طلب مصطفى — العميل مؤسسة نور للتجارة، شحنة منى سعيد
+    // SHP26090208 / shipment_id=248): كل بند بيوصل هنا أصلاً هو بند **البيان
+    // الحالي (id) نفسه** فقط — items فوق مجيبة بـ WHERE manifestId = id بس، مفيش
+    // بنود من بيانات تانية داخلة في السياق ده خالص. فاستبعاد بند "لأنه مُرحّل"
+    // (فيه بيان أقدم بنفس الشحنة) كان بيتفلتر غلط هنا: البند في البيان الحالي مش
+    // نسخة قديمة اتجاوزها حاجة، هو النسخة النشطة الوحيدة اللي المستخدم بيشوفها
+    // فعليًا دلوقتي. النتيجة كانت: شحنة اتأجلت واترحّلت لعدة بيانات (كل مرة بنفس
+    // الحالة القديمة)، وبمجرد ما يتسجل تسليمها في آخر بيان، البند بيختفي بالكامل
+    // من كروت البيان (مُسلَّم/إجمالي) رغم إنه موجود فعليًا في الجدول — العميل
+    // كان شايف بيانه "فاضي" رغم وجود أوردر مُسلَّم فيه.
+    // هذا الاستبعاد (rolledOverShipmentIds) معناه الصحيح مقصور على السياقات اللي
+    // بتجمع بنود من *أكتر من بيان* مع بعض في نفس الحساب (زي كشف الحساب الموحّد في
+    // clientAccountBalance.ts، اللي بيستخدم isFinalizedOlderRow لكل بيان على
+    // حدة) — مش هنا في عرض تفاصيل بيان واحد بعينه. فبنشيل الاستبعاد من
+    // financialItems خالص هنا؛ enrichedItems و rolledOver flag للفرونت (تصفير
+    // القيمة المالية القديمة، تمييز البند في الحاوية الحمرا) يفضلوا زي ما هم.
+    // ⚠️⚠️ إصلاح (2026-09-13، الجولة الثانية): شيل الاستبعاد بالكامل كان زيادة
+    // عن اللزوم — سبب باگ عكسي: شحنة اتأجلت واترحّلت لعدة بيانات بقت تتحسب
+    // "مسلَّم" في *كل* بيان مرّت عليه (تضخيم)، مش بس في البيان اللي اتسجّل
+    // تسليمها فيه فعليًا. المعيار الصح هنا (مختلف عن rolledOverShipmentIds
+    // فوق، اللي معناه "فيه بيان أقدم" ومستخدم في enrichedItems/rolledOver flag
+    // لأغراض تانية): بند "خلّصت مهمته" هو اللي فيه بيان **أحدث** بنفس الشحنة
+    // (يبقى مش آخر نسخة) ووصل لحالة نهائية غير pending/delayed — ده وبس ده
+    // يُستبعد من financialItems. البند في *آخر* بيان بالسلسلة (مفيش بيان أحدث
+    // منه — وده حال البيان الحالي id هنا لو هو فعلاً آخر واحد) يتحسب دايمًا.
+    let supersededByNewerShipmentIds = new Set<number>();
+    if (shipmentIds.length) {
+      const newerItemRows = await db
+        .select({ shipmentId: clientAccountManifestItemsTable.shipmentId })
+        .from(clientAccountManifestItemsTable)
+        .innerJoin(
+          clientAccountManifestsTable,
+          eq(clientAccountManifestItemsTable.manifestId, clientAccountManifestsTable.id)
+        )
+        .where(and(
+          inArray(clientAccountManifestItemsTable.shipmentId, shipmentIds),
+          gt(clientAccountManifestItemsTable.manifestId, id), // بيان أحدث من الحالي = البند الحالي مش آخر نسخة
+        ));
+      newerItemRows.forEach(r => supersededByNewerShipmentIds.add(r.shipmentId));
+    }
     const financialItems = visibleItems.filter(item => {
-      if (!rolledOverShipmentIds.has(item.shipmentId)) return true;
-      return item.deliveryStatus === "pending" || item.deliveryStatus === "delayed" || (item.deliveryStatus as any) === "postponed";
+      if (!supersededByNewerShipmentIds.has(item.shipmentId)) return true;
+      const st = item.deliveryStatus;
+      return st === "pending" || st === "delayed" || st === "postponed";
     });
 
     const enrichedItems = visibleItems.map(item => {
@@ -866,6 +927,12 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
         // بند مُرحّل من بيان أقدم؟ الفرونت بيستخدمها عشان المرتجع المُرحّل يظهر في
         // الحاوية الحمرا «بس» مش جدول «الشحنات في البيان» (سطر filteredManifestOrders).
         rolledOver: rolledOverShipmentIds.has(item.shipmentId),
+        // بند "خلّصت مهمته" (فيه بيان أحدث بنفس الشحنة ووصل لحالة نهائية) — نفس
+        // معيار supersededByNewerShipmentIds فوق (financialItems). الفرونت إند
+        // (baseManifestGroups في client-account-manifest-detail.tsx) بيستخدمها
+        // عشان يستبعد بس البند اللي فعليًا خلّص مهمته في بيان أحدث، مش أي بند
+        // فيه بيان أقدم (rolledOver ماينفعش يتلخبط بمعنى "أحدث" هنا).
+        supersededByNewer: supersededByNewerShipmentIds.has(item.shipmentId),
       };
     });
 
@@ -1330,10 +1397,16 @@ async function rolloverPendingItemsToNewManifest(
 
   const pendingItems = items.filter(item => {
     if (item.deliveryStatus === "pending" || item.deliveryStatus === "delayed") return true;
-    // ⚠️ تصحيح (2026-08-28): كان فيه هنا شرط بيرحّل كمان returned غير مؤكد
-    // الاستلام. المطلوب فعليًا: عند إغلاق البيان، بس قيد الانتظار (pending)
-    // والمؤجل (delayed) هما اللي يترحّلوا للبيان الجديد. المرتجع (وبكل حالاته
-    // الجزئية) لازم يفضل في البيان القديم المقفول زي ما كان لحظة القفل بالظبط.
+    // ⚠️⚠️ إصلاح جوهري (2026-09-13، طلب مصطفى — العميل يعقوب): المرتجع اللي
+    // "لسه معلّق" — يعني اتسجّل returned بس لسه ما اتأكدش رجوعه فعليًا للمخزن
+    // (returnReceived !== 1) — لازم يترحّل للبيان الجديد بالظبط زي pending/delayed،
+    // وإلا أي حدث مالي لاحق عليه (تأكيد استلام، تغيير حالة) هيتسجل غلط على
+    // البيان القديم المقفول اللي مش قابل للتعديل، فيختفي من آخر بيان ويختل
+    // التسلسل الزمني. الاستثناء الوحيد: المرتجع اللي اتأكد استلامه فعلًا في
+    // المخزن (returnReceived === 1) وقت القفل — ده اتحسب ماليًا بالفعل في
+    // بيانه الأصلي، فمفيش داعي يترحّل، ويفضل زي ما هو في البيان القديم كسجل
+    // تاريخي نهائي (طلب صريح: "اللي رجع المخزن مفيش ترحيل بعد الاستلام").
+    if (item.deliveryStatus === "returned" && item.returnReceived !== 1) return true;
     return false;
   });
 
@@ -1396,12 +1469,11 @@ async function rolloverPendingItemsToNewManifest(
   const newManifestId = (result as any).insertId as number;
 
   // ─── وقت الترحيل ────────────────────────────────────────────────────────
-  // ⚠️ تصحيح (2026-08-28): كان فيه هنا تفرقة بين "قيد الانتظار/مؤجل" و"مرتجع
-  // لسه عند مندوب الشحن" لأن pendingItems كانت بترحّل الاتنين. دلوقتي
-  // pendingItems بترحّل بس pending/delayed (المرتجع مبيترحّلش خالص، يفضل في
-  // بيانه القديم المقفول)، فـ returnedStillAtShippingToRoll هتفضل فاضية
-  // دايمًا — سايبها هنا (no-op آمن) عشان الكونتراكت اللي الفرونت بيقراه
-  // (rolledOverManifest.returnedInShippingCount) يفضل شغال من غير تعديل هناك.
+  // ⚠️⚠️ تحديث (2026-09-13): بعد إصلاح فلتر pendingItems فوق، المرتجع اللي
+  // لسه معلّق (returnReceived !== 1) بقى فعليًا داخل pendingItemsToRoll —
+  // فـ returnedStillAtShippingToRoll تحت بقت بترحّله فعلًا كبند "returned"
+  // جديد في البيان الجديد (نفس السبب وحالة الاستلام، بدون قيمة مالية —
+  // returnValueReceived بيتصفّر عمدًا لحد ما يحصل حدث مالي جديد بعد الترحيل).
   const delayedOrPendingToRoll = pendingItemsToRoll.filter(i => i.deliveryStatus !== "returned");
   const returnedStillAtShippingToRoll = pendingItemsToRoll.filter(i => i.deliveryStatus === "returned");
 

@@ -31,9 +31,16 @@ const usesRepCostForShipping = (o: ManifestOrder): boolean =>
 // لازم يتحسب مباشرة كقيمة، من غير ضرب في سعر الوحدة تاني (كان في نسخة قديمة
 // من الإكسيل بتضربه في unitPrice غلط، وده كان بيضاعف الرقم).
 export function getCollectedAmount(o: ManifestOrder): number {
-  // بند مُرحَّل (rolledOver) من بيان أقدم اتقفل بالفعل — قيمته المالية اتحسبت
-  // هناك، فهنا دايمًا صفر طالما لسه ظاهر (حالته النهائية لسه مؤجل/انتظار).
-  if ((o as any).rolledOver === true) return 0;
+  // ⚠️ إصلاح جوهري (2026-09-13، طلب مصطفى — نفس باگ shipment_id=251):
+  // rolledOver معناها "فيه بيان *أقدم*" بنفس الشحنة — ده صحيح حتى لو البند ده
+  // نفسه هو آخر نسخة (مفيش بيان أحدث) ولسه مسلَّم فعليًا هنا لأول مرة. المعيار
+  // الصح لتصفير القيمة هو supersededByNewer (فيه بيان *أحدث* منه ولسه حالته
+  // غير نهائية) — بند في آخر بيان بالسلسلة لازم يتحسب دايمًا بغض النظر عن
+  // rolledOver.
+  if ((o as any).supersededByNewer === true) {
+    const st = o.deliveryStatus;
+    if (st !== "delayed" && st !== "postponed" && st !== "pending") return 0;
+  }
 
   if (o.deliveryStatus === "delivered") {
     const dvr = (o as any).deliveredValueReceived;
@@ -58,7 +65,12 @@ export function getShipmentAmount(o: ManifestOrder): number {
 
 // ─── هل رسوم الشحن على الطلب ده = صفر (مؤجل/قيد الانتظار/مرتجع بسبب غير مالي)؟ ───
 export function isShippingZeroed(o: ManifestOrder): boolean {
-  if ((o as any).rolledOver === true) return true;
+  // نفس الإصلاح بالظبط بتاع getCollectedAmount فوق — المعيار الصح هو
+  // supersededByNewer مش rolledOver (شوف الشرح فوق).
+  if ((o as any).supersededByNewer === true) {
+    const stRolled = o.deliveryStatus;
+    if (stRolled !== "delayed" && stRolled !== "postponed" && stRolled !== "pending") return true;
+  }
   const st = o.deliveryStatus;
   if (st === "postponed" || st === "delayed" || st === "pending") return true;
   if (st === "returned" && !isFinancialReturnReason(o)) return true;
