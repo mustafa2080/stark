@@ -1,6 +1,6 @@
 import { useParams, Link, useLocation } from "wouter";
 import { format } from "date-fns";
-import { ArrowRight, AlertCircle, Pencil, Save, X, Printer, Phone, MapPin, Trash2, RotateCcw, TrendingUp, TrendingDown, AlertTriangle, Lock, MessageCircle, Package, Truck, CheckCircle2, Clock, Plus, Search, Megaphone, Warehouse, UserCheck, DollarSign, Zap, Users, ChevronsUpDown, Check, Boxes, ChevronUp, ChevronDown } from "lucide-react";
+import { ArrowRight, AlertCircle, Pencil, Save, X, Printer, Phone, MapPin, Trash2, RotateCcw, TrendingUp, TrendingDown, AlertTriangle, Lock, MessageCircle, Package, Truck, CheckCircle2, Clock, Plus, Search, Megaphone, Warehouse, UserCheck, DollarSign, Zap, Users, ChevronsUpDown, Check, Boxes, ChevronUp, ChevronDown, Share2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useState, useRef, useEffect, useMemo } from "react";
 import React from "react";
@@ -26,6 +26,7 @@ import { ToastAction } from "@/components/ui/toast";
 import { shippingApi, ordersApi, productsApi, variantsApi, manifestsApi, warehousesApi, usersApi, cashRegistersApi, apiFetch } from "@/lib/api";
 import { type WhatsAppOrderData, applySenderIssueTemplate, buildWhatsAppLink } from "@/lib/whatsapp";
 import { WhatsAppDialog, WhatsAppShipmentDialog } from "@/components/whatsapp-dialog";
+import { ShareShipmentImageDialog } from "@/components/share-shipment-image-dialog";
 import { formatCurrency } from "@/lib/utils";
 import { ProductSearchCombobox } from "@/components/product-search-combobox";
 import { RETURN_REASONS, returnReasonLabel, STATUS_LABELS as statusLabels, STATUS_CLASSES as statusClasses } from "@/lib/order-constants";
@@ -2102,6 +2103,7 @@ export default function OrderDetail() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showWaDialog, setShowWaDialog] = useState(false);
+  const [showShareDialog, setShowShareDialog] = useState(false);
   const [showCloseDialog, setShowCloseDialog] = useState(false);
   const [selectedRegisterId, setSelectedRegisterId] = useState<string>("");
   const [isClosing, setIsClosing] = useState(false);
@@ -3342,6 +3344,13 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                 <MessageCircle className="w-3.5 h-3.5" />واتساب
               </Button>
 
+              {/* مشاركة صورة الشحنة — للكل */}
+              <Button variant="outline" size="sm"
+                onClick={() => setShowShareDialog(true)}
+                className="h-8 text-xs gap-1.5 border-border bg-card hover:bg-muted">
+                <Share2 className="w-3.5 h-3.5" />مشاركة
+              </Button>
+
               {/* تغيير الحالة */}
               {(isAdmin || canEditStatus) && (
                 <div className="mr-auto">
@@ -3459,6 +3468,12 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
               <MessageCircle className="w-3.5 h-3.5" />واتساب
             </Button>
           )}
+
+          {/* مشاركة صورة الشحنة — للكل */}
+          <Button variant="outline" size="sm" onClick={() => setShowShareDialog(true)}
+            className="h-8 text-xs gap-1.5 border-border bg-card hover:bg-muted">
+            <Share2 className="w-3.5 h-3.5" />مشاركة
+          </Button>
 
           {/* الأزرار للأدمن فقط */}
           {isAdmin && !isEditing && (<>
@@ -5063,6 +5078,57 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
             shippingFee: (order as any).shippingFee ?? null,
             codAmount: (order as any).codAmount ?? null,
             zoneLabel: (order as any).zoneLabel ?? null,
+          }}
+        />
+      )}
+
+      {order && (
+        <ShareShipmentImageDialog
+          open={showShareDialog}
+          onOpenChange={setShowShareDialog}
+          shipment={{
+            id: order.id,
+            shipmentNumber: (order as any).shipmentNumber ?? `#${order.id.toString().padStart(4,"0")}`,
+            trackingNumber: (order as any).trackingNumber ?? null,
+            status: order.status,
+            createdAt: order.createdAt ? format(new Date(order.createdAt), "yyyy/MM/dd HH:mm") : null,
+
+            receiverName: (order as any).receiverName || order.customerName,
+            receiverPhone: (order as any).receiverPhone || order.phone || null,
+            receiverPhone2: (order as any).receiverPhone2 ?? null,
+            receiverCity: (order as any).receiverCity ?? (order as any).city ?? null,
+            receiverAddress: (order as any).receiverAddress ?? (order as any).address ?? null,
+
+            senderName: senderInfo.name,
+            senderPhone: senderInfo.phone,
+            senderCity: senderInfo.city,
+
+            parcelType: (order as any).parcelType ?? null,
+            weight: (order as any).weight ?? null,
+
+            zoneLabel: (order as any).zoneLabel ?? null,
+            shippingCompanyName: (order as any).shippingCompanyName ?? null,
+            assignedUserName: (order as any).assignedUserName ?? null,
+
+            shippingFee: (order as any).shippingFee ?? (order as any).shippingCost ?? 0,
+            codAmount: (order as any).codAmount ?? 0,
+            totalAmount: (order as any).totalAmount ?? null,
+
+            canOpen: (order as any).canOpen ?? null,
+            isDivisible: (order as any).isDivisible ?? null,
+            rejectionPolicy: (order as any).rejectionPolicy ?? null,
+
+            // الملاحظة تُؤخذ تلقائياً من سبب الرفض/ملاحظة الإرجاع الموجودة في الشحنة — إن وُجدت
+            note: orderReturnReason
+              ? (returnReasonLabel ? returnReasonLabel(orderReturnReason) : orderReturnReason) + (orderReturnNote ? ` — ${orderReturnNote}` : "")
+              : (orderReturnNote || null),
+
+            products: (shipmentItems || []).map((it: any) => ({
+              name: it.productName ?? it.name ?? null,
+              color: it.color ?? null,
+              size: it.size ?? null,
+              quantity: it.quantity ?? null,
+            })),
           }}
         />
       )}

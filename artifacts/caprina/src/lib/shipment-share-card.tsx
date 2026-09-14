@@ -1,0 +1,1066 @@
+// ══════════════════════════════════════════════════════════════════════════
+// بطاقة مشاركة الشحنة — صورة احترافية على شكل بوليصة شحن، بالطول
+// تُستخدم لمشاركتها مع العميل بدل فاتورة النظام العادية
+//
+// ملاحظة مهمة: البطاقة دي بترسم بـ Canvas 2D API مباشرة (مش html2canvas).
+// السبب: html2canvas مش بيدعم رسم نص عربي RTL بشكل صحيح — الحروف بتتقطع
+// وبتترسم بترتيب غلط. الـ Canvas 2D الأصلي في المتصفح بيدعم direction:"rtl"
+// بشكل سليم 100%، فالحل الموثوق الوحيد هو رسم كل شيء يدويًا بالإحداثيات.
+// ══════════════════════════════════════════════════════════════════════════
+
+import { logoBase64 } from "./logo";
+
+export interface ShipmentShareData {
+  id: number;
+  shipmentNumber?: string | null;
+  trackingNumber?: string | null;
+  status: string;
+  statusLabel?: string | null;
+  createdAt?: string | null;
+
+  receiverName?: string | null;
+  receiverPhone?: string | null;
+  receiverPhone2?: string | null;
+  receiverCity?: string | null;
+  receiverAddress?: string | null;
+
+  senderName?: string | null;
+  senderPhone?: string | null;
+  senderCity?: string | null;
+
+  parcelType?: string | null;
+  weight?: string | null;
+
+  zoneLabel?: string | null;            // المحافظة / المنطقة
+  shippingCompanyName?: string | null;  // شركة الشحن
+  assignedUserName?: string | null;     // المندوب الحالي
+
+  shippingFee?: number | string | null;
+  codAmount?: number | string | null;
+  totalAmount?: number | string | null;
+
+  canOpen?: number | string | null;      // 1 = مسموح، 0 = غير مسموح
+  isDivisible?: number | string | null;  // 1 = قابلة للتجزئة
+  rejectionPolicy?: string | null;       // "free" = شحن مجاني عند الرفض
+
+  note?: string | null; // الملاحظة المخصصة (سبب الرفض / ملاحظة الإرسال)
+
+  products?: { name?: string | null; color?: string | null; size?: string | null; quantity?: number | string | null }[];
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  waiting: "قيد المراجعة", confirmed: "تم التأكيد", picked_up: "تم الاستلام",
+  in_transit: "في الطريق", out_for_delivery: "خرجت للتسليم", delivered: "تم التسليم",
+  returned: "مرتجع", cancelled: "ملغاة", postponed: "مؤجلة", problem: "تحتاج متابعة",
+};
+
+const STATUS_THEME: Record<string, { base: string; badgeBg: string; badgeText: string }> = {
+  delivered:        { base: "#0fb88a", badgeBg: "#dcfce7", badgeText: "#15803d" },
+  returned:         { base: "#f04452", badgeBg: "#fee2e2", badgeText: "#b91c1c" },
+  cancelled:        { base: "#f04452", badgeBg: "#fee2e2", badgeText: "#b91c1c" },
+  problem:          { base: "#f5a623", badgeBg: "#fef3c7", badgeText: "#92400e" },
+  postponed:        { base: "#f5a623", badgeBg: "#fef3c7", badgeText: "#92400e" },
+  in_transit:       { base: "#2f7bf5", badgeBg: "#dbeafe", badgeText: "#1d4ed8" },
+  out_for_delivery: { base: "#2f7bf5", badgeBg: "#dbeafe", badgeText: "#1d4ed8" },
+  picked_up:        { base: "#2f7bf5", badgeBg: "#dbeafe", badgeText: "#1d4ed8" },
+  confirmed:        { base: "#2f7bf5", badgeBg: "#dbeafe", badgeText: "#1d4ed8" },
+  waiting:          { base: "#8b8fa3", badgeBg: "#e5e7eb", badgeText: "#374151" },
+};
+const DEFAULT_THEME = { base: "#5b62f0", badgeBg: "#e0e7ff", badgeText: "#3730a3" };
+
+const PAYMENT_LABELS: Record<string, string> = {
+  cod: "عند الاستلام", cash: "عند الاستلام", prepaid: "مدفوع مسبقًا", paid: "مدفوع مسبقًا",
+};
+
+function text(value: unknown, fallback = "—") {
+  const result = String(value ?? "").trim();
+  return result || fallback;
+}
+
+/** يحول لون hex (#rrggbb) إلى rgba بشفافية معينة، لاستخدامه في التدرجات اللونية. */
+function hexToRgba(hex: string, alpha: number): string {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.substring(0, 2), 16);
+  const g = parseInt(h.substring(2, 4), 16);
+  const b = parseInt(h.substring(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+/** يفتّح لون hex بنسبة معينة (لعمل تدرج فاتح من نفس لون الحالة). */
+function lightenHex(hex: string, amount: number): string {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.substring(0, 2), 16);
+  const g = parseInt(h.substring(2, 4), 16);
+  const b = parseInt(h.substring(4, 6), 16);
+  const lr = Math.round(r + (255 - r) * amount);
+  const lg = Math.round(g + (255 - g) * amount);
+  const lb = Math.round(b + (255 - b) * amount);
+  return `rgb(${lr}, ${lg}, ${lb})`;
+}
+
+function money(value: unknown) {
+  const amount = Number(value);
+  return Number.isFinite(amount) && amount > 0
+    ? amount.toLocaleString("en-US", { maximumFractionDigits: 2 })
+    : "0";
+}
+
+const FONT = "Cairo, 'Segoe UI', Tahoma, Arial, sans-serif";
+
+async function ensureFontsReady() {
+  try {
+    await Promise.all([
+      document.fonts.load(`500 24px ${FONT}`),
+      document.fonts.load(`600 24px ${FONT}`),
+      document.fonts.load(`700 24px ${FONT}`),
+      document.fonts.load(`800 24px ${FONT}`),
+      document.fonts.load(`900 24px ${FONT}`),
+    ]);
+    await document.fonts.ready;
+  } catch {
+    // fallback fonts موجودة أصلاً في الـ font stack
+  }
+}
+
+let cachedLogoImg: HTMLImageElement | null = null;
+/** يحمّل صورة شعار STARK الحقيقية (base64) مرة واحدة ويعيد استخدامها في كل استدعاء لاحق. */
+function loadLogoImage(): Promise<HTMLImageElement | null> {
+  return new Promise((resolve) => {
+    if (cachedLogoImg && cachedLogoImg.complete) {
+      resolve(cachedLogoImg);
+      return;
+    }
+    const img = new Image();
+    img.onload = () => {
+      cachedLogoImg = img;
+      resolve(img);
+    };
+    img.onerror = () => resolve(null);
+    img.src = logoBase64;
+  });
+}
+
+/** يرسم شعار STARK الحقيقي (من الصورة) داخل مربع بارتفاع h، محافظًا على نسبة الأبعاد، ويعيد العرض الفعلي المرسوم. */
+function drawStarkLogoImage(ctx: CanvasRenderingContext2D, img: HTMLImageElement, x: number, y: number, h: number): number {
+  const ratio = img.naturalWidth / img.naturalHeight;
+  const logoH = h;
+  const logoW = logoH * ratio;
+  const padX = 14;
+  const padY = 10;
+  const boxW = logoW + padX * 2;
+  const boxH = logoH + padY * 2;
+
+  ctx.save();
+  ctx.shadowColor = "rgba(18, 21, 28, 0.14)";
+  ctx.shadowBlur = 10;
+  ctx.shadowOffsetY = 3;
+  ctx.fillStyle = "#ffffff";
+  roundRect(ctx, x, y, boxW, boxH, 14);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  ctx.strokeStyle = "#e9eaf0";
+  ctx.lineWidth = 1.5;
+  roundRect(ctx, x, y, boxW, boxH, 14);
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.drawImage(img, x + padX, y + padY, logoW, logoH);
+  return boxW;
+}
+
+// ── أدوات رسم مساعدة ────────────────────────────────────────────────────────
+
+function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number | { tl: number; tr: number; br: number; bl: number }) {
+  const rad = typeof r === "number" ? { tl: r, tr: r, br: r, bl: r } : r;
+  ctx.beginPath();
+  ctx.moveTo(x + rad.tl, y);
+  ctx.lineTo(x + w - rad.tr, y);
+  ctx.arcTo(x + w, y, x + w, y + rad.tr, rad.tr);
+  ctx.lineTo(x + w, y + h - rad.br);
+  ctx.arcTo(x + w, y + h, x + w - rad.br, y + h, rad.br);
+  ctx.lineTo(x + rad.bl, y + h);
+  ctx.arcTo(x, y + h, x, y + h - rad.bl, rad.bl);
+  ctx.lineTo(x, y + rad.tl);
+  ctx.arcTo(x, y, x + rad.tl, y, rad.tl);
+  ctx.closePath();
+}
+
+function drawText(
+  ctx: CanvasRenderingContext2D,
+  str: string,
+  x: number,
+  y: number,
+  opts: { size: number; weight?: number; color: string; align?: CanvasTextAlign; dir?: "rtl" | "ltr" }
+) {
+  ctx.direction = opts.dir ?? "rtl";
+  ctx.textAlign = opts.align ?? (opts.dir === "ltr" ? "left" : "right");
+  ctx.textBaseline = "alphabetic";
+  ctx.font = `${opts.weight ?? 500} ${opts.size}px ${FONT}`;
+  ctx.fillStyle = opts.color;
+  ctx.fillText(str, x, y);
+}
+
+function countWrapLines(ctx: CanvasRenderingContext2D, str: string, maxW: number, size: number, weight: number) {
+  ctx.font = `${weight} ${size}px ${FONT}`;
+  const words = str.split(" ");
+  let line = "";
+  let count = 1;
+  for (const w of words) {
+    const t = line ? `${line} ${w}` : w;
+    if (ctx.measureText(t).width > maxW && line) { count++; line = w; } else { line = t; }
+  }
+  return count;
+}
+
+function drawWrappedText(
+  ctx: CanvasRenderingContext2D,
+  str: string,
+  x: number,
+  y: number,
+  maxWidth: number,
+  lineHeight: number,
+  opts: { size: number; weight?: number; color: string; align?: CanvasTextAlign }
+): number {
+  ctx.direction = "rtl";
+  ctx.textAlign = opts.align ?? "right";
+  ctx.textBaseline = "alphabetic";
+  ctx.font = `${opts.weight ?? 500} ${opts.size}px ${FONT}`;
+  ctx.fillStyle = opts.color;
+
+  const words = str.split(" ");
+  let line = "";
+  let lineCount = 0;
+  const lines: string[] = [];
+  for (const word of words) {
+    const testLine = line ? `${line} ${word}` : word;
+    if (ctx.measureText(testLine).width > maxWidth && line) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = testLine;
+    }
+  }
+  if (line) lines.push(line);
+
+  for (const l of lines) {
+    ctx.fillText(l, x, y + lineCount * lineHeight);
+    lineCount++;
+  }
+  return lineCount;
+}
+
+/** يرسم شارة دائرية كبيرة (ختم "تم التسليم") فيها علامة صح كبيرة وواضحة في المنتصف. تُستخدم فقط لما الحالة delivered. */
+function drawDeliveredStamp(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, color: string) {
+  ctx.save();
+  ctx.translate(cx, cy);
+
+  // هالة خفيفة حول الختم
+  ctx.beginPath();
+  ctx.arc(0, 0, r + 10, 0, Math.PI * 2);
+  ctx.fillStyle = hexToRgba(color, 0.12);
+  ctx.fill();
+
+  // الدائرة الرئيسية بتدرج
+  const grad = ctx.createLinearGradient(-r, -r, r, r);
+  grad.addColorStop(0, lightenHex(color, 0.12));
+  grad.addColorStop(1, color);
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // حلقة داخلية بيضاء (شكل ختم كلاسيكي)
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.arc(0, 0, r - 7, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // علامة صح كبيرة وواضحة في منتصف الختم
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = r * 0.15;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  const cs = r * 0.5;
+  ctx.beginPath();
+  ctx.moveTo(-cs * 0.62, 0);
+  ctx.lineTo(-cs * 0.12, cs * 0.5);
+  ctx.lineTo(cs * 0.68, -cs * 0.55);
+  ctx.stroke();
+
+  ctx.restore();
+
+  // نص "تم التسليم" تحت الختم كشارة منفصلة (بدون دوران، واضح ومقروء)
+  const labelY = cy + r + 22;
+  ctx.font = `800 ${r * 0.28}px ${FONT}`;
+  const labelText = "✓ تم التسليم";
+  const labelW = ctx.measureText(labelText).width + r * 0.5;
+  const labelH = r * 0.5;
+  ctx.save();
+  ctx.fillStyle = color;
+  roundRect(ctx, cx - labelW / 2, labelY - labelH / 2, labelW, labelH, labelH / 2);
+  ctx.fill();
+  ctx.restore();
+  ctx.font = `800 ${r * 0.24}px ${FONT}`;
+  ctx.fillStyle = "#ffffff";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.direction = "rtl";
+  ctx.fillText("تم التسليم", cx, labelY + 1);
+  ctx.textBaseline = "alphabetic";
+}
+
+// ── أيقونات مرسومة يدويًا (بدون SVG/صور خارجية) ───────────────────────────
+
+function drawPhoneIcon(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number, color: string) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate((-20 * Math.PI) / 180);
+  ctx.fillStyle = color;
+  const r = size * 0.5;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.15, -r);
+  ctx.bezierCurveTo(-r * 0.7, -r, -r, -r * 0.55, -r * 0.62, -r * 0.05);
+  ctx.bezierCurveTo(-r * 0.3, r * 0.35, r * 0.05, r * 0.7, r * 0.5, r * 0.95);
+  ctx.bezierCurveTo(r * 0.75, r, r, r * 0.7, r * 0.92, r * 0.45);
+  ctx.bezierCurveTo(r * 0.85, r * 0.25, r * 0.55, r * 0.1, r * 0.35, r * 0.2);
+  ctx.bezierCurveTo(r * 0.15, r * 0.3, 0, r * 0.05, -r * 0.15, -r * 0.2);
+  ctx.bezierCurveTo(-r * 0.3, -r * 0.42, -r * 0.55, -r * 0.55, -r * 0.4, -r * 0.75);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawPinIcon(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number, color: string) {
+  ctx.save();
+  ctx.fillStyle = color;
+  const r = size * 0.5;
+  ctx.beginPath();
+  ctx.arc(cx, cy - r * 0.15, r * 0.62, Math.PI * 0.15, Math.PI * 0.85, true);
+  ctx.arc(cx, cy - r * 0.15, r * 0.62, Math.PI * 0.85, Math.PI * 0.15, false);
+  ctx.closePath();
+  // شكل الدبوس: دائرة أعلى + مثلث سفلي
+  ctx.beginPath();
+  ctx.arc(cx, cy - r * 0.25, r * 0.5, 0, Math.PI * 2);
+  ctx.moveTo(cx - r * 0.42, cy - r * 0.05);
+  ctx.lineTo(cx, cy + r * 0.75);
+  ctx.lineTo(cx + r * 0.42, cy - r * 0.05);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = "#ffffff";
+  ctx.globalAlpha = 0.55;
+  ctx.beginPath();
+  ctx.arc(cx, cy - r * 0.25, r * 0.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+function drawHomeIcon(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number, color: string) {
+  ctx.save();
+  ctx.fillStyle = color;
+  const r = size * 0.5;
+  ctx.beginPath();
+  ctx.moveTo(cx - r * 0.85, cy - r * 0.05);
+  ctx.lineTo(cx, cy - r * 0.85);
+  ctx.lineTo(cx + r * 0.85, cy - r * 0.05);
+  ctx.lineTo(cx + r * 0.62, cy - r * 0.05);
+  ctx.lineTo(cx + r * 0.62, cy + r * 0.7);
+  ctx.lineTo(cx - r * 0.62, cy + r * 0.7);
+  ctx.lineTo(cx - r * 0.62, cy - r * 0.05);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawUserIcon(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number, color: string) {
+  ctx.save();
+  ctx.fillStyle = color;
+  const r = size * 0.5;
+  ctx.beginPath();
+  ctx.arc(cx, cy - r * 0.38, r * 0.4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(cx, cy + r * 0.95, r * 0.75, Math.PI, 0);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawCheckIcon(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number, color: string, lineWidth: number) {
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = lineWidth;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.beginPath();
+  ctx.moveTo(cx - size * 0.5, cy + size * 0.02);
+  ctx.lineTo(cx - size * 0.12, cy + size * 0.42);
+  ctx.lineTo(cx + size * 0.55, cy - size * 0.38);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** يرسم شعار STARK: مربع أسود بزوايا مدورة فيه كلمة STARK بخط بولد مائل بسيط + نقطة حمراء صغيرة. */
+function drawStarkLogo(ctx: CanvasRenderingContext2D, x: number, y: number, h: number) {
+  const padX = h * 0.32;
+  ctx.font = `900 ${h * 0.44}px ${FONT}`;
+  ctx.direction = "ltr";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  const w = ctx.measureText("STARK").width + padX * 2;
+
+  ctx.save();
+  ctx.fillStyle = "#12151c";
+  roundRect(ctx, x, y, w, h, h * 0.22);
+  ctx.fill();
+  ctx.fillStyle = "#ffffff";
+  ctx.fillText("STARK", x + padX, y + h / 2 + 1);
+  // نقطة حمراء صغيرة أعلى الحرف الأخير (لمسة تمييز)
+  ctx.fillStyle = "#f04452";
+  ctx.beginPath();
+  ctx.arc(x + w - padX * 0.55, y + h * 0.24, h * 0.05, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  return w;
+}
+
+// ── أدوات إضافية للتصميم الجديد (إشعار حالة الشحنة) ─────────────────────
+
+/** يرسم خلفية شحن خفيفة (طيارة + شاحنة + خطوط مخزن) بشفافية منخفضة، تُستخدم في الهيدر. */
+function drawShippingBackdrop(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x, y, w, h);
+  ctx.clip();
+  ctx.globalAlpha = 0.16;
+  ctx.strokeStyle = "#12151c";
+  ctx.fillStyle = "#12151c";
+
+  // خطوط مخزن/حاويات يمين تحت
+  const baseY = y + h - 6;
+  for (let i = 0; i < 5; i++) {
+    const bx = x + w - 210 + i * 34;
+    const bw = 26;
+    const bh = 30 + (i % 2 === 0 ? 14 : 0);
+    ctx.fillRect(bx, baseY - bh, bw, bh);
+  }
+  // خط أرضي
+  ctx.globalAlpha = 0.22;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(x + w - 260, baseY);
+  ctx.lineTo(x + w, baseY);
+  ctx.stroke();
+
+  // شاحنة مبسطة فوق الخط الأرضي
+  ctx.globalAlpha = 0.2;
+  const tx = x + w - 190;
+  const ty = baseY - 34;
+  ctx.fillRect(tx, ty, 70, 30); // جسم الشاحنة
+  ctx.fillRect(tx + 70, ty + 10, 26, 20); // كابينة السائق
+  ctx.beginPath();
+  ctx.arc(tx + 16, ty + 32, 7, 0, Math.PI * 2);
+  ctx.arc(tx + 54, ty + 32, 7, 0, Math.PI * 2);
+  ctx.arc(tx + 84, ty + 32, 7, 0, Math.PI * 2);
+  ctx.fill();
+
+  // طيارة مبسطة أعلى يمين
+  ctx.globalAlpha = 0.18;
+  ctx.save();
+  ctx.translate(x + w - 90, y + 32);
+  ctx.rotate((-18 * Math.PI) / 180);
+  ctx.beginPath();
+  ctx.moveTo(-46, 0);
+  ctx.lineTo(38, 0);
+  ctx.lineTo(46, 4);
+  ctx.lineTo(38, 8);
+  ctx.lineTo(-46, 8);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(-6, 0);
+  ctx.lineTo(-22, -22);
+  ctx.lineTo(-10, -22);
+  ctx.lineTo(8, 0);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(-6, 8);
+  ctx.lineTo(-22, 26);
+  ctx.lineTo(-10, 26);
+  ctx.lineTo(8, 8);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+/** يرسم أيقونة صندوق دائرية مع علامة (صح/تحذير/إكس) صغيرة في الزاوية، تُستخدم كأيقونة رئيسية أعلى الكارت. */
+function drawBoxAvatarIcon(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, badgeColor: string, badgeType: "check" | "warning" | "cross") {
+  ctx.save();
+  // دائرة خلفية رمادية فاتحة
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fillStyle = "#eef0f4";
+  ctx.fill();
+
+  // جسم الصندوق (خطوط بسيطة بلون داكن)
+  ctx.strokeStyle = "#12151c";
+  ctx.lineWidth = r * 0.07;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  const s = r * 0.62;
+  ctx.beginPath();
+  ctx.moveTo(cx - s, cy - s * 0.55);
+  ctx.lineTo(cx, cy - s * 0.95);
+  ctx.lineTo(cx + s, cy - s * 0.55);
+  ctx.lineTo(cx + s, cy + s * 0.55);
+  ctx.lineTo(cx, cy + s * 0.95);
+  ctx.lineTo(cx - s, cy + s * 0.55);
+  ctx.closePath();
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx - s, cy - s * 0.55);
+  ctx.lineTo(cx, cy - s * 0.15);
+  ctx.lineTo(cx + s, cy - s * 0.55);
+  ctx.moveTo(cx, cy - s * 0.15);
+  ctx.lineTo(cx, cy + s * 0.95);
+  ctx.stroke();
+
+  // شارة صغيرة أسفل يمين الدائرة
+  const badgeR = r * 0.36;
+  const bx = cx + r * 0.72;
+  const by = cy + r * 0.72;
+  ctx.beginPath();
+  ctx.arc(bx, by, badgeR, 0, Math.PI * 2);
+  ctx.fillStyle = badgeColor;
+  ctx.fill();
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = badgeR * 0.28;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  if (badgeType === "check") {
+    ctx.beginPath();
+    ctx.moveTo(bx - badgeR * 0.45, by);
+    ctx.lineTo(bx - badgeR * 0.1, by + badgeR * 0.35);
+    ctx.lineTo(bx + badgeR * 0.5, by - badgeR * 0.4);
+    ctx.stroke();
+  } else if (badgeType === "cross") {
+    ctx.beginPath();
+    ctx.moveTo(bx - badgeR * 0.4, by - badgeR * 0.4);
+    ctx.lineTo(bx + badgeR * 0.4, by + badgeR * 0.4);
+    ctx.moveTo(bx + badgeR * 0.4, by - badgeR * 0.4);
+    ctx.lineTo(bx - badgeR * 0.4, by + badgeR * 0.4);
+    ctx.stroke();
+  } else {
+    ctx.beginPath();
+    ctx.moveTo(bx, by - badgeR * 0.4);
+    ctx.lineTo(bx, by + badgeR * 0.08);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(bx, by + badgeR * 0.35, badgeR * 0.06, 0, Math.PI * 2);
+    ctx.fillStyle = "#ffffff";
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+/** يرسم مثلث تحذير مملوء مع علامة تعجب بيضاء، أو دائرة صح، حسب نوع الحالة. */
+function drawStatusGlyph(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number, color: string, glyph: "warning" | "check") {
+  ctx.save();
+  if (glyph === "warning") {
+    const r = size * 0.5;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - r);
+    ctx.lineTo(cx + r * 0.92, cy + r * 0.75);
+    ctx.lineTo(cx - r * 0.92, cy + r * 0.75);
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = r * 0.16;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - r * 0.25);
+    ctx.lineTo(cx, cy + r * 0.2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx, cy + r * 0.52, r * 0.07, 0, Math.PI * 2);
+    ctx.fillStyle = "#ffffff";
+    ctx.fill();
+  } else {
+    const r = size * 0.5;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = r * 0.18;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.beginPath();
+    ctx.moveTo(cx - r * 0.45, cy);
+    ctx.lineTo(cx - r * 0.1, cy + r * 0.35);
+    ctx.lineTo(cx + r * 0.5, cy - r * 0.32);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/** يرسم أيقونة ورقة/ملاحظة بسيطة (سطور نص) داخل مربع بحواف مدورة. */
+function drawNoteIcon(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number, color: string) {
+  ctx.save();
+  const r = size * 0.5;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = r * 0.14;
+  ctx.lineJoin = "round";
+  roundRect(ctx, cx - r * 0.62, cy - r * 0.8, r * 1.24, r * 1.6, r * 0.18);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx - r * 0.32, cy - r * 0.2);
+  ctx.lineTo(cx + r * 0.32, cy - r * 0.2);
+  ctx.moveTo(cx - r * 0.32, cy + r * 0.15);
+  ctx.lineTo(cx + r * 0.32, cy + r * 0.15);
+  ctx.moveTo(cx - r * 0.32, cy + r * 0.5);
+  ctx.lineTo(cx + r * 0.05, cy + r * 0.5);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** يرسم أيقونة سماعة خدمة عملاء (هيدست) بسيطة. */
+function drawHeadsetIcon(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number, color: string) {
+  ctx.save();
+  const r = size * 0.5;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = r * 0.16;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.arc(cx, cy - r * 0.05, r * 0.62, Math.PI * 1.1, Math.PI * 1.9);
+  ctx.stroke();
+  ctx.beginPath();
+  roundRect(ctx, cx - r * 0.72, cy + r * 0.05, r * 0.3, r * 0.5, r * 0.12);
+  ctx.stroke();
+  ctx.beginPath();
+  roundRect(ctx, cx + r * 0.42, cy + r * 0.05, r * 0.3, r * 0.5, r * 0.12);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx + r * 0.57, cy + r * 0.55);
+  ctx.lineTo(cx + r * 0.57, cy + r * 0.72);
+  ctx.arcTo(cx + r * 0.57, cy + r * 0.9, cx + r * 0.3, cy + r * 0.9, r * 0.15);
+  ctx.lineTo(cx + r * 0.1, cy + r * 0.9);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** يرسم أيقونة كوكب/إنترنت بسيطة (دائرة بخطوط طول وعرض). */
+function drawGlobeIcon(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number, color: string) {
+  ctx.save();
+  const r = size * 0.5;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = r * 0.1;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r * 0.75, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, r * 0.35, r * 0.75, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx - r * 0.75, cy);
+  ctx.lineTo(cx + r * 0.75, cy);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** يرسم أيقونة واتساب مبسطة (دائرة خضراء + شكل سماعة/فقاعة كلام). */
+function drawWhatsappIcon(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number) {
+  ctx.save();
+  const r = size * 0.5;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fillStyle = "#25d366";
+  ctx.fill();
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = r * 0.14;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.beginPath();
+  ctx.arc(cx, cy - r * 0.03, r * 0.5, Math.PI * 0.15, Math.PI * 1.6, false);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx - r * 0.28, cy + r * 0.42);
+  ctx.lineTo(cx - r * 0.5, cy + r * 0.6);
+  ctx.lineTo(cx - r * 0.35, cy + r * 0.28);
+  ctx.closePath();
+  ctx.fillStyle = "#ffffff";
+  ctx.fill();
+  ctx.beginPath();
+  ctx.strokeStyle = "#25d366";
+  ctx.lineWidth = r * 0.1;
+  ctx.moveTo(cx - r * 0.2, cy - r * 0.12);
+  ctx.bezierCurveTo(cx - r * 0.05, cy + r * 0.18, cx + r * 0.1, cy + r * 0.2, cx + r * 0.3, cy + r * 0.05);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// ── الدالة الرئيسية ──────────────────────────────────────────────────────
+
+/** يولد صورة إشعار حالة شحنة احترافية (هيدر بخلفية شحن + كارت أبيض بالتفاصيل + فوتر غامق). */
+export async function generateShipmentShareImage(shipment: ShipmentShareData): Promise<string> {
+  await ensureFontsReady();
+  const logoImg = await loadLogoImage();
+
+  const statusLabel = shipment.statusLabel || STATUS_LABELS[shipment.status] || shipment.status || "قيد التنفيذ";
+  const theme = STATUS_THEME[shipment.status] || DEFAULT_THEME;
+  const isDelivered = shipment.status === "delivered";
+  const isProblemLike = ["returned", "cancelled", "problem", "postponed"].includes(shipment.status);
+  const glyph: "warning" | "check" = isDelivered ? "check" : isProblemLike ? "warning" : "warning";
+  const badgeType: "check" | "warning" | "cross" = isDelivered ? "check" : shipment.status === "cancelled" ? "cross" : "warning";
+
+  const statusDescriptions: Record<string, string> = {
+    delivered: "تم تسليم الشحنة بنجاح لصاحبها",
+    returned: "تم إرجاع الشحنة إلى مستودعنا",
+    cancelled: "تم إلغاء الشحنة بناءً على الطلب",
+    problem: "الشحنة تحتاج إلى متابعة إضافية",
+    postponed: "تم تأجيل تسليم الشحنة لموعد لاحق",
+    in_transit: "الشحنة في الطريق إليك حاليًا",
+    out_for_delivery: "الشحنة خرجت للتسليم اليوم",
+    picked_up: "تم استلام الشحنة من الراسل",
+    confirmed: "تم تأكيد الشحنة وجارٍ تجهيزها",
+    waiting: "الشحنة قيد المراجعة حاليًا",
+  };
+  const statusDesc = statusDescriptions[shipment.status] || "تم تحديث حالة شحنتك";
+
+  const destination = [text(shipment.zoneLabel, ""), text(shipment.receiverCity, "")].filter(Boolean).join(" - ") || text(shipment.receiverCity, "غير محدد");
+  const noteText = text(shipment.note, "");
+  const hasNote = !!noteText;
+  const noteTitle = shipment.status === "returned" ? "سبب الإرجاع" : shipment.status === "cancelled" ? "سبب الإلغاء" : "ملاحظة";
+
+  const W = 700;
+  const SCALE = 2;
+  const M = 40;
+  const contentW = W - M * 2;
+
+  const measureCanvas = document.createElement("canvas");
+  const mctx = measureCanvas.getContext("2d")!;
+
+  const noteLines = hasNote ? countWrapLines(mctx, noteText, contentW - 2 * 24 - 60, 17, 700) : 0;
+  const noteCardH = hasNote ? 30 + 40 + Math.max(1, noteLines) * 24 + 20 : 0;
+
+  // ── حساب الارتفاع الكلي ──────────────────────────────────────────────
+  const headerH = 190;
+  const cardPad = 32;
+  let y = headerH;
+
+  y += 24; // مسافة قبل الكارت الأبيض
+  const cardTop = y;
+  let innerY = cardPad;
+
+  innerY += 96; // أيقونة الصندوق + "عزيزي العميل" + سطر الإبلاغ
+  innerY += 30; // سطر "يرجى الاطلاع..."
+  innerY -= 12; // تقليل الفراغ الزائد قبل صندوق المعلومات
+
+  const infoBoxH = 96;
+  innerY += infoBoxH + 24;
+
+  const statusBoxH = 108;
+  innerY += statusBoxH + 20;
+
+  if (hasNote) innerY += noteCardH + 20;
+
+  innerY += 20; // مسافة قبل نص الشكر
+  const thanksLines = 3;
+  innerY += thanksLines * 30 - 20; // نفس القفزة المستخدمة فعليًا وقت الرسم (cy += 30*thanksLines - 20)
+  innerY += 62; // "مع أطيب التحيات" + "فريق STARK" + الخط تحته (نفس offsets الرسم: cy+24 → cy+50 → cy+62)
+
+  const contactRowH = 78;
+  innerY += contactRowH;
+  innerY += cardPad;
+
+  const cardH = innerY;
+  y = cardTop + cardH;
+  y += 28; // مسافة فاصلة واضحة بين الكارت الأبيض والفوتر الغامق (تمنع الالتصاق البصري)
+
+  const footerH = 76;
+  const H = y + footerH;
+
+  // ── إنشاء الكانفاس ────────────────────────────────────────────────────
+  const canvas = document.createElement("canvas");
+  canvas.width = W * SCALE;
+  canvas.height = Math.ceil(H) * SCALE;
+  const ctx2d = canvas.getContext("2d");
+  if (!ctx2d) throw new Error("Canvas not supported");
+  const ctx: CanvasRenderingContext2D = ctx2d;
+  ctx.scale(SCALE, SCALE);
+
+  // خلفية عامة فاتحة جدًا (رمادي-أبيض)
+  ctx.fillStyle = "#f4f5f7";
+  ctx.fillRect(0, 0, W, H);
+
+  // ══ الهيدر ═══════════════════════════════════════════════════════════
+  const headerGrad = ctx.createLinearGradient(0, 0, W, 0);
+  headerGrad.addColorStop(0, "#f3f4f6");
+  headerGrad.addColorStop(1, "#e2e4e9");
+  ctx.fillStyle = headerGrad;
+  ctx.fillRect(0, 0, W, headerH);
+  drawShippingBackdrop(ctx, 0, 0, W, headerH);
+
+  // شعار STARK + سلوجان
+  const logoY = 40;
+  let logoW = 0;
+  if (logoImg) {
+    logoW = drawStarkLogoImage(ctx, logoImg, M, logoY, 52);
+  } else {
+    logoW = drawStarkLogo(ctx, M, logoY, 48);
+  }
+  const dividerX = M + logoW + 24;
+  ctx.strokeStyle = "rgba(18,21,28,0.25)";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(dividerX, logoY + 4);
+  ctx.lineTo(dividerX, logoY + 68);
+  ctx.stroke();
+
+  drawText(ctx, "شحنك بأمان ..", dividerX + 24, logoY + 32, { size: 18, weight: 700, color: "#12151c", align: "left", dir: "rtl" });
+  drawText(ctx, "لأن راحتك تهمنا", dividerX + 24, logoY + 58, { size: 18, weight: 700, color: "#12151c", align: "left", dir: "rtl" });
+
+  // ══ الكارت الأبيض ═══════════════════════════════════════════════════
+  ctx.save();
+  ctx.shadowColor = "rgba(18,21,28,0.10)";
+  ctx.shadowBlur = 24;
+  ctx.shadowOffsetY = 8;
+  ctx.fillStyle = "#ffffff";
+  roundRect(ctx, M - 8, cardTop, contentW + 16, cardH, 22);
+  ctx.fill();
+  ctx.restore();
+
+  let cy = cardTop + cardPad;
+
+  // أيقونة الصندوق + "عزيزي العميل"
+  const avatarR = 42;
+  const avatarCx = W - M + 8 - avatarR - 4;
+  drawBoxAvatarIcon(ctx, avatarCx, cy + avatarR - 6, avatarR, isDelivered ? "#15803d" : "#e04452", badgeType);
+
+  const textRightX = avatarCx - avatarR - 20;
+  drawText(ctx, "عزيزي العميل", textRightX, cy + 22, { size: 26, weight: 900, color: "#12151c", align: "right" });
+
+  const shipNum = text(shipment.shipmentNumber);
+  const msgY = cy + 56;
+  const msgLabel = `نود إبلاغك بخصوص شحنتك رقم`;
+  // القياس لازم يستخدم نفس الـ weight بتاع الرسم بالظبط، وإلا العرض المقاس
+  // هيختلف عن العرض الفعلي ويحصل تراكب بين النص والرقم البرتقالي
+  ctx.font = "700 17px " + FONT;
+  const msgW = ctx.measureText(msgLabel).width;
+  drawText(ctx, msgLabel, textRightX, msgY, { size: 17, weight: 700, color: "#171a22", align: "right" });
+  drawText(ctx, shipNum, textRightX - msgW - 10, msgY, { size: 17, weight: 900, color: "#f16636", align: "right", dir: "ltr" });
+
+  drawText(ctx, "يرجى الاطلاع على التفاصيل أدناه:", textRightX, msgY + 32, { size: 15, weight: 500, color: "#8b8fa3", align: "right" });
+
+  cy += 96 + 30 - 12;
+
+  // ── صف معلومات: العميل | الوجهة | رقم الشحنة ───────────────────────
+  ctx.save();
+  ctx.fillStyle = "#f7f8fa";
+  roundRect(ctx, M, cy, contentW, infoBoxH, 16);
+  ctx.fill();
+  ctx.restore();
+
+  {
+    const cols = [
+      { label: "العميل", value: text(shipment.receiverName), icon: "user" as const, ltr: false },
+      { label: "الوجهة", value: destination, icon: "pin" as const, ltr: false },
+      { label: "رقم الشحنة", value: shipNum, icon: "box" as const, ltr: true },
+    ];
+    const colW = contentW / 3;
+    cols.forEach((col, i) => {
+      const colCx = M + contentW - colW * i - colW / 2;
+      const iconCy = cy + 18;
+      if (col.icon === "pin") {
+        drawPinIcon(ctx, colCx, iconCy, 18, "#f16636");
+      } else if (col.icon === "user") {
+        drawUserIcon(ctx, colCx, iconCy, 18, "#f16636");
+      } else {
+        // أيقونة صندوق صغيرة (خطوط بسيطة) لرقم الشحنة
+        ctx.save();
+        ctx.strokeStyle = "#f16636";
+        ctx.lineWidth = 2;
+        ctx.lineJoin = "round";
+        const bs = 8;
+        ctx.beginPath();
+        ctx.moveTo(colCx - bs, iconCy - bs * 0.55);
+        ctx.lineTo(colCx, iconCy - bs * 0.95);
+        ctx.lineTo(colCx + bs, iconCy - bs * 0.55);
+        ctx.lineTo(colCx + bs, iconCy + bs * 0.55);
+        ctx.lineTo(colCx, iconCy + bs * 0.95);
+        ctx.lineTo(colCx - bs, iconCy + bs * 0.55);
+        ctx.closePath();
+        ctx.stroke();
+        ctx.restore();
+      }
+      drawText(ctx, col.label, colCx, cy + 42, { size: 14, weight: 600, color: "#8b8fa3", align: "center" });
+      drawText(ctx, col.value, colCx, cy + 68, { size: 17, weight: 800, color: "#171a22", align: "center", dir: col.ltr ? "ltr" : "rtl" });
+      if (i < cols.length - 1) {
+        ctx.strokeStyle = "#e4e6ec";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(M + contentW - colW * (i + 1), cy + 14);
+        ctx.lineTo(M + contentW - colW * (i + 1), cy + infoBoxH - 14);
+        ctx.stroke();
+      }
+    });
+  }
+  cy += infoBoxH + 24;
+
+  // ── كارت حالة الشحنة ─────────────────────────────────────────────────
+  ctx.save();
+  ctx.fillStyle = lightenHex(theme.base, 0.88);
+  roundRect(ctx, M, cy, contentW, statusBoxH, 16);
+  ctx.fill();
+  ctx.strokeStyle = hexToRgba(theme.base, 0.35);
+  ctx.lineWidth = 1.5;
+  roundRect(ctx, M, cy, contentW, statusBoxH, 16);
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.strokeStyle = hexToRgba(theme.base, 0.3);
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(W - M - 118, cy + 18);
+  ctx.lineTo(W - M - 118, cy + statusBoxH - 18);
+  ctx.stroke();
+
+  drawStatusGlyph(ctx, W - M - 60, cy + statusBoxH / 2, 40, theme.base, glyph);
+  drawText(ctx, "حالة الشحنة", W - M - 140, cy + 32, { size: 15, weight: 700, color: theme.base, align: "right" });
+  drawText(ctx, statusLabel, W - M - 140, cy + 64, { size: 24, weight: 900, color: "#12151c", align: "right" });
+  drawText(ctx, statusDesc, W - M - 140, cy + 90, { size: 14, weight: 600, color: "#5b5f6d", align: "right" });
+  cy += statusBoxH + 20;
+
+  // ── كارت الملاحظة / سبب الإرجاع ─────────────────────────────────────
+  if (hasNote) {
+    ctx.save();
+    ctx.fillStyle = "#f7f8fa";
+    roundRect(ctx, M, cy, contentW, noteCardH, 16);
+    ctx.fill();
+    ctx.restore();
+
+    const noteIconCx = W - M - 24 - 14;
+    drawNoteIcon(ctx, noteIconCx, cy + 30, 26, "#5b5f6d");
+    drawText(ctx, noteTitle, noteIconCx - 30, cy + 36, { size: 16, weight: 800, color: "#12151c", align: "right" });
+    drawWrappedText(ctx, noteText, W - M - 24, cy + 70, contentW - 48, 24, { size: 17, weight: 700, color: "#171a22" });
+    cy += noteCardH + 20;
+  }
+
+  // ── نص شكر/رسالة ختامية ──────────────────────────────────────────────
+  cy += 20;
+  const thanksText1 = isProblemLike
+    ? "نعتذر عن أي إزعاج قد يسببه هذا الأمر،"
+    : "شكرًا لثقتك بنا،";
+  const thanksText2 = isProblemLike
+    ? "وفي حال رغبتك في إعادة إرسال الشحنة أو استفسار إضافي،"
+    : "نتمنى أن تكون تجربتك معنا مُرضية دائمًا،";
+  const thanksText3 = isProblemLike
+    ? "يرجى التواصل معنا عبر القنوات التالية."
+    : "ولا تتردد في التواصل معنا لأي استفسار.";
+
+  drawText(ctx, thanksText1, W / 2, cy, { size: 16, weight: 600, color: "#5b5f6d", align: "center" });
+  drawText(ctx, thanksText2, W / 2, cy + 28, { size: 16, weight: 600, color: "#5b5f6d", align: "center" });
+  drawText(ctx, thanksText3, W / 2, cy + 56, { size: 16, weight: 600, color: "#5b5f6d", align: "center" });
+  cy += 30 * thanksLines - 20;
+
+  drawText(ctx, "مع أطيب التحيات،", W / 2, cy + 24, { size: 15, weight: 600, color: "#9aa0b1", align: "center" });
+
+  // قياس عرض "فريق" و"STARK" فعليًا عشان نموضعهم جنب بعض بمسافة ثابتة بدل
+  // إحداثيات مقفولة كانت بتخليهم يتلزقوا في بعض حسب عرض الخط الفعلي
+  ctx.font = "700 15px " + FONT;
+  const teamLabelW = ctx.measureText("فريق").width;
+  ctx.font = "900 17px " + FONT;
+  const teamW = ctx.measureText("STARK").width;
+  const teamGap = 8;
+  const teamTotalW = teamLabelW + teamGap + teamW;
+  const teamStartX = W / 2 + teamTotalW / 2; // أقصى يمين المجموعة (بداية "فريق" في RTL)
+  const starkCenterX = W / 2 - teamTotalW / 2 + teamW / 2; // مركز "STARK" على أقصى يسار المجموعة
+
+  drawText(ctx, "فريق", teamStartX - teamLabelW / 2, cy + 50, { size: 15, weight: 700, color: "#12151c", align: "center" });
+  drawText(ctx, "STARK", starkCenterX, cy + 50, { size: 17, weight: 900, color: "#12151c", align: "center", dir: "ltr" });
+  ctx.strokeStyle = hexToRgba(theme.base, 0.4);
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(W / 2 - teamTotalW / 2 - 10, cy + 62);
+  ctx.lineTo(W / 2 + teamTotalW / 2 + 10, cy + 62);
+  ctx.stroke();
+
+  // ── صف الاتصال ────────────────────────────────────────────────────────
+  cy = cardTop + cardH - cardPad - contactRowH;
+  ctx.strokeStyle = "#e4e6ec";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(M, cy - 4);
+  ctx.lineTo(W - M, cy - 4);
+  ctx.stroke();
+
+  const contactCols = [
+    { icon: "headset" as const, label: "خدمة العملاء", value: "0100 123 4567", sub: "متاح يوميًا من 9 ص - 10 م" },
+    { icon: "globe" as const, label: "الموقع الإلكتروني", value: "www.starkvector.com", sub: "" },
+    { icon: "whatsapp" as const, label: "واتساب", value: "0100 123 4567", sub: "" },
+  ];
+  const ccW = contentW / contactCols.length;
+  contactCols.forEach((col, i) => {
+    const colCx = W - M - ccW * i - ccW / 2;
+    const iconCy = cy + 24;
+    if (col.icon === "headset") drawHeadsetIcon(ctx, colCx, iconCy, 26, "#12151c");
+    else if (col.icon === "globe") drawGlobeIcon(ctx, colCx, iconCy, 26, "#12151c");
+    else drawWhatsappIcon(ctx, colCx, iconCy, 26);
+
+    drawText(ctx, col.label, colCx, cy + 48, { size: 13, weight: 600, color: "#8b8fa3", align: "center" });
+    drawText(ctx, col.value, colCx, cy + 66, { size: 15, weight: 800, color: "#12151c", align: "center", dir: "ltr" });
+  });
+
+  // ══ الفوتر الغامق ═══════════════════════════════════════════════════
+  const footerY = H - footerH;
+  ctx.fillStyle = "#12151c";
+  ctx.fillRect(0, footerY, W, footerH);
+
+  const footerLogoH = 34;
+  let footerLogoW = 0;
+  ctx.save();
+  if (logoImg) {
+    const ratio = logoImg.naturalWidth / logoImg.naturalHeight;
+    footerLogoW = footerLogoH * ratio;
+    ctx.drawImage(logoImg, M, footerY + (footerH - footerLogoH) / 2, footerLogoW, footerLogoH);
+  } else {
+    footerLogoW = drawStarkLogo(ctx, M, footerY + (footerH - 40) / 2, 40);
+  }
+  ctx.restore();
+  drawText(ctx, "STARK", M + footerLogoW + 16, footerY + footerH / 2 - 2, { size: 19, weight: 900, color: "#ffffff", align: "left", dir: "ltr" });
+  drawText(ctx, "LOGISTICS & SHIPPING SERVICES", M + footerLogoW + 16, footerY + footerH / 2 + 16, { size: 10, weight: 700, color: "#9aa0b1", align: "left", dir: "ltr" });
+
+  ctx.font = "700 13px " + FONT;
+  ctx.direction = "ltr";
+  ctx.textAlign = "right";
+  ctx.fillStyle = "#e4e6ec";
+  ctx.fillText("FAST  •  SAFE  •  RELIABLE", W - M, footerY + footerH / 2 + 5);
+
+  return canvas.toDataURL("image/png", 1);
+}
+
+export async function dataUrlToFile(dataUrl: string, fileName: string): Promise<File> {
+  // ملاحظة: كنا بنستخدم fetch(dataUrl) لتحويل الـ data URL لـ Blob، لكن الـ CSP
+  // بتاع السيرفر (connect-src) مش بيسمح بجلب data: URLs عبر fetch — بيطلع
+  // NetworkError. الحل: تحويل base64 → Blob يدويًا من غير أي طلب شبكة.
+  const [meta, base64] = dataUrl.split(",");
+  const mimeMatch = /data:(.*?);base64/.exec(meta);
+  const mime = mimeMatch?.[1] || "image/png";
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const blob = new Blob([bytes], { type: mime });
+  return new File([blob], fileName, { type: mime });
+}
