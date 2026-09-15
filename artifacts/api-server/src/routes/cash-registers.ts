@@ -179,7 +179,12 @@ cashRegistersRouter.post("/:id/transaction", async (req, res): Promise<any> => {
     const balanceAfter=isDebit?balanceBefore-amt:balanceBefore+amt;
     if(isDebit&&balanceAfter<0)return res.status(400).json({error:`الرصيد مش كفاية — المتاح: ${balanceBefore.toLocaleString("ar-EG")} ج.م`});
     await db.update(cashRegistersTable).set({balance:String(balanceAfter),updatedAt:now}).where(eq(cashRegistersTable.id,registerId));
-    await db.insert(cashTransactionsTable).values({registerId,type,amount:String(amt),balanceBefore:String(balanceBefore),balanceAfter:String(balanceAfter),description,referenceNumber,orderId:orderId?Number(orderId):null,transactionDate:transactionDate?new Date(transactionDate):now,createdByUserId:req.body.userId??null,createdByName:req.body.userName??null,createdAt:now});
+    // لو الفرونت بعت تاريخ بس من غير وقت (نفس تاريخ اليوم)، بيتحول لـ 00:00:00
+    // وده بيكسر ترتيب "الأحدث فوق" في كشف الحساب. فبنستخدم اللحظة الحالية "now"
+    // في الحالة دي، ونستخدم التاريخ المبعوت فقط لو فعلاً تاريخ رجعي (يوم مختلف).
+    const isBackdated = transactionDate && new Date(transactionDate).toDateString() !== now.toDateString();
+    const finalTxDate = isBackdated ? new Date(transactionDate) : now;
+    await db.insert(cashTransactionsTable).values({registerId,type,amount:String(amt),balanceBefore:String(balanceBefore),balanceAfter:String(balanceAfter),description,referenceNumber,orderId:orderId?Number(orderId):null,transactionDate:finalTxDate,createdByUserId:req.body.userId??null,createdByName:req.body.userName??null,createdAt:now});
     invalidateSmartCache(getTenantId(req));
     invalidateChartsCache(getTenantId(req));
     res.json({success:true,newBalance:balanceAfter});
