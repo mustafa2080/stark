@@ -422,8 +422,11 @@ export default function FinanceExpenses() {
               </div>
               <div>
                 <Label className="text-xs mb-1 block">المبلغ *</Label>
-                <Input type="number" className="h-9 text-sm" placeholder="0" value={form.amount} onChange={e => F("amount", e.target.value)}/>
-                {isCollection && <p className="text-[11px] text-muted-foreground mt-1">اكتب المبلغ اللي حصّلته من العميل يدويًا</p>}
+                <Input type="number" min={0} className="h-9 text-sm" placeholder="0" value={form.amount} onChange={e => F("amount", e.target.value)}/>
+                {isCollection && !(parseFloat(form.amount) > 0) && form.amount !== "" && (
+                  <p className="text-[11px] text-rose-500 mt-1">المبلغ لازم يكون رقم أكبر من صفر (من غير إشارة سالب)</p>
+                )}
+                {isCollection && form.amount === "" && <p className="text-[11px] text-muted-foreground mt-1">اكتب المبلغ اللي حصّلته من العميل يدويًا</p>}
               </div>
             </div>
 
