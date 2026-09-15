@@ -1692,9 +1692,16 @@ router.get("/client-portal/manifests", async (req, res): Promise<void> => {
       .filter(s => !PORTAL_NOT_COUNTED_STATUSES.includes(s.status))
       .map(s => s.id);
     if (eligibleShipmentIds.length) {
+      // ⚠️ inner join مع clientAccountManifestsTable إلزامي — بند "يتيم"
+      // (manifest_id اتمسح) لازم يتجاهل، وإلا الشحنة تختفي غلط من العداد
+      // (نفس الباگ اللي اتصلح في راوت الأدمن client-account-manifests.ts).
       const existingItemRows = await db
         .select({ shipmentId: clientAccountManifestItemsTable.shipmentId })
         .from(clientAccountManifestItemsTable)
+        .innerJoin(
+          clientAccountManifestsTable,
+          eq(clientAccountManifestItemsTable.manifestId, clientAccountManifestsTable.id)
+        )
         .where(inArray(clientAccountManifestItemsTable.shipmentId, eligibleShipmentIds));
       const alreadyInManifest = new Set(existingItemRows.map(r => r.shipmentId));
       pendingShipmentsCount = eligibleShipmentIds.filter(sid => !alreadyInManifest.has(sid)).length;

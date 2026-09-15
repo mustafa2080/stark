@@ -19,7 +19,7 @@ import {
 import { z } from "zod";
 import { requireAuth } from "../middlewares/requireAuth";
 import { getTenantId } from "../middlewares/requireTenant.js";
-import { syncManifestItemToShipment, SHIPMENT_STATUS_TO_DELIVERY, isShipmentVisibleInManifest, EXCLUDED_SHIPMENT_STATUSES as MANIFEST_EXCLUDED_SHIPMENT_STATUSES } from "../lib/manifestSync.js";
+import { syncManifestItemToShipment, SHIPMENT_STATUS_TO_DELIVERY, isShipmentVisibleInManifest } from "../lib/manifestSync.js";
 import { syncShipmentInventory } from "./shipments.js";
 import { syncShipmentItemsInventory } from "../lib/inventory.js";
 import { computeClosedManifestsForClient, computeClientBalancesForAllClients } from "../lib/clientAccountBalance.js";
@@ -54,45 +54,33 @@ async function generateManifestNumber(clientId: number): Promise<string> {
   return `CAM-${clientId}-${seq}`;
 }
 
-// ─── إضافة تلقائية للبيان لما الشحنة توصل warehouse_ready (أو تتعمل بيه) ─────
-// ⚠️ بالتصميم (تحديث 2026-08-30 بطلب صريح من مصطفى — نسخة نهائية): تفرقة
-// واضحة بين حالتين:
-//   • الشحنة لسه "قيد الانتظار" (pending/waiting) أو "مؤكدة" (confirmed) —
-//     يعني لسه معندهاش وصلت "قيد الشحن في المخزن" (warehouse_ready) — دي
-//     أصلًا **مالهاش علاقة بالبيان خالص**: متتحسبش كعدد، ومتدخلش أي بيان لا
-//     مفتوح ولا مقفول. النداء ده بيتجاهلها تمامًا (no-op).
-//   • الشحنة وصلت warehouse_ready أو أبعد → القرار هنا على وجود بيان مفتوح:
-//       - فيه بيان مفتوح للعميل بالفعل → تفضل "معلّقة" (orphan) وتستنى قفل
-//         البيان، فتتلقط تلقائيًا مع فتح البيان الجديد
-//         (rolloverPendingItemsToNewManifest).
-//       - مفيش بيان مفتوح خالص → يتفتح بيان جديد وتتضاف له فورًا.
-// (تاريخ التعديلات: 2026-08-29 كانت الإضافة فورية بغض النظر عن الحالة حتى مع
-// بيان مفتوح؛ 2026-08-30 الصبح رجعنا شرط warehouse_ready بس مع "لو فيه بيان
-// مفتوح سيبها"؛ ثم جربنا إلغاء شرط الـ status خالص فحسبنا pending كـ orphan
-// غلط؛ النسخة دي هي الصح: pending/waiting/confirmed تتجاهل بالكامل، ومن
-// warehouse_ready فأعلى بس هي اللي تدخل في حساب البيان.)
+// ─── فتح بيان فارغ تلقائياً عند أول أوردر بعد الإغلاق ────────────────────────
+// طلب الإدارة: إذا لم يكن للعميل بيان مفتوح (أي أن آخر بيان أُغلق)، فإن إنشاء
+// أي أوردر يفتح بياناً جديداً **فارغاً** فقط. الأوردر نفسه، وكل الأوردرات اللاحقة
+// خلال الفترة، تظل معلّقة خارج البيان ولا ينشأ لها item هنا. عند إغلاق البيان
+// تُلتقط هذه الأوردرات دفعة واحدة داخل البيان التالي.
 //
-// idempotent: بتتأكد الأول إن الشحنة مالهاش صف بالفعل في clientAccountManifestItemsTable
-// (بأي بيان، مفتوح أو مقفول) قبل ما تضيف — فمينفعش تتكرر لو اتنادت أكتر من مرة
-// لنفس الشحنة (زي إعادة المزامنة sync-warehouse-ready).
-// ⚠️ نفس EXCLUDED_SHIPMENT_STATUSES الموحّدة في manifestSync.ts (مصدر الحقيقة
-// الوحيد لهذا المعيار الآن) — كانت قائمة محلية منفصلة هنا قبل التوحيد.
-const STATUSES_BEFORE_WAREHOUSE = MANIFEST_EXCLUDED_SHIPMENT_STATUSES;
-
+// الدالة idempotent: وجود بيان مفتوح يمنع إنشاء بيان ثانٍ، ووجود item قديم
+// للشحنة لا يغيّر شيئاً عند إعادة المزامنة.
 export async function autoAddShipmentToClientAccountManifest(
   shipmentId: number,
   clientId: number | null | undefined,
   tenantId: number | null,
-  shipmentStatus?: string | null,
+  _shipmentStatus?: string | null,
 ): Promise<void> {
   if (!clientId) return;
-  // لسه ما وصلتش warehouse_ready → متتحسبش ولا تتضاف خالص (no-op).
-  if (shipmentStatus && STATUSES_BEFORE_WAREHOUSE.has(shipmentStatus)) return;
 
-  // الشحنة مضافة بالفعل لبيان (أي بيان) → متتضافش تاني.
+  // الشحنة مضافة بالفعل لبيان (أي بيان) → لا تحتاج أي إجراء.
+  // ⚠️ inner join مع clientAccountManifestsTable إلزامي هنا — بند "يتيم"
+  // (manifest_id اتمسح من الجدول التاني) لازم يتجاهل، وإلا الدالة هترجع
+  // فورًا غلط ومتفتحش بيان جديد للشحنة أبدًا.
   const [existingItem] = await db
     .select({ id: clientAccountManifestItemsTable.id })
     .from(clientAccountManifestItemsTable)
+    .innerJoin(
+      clientAccountManifestsTable,
+      eq(clientAccountManifestItemsTable.manifestId, clientAccountManifestsTable.id)
+    )
     .where(eq(clientAccountManifestItemsTable.shipmentId, shipmentId))
     .limit(1);
   if (existingItem) return;
@@ -100,13 +88,7 @@ export async function autoAddShipmentToClientAccountManifest(
   const tenantCondition = tenantId !== null
     ? or(eq(clientAccountManifestsTable.tenantId, tenantId), isNull(clientAccountManifestsTable.tenantId))
     : undefined;
-  const shipmentTenantCondition = tenantId !== null
-    ? or(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.tenantId))
-    : undefined;
-
-  // وجود أي بيان مفتوح لنفس العميل يعني أن الشحنة تظل معلّقة (orphan) حتى
-  // يُغلق البيان. لا يوجد استثناء للبيان الأول؛ التجميع يتم فقط لحظة فتح
-  // بيان جديد، ويشمل وقتها كل الشحنات المؤهلة الموجودة بلا حد أقصى.
+  // وجود بيان مفتوح يعني أن كل الأوردرات الجديدة تظل معلّقة خارجه حتى الإغلاق.
   const [openManifest] = await db
     .select({ id: clientAccountManifestsTable.id })
     .from(clientAccountManifestsTable)
@@ -118,43 +100,11 @@ export async function autoAddShipmentToClientAccountManifest(
     .limit(1);
   if (openManifest) return;
 
-  // مفيش بيان مفتوح → نفتح واحد جديد للعميل ده. مهم: لا نضيف الشحنة التي
-  // سببت النداء وحدها؛ نجمع معها كل شحنات العميل المؤهلة وغير المرتبطة بأي
-  // بيان. وإلا أول شحنة فقط كانت تدخل البيان الجديد، ثم الشحنات الأربعة التالية
-  // تراها الدالة "معلقة" لمجرد أن البيان اتفتح بالفعل.
-  const clientShipments = await db
-    .select({ id: shipmentsTable.id, status: shipmentsTable.status })
-    .from(shipmentsTable)
-    .where(and(
-      eq(shipmentsTable.clientId, clientId),
-      isNull(shipmentsTable.deletedAt),
-      shipmentTenantCondition,
-    ));
-
-  const eligibleShipmentIds = clientShipments
-    .filter(s => !STATUSES_BEFORE_WAREHOUSE.has(s.status))
-    .map(s => s.id);
-
-  const linkedShipmentIds = eligibleShipmentIds.length
-    ? new Set((await db
-      .select({ shipmentId: clientAccountManifestItemsTable.shipmentId })
-      .from(clientAccountManifestItemsTable)
-      .where(inArray(clientAccountManifestItemsTable.shipmentId, eligibleShipmentIds)))
-      .map(row => row.shipmentId))
-    : new Set<number>();
-  const shipmentsToAdd = clientShipments.filter(s =>
-    eligibleShipmentIds.includes(s.id) && !linkedShipmentIds.has(s.id)
-  );
-
-  // الحماية الموجودة في أول الدالة تجعل الحالة دي غير متوقعة، لكن لا ننشئ
-  // بيانًا فارغًا لو تغيّرت الشحنة في نفس اللحظة أو لم تعد مؤهلة.
-  if (!shipmentsToAdd.length) return;
-
-  // نفتح واحد جديد للعميل ده (نفس منطق POST /client-account-manifests)
-  // ونضيف له كل الشحنات المؤهلة دفعة واحدة.
+  // لا يوجد بيان مفتوح: افتح بياناً فارغاً. لا تضف الأوردر الذي تسبب في
+  // الإنشاء؛ سيُرحّل مع بقية المعلّقين عند إغلاق هذا البيان.
   const now = new Date();
   const manifestNumber = await generateManifestNumber(clientId);
-  const [result] = await db.insert(clientAccountManifestsTable).values({
+  await db.insert(clientAccountManifestsTable).values({
     tenantId: tenantId ?? null,
     manifestNumber,
     clientId,
@@ -163,16 +113,6 @@ export async function autoAddShipmentToClientAccountManifest(
     createdAt: now,
     scheduledCloseAt: computeNextClosingDate(now),
   });
-  const manifestId = (result as any).insertId as number;
-
-  await db.insert(clientAccountManifestItemsTable).values(
-    shipmentsToAdd.map(shipment => ({
-      manifestId,
-      shipmentId: shipment.id,
-      deliveryStatus: SHIPMENT_STATUS_TO_DELIVERY[shipment.status] ?? "pending",
-      addedAt: now,
-    }))
-  );
 }
 
 // ─── GET /client-account-manifests?clientId=X ────────────────────────────────
@@ -340,9 +280,19 @@ router.get("/client-account-manifests", async (req, res): Promise<void> => {
       const eligibleIds = eligible.map(s => s.id);
       let alreadyInManifest = new Set<number>();
       if (eligibleIds.length) {
+        // ⚠️ لازم inner join مع clientAccountManifestsTable هنا — لو اتعمل
+        // select من clientAccountManifestItemsTable لوحدها، أي بند "يتيم"
+        // (manifest_id بتاعه اتمسح من الجدول التاني) هيتحسب غلط كـ"موجود في
+        // بيان" ويخلي الشحنة تختفي من عداد "الأوردرات الجديدة" رغم إنها فعليًا
+        // مش مرتبطة بأي بيان حقيقي حاليًا. الـ join ده بيتأكد إن المانيفست نفسه
+        // لسه موجود فعلًا قبل ما نعتبر الشحنة "already in manifest".
         const existingItemRows = await db
           .select({ shipmentId: clientAccountManifestItemsTable.shipmentId })
           .from(clientAccountManifestItemsTable)
+          .innerJoin(
+            clientAccountManifestsTable,
+            eq(clientAccountManifestItemsTable.manifestId, clientAccountManifestsTable.id)
+          )
           .where(inArray(clientAccountManifestItemsTable.shipmentId, eligibleIds));
         alreadyInManifest = new Set(existingItemRows.map(r => r.shipmentId));
       }
@@ -1424,37 +1374,32 @@ async function rolloverPendingItemsToNewManifest(
   }
   const pendingItemsToRoll = pendingItems.filter(i => nonDeletedPendingSet.has(i.shipmentId));
 
-  // ─── الشحنات "المعلّقة" بتاعة نفس العميل: أي شحنة وصلت warehouse_ready أو
-  // أبعد (لسه pending/waiting/confirmed تُستبعد تمامًا — دي مالهاش علاقة
-  // بالبيان خالص)، ومفيهاش أي صف خالص في جدول بنود بيانات حساب العميل (بغض
-  // النظر عن أي بيان، مفتوح أو مقفول). ─────────────────────────────────────
+  // ─── الشحنات "المعلّقة" بتاعة نفس العميل: كل أوردر ليس له item في أي
+  // بيان، مهما كانت حالته، يُرحّل هنا دفعة واحدة عند الإغلاق. ───────────────
   const tenantCondition = tenantId !== null
     ? or(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.tenantId))
     : undefined;
   const clientShipments = await db
-    .select({ id: shipmentsTable.id, status: shipmentsTable.status })
+    .select({ id: shipmentsTable.id })
     .from(shipmentsTable)
     .where(and(
       eq(shipmentsTable.clientId, clientId),
       isNull(shipmentsTable.deletedAt), // الشحنة المحذوفة مالهاش تترحّل كـ orphan
       tenantCondition,
     ));
-  const eligibleShipmentIds = clientShipments
-    .filter(s => !STATUSES_BEFORE_WAREHOUSE.has(s.status))
-    .map(s => s.id);
+  const unlinkedCandidateIds = clientShipments.map(s => s.id);
 
   let orphanShipmentIds: number[] = [];
-  if (eligibleShipmentIds.length) {
+  if (unlinkedCandidateIds.length) {
     const existingItemRows = await db
       .select({ shipmentId: clientAccountManifestItemsTable.shipmentId })
       .from(clientAccountManifestItemsTable)
-      .where(inArray(clientAccountManifestItemsTable.shipmentId, eligibleShipmentIds));
+      .where(inArray(clientAccountManifestItemsTable.shipmentId, unlinkedCandidateIds));
     const alreadyInManifest = new Set(existingItemRows.map(r => r.shipmentId));
-    orphanShipmentIds = eligibleShipmentIds.filter(sid => !alreadyInManifest.has(sid));
+    orphanShipmentIds = unlinkedCandidateIds.filter(sid => !alreadyInManifest.has(sid));
   }
 
-  if (!pendingItemsToRoll.length && !orphanShipmentIds.length) return { rolledOver: 0, newManifestId: null, rolledOverManifest: null };
-
+  // كل إغلاق ينتج بياناً مفتوحاً جديداً، حتى لو لا توجد عناصر للترحيل.
   const now = new Date();
   const manifestNumber = await generateManifestNumber(clientId);
   const [result] = await db.insert(clientAccountManifestsTable).values({
