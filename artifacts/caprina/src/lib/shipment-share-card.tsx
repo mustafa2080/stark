@@ -1026,18 +1026,40 @@ export async function generateShipmentShareImage(shipment: ShipmentShareData): P
   drawText(ctx, statusDesc, W - M - 140, cy + 90, { size: 14, weight: 600, color: "#5b5f6d", align: "right" });
   cy += statusBoxH + 20;
 
-  // ── كارت الملاحظة / سبب الإرجاع ─────────────────────────────────────
+  // ── كارت الملاحظة / سبب الإرجاع (مميز بصريًا عشان يلفت انتباه العميل) ──
   if (hasNote) {
     ctx.save();
-    ctx.fillStyle = "#f7f8fa";
+    const noteGrad = ctx.createLinearGradient(M, cy, W - M, cy);
+    noteGrad.addColorStop(0, "#fff8e6");
+    noteGrad.addColorStop(1, "#fff1d6");
+    ctx.fillStyle = noteGrad;
     roundRect(ctx, M, cy, contentW, noteCardH, 16);
+    ctx.fill();
+    ctx.strokeStyle = "#f0a63a";
+    ctx.lineWidth = 2;
+    roundRect(ctx, M, cy, contentW, noteCardH, 16);
+    ctx.stroke();
+    ctx.restore();
+
+    // شريط لوني عريض جنب الكارت (يمين، RTL) عشان يلفت العين فورًا
+    ctx.save();
+    ctx.fillStyle = "#e58a1a";
+    roundRect(ctx, W - M - 6, cy, 6, noteCardH, 3);
     ctx.fill();
     ctx.restore();
 
-    const noteIconCx = W - M - 24 - 14;
-    drawNoteIcon(ctx, noteIconCx, cy + 30, 26, "#5b5f6d");
-    drawText(ctx, noteTitle, noteIconCx - 30, cy + 36, { size: 16, weight: 800, color: "#12151c", align: "right" });
-    drawWrappedText(ctx, noteText, W - M - 24, cy + 70, contentW - 48, 24, { size: 17, weight: 700, color: "#171a22" });
+    // شارة أيقونة دائرية بارزة بدل الأيقونة الرفيعة العادية
+    const noteIconCx = W - M - 24 - 16;
+    const noteIconCy = cy + 30;
+    ctx.save();
+    ctx.fillStyle = "#f0a63a";
+    ctx.beginPath();
+    ctx.arc(noteIconCx, noteIconCy, 17, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    drawNoteIcon(ctx, noteIconCx, noteIconCy, 22, "#ffffff");
+    drawText(ctx, noteTitle, noteIconCx - 34, cy + 36, { size: 17, weight: 900, color: "#9a5b0e", align: "right" });
+    drawWrappedText(ctx, noteText, W - M - 24, cy + 70, contentW - 48, 24, { size: 17, weight: 800, color: "#171a22" });
     cy += noteCardH + 20;
   }
 
