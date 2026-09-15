@@ -48,18 +48,22 @@ cashRegistersRouter.get("/", async (req, res): Promise<any> => {
 // ─── POST /api/cash-registers ────────────────────────────────────────────────
 cashRegistersRouter.post("/", async (req, res): Promise<any> => {
   try {
+    const tenantId = getTenantId(req);
     const { name, type = "branch", description, initialBalance = 0, isDefault = false } = req.body as any;
     const safeBalance = parseFloat(initialBalance) || 0;
     const now = new Date();
 
-    // لو الخزنة الجديدة هتبقى default → اشيل الـ default من أي خزنة تانية
+    // لو الخزنة الجديدة هتبقى default → اشيل الـ default من أي خزنة تانية (لنفس الـ tenant بس)
     if (isDefault) {
+      const defaultFilter = tenantId !== null
+        ? and(eq(cashRegistersTable.isDefault, true), eq(cashRegistersTable.tenantId, tenantId))
+        : eq(cashRegistersTable.isDefault, true);
       await db.update(cashRegistersTable)
         .set({ isDefault: false, updatedAt: now })
-        .where(eq(cashRegistersTable.isDefault, true));
+        .where(defaultFilter);
     }
 
-    const [result] = await db.insert(cashRegistersTable).values({ name, type, description: description || null, balance: String(safeBalance), isDefault: isDefault ? true : false, createdByUserId: req.body.userId ?? null, createdByName: req.body.userName ?? null, createdAt: now, updatedAt: now });
+    const [result] = await db.insert(cashRegistersTable).values({ tenantId: tenantId ?? null, name, type, description: description || null, balance: String(safeBalance), isActive: true, isDefault: isDefault ? true : false, createdByUserId: req.body.userId ?? null, createdByName: req.body.userName ?? null, createdAt: now, updatedAt: now });
     const newId = (result as any).insertId;
     if (safeBalance > 0) {
       await db.insert(cashTransactionsTable).values({ registerId: newId, type: "deposit", amount: String(safeBalance), balanceBefore: "0", balanceAfter: String(safeBalance), description: "رصيد افتتاحي", transactionDate: now, createdByUserId: req.body.userId ?? null, createdByName: req.body.userName ?? null, createdAt: now });
