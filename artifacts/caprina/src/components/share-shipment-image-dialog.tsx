@@ -1,7 +1,7 @@
 // ══════════════════════════════════════════════════════════════════════════
 // Dialog مشاركة صورة الشحنة — يولّد الصورة، يعرض preview، ويبعتها واتساب
 // ══════════════════════════════════════════════════════════════════════════
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Share2, Download, Send, Loader2, MessageCircle, Printer } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
@@ -9,6 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import {
   type ShipmentShareData,
@@ -27,24 +28,42 @@ export function ShareShipmentImageDialog({ open, onOpenChange, shipment }: Props
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [customNote, setCustomNote] = useState("");
   const { toast } = useToast();
 
+  // نص الملاحظة اللي بتتبعت فعليًا للصورة: لو المستخدم كتب حاجة في حقل
+  // "يُرجى إرسال ملاحظات" بتستخدم هي، وإلا بترجع لملاحظة الشحنة الأصلية
+  // (سبب الرفض/الإرجاع المسجلة في النظام).
+  const effectiveShipment = useMemo(() => {
+    if (!shipment) return null;
+    if (!customNote.trim()) return shipment;
+    return { ...shipment, note: customNote.trim() };
+  }, [shipment, customNote]);
+
   useEffect(() => {
-    if (!open || !shipment) {
+    if (!open) {
+      setImageUrl(null);
+      setError(null);
+      setCustomNote("");
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || !effectiveShipment) {
       setImageUrl(null);
       setError(null);
       return;
     }
     setIsGenerating(true);
     setError(null);
-    generateShipmentShareImage(shipment)
+    generateShipmentShareImage(effectiveShipment)
       .then(setImageUrl)
       .catch((e) => {
         console.error(e);
         setError("تعذر توليد الصورة. حاول مرة أخرى.");
       })
       .finally(() => setIsGenerating(false));
-  }, [open, shipment]);
+  }, [open, effectiveShipment]);
 
   if (!shipment) return null;
 
@@ -204,6 +223,25 @@ export function ShareShipmentImageDialog({ open, onOpenChange, shipment }: Props
             <MessageCircle className="w-4 h-4" />
             مشاركة عبر واتساب
           </Button>
+
+          {/* حاوية ملاحظة تتضاف داخل الصورة نفسها بدل الكتابة يدويًا بعد التحميل */}
+          <div className="rounded-lg border border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-900 p-3 space-y-1.5">
+            <Label htmlFor="share-note" className="text-xs font-bold text-blue-700 dark:text-blue-400">
+              يُرجى إرسال ملاحظات
+            </Label>
+            <Textarea
+              id="share-note"
+              placeholder="مثال: العميل لا يرد..."
+              value={customNote}
+              onChange={(e) => setCustomNote(e.target.value)}
+              className="min-h-[60px] text-sm bg-white dark:bg-background resize-none"
+              dir="rtl"
+            />
+            <p className="text-[11px] text-blue-600/70 dark:text-blue-400/60">
+              الملاحظة هتتكتب جوه الصورة نفسها بدل ما تحتاج تكتبها يدويًا بعد التحميل
+            </p>
+          </div>
+
           <div className="flex gap-2">
             <Button
               variant="outline"

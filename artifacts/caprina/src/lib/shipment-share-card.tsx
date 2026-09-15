@@ -141,33 +141,43 @@ function loadLogoImage(): Promise<HTMLImageElement | null> {
 }
 
 /** يرسم شعار STARK الحقيقي (من الصورة) داخل مربع بارتفاع h، محافظًا على نسبة الأبعاد، ويعيد العرض الفعلي المرسوم. */
+/** يرسم شعار STARK الحقيقي (من الصورة) داخل دايرة بيضاء، محافظًا على نسبة الأبعاد بالكامل (بدون قص)، ويعيد قطر الدايرة الفعلي المرسوم. */
 function drawStarkLogoImage(ctx: CanvasRenderingContext2D, img: HTMLImageElement, x: number, y: number, h: number): number {
   const ratio = img.naturalWidth / img.naturalHeight;
-  const logoH = h;
-  const logoW = logoH * ratio;
-  const padX = 14;
-  const padY = 10;
-  const boxW = logoW + padX * 2;
-  const boxH = logoH + padY * 2;
+  // الدايرة لازم تكون كبيرة بما يكفي إنها تحتوي أطول ضلع من اللوجو بالكامل
+  // + هامش داخلي، وإلا اللوجو (لو مستطيل) هيتقص عند حواف الدايرة.
+  const longestSide = h * Math.max(ratio, 1 / ratio);
+  const innerPad = longestSide * 0.16; // هامش داخلي بين اللوجو وحافة الدايرة
+  const diameter = longestSide + innerPad * 2;
+  const radius = diameter / 2;
+  const cx = x + radius;
+  const cy = y + radius;
 
   ctx.save();
-  ctx.shadowColor = "rgba(18, 21, 28, 0.14)";
-  ctx.shadowBlur = 10;
+  ctx.shadowColor = "rgba(18, 21, 28, 0.16)";
+  ctx.shadowBlur = 12;
   ctx.shadowOffsetY = 3;
   ctx.fillStyle = "#ffffff";
-  roundRect(ctx, x, y, boxW, boxH, 14);
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 
   ctx.save();
   ctx.strokeStyle = "#e9eaf0";
   ctx.lineWidth = 1.5;
-  roundRect(ctx, x, y, boxW, boxH, 14);
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
   ctx.stroke();
   ctx.restore();
 
-  ctx.drawImage(img, x + padX, y + padY, logoW, logoH);
-  return boxW;
+  // اللوجو بيترسم بالحجم الفعلي بتاعه (h ارتفاع) في منتصف الدايرة تمامًا —
+  // بدون أي قص، فالشعار بالكامل (بما فيه أي هوامش شفافة حوله) يظهر واضح.
+  const logoH = h;
+  const logoW = logoH * ratio;
+  ctx.drawImage(img, cx - logoW / 2, cy - logoH / 2, logoW, logoH);
+
+  return diameter;
 }
 
 // ── أدوات رسم مساعدة ────────────────────────────────────────────────────────
@@ -731,7 +741,7 @@ export async function generateShipmentShareImage(shipment: ShipmentShareData): P
     cancelled: "تم إلغاء الشحنة بناءً على الطلب",
     problem: "الشحنة تحتاج إلى متابعة إضافية",
     postponed: "تم تأجيل تسليم الشحنة لموعد لاحق",
-    in_transit: "الشحنة في الطريق إليك حاليًا",
+    in_transit: "الشحنة حاليًا في الطريق إلى المستلم",
     out_for_delivery: "الشحنة خرجت للتسليم اليوم",
     picked_up: "تم استلام الشحنة من الراسل",
     confirmed: "تم تأكيد الشحنة وجارٍ تجهيزها",
@@ -743,6 +753,7 @@ export async function generateShipmentShareImage(shipment: ShipmentShareData): P
   const noteText = text(shipment.note, "");
   const hasNote = !!noteText;
   const noteTitle = shipment.status === "returned" ? "سبب الإرجاع" : shipment.status === "cancelled" ? "سبب الإلغاء" : "ملاحظة";
+  const shipNumForRows = text(shipment.shipmentNumber);
 
   const W = 700;
   const SCALE = 2;
@@ -754,6 +765,41 @@ export async function generateShipmentShareImage(shipment: ShipmentShareData): P
 
   const noteLines = hasNote ? countWrapLines(mctx, noteText, contentW - 2 * 24 - 60, 17, 700) : 0;
   const noteCardH = hasNote ? 30 + 40 + Math.max(1, noteLines) * 24 + 20 : 0;
+
+  // ── بيانات العميل الكاملة (صفوف label:value) ───────────────────────────
+  const rowLabelW = 118; // عرض ثابت لعمود التسمية (label) داخل صف البيانات
+  const rowValueMaxW = contentW - 2 * 20 - rowLabelW - 12;
+  const customerRows: { label: string; value: string; lines: number }[] = [
+    { label: "اسم العميل", value: text(shipment.receiverName), lines: 1 },
+    { label: "رقم الهاتف", value: [text(shipment.receiverPhone, ""), text(shipment.receiverPhone2, "")].filter(Boolean).join(" / ") || "—", lines: 1 },
+    { label: "المحافظة", value: text(shipment.zoneLabel || shipment.receiverCity), lines: 1 },
+    { label: "العنوان بالتفصيل", value: text(shipment.receiverAddress), lines: 1 },
+    { label: "نوع الشحنة", value: text(shipment.parcelType), lines: 1 },
+    { label: "رقم الشحنة", value: shipNumForRows, lines: 1 },
+  ];
+  customerRows.forEach((row) => {
+    row.lines = Math.max(1, countWrapLines(mctx, row.value, rowValueMaxW, 16, 800));
+  });
+  const rowGap = 14;
+  const rowLineH = 24;
+  const customerRowsH = customerRows.reduce((sum, r) => sum + Math.max(1, r.lines) * rowLineH, 0) + rowGap * (customerRows.length - 1);
+  const customerBoxPadY = 24;
+  const customerBoxH = customerBoxPadY * 2 + customerRowsH;
+
+  // ── شارات: قابلة للتجزئة + سياسة الرفض (شحن مجاني عند الرفض) ──────────
+  const isDivisible = Number(shipment.isDivisible) === 1;
+  const isFreeOnReject = shipment.rejectionPolicy === "free";
+  const badges: { label: string; positive: boolean }[] = [
+    { label: isDivisible ? "الشحنة قابلة للتجزئة" : "الشحنة غير قابلة للتجزئة", positive: isDivisible },
+  ];
+  if (isFreeOnReject) badges.push({ label: "شحن مجاني عند الرفض", positive: true });
+  const badgesRowH = badges.length ? 52 : 0;
+
+  // ── كارت قيمة الأوردر ────────────────────────────────────────────────
+  const codAmount = Number(shipment.codAmount) || 0;
+  const totalAmount = Number(shipment.totalAmount) || codAmount;
+  const hasOrderValue = totalAmount > 0;
+  const orderBoxH = hasOrderValue ? 84 : 0;
 
   // ── حساب الارتفاع الكلي ──────────────────────────────────────────────
   const headerH = 190;
@@ -768,8 +814,9 @@ export async function generateShipmentShareImage(shipment: ShipmentShareData): P
   innerY += 30; // سطر "يرجى الاطلاع..."
   innerY -= 12; // تقليل الفراغ الزائد قبل صندوق المعلومات
 
-  const infoBoxH = 96;
-  innerY += infoBoxH + 24;
+  innerY += customerBoxH + 20;
+  if (badges.length) innerY += badgesRowH + 20;
+  if (hasOrderValue) innerY += orderBoxH + 20;
 
   const statusBoxH = 108;
   innerY += statusBoxH + 20;
@@ -813,24 +860,26 @@ export async function generateShipmentShareImage(shipment: ShipmentShareData): P
   ctx.fillRect(0, 0, W, headerH);
   drawShippingBackdrop(ctx, 0, 0, W, headerH);
 
-  // شعار STARK + سلوجان
-  const logoY = 40;
+  // شعار STARK + سلوجان — اللوجو كبير وواضح داخل دايرة بيضاء
+  const logoY = 22;
+  const logoDiameter = 92;
   let logoW = 0;
   if (logoImg) {
-    logoW = drawStarkLogoImage(ctx, logoImg, M, logoY, 52);
+    logoW = drawStarkLogoImage(ctx, logoImg, M, logoY, logoDiameter);
   } else {
     logoW = drawStarkLogo(ctx, M, logoY, 48);
   }
   const dividerX = M + logoW + 24;
+  const dividerCy = logoY + logoW / 2; // منتصف الدايرة رأسيًا، لضبط الخط الفاصل والسلوجان بجانبها
   ctx.strokeStyle = "rgba(18,21,28,0.25)";
   ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.moveTo(dividerX, logoY + 4);
-  ctx.lineTo(dividerX, logoY + 68);
+  ctx.moveTo(dividerX, dividerCy - 32);
+  ctx.lineTo(dividerX, dividerCy + 32);
   ctx.stroke();
 
-  drawText(ctx, "شحنك بأمان ..", dividerX + 24, logoY + 32, { size: 18, weight: 700, color: "#12151c", align: "left", dir: "rtl" });
-  drawText(ctx, "لأن راحتك تهمنا", dividerX + 24, logoY + 58, { size: 18, weight: 700, color: "#12151c", align: "left", dir: "rtl" });
+  drawText(ctx, "شحنك بأمان ..", dividerX + 24, dividerCy - 6, { size: 18, weight: 700, color: "#12151c", align: "left", dir: "rtl" });
+  drawText(ctx, "لأن راحتك تهمنا", dividerX + 24, dividerCy + 20, { size: 18, weight: 700, color: "#12151c", align: "left", dir: "rtl" });
 
   // ══ الكارت الأبيض ═══════════════════════════════════════════════════
   ctx.save();
@@ -866,58 +915,92 @@ export async function generateShipmentShareImage(shipment: ShipmentShareData): P
 
   cy += 96 + 30 - 12;
 
-  // ── صف معلومات: العميل | الوجهة | رقم الشحنة ───────────────────────
+  // ── كارت بيانات العميل الكاملة (صفوف label:value رأسية) ────────────
   ctx.save();
   ctx.fillStyle = "#f7f8fa";
-  roundRect(ctx, M, cy, contentW, infoBoxH, 16);
+  roundRect(ctx, M, cy, contentW, customerBoxH, 16);
   ctx.fill();
   ctx.restore();
 
   {
-    const cols = [
-      { label: "العميل", value: text(shipment.receiverName), icon: "user" as const, ltr: false },
-      { label: "الوجهة", value: destination, icon: "pin" as const, ltr: false },
-      { label: "رقم الشحنة", value: shipNum, icon: "box" as const, ltr: true },
-    ];
-    const colW = contentW / 3;
-    cols.forEach((col, i) => {
-      const colCx = M + contentW - colW * i - colW / 2;
-      const iconCy = cy + 18;
-      if (col.icon === "pin") {
-        drawPinIcon(ctx, colCx, iconCy, 18, "#f16636");
-      } else if (col.icon === "user") {
-        drawUserIcon(ctx, colCx, iconCy, 18, "#f16636");
+    const rowRightX = W - M - 20; // بداية عمود القيمة (يمين)
+    const rowValueRightEdge = rowRightX - rowLabelW - 12; // أقصى يمين لنص القيمة (بعد عمود التسمية)
+    let ry = cy + customerBoxPadY;
+    customerRows.forEach((row, i) => {
+      const rh = Math.max(1, row.lines) * rowLineH;
+      // التسمية (label) على أقصى اليمين بلون خافت
+      drawText(ctx, row.label, rowRightX, ry + 17, { size: 14, weight: 700, color: "#8b8fa3", align: "right" });
+      // القيمة تترسم يمينها عند حافة عمود القيمة (تحت التسمية شمالاً في RTL)
+      if (row.lines > 1) {
+        drawWrappedText(ctx, row.value, rowValueRightEdge, ry + 17, rowValueMaxW, rowLineH, { size: 16, weight: 800, color: "#171a22", align: "right" });
       } else {
-        // أيقونة صندوق صغيرة (خطوط بسيطة) لرقم الشحنة
-        ctx.save();
-        ctx.strokeStyle = "#f16636";
-        ctx.lineWidth = 2;
-        ctx.lineJoin = "round";
-        const bs = 8;
-        ctx.beginPath();
-        ctx.moveTo(colCx - bs, iconCy - bs * 0.55);
-        ctx.lineTo(colCx, iconCy - bs * 0.95);
-        ctx.lineTo(colCx + bs, iconCy - bs * 0.55);
-        ctx.lineTo(colCx + bs, iconCy + bs * 0.55);
-        ctx.lineTo(colCx, iconCy + bs * 0.95);
-        ctx.lineTo(colCx - bs, iconCy + bs * 0.55);
-        ctx.closePath();
-        ctx.stroke();
-        ctx.restore();
+        drawText(ctx, row.value, rowValueRightEdge, ry + 17, { size: 16, weight: 800, color: "#171a22", align: "right" });
       }
-      drawText(ctx, col.label, colCx, cy + 42, { size: 14, weight: 600, color: "#8b8fa3", align: "center" });
-      drawText(ctx, col.value, colCx, cy + 68, { size: 17, weight: 800, color: "#171a22", align: "center", dir: col.ltr ? "ltr" : "rtl" });
-      if (i < cols.length - 1) {
-        ctx.strokeStyle = "#e4e6ec";
-        ctx.lineWidth = 1.5;
+      ry += rh;
+      if (i < customerRows.length - 1) {
+        ctx.strokeStyle = "#e9eaef";
+        ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.moveTo(M + contentW - colW * (i + 1), cy + 14);
-        ctx.lineTo(M + contentW - colW * (i + 1), cy + infoBoxH - 14);
+        ctx.moveTo(M + 20, ry + rowGap / 2);
+        ctx.lineTo(W - M - 20, ry + rowGap / 2);
         ctx.stroke();
+        ry += rowGap;
       }
     });
   }
-  cy += infoBoxH + 24;
+  cy += customerBoxH + 20;
+
+  // ── صف شارات: قابلة للتجزئة + شحن مجاني عند الرفض ───────────────────
+  if (badges.length) {
+    let bx = W - M; // نبدأ من أقصى اليمين (RTL) ونتحرك شمالاً
+    badges.forEach((b) => {
+      ctx.font = "800 14px " + FONT;
+      const bw = ctx.measureText(b.label).width + 44;
+      const bColor = b.positive ? "#0fb88a" : "#8b8fa3";
+      const bBg = b.positive ? "#e6f9f2" : "#eef0f3";
+      bx -= bw;
+      ctx.save();
+      ctx.fillStyle = bBg;
+      roundRect(ctx, bx, cy, bw, badgesRowH - 8, 12);
+      ctx.fill();
+      ctx.strokeStyle = hexToRgba(bColor, 0.35);
+      ctx.lineWidth = 1.5;
+      roundRect(ctx, bx, cy, bw, badgesRowH - 8, 12);
+      ctx.stroke();
+      ctx.restore();
+      // نقطة صغيرة ملونة + نص الشارة
+      ctx.save();
+      ctx.fillStyle = bColor;
+      ctx.beginPath();
+      ctx.arc(bx + bw - 20, cy + (badgesRowH - 8) / 2, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      drawText(ctx, b.label, bx + bw - 32, cy + (badgesRowH - 8) / 2 + 5, { size: 14, weight: 800, color: bColor, align: "right" });
+      bx -= 10; // مسافة بين الشارات
+    });
+    cy += badgesRowH + 20;
+  }
+
+  // ── كارت قيمة الأوردر ────────────────────────────────────────────────
+  if (hasOrderValue) {
+    ctx.save();
+    const orderGrad = ctx.createLinearGradient(M, cy, W - M, cy);
+    orderGrad.addColorStop(0, "#fff7ed");
+    orderGrad.addColorStop(1, "#fef3e8");
+    ctx.fillStyle = orderGrad;
+    roundRect(ctx, M, cy, contentW, orderBoxH, 16);
+    ctx.fill();
+    ctx.strokeStyle = hexToRgba("#f16636", 0.3);
+    ctx.lineWidth = 1.5;
+    roundRect(ctx, M, cy, contentW, orderBoxH, 16);
+    ctx.stroke();
+    ctx.restore();
+
+    drawText(ctx, "إجمالي قيمة الأوردر", W - M - 24, cy + 32, { size: 15, weight: 700, color: "#9a5b2e", align: "right" });
+    drawText(ctx, "شامل قيمة المنتج ورسوم الشحن", W - M - 24, cy + 56, { size: 12, weight: 600, color: "#b08355", align: "right" });
+    drawText(ctx, `${money(totalAmount)} ج.م`, M + 24, cy + orderBoxH / 2 + 8, { size: 24, weight: 900, color: "#f16636", align: "left", dir: "ltr" });
+    cy += orderBoxH + 20;
+  }
 
   // ── كارت حالة الشحنة ─────────────────────────────────────────────────
   ctx.save();
@@ -1007,9 +1090,9 @@ export async function generateShipmentShareImage(shipment: ShipmentShareData): P
   ctx.stroke();
 
   const contactCols = [
-    { icon: "headset" as const, label: "خدمة العملاء", value: "0100 123 4567", sub: "متاح يوميًا من 9 ص - 10 م" },
+    { icon: "headset" as const, label: "خدمة العملاء", value: "0101 568 4864", sub: "متاح يوميًا من 9 ص - 10 م" },
     { icon: "globe" as const, label: "الموقع الإلكتروني", value: "www.starkvector.com", sub: "" },
-    { icon: "whatsapp" as const, label: "واتساب", value: "0100 123 4567", sub: "" },
+    { icon: "whatsapp" as const, label: "واتساب", value: "0101 568 4864", sub: "" },
   ];
   const ccW = contentW / contactCols.length;
   contactCols.forEach((col, i) => {
@@ -1028,7 +1111,7 @@ export async function generateShipmentShareImage(shipment: ShipmentShareData): P
   ctx.fillStyle = "#12151c";
   ctx.fillRect(0, footerY, W, footerH);
 
-  const footerLogoH = 34;
+  const footerLogoH = 44;
   let footerLogoW = 0;
   ctx.save();
   if (logoImg) {
