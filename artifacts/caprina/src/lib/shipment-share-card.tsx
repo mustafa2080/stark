@@ -50,7 +50,7 @@ export interface ShipmentShareData {
 
 const STATUS_LABELS: Record<string, string> = {
   waiting: "قيد المراجعة", confirmed: "تم التأكيد", picked_up: "تم الاستلام",
-  in_transit: "في الطريق", out_for_delivery: "خرجت للتسليم", delivered: "تم التسليم",
+  in_transit: "في الطريق إلى المستلم", out_for_delivery: "خرجت للتسليم", delivered: "تم التسليم",
   returned: "مرتجع", cancelled: "ملغاة", postponed: "مؤجلة", problem: "تحتاج متابعة",
 };
 
