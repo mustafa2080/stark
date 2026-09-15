@@ -49,14 +49,31 @@ export interface ShipmentShareData {
 }
 
 const STATUS_LABELS: Record<string, string> = {
+  // ─── القيم الحقيقية الحالية لحالة الشحنة (نفس STATUS_LABELS في order-constants.ts) ───
+  pending:          "قيد الانتظار",
+  warehouse_ready:  "قيد الشحن في المخزن",
+  in_shipping:      "قيد الشحن",
+  received:         "تم التسليم",
+  partial_received: "استلام جزئي",
+  delayed:          "مؤجلة",
+  returned:         "مرتجع",
+  // ─── fallback للقيم القديمة في الـ DB ─────────────────────────────────
   waiting: "قيد المراجعة", confirmed: "تم التأكيد", picked_up: "تم الاستلام",
   in_transit: "في الطريق إلى المستلم", out_for_delivery: "خرجت للتسليم", delivered: "تم التسليم",
-  returned: "مرتجع", cancelled: "ملغاة", postponed: "مؤجلة", problem: "تحتاج متابعة",
+  cancelled: "ملغاة", postponed: "مؤجلة", problem: "تحتاج متابعة",
 };
 
 const STATUS_THEME: Record<string, { base: string; badgeBg: string; badgeText: string }> = {
-  delivered:        { base: "#0fb88a", badgeBg: "#dcfce7", badgeText: "#15803d" },
+  // ─── القيم الحقيقية الحالية ─────────────────────────────────────────
+  received:         { base: "#0fb88a", badgeBg: "#dcfce7", badgeText: "#15803d" },
+  partial_received: { base: "#0891b2", badgeBg: "#cffafe", badgeText: "#155e75" },
   returned:         { base: "#f04452", badgeBg: "#fee2e2", badgeText: "#b91c1c" },
+  delayed:          { base: "#f5a623", badgeBg: "#fef3c7", badgeText: "#92400e" },
+  warehouse_ready:  { base: "#2f7bf5", badgeBg: "#dbeafe", badgeText: "#1d4ed8" },
+  in_shipping:      { base: "#2f7bf5", badgeBg: "#dbeafe", badgeText: "#1d4ed8" },
+  pending:          { base: "#8b8fa3", badgeBg: "#e5e7eb", badgeText: "#374151" },
+  // ─── fallback للقيم القديمة ─────────────────────────────────────────
+  delivered:        { base: "#0fb88a", badgeBg: "#dcfce7", badgeText: "#15803d" },
   cancelled:        { base: "#f04452", badgeBg: "#fee2e2", badgeText: "#b91c1c" },
   problem:          { base: "#f5a623", badgeBg: "#fef3c7", badgeText: "#92400e" },
   postponed:        { base: "#f5a623", badgeBg: "#fef3c7", badgeText: "#92400e" },
@@ -730,14 +747,22 @@ export async function generateShipmentShareImage(shipment: ShipmentShareData): P
 
   const statusLabel = shipment.statusLabel || STATUS_LABELS[shipment.status] || shipment.status || "قيد التنفيذ";
   const theme = STATUS_THEME[shipment.status] || DEFAULT_THEME;
-  const isDelivered = shipment.status === "delivered";
-  const isProblemLike = ["returned", "cancelled", "problem", "postponed"].includes(shipment.status);
+  const isDelivered = shipment.status === "received" || shipment.status === "delivered";
+  const isProblemLike = ["returned", "cancelled", "problem", "postponed", "delayed"].includes(shipment.status);
   const glyph: "warning" | "check" = isDelivered ? "check" : isProblemLike ? "warning" : "warning";
   const badgeType: "check" | "warning" | "cross" = isDelivered ? "check" : shipment.status === "cancelled" ? "cross" : "warning";
 
   const statusDescriptions: Record<string, string> = {
-    delivered: "تم تسليم الشحنة بنجاح لصاحبها",
+    // ─── القيم الحقيقية الحالية ─────────────────────────────────────────
+    pending: "الشحنة قيد الانتظار حاليًا",
+    warehouse_ready: "الشحنة جاهزة وقيد الشحن من المخزن",
+    in_shipping: "الشحنة حاليًا في الطريق إلى المستلم",
+    received: "تم تسليم الشحنة بنجاح لصاحبها",
+    partial_received: "تم استلام جزء من الشحنة",
+    delayed: "تم تأجيل تسليم الشحنة لموعد لاحق",
     returned: "تم إرجاع الشحنة إلى مستودعنا",
+    // ─── fallback للقيم القديمة ─────────────────────────────────────────
+    delivered: "تم تسليم الشحنة بنجاح لصاحبها",
     cancelled: "تم إلغاء الشحنة بناءً على الطلب",
     problem: "الشحنة تحتاج إلى متابعة إضافية",
     postponed: "تم تأجيل تسليم الشحنة لموعد لاحق",
