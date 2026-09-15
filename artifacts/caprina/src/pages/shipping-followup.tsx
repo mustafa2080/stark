@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Link } from "wouter";
 import { useState } from "react";
 import { buildWhatsAppLink, formatEgyptianPhone, applyShippingTemplate, type WaSettings } from "@/lib/whatsapp";
+import { useAuth } from "@/contexts/AuthContext";
 
 const formatCurrency = (n: number) =>
   new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(n);
@@ -84,6 +85,8 @@ const FOLLOWED_KEY = "shippingFollowedUp";
 export default function ShippingFollowupPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { isSuperAdmin, can } = useAuth();
+  const canSee = (key: string) => isSuperAdmin || can(key);
   const [refreshing, setRefreshing] = useState(false);
 
   // تحميل الـ IDs اللي اتعملتلهم متابعة من localStorage
@@ -151,7 +154,7 @@ export default function ShippingFollowupPage() {
       </div>
 
       {/* Summary Tiles */}
-      {!isLoading && orders.length > 0 && (
+      {canSee("shipping_followup_page.summary_tiles") && !isLoading && orders.length > 0 && (
         <div className="grid grid-cols-3 gap-3">
           <div className="rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/20 p-4 text-center">
             <div className="text-3xl font-bold text-red-600 dark:text-red-400">{critical.length}</div>
@@ -228,13 +231,15 @@ export default function ShippingFollowupPage() {
                   )}
                 </div>
                 <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                  {canSee("shipping_followup_page.open_shipment_btn") && (
                   <Link href={`/shipments/${o.id}`}>
                     <Button variant="outline" size="sm" className="h-8 text-sm gap-1 border-current bg-white/50 dark:bg-black/20">
                       <Link2 className="h-3.5 w-3.5" />
                       فتح الشحنة
                     </Button>
                   </Link>
-                  {o.phone && (
+                  )}
+                  {canSee("shipping_followup_page.whatsapp_btn") && o.phone && (
                     <Button
                       variant="outline"
                       size="sm"
@@ -383,7 +388,7 @@ export default function ShippingFollowupPage() {
         </div>
       )}
 
-      {orders.length > 0 && (
+      {canSee("shipping_followup_page.tip_banner") && orders.length > 0 && (
         <div className="flex items-start gap-2 p-3 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 text-base text-blue-800 dark:text-blue-300">
           <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
           <p>تأكد من متابعة هذه الشحنات مع شركات الشحن وتحديث أرقام التتبع في الطلبات.</p>

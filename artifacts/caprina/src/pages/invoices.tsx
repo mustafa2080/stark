@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Printer, FileText, CheckSquare, Square, Package, Truck } from "lucide-react";
 import { useBrand } from "@/contexts/BrandContext";
+import { useAuth } from "@/contexts/AuthContext";
 
 const statusLabels: Record<string, string> = {
   pending:          "قيد الانتظار",
@@ -70,6 +71,8 @@ const shipmentStatusClasses: Record<string, string> = {
 
 export default function Invoices() {
   const { brand } = useBrand();
+  const { isSuperAdmin, can } = useAuth();
+  const canSee = (key: string) => isSuperAdmin || can(key);
   const params = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
   const preselectedInvoiceNumber = params.get("invoiceNumber");
 
@@ -563,9 +566,11 @@ body{font-family:'Cairo',Tahoma,Arial,sans-serif;background:#fff;color:#111;dire
                 <SelectItem value="4">4 فواتير</SelectItem>
               </SelectContent>
             </Select>
+            {canSee("invoices_page.print_btn") && (
             <Button onClick={() => void handleShipmentPrint()} className="gap-2 font-bold text-sm h-9" disabled={selectedShipmentIds.size === 0}>
               <Printer className="w-4 h-4" />طباعة ({selectedShipmentIds.size})
             </Button>
+            )}
           </div>
       </div>
 

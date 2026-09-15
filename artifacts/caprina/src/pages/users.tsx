@@ -233,6 +233,13 @@ const PERM_TO_SECTION: Record<string, string> = {
   "shipments.delete":           "section_shipments",
   "shipments.close":            "section_shipments",
   "shipments.urgent":           "section_shipments",
+  // حاويات صفحة فواتير الشحن
+  "invoices_page.print_btn":                     "section_shipments",
+  // حاويات صفحة متابعة الشحنات
+  "shipping_followup_page.summary_tiles":        "section_shipments",
+  "shipping_followup_page.whatsapp_btn":         "section_shipments",
+  "shipping_followup_page.open_shipment_btn":    "section_shipments",
+  "shipping_followup_page.tip_banner":           "section_shipments",
   "shipments.profitability":    "section_shipments",
   "shipments.export":           "section_shipments",
   // المناطق والأسعار
@@ -522,7 +529,12 @@ const SECTION_GROUPS: Array<{
       { key: "shipments.view",           label: "رؤية الشحنات",              desc: "دخول قائمة الشحنات وظهور أيقونة الشحنات في القائمة الرئيسية" },
       { key: "shipments.create",         label: "شحنة جديدة",                desc: "إنشاء شحنة جديدة" },
       { key: "shipments.invoices_btn",   label: "زر فواتير الشحن",           desc: "استخدام زر فواتير الشحن" },
+      { key: "invoices_page.print_btn",  label: "حاوية فواتير الشحن: زرار الطباعة",   desc: "إظهار زرار الطباعة داخل صفحة فواتير الشحن" },
       { key: "shipments.tracking_btn",   label: "زر متابعة الشحن",           desc: "استخدام زر متابعة الشحن" },
+      { key: "shipping_followup_page.summary_tiles",     label: "حاوية متابعة الشحنات: كروت الملخص",      desc: "إظهار كروت (عاجل جداً / عاجل / متأخر) داخل صفحة متابعة الشحنات" },
+      { key: "shipping_followup_page.whatsapp_btn",      label: "حاوية متابعة الشحنات: زرار الواتساب",     desc: "إظهار زرار «متابعة الشحن مع العميل» داخل صفحة متابعة الشحنات" },
+      { key: "shipping_followup_page.open_shipment_btn", label: "حاوية متابعة الشحنات: زرار فتح الشحنة",   desc: "إظهار زرار «فتح الشحنة» داخل صفحة متابعة الشحنات" },
+      { key: "shipping_followup_page.tip_banner",        label: "حاوية متابعة الشحنات: تنبيه المتابعة",    desc: "إظهار شريط التنبيه أسفل صفحة متابعة الشحنات" },
       { key: "shipments.analytics",      label: "تحليل الشحنات الذكي",       desc: "الوصول لقسم التحليل الذكي الخاص بالشحنات" },
       { key: "shipments.edit_status",    label: "تعديل حالة الشحنة",         desc: "تغيير حالة تسليم الشحنة" },
       { key: "shipments.edit_data",      label: "تعديل بيانات الشحنة",       desc: "تعديل بيانات الشحنة" },

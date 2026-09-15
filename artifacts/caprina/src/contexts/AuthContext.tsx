@@ -122,6 +122,17 @@ export const ALL_PERMISSIONS = {
     { key: "inventory_page.parcel_price_range",     label: "كارت: نطاق الأسعار",            desc: "إخفاء إذا لم يُمنح" },
     { key: "inventory_page.parcel_types_table",     label: "جدول أنواع الطرود",             desc: "إخفاء إذا لم يُمنح" },
   ],
+  // 1.6. صفحة فواتير الشحن (حاويات داخلية)
+  invoices_page: [
+    { key: "invoices_page.print_btn", label: "زرار: طباعة", desc: "إخفاء إذا لم يُمنح" },
+  ],
+  // 1.7. صفحة متابعة الشحنات (حاويات داخلية)
+  shipping_followup_page: [
+    { key: "shipping_followup_page.summary_tiles",     label: "كروت الملخص (عاجل/عاجل جداً/متأخر)", desc: "إخفاء إذا لم يُمنح" },
+    { key: "shipping_followup_page.whatsapp_btn",      label: "زرار: متابعة الشحن مع العميل",        desc: "إخفاء إذا لم يُمنح" },
+    { key: "shipping_followup_page.open_shipment_btn", label: "زرار: فتح الشحنة",                    desc: "إخفاء إذا لم يُمنح" },
+    { key: "shipping_followup_page.tip_banner",        label: "تنبيه: متابعة شركات الشحن",           desc: "إخفاء إذا لم يُمنح" },
+  ],
   // 2. الطلبات
   orders: [
     { key: "orders.view",       label: "رؤية الطلبات",            desc: "دخول صفحة الطلبات" },
@@ -342,7 +353,13 @@ const ROLE_DEFAULT_PERMISSIONS: Record<string, string[]> = {
     "inventory_page.status_distribution","inventory_page.financial_summary",
     "inventory_page.tab_parcel_types","inventory_page.parcel_types_count","inventory_page.parcel_shipments_count",
     "inventory_page.parcel_total_revenue","inventory_page.parcel_price_range","inventory_page.parcel_types_table",
+    "invoices_page.print_btn",
+    "shipping_followup_page.summary_tiles","shipping_followup_page.whatsapp_btn",
+    "shipping_followup_page.open_shipment_btn","shipping_followup_page.tip_banner",
     "orders.view","orders.create","orders.edit","orders.delete","orders.financials","orders.export","orders.profitability",
+    "shipments.view","shipments.create","shipments.invoices_btn","shipments.tracking_btn","shipments.analytics","shipments.profitability",
+    "reps.view","reps.analytics",
+    "zones.view",
     "inventory.view","inventory.edit","inventory.delete","inventory.cost","inventory.movements","inventory.warehouses",
     "shipping.view","shipping.edit","shipping.financials","shipping.manifests",
     "analytics.view","analytics.financial","analytics.products","analytics.ads","analytics.smart",
