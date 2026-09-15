@@ -6,7 +6,7 @@
 //   • API calls (/api/*)    → Network Only (never cache)
 //   • Video/audio files     → Network Only (Range requests / 206 not cacheable)
 
-const CACHE_VERSION = "caprina-v13";
+const CACHE_VERSION = "caprina-v14";
 const STATIC_CACHE  = `${CACHE_VERSION}-static`;
 const NAV_CACHE     = `${CACHE_VERSION}-nav`;
 const ALL_CACHES    = [STATIC_CACHE, NAV_CACHE];
@@ -56,7 +56,15 @@ self.addEventListener("fetch", (event) => {
   // 1. Skip non-GET and cross-origin requests
   if (request.method !== "GET" || url.origin !== self.location.origin) return;
 
-  // 2. API calls → Network Only
+  // 2. SSE (Server-Sent Events) → لا تتدخل خالص، سيب المتصفح يتعامل مباشرة
+  //    الـ Service Worker fetch() مش مصمم لاتصالات streaming طويلة زي دي،
+  //    والتقاطها بيسبب "ServiceWorker intercepted the request and encountered
+  //    an unexpected error" على /api/notifications/sse
+  if (url.pathname.includes("/sse") || request.headers.get("accept") === "text/event-stream") {
+    return;
+  }
+
+  // 3. API calls → Network Only
   if (url.pathname.startsWith("/api/")) {
     event.respondWith(
       fetch(request).catch(() =>
@@ -69,12 +77,12 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // 3. Video & audio → Network Only (206 Partial Content not cacheable)
+  // 4. Video & audio → Network Only (206 Partial Content not cacheable)
   if (url.pathname.match(/\.(mp4|webm|ogg|mp3|wav|m4a|mov|avi)$/i)) {
     return; // let browser handle natively with Range support
   }
 
-  // 4. JS & CSS (Vite hashed files) → Network First → Cache Fallback
+  // 5. JS & CSS (Vite hashed files) → Network First → Cache Fallback
   if (url.pathname.match(/\.(js|css)$/)) {
     event.respondWith(
       fetch(request)
@@ -94,7 +102,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // 5. Images & fonts → Cache First
+  // 6. Images & fonts → Cache First
   if (url.pathname.match(/\.(png|jpg|jpeg|svg|ico|woff2?|ttf|eot|webp|gif)$/i)) {
     event.respondWith(
       caches.match(request).then((cached) => {
@@ -111,7 +119,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // 6. Navigation (HTML) → always serve index.html (SPA routing)
+  // 7. Navigation (HTML) → always serve index.html (SPA routing)
   if (request.mode === "navigate" || request.headers.get("accept")?.includes("text/html")) {
     event.respondWith(
       fetch("/index.html")
@@ -129,7 +137,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // 7. Everything else → Network First (only cache status 200)
+  // 8. Everything else → Network First (only cache status 200)
   event.respondWith(
     fetch(request)
       .then((response) => {
