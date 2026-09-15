@@ -362,14 +362,15 @@ export default function Layout({ children }: LayoutProps) {
       if ((item as any).employeeOnly) return user?.role === "employee";
       // لوحة التحكم → تتخفى عن الـ employee (عنده لوحتي بدلها)
       if (item.href === "/" && user?.role === "employee") return false;
-      // super_admin / admin → كل الصفحات
-      if (isAdmin) return true;
+      // super_admin فقط → تجاوز كامل لكل الصلاحيات
+      // (admin العادي لازم يمر بفحص can() عشان صلاحياته من إدارة المستخدمين تتفعّل فعليًا)
+      if (isSuperAdmin) return true;
       // لو مفيش permission مطلوب → اظهر دايماً
       if (!item.permission) return true;
       // تحقق من الصلاحية
       return can(item.permission);
     });
-  }, [can, isAdmin, user?.role]);
+  }, [can, isSuperAdmin, user?.role]);
 
   // لو اليوزر واقف على صفحة اتشالت صلاحيتها → ننقله لأول صفحة متاحة
   const redirectingRef = useRef(false);

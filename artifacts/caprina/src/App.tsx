@@ -468,14 +468,16 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
 // ─── Permission-protected route ───────────────────────────────────────────────
 function ProtectedRoute({ permission, component: Comp }: { permission: string; component: React.ComponentType }) {
-  const { can, user, isAdmin, loading } = useAuth();
+  const { can, user, isSuperAdmin, loading } = useAuth();
 
   // لو الـ auth لسه بيتحمل → لا تعمل redirect
   if (loading) return null;
 
   // helper — يقبل الـ new keys مباشرة أو legacy keys
   const hasAccess = (() => {
-    if (isAdmin) return true;
+    // super_admin فقط → تجاوز كامل. admin العادي لازم يمر بفحص can()
+    // عشان صلاحياته المحددة من إدارة المستخدمين تتفعّل فعليًا على مستوى الصفحة
+    if (isSuperAdmin) return true;
     // الـ new keys (تحتوي على نقطة)
     if (permission.includes(".")) return can(permission);
     // legacy keys — نفس المنطق القديم
@@ -599,7 +601,7 @@ function Router() {
           <Route path="/shipping/shipment-manifests/:id" component={() => <ProtectedRoute permission="reps.view" component={ShipmentManifestDetailPage} />} />
           <Route path="/shipping/company/:id"     component={() => <ProtectedRoute permission="reps.view" component={ShippingCompanyDetail} />} />
           <Route path="/shipping/representative/:id" component={RepresentativeCompanyDetailPage} />
-          <Route path="/invoices"                 component={() => <ProtectedRoute permission="invoices.view" component={Invoices} />} />
+          <Route path="/invoices"                 component={() => <ProtectedRoute permission="shipments.invoices_btn" component={Invoices} />} />
           <Route path="/import"                   component={() => <ProtectedRoute permission="import.view" component={Import} />} />
           <Route path="/movements"                component={() => <ProtectedRoute permission="inventory.movements" component={Movements} />} />
           <Route path="/product-performance"      component={() => <ProtectedRoute permission="analytics.products" component={ProductPerformance} />} />
@@ -612,7 +614,7 @@ function Router() {
           <Route path="/team"                     component={() => <ProtectedRoute permission="team.manage" component={TeamPage} />} />
           <Route path="/smart"                    component={() => <ProtectedRoute permission="analytics.smart" component={SmartAnalyticsPage} />} />
           <Route path="/archive"                  component={() => <ProtectedRoute permission="orders.view" component={ArchivePage} />} />
-          <Route path="/shipping-followup"        component={() => <ProtectedRoute permission="orders.view" component={ShippingFollowupPage} />} />
+          <Route path="/shipping-followup"        component={() => <ProtectedRoute permission="shipments.tracking_btn" component={ShippingFollowupPage} />} />
           <Route path="/shipments-intelligence"   component={() => <ProtectedRoute permission="shipments.analytics" component={ShipmentsIntelligencePage} />} />
           <Route path="/representatives-intelligence" component={() => <ProtectedRoute permission="reps.analytics" component={RepresentativesIntelligencePage} />} />
           <Route path="/zones-intelligence"       component={() => <ProtectedRoute permission="zones.view" component={ZonesIntelligencePage} />} />
