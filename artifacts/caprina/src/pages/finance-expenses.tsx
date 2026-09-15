@@ -423,6 +423,7 @@ export default function FinanceExpenses() {
               <div>
                 <Label className="text-xs mb-1 block">المبلغ *</Label>
                 <Input type="number" className="h-9 text-sm" placeholder="0" value={form.amount} onChange={e => F("amount", e.target.value)}/>
+                {isCollection && <p className="text-[11px] text-muted-foreground mt-1">اكتب المبلغ اللي حصّلته من العميل يدويًا</p>}
               </div>
             </div>
 
@@ -498,7 +499,7 @@ export default function FinanceExpenses() {
             </div>
             <div className="flex gap-2 pt-2">
               <Button className="flex-1 h-9 font-bold" onClick={() => save.mutate()}
-                disabled={save.isPending || !form.title || !form.amount || ((form.category === "client_payment" || form.category === "client_collection") && !form.clientId)}>
+                disabled={save.isPending || !form.title || !(parseFloat(form.amount) > 0) || ((form.category === "client_payment" || form.category === "client_collection") && !form.clientId)}>
                 {save.isPending
                   ? "جاري الحفظ..."
                   : isCollection
