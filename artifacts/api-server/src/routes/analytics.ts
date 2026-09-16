@@ -2267,8 +2267,11 @@ router.get("/analytics/orders-by-status", requireAuth, async (req, res): Promise
 // ومر عليها أكتر من 3 أيام منذ الإنشاء
 // المصدر: جدول الشحنات (shipmentsTable) نفسه — مش جدول الطلبات (orders)
 // daysPending = based on createdAt (oldest date) to avoid reset on edits
+// بيشمل كمان الـ legacy statuses القديمة اللي بتتحول لنفس الحالات دي في العرض
+// (in_transit/out_for_delivery → قيد الشحن, picked_up → قيد الشحن في المخزن)
 const SHIPPING_FOLLOWUP_ACTIVE_STATUSES = [
   "warehouse_ready", "in_shipping", "delayed",
+  "picked_up", "in_transit", "out_for_delivery",
 ] as const;
 
 router.get("/analytics/shipping-followup", requireAuth, async (req, res): Promise<void> => {
