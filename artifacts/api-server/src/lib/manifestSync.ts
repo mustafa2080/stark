@@ -5,6 +5,7 @@ import {
   clientAccountManifestsTable,
   shipmentsTable,
   shipmentManifestItemsTable,
+  shipmentManifestsTable,
 } from "@workspace/db";
 import { pushNotification } from "./notifications.js";
 
@@ -55,6 +56,12 @@ export const SHIPMENT_STATUS_TO_DELIVERY: Record<string, ManifestDeliveryStatus>
   in_shipping:       "pending",
   delivered:         "delivered",
   received:          "delivered",
+  // ⚠️ الاستبدال وإحضار الطرد بيتماب‍وا على "delivered" عن قصد: الطلب اتنفّذ
+  // فعلاً والفلوس اتحصّلت، فلازم كل حسابات البيان/الفاتورة/رصيد العميل
+  // تعامله معاملة المسلَّم بالظبط. الفرق بينهم بيفضل محفوظ في
+  // shipmentsTable.status نفسه + shipmentKind، وده اللي بيتعرض للمستخدم.
+  replaced:          "delivered",
+  parcel_picked:     "delivered",
   partial_received:  "partial_delivered",
   delayed:           "delayed",
   postponed:         "delayed",
@@ -223,6 +230,58 @@ export async function syncShipmentStatusToManifests(
     }
   }
 
+  // ─── الشحنة رجعت "قبل المخزن" وهي لسه item في بيان شركة شحن (مندوب) مفتوح ──
+  // ⚠️ نفس فكرة الحذف التلقائي من بيان حساب العميل فوق، لكن هنا لبيان المندوب
+  // (shipmentManifestItemsTable). طلب مصطفى: لما شحنة ترجع "قيد الشحن" (in_shipping)
+  // لـ"قيد الانتظار" (waiting) — يعني رجعت المخزن قبل ما تتسلّم فعليًا للعميل —
+  // لازم تتشال من بيان المندوب الحالي تلقائيًا، مش تفضل معلّقة فيه وهي في المخزن.
+  // بنفحص "open" و"closedByRole" الاتنين (زي فحص الصلاحيات في DELETE اليدوي)
+  // عشان منلمسش بيانات مقفولة نهائيًا (أرشيف تاريخي).
+  if (EXCLUDED_SHIPMENT_STATUSES.has(newShipmentStatus) && !options?.skipShipmentManifestItems) {
+    try {
+      const openRepItems = await db
+        .select({
+          itemId: shipmentManifestItemsTable.id,
+          manifestId: shipmentManifestItemsTable.manifestId,
+          manifestNumber: shipmentManifestsTable.manifestNumber,
+          tenantId: shipmentManifestsTable.tenantId,
+        })
+        .from(shipmentManifestItemsTable)
+        .innerJoin(shipmentManifestsTable, eq(shipmentManifestItemsTable.manifestId, shipmentManifestsTable.id))
+        .where(and(
+          eq(shipmentManifestItemsTable.shipmentId, shipmentId),
+          eq(shipmentManifestsTable.status, "open"),
+        ));
+
+      if (openRepItems.length > 0) {
+        const [shipment] = await db
+          .select({ shipmentNumber: shipmentsTable.shipmentNumber, receiverName: shipmentsTable.receiverName })
+          .from(shipmentsTable)
+          .where(eq(shipmentsTable.id, shipmentId));
+
+        for (const item of openRepItems) {
+          await db.delete(shipmentManifestItemsTable)
+            .where(eq(shipmentManifestItemsTable.id, item.itemId));
+
+          if (item.tenantId) {
+            await pushNotification({
+              tenantId: item.tenantId,
+              type: "shipment_updated",
+              severity: "info",
+              title: `شحنة اتشالت تلقائيًا من بيان مندوب مفتوح`,
+              message: `الشحنة ${shipment?.shipmentNumber ?? `#${shipmentId}`}${shipment?.receiverName ? ` (${shipment.receiverName})` : ""} رجعت لحالة "${newShipmentStatus}" فاتشالت تلقائيًا من بيان المندوب ${item.manifestNumber} المفتوح — هتدخل بيان جديد لما تتسند تاني.`,
+              entityType: "shipment_manifest",
+              entityId: item.manifestId,
+              link: `/shipping-companies/manifests/${item.manifestId}`,
+            });
+          }
+        }
+      }
+    } catch (e) {
+      console.error("[syncShipmentStatusToManifests] remove-shipment-from-rep-manifest error:", e);
+    }
+  }
+
   // بيان شركة الشحن (shipmentManifestItemsTable) عنده منطق تحديث خاص به بالفعل
   // جوه شيبمنت-مانيفستس (PATCH /items/:shipmentId)، واللي بيحفظ القيمة الدقيقة
   // اللي المستخدم اختارها (زي "postponed" لـ "قيد الشحن"). الـ statusMap هنا عام
@@ -267,9 +326,22 @@ export async function syncManifestItemToShipment(
   if (!mappedStatus) return;
 
   try {
-    const { shipmentsTable } = await import("@workspace/db");
+    const { shipmentsTable, getCompletionStatusForKind } = await import("@workspace/db");
+    // ⚠️ "delivered" الجاية من البيان حالة عامة — لو الشحنة دي أصلاً طلب
+    // استبدال أو إحضار طرد، لازم نحافظ على الحالة النوعية بتاعتها
+    // (replaced / parcel_picked) بدل ما ندوس عليها بـ "delivered" ونضيّع
+    // التفرقة في التتبع والإيصال والفاتورة. باقي الحالات (مرتجع/مؤجل/جزئي)
+    // مالهاش نسخة نوعية فبتتطبق زي ما هي.
+    let finalStatus = mappedStatus;
+    if (mappedStatus === "delivered") {
+      const [row] = await db.select({ kind: shipmentsTable.shipmentKind })
+        .from(shipmentsTable)
+        .where(eq(shipmentsTable.id, shipmentId))
+        .limit(1);
+      finalStatus = getCompletionStatusForKind(row?.kind);
+    }
     await db.update(shipmentsTable)
-      .set({ status: mappedStatus, updatedAt: new Date() })
+      .set({ status: finalStatus, updatedAt: new Date() })
       .where(eq(shipmentsTable.id, shipmentId));
   } catch (e) {
     console.error("[syncManifestItemToShipment] error:", e);
