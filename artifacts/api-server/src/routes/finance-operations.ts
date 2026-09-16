@@ -214,9 +214,9 @@ router.post("/finance/expenses", async (req, res): Promise<void> => {
   }
 
   // ── سداد حساب عميل: نسجّل مبلغ السداد عشان يتخصم من رصيد العميل ────────
-  // (تحصيل حساب عميل عكس كده تمامًا — فلوس بتدخل الخزنة، فمالهاش علاقة
-  // برصيد العميل المستحق من الشركة، فمفيش داعي نسجلها هنا).
-  if (data.category === "client_payment" && data.clientId) {
+  // (تحصيل حساب عميل بيتسجل هنا بردو زي السداد بالظبط — العميل المديون
+  // (رصيده سالب) لازم يتقفل حسابه ويرجع صفر بعد التحصيل، مش يفضل سالب).
+  if ((data.category === "client_payment" || data.category === "client_collection") && data.clientId) {
     await db.insert(clientAccountPaymentsTable).values({
       tenantId: getTenantId(req),
       clientId: data.clientId,
