@@ -35,18 +35,31 @@ function daysLabel(days: number) {
   return `${days} يوم`;
 }
 
+/** نص "مندوب الشحن" المتزامن مع حالة الشحنة:
+ *  - قيد الشحن فى المخزن: مفيش مندوب لسه
+ *  - قيد الشحن: اسم المندوب لو موجود، وإلا رسالة مناسبة
+ *  - مؤجل: رسالة تأجيل
+ */
+function representativeDisplay(o: { status?: string | null; assignedUserName?: string | null }): string {
+  if (o.status === "warehouse_ready") return "لسه فى المخزن";
+  if (o.status === "delayed") return "الشحنة مؤجلة";
+  if (o.status === "in_shipping") return o.assignedUserName || "لم يُحدد مندوب بعد";
+  return o.assignedUserName ?? "—";
+}
+
 /** رسالة متابعة الشحن الافتراضية (fallback لو مفيش قالب) */
 function buildDefaultShippingMessage(o: {
   id: number;
   customerName: string;
   product: string;
   trackingNumber?: string | null;
-  shippingCompany?: string | null;
+  status?: string | null;
+  assignedUserName?: string | null;
   daysPending: number;
 }): string {
   const orderNum = o.id.toString().padStart(4, "0");
   const tracking = o.trackingNumber ? `🔖 رقم التتبع: *${o.trackingNumber}*\n` : "";
-  const company  = o.shippingCompany ? `🚚 شركة الشحن: *${o.shippingCompany}*\n` : "";
+  const company  = `🚚 مندوب الشحن: *${representativeDisplay(o)}*\n`;
   return (
     `مرحباً ${o.customerName} 👋\n\n` +
     `معاك فريق *STARK* بخصوص شحنتك رقم *#${orderNum}*\n\n` +
@@ -255,7 +268,7 @@ export default function ShippingFollowupPage() {
                               customerName: o.customerName,
                               product: o.product,
                               trackingNumber: o.trackingNumber,
-                              shippingCompany: o.shippingCompany,
+                              shippingCompany: representativeDisplay(o),
                               daysPending: o.daysPending,
                             })
                           : buildDefaultShippingMessage({
@@ -263,7 +276,8 @@ export default function ShippingFollowupPage() {
                               customerName: o.customerName,
                               product: o.product,
                               trackingNumber: o.trackingNumber,
-                              shippingCompany: o.shippingCompany,
+                              status: o.status,
+                              assignedUserName: o.assignedUserName,
                               daysPending: o.daysPending,
                             });
                         const link = buildWhatsAppLink(o.phone, msg);
@@ -336,9 +350,9 @@ export default function ShippingFollowupPage() {
                 <div className="min-w-0">
                   <div className="flex items-center gap-1 text-xs uppercase tracking-wide opacity-50 mb-1">
                     <Truck className="h-3.5 w-3.5" />
-                    شركة الشحن
+                    مندوب الشحن
                   </div>
-                  <div className="text-base font-medium truncate">{o.shippingCompany ?? "—"}</div>
+                  <div className="text-base font-medium truncate">{representativeDisplay(o)}</div>
                 </div>
 
                 <div className="min-w-0">
