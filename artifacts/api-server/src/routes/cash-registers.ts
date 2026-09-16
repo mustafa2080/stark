@@ -225,7 +225,7 @@ cashRegistersRouter.get("/:id/transactions", async (req, res): Promise<any> => {
     if(direction==="in") conditions.push(sql`type IN (${creditSql})`);
     if(direction==="out")conditions.push(sql`type IN (${debitSql})`);
     const[stats]=await db.select({totalIn:sql<number>`COALESCE(SUM(CASE WHEN type IN (${creditSql}) THEN CAST(amount AS DECIMAL(14,2)) ELSE 0 END),0)`,totalOut:sql<number>`COALESCE(SUM(CASE WHEN type IN (${debitSql}) THEN CAST(amount AS DECIMAL(14,2)) ELSE 0 END),0)`,txCount:sql<number>`COUNT(*)`}).from(cashTransactionsTable).where(and(...conditions));
-    const transactions=await db.select().from(cashTransactionsTable).where(and(...conditions)).orderBy(desc(cashTransactionsTable.transactionDate),desc(cashTransactionsTable.id)).limit(limitNum).offset(offset);
+    const transactions=await db.select().from(cashTransactionsTable).where(and(...conditions)).orderBy(desc(cashTransactionsTable.createdAt),desc(cashTransactionsTable.id)).limit(limitNum).offset(offset);
     res.json({transactions,stats:{totalIn:Number(stats?.totalIn??0),totalOut:Number(stats?.totalOut??0),net:Number(stats?.totalIn??0)-Number(stats?.totalOut??0),txCount:Number(stats?.txCount??0)},pagination:{page:pageNum,limit:limitNum,total:Number(stats?.txCount??0)}});
   } catch(err){res.status(500).json({error:"فشل جلب الحركات"});}
 });
