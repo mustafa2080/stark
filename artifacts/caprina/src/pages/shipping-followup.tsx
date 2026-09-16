@@ -40,11 +40,10 @@ function daysLabel(days: number) {
  *  - قيد الشحن: اسم المندوب لو موجود، وإلا رسالة مناسبة
  *  - مؤجل: رسالة تأجيل
  */
-function representativeDisplay(o: { status?: string | null; assignedUserName?: string | null }): string {
+function representativeDisplay(o: { status?: string | null; assignedUserName?: string | null; shippingCompany?: string | null }): string {
   if (o.status === "warehouse_ready") return "لسه فى المخزن";
   if (o.status === "delayed") return "الشحنة مؤجلة";
-  if (o.status === "in_shipping") return o.assignedUserName || "لم يُحدد مندوب بعد";
-  return o.assignedUserName ?? "—";
+  return o.assignedUserName || o.shippingCompany || "لم يُحدد مندوب بعد";
 }
 
 /** رسالة متابعة الشحن الافتراضية (fallback لو مفيش قالب) */
@@ -55,6 +54,7 @@ function buildDefaultShippingMessage(o: {
   trackingNumber?: string | null;
   status?: string | null;
   assignedUserName?: string | null;
+  shippingCompany?: string | null;
   daysPending: number;
 }): string {
   const orderNum = o.id.toString().padStart(4, "0");
@@ -278,6 +278,7 @@ export default function ShippingFollowupPage() {
                               trackingNumber: o.trackingNumber,
                               status: o.status,
                               assignedUserName: o.assignedUserName,
+                              shippingCompany: o.shippingCompany,
                               daysPending: o.daysPending,
                             });
                         const link = buildWhatsAppLink(o.phone, msg);

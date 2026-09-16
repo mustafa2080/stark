@@ -2333,7 +2333,7 @@ router.get("/analytics/shipping-followup", requireAuth, async (req, res): Promis
         trackingNumber: s.trackingNumber,
         shippingCompany: s.shippingCompanyId ? companyMap.get(s.shippingCompanyId) ?? null : null,
         warehouseName: s.warehouseId ? warehouseMap.get(s.warehouseId) ?? null : null,
-        assignedUserName: s.assignedUserId ? (userNameMap.get(s.assignedUserId) ?? s.createdByName ?? null) : (s.createdByName ?? null),
+        assignedUserName: s.assignedUserId ? (userNameMap.get(s.assignedUserId) ?? null) : null,
         status: s.status,
         daysPending: Math.floor((now - createdAt.getTime()) / (1000 * 60 * 60 * 24)),
         totalPrice: Number(s.totalAmount ?? 0),
