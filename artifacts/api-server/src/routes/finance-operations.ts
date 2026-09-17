@@ -12,7 +12,11 @@ const router: IRouter = Router();
 const ExpenseSchema = z.object({
   title: z.string().min(1),
   category: z.string().default("other"),
-  amount: z.number().min(0),
+  // ⚠️ المبلغ ممنوع يبقى صفر في كل الحالات. لازم يكون > 0 في كل التصنيفات
+  // ما عدا "سداد حساب عميل" (client_payment) اللي ممكن يتسجل فيها قيمة سالبة
+  // (تصحيح رصيد عميل يدوي) — بنسمح هنا بأي رقم != 0 والفحص الدقيق (سالب مسموح
+  // فقط في client_payment) بيتعمل في .refine() تحت.
+  amount: z.number().refine(n => n !== 0, "المبلغ لازم يكون رقم مختلف عن صفر"),
   referenceId: z.string().nullish(),
   supplierId: z.number().nullish(),
   shippingCompanyId: z.number().nullish(),
@@ -20,7 +24,10 @@ const ExpenseSchema = z.object({
   cashRegisterId: z.number().nullish(),
   notes: z.string().nullish(),
   expenseDate: z.string(),
-});
+}).refine(
+  d => d.category === "client_payment" || d.amount > 0,
+  { message: "المبلغ لازم يكون رقم أكبر من صفر (السالب مسموح بس في تصنيف سداد حساب عميل)", path: ["amount"] },
+);
 
 // ── helper: بناء شروط الفلترة للمصروفات ──────────────────────────────────
 function buildExpenseConditions(query: Record<string, any>) {
