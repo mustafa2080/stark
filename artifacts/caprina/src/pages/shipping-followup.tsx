@@ -270,6 +270,9 @@ export default function ShippingFollowupPage() {
                               trackingNumber: o.trackingNumber,
                               shippingCompany: representativeDisplay(o),
                               daysPending: o.daysPending,
+                              senderName: o.senderName,
+                              totalPrice: o.totalPrice,
+                              customerAddress: o.address,
                             })
                           : buildDefaultShippingMessage({
                               id: o.id,

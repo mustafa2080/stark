@@ -135,6 +135,9 @@ export interface WhatsAppShippingData {
   shippingCompany?: string | null;
   daysPending: number;
   phone?: string | null;
+  senderName?: string | null;
+  totalPrice?: number | string | null;
+  customerAddress?: string | null;
 }
 
 export function formatEgyptianPhone(raw: string): string {
@@ -201,13 +204,18 @@ export function applyShippingTemplate(templateBody: string, order: WhatsAppShipp
   const orderNum = order.id.toString().padStart(4, "0");
   const tracking = order.trackingNumber ?? "—";
   const company  = order.shippingCompany ?? "—";
+  const formatCurr = (n: number | string | null | undefined) =>
+    new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(Number(n) || 0);
   return templateBody
     .replace(/\{customerName\}/g, order.customerName)
     .replace(/\{orderNumber\}/g, orderNum)
     .replace(/\{product\}/g, order.product)
     .replace(/\{trackingNumber\}/g, tracking)
     .replace(/\{shippingCompany\}/g, company)
-    .replace(/\{daysPending\}/g, String(order.daysPending));
+    .replace(/\{daysPending\}/g, String(order.daysPending))
+    .replace(/\{senderName\}/g, order.senderName ?? "—")
+    .replace(/\{totalPrice\}/g, formatCurr(order.totalPrice))
+    .replace(/\{customerAddress\}/g, order.customerAddress ?? "—");
 }
 
 export const TEMPLATE_VARIABLES = [
@@ -232,6 +240,9 @@ export const SHIPPING_TEMPLATE_VARIABLES = [
   { var: "{shippingCompany}", label: "شركة الشحن" },
   { var: "{trackingNumber}", label: "رقم التتبع" },
   { var: "{daysPending}", label: "أيام الانتظار" },
+  { var: "{senderName}", label: "اسم الراسل (الاستور)" },
+  { var: "{totalPrice}", label: "إجمالي السعر" },
+  { var: "{customerAddress}", label: "عنوان العميل" },
 ];
 
 // ─── قالب "متابعة تسليم البيان" — يُرسل للمستلم من جدول الطلبيات في البيان ──
