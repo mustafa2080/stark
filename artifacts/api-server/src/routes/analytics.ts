@@ -2294,6 +2294,18 @@ router.get("/analytics/shipping-followup", requireAuth, async (req, res): Promis
     : await db.select().from(shippingCompaniesTable);
   const companyMap = new Map(shippingCompanies.map(c => [c.id, c.name]));
 
+  // شركة الشحن الفعلية لو الشحنة مش مربوطة مباشرة (shippingCompanyId فاضي) —
+  // بنجيبها عن طريق بيان الشحن (manifest) المرتبطة بيه الشحنة، لأن الربط الفعلي
+  // بيحصل غالبًا عن طريق shipment_manifest_items → shipment_manifests
+  const sfShipmentIds = shipments.map(s => s.id);
+  const manifestCompanyRows = sfShipmentIds.length > 0
+    ? await db.select({ shipmentId: shipmentManifestItemsTable.shipmentId, shippingCompanyId: shipmentManifestsTable.shippingCompanyId })
+        .from(shipmentManifestItemsTable)
+        .innerJoin(shipmentManifestsTable, eq(shipmentManifestsTable.id, shipmentManifestItemsTable.manifestId))
+        .where(inArray(shipmentManifestItemsTable.shipmentId, sfShipmentIds))
+    : [];
+  const manifestCompanyMap = new Map(manifestCompanyRows.map(r => [r.shipmentId, r.shippingCompanyId]));
+
   const warehouses = tenantId !== null
     ? await db.select().from(warehousesTable).where(eq(warehousesTable.tenantId, tenantId))
     : await db.select().from(warehousesTable);
@@ -2331,7 +2343,10 @@ router.get("/analytics/shipping-followup", requireAuth, async (req, res): Promis
         product: s.description || (s.pieces ? `${s.pieces} قطعة` : "—"),
         invoiceNumber: s.shipmentNumber,
         trackingNumber: s.trackingNumber,
-        shippingCompany: s.shippingCompanyId ? companyMap.get(s.shippingCompanyId) ?? null : null,
+        shippingCompany: (() => {
+          const resolvedCompanyId = s.shippingCompanyId ?? manifestCompanyMap.get(s.id) ?? null;
+          return resolvedCompanyId ? companyMap.get(resolvedCompanyId) ?? null : null;
+        })(),
         warehouseName: s.warehouseId ? warehouseMap.get(s.warehouseId) ?? null : null,
         assignedUserName: s.assignedUserId ? (userNameMap.get(s.assignedUserId) ?? null) : null,
         status: s.status,
