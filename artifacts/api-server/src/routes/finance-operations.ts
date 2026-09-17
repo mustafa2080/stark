@@ -223,11 +223,16 @@ router.post("/finance/expenses", async (req, res): Promise<void> => {
   // ── سداد حساب عميل: نسجّل مبلغ السداد عشان يتخصم من رصيد العميل ────────
   // (تحصيل حساب عميل بيتسجل هنا بردو زي السداد بالظبط — العميل المديون
   // (رصيده سالب) لازم يتقفل حسابه ويرجع صفر بعد التحصيل، مش يفضل سالب).
+  // ⚠️ إصلاح (طلب مصطفى): balance = totalManifestsValue - totalPaid. "سداد"
+  // لازم يقلل الرصيد (يبعده عن الصفر ناحية السالب) فبيتسجل بموجب amt زي
+  // ما هو. "تحصيل" لازم يزوّد الرصيد (يقرّبه من الصفر لو كان سالب) فلازم
+  // يتسجل بعكس إشارة amt (سالب) — عكس تمامًا حركة الخزنة اللي بتزيد بموجب amt.
   if ((data.category === "client_payment" || data.category === "client_collection") && data.clientId) {
+    const clientPaymentAmount = isCollection ? -amt : amt;
     await db.insert(clientAccountPaymentsTable).values({
       tenantId: getTenantId(req),
       clientId: data.clientId,
-      amount: String(amt),
+      amount: String(clientPaymentAmount),
       expenseId,
       notes: data.notes ?? null,
       createdByUserId: user?.id ?? null,
