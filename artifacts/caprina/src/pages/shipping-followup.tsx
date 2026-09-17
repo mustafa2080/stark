@@ -406,7 +406,7 @@ export default function ShippingFollowupPage() {
       {canSee("shipping_followup_page.tip_banner") && orders.length > 0 && (
         <div className="flex items-start gap-2 p-3 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 text-base text-blue-800 dark:text-blue-300">
           <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
-          <p>تأكد من متابعة هذه الشحنات مع شركات الشحن وتحديث أرقام التتبع في الطلبات.</p>
+          <p>تأكد من متابعة هذه الشحنات مع مناديب الشحن وتحديث أرقام التتبع في الطلبات.</p>
         </div>
       )}
     </div>

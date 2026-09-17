@@ -4269,10 +4269,10 @@ export default function ShippingManifestPage() {
       // مع بعض ومفيش فرق موثوق بينهم في الداتا الراجعة من الـ API).
       setLocation("/shipping");
     },
-    onError: () =>
+    onError: (e: any) =>
       toast({
         title: "خطأ",
-        description: "فشل حذف البيان",
+        description: e?.message || "فشل حذف البيان",
         variant: "destructive",
       }),
   });
