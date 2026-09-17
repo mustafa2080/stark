@@ -9,9 +9,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import {
   Plus, Receipt, Trash2, Wallet, Search, X, Filter,
-  Download, FileSpreadsheet, ChevronLeft, ChevronRight,
+  Download, FileSpreadsheet, ChevronLeft, ChevronRight, Check, ChevronsUpDown,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -75,6 +77,7 @@ export default function FinanceExpenses() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(defaultForm());
   const F = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+  const [clientPickerOpen, setClientPickerOpen] = useState(false);
 
   // ── فلاتر ──
   const [search,    setSearch]    = useState("");
@@ -422,11 +425,24 @@ export default function FinanceExpenses() {
               </div>
               <div>
                 <Label className="text-xs mb-1 block">المبلغ *</Label>
-                <Input type="number" min={0} className="h-9 text-sm" placeholder="0" value={form.amount} onChange={e => F("amount", e.target.value)}/>
+                <Input
+                  type="text"
+                  inputMode={form.category === "client_payment" ? "text" : "decimal"}
+                  className="h-9 text-sm"
+                  placeholder="0"
+                  value={form.amount}
+                  onChange={e => {
+                    const v = e.target.value;
+                    // نسمح فقط بأرقام، وبعلامة سالب واحدة في الأول لو التصنيف سداد حساب عميل
+                    const pattern = form.category === "client_payment" ? /^-?\d*\.?\d*$/ : /^\d*\.?\d*$/;
+                    if (v === "" || pattern.test(v)) F("amount", v);
+                  }}
+                />
                 {isCollection && !(parseFloat(form.amount) > 0) && form.amount !== "" && (
                   <p className="text-[11px] text-rose-500 mt-1">المبلغ لازم يكون رقم أكبر من صفر (من غير إشارة سالب)</p>
                 )}
                 {isCollection && form.amount === "" && <p className="text-[11px] text-muted-foreground mt-1">اكتب المبلغ اللي حصّلته من العميل يدويًا</p>}
+                {form.category === "client_payment" && <p className="text-[11px] text-muted-foreground mt-1">يمكن إدخال قيمة سالبة هنا لو محتاج تصحيح رصيد العميل</p>}
               </div>
             </div>
 
@@ -435,18 +451,42 @@ export default function FinanceExpenses() {
                 <Label className="text-xs mb-1 block flex items-center gap-1">
                   <Search className="w-3 h-3 text-teal-500"/> العميل *
                 </Label>
-                <Select value={form.clientId} onValueChange={pickClient}>
-                  <SelectTrigger className="h-9 text-sm">
-                    <SelectValue placeholder={clientsWithBalance.length ? "اختر العميل التجاري..." : "جاري تحميل العملاء..."}/>
-                  </SelectTrigger>
-                  <SelectContent className="max-h-64">
-                    {clientsWithBalance.map(c => (
-                      <SelectItem key={c.id} value={String(c.id)}>
-                        {c.name} — رصيد: {fmt(c.balance)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Popover open={clientPickerOpen} onOpenChange={setClientPickerOpen}>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      role="combobox"
+                      aria-expanded={clientPickerOpen}
+                      className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-card px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                    >
+                      {selectedClient
+                        ? <span className="truncate">{selectedClient.name} — رصيد: {fmt(selectedClient.balance)}</span>
+                        : <span className="text-muted-foreground">{clientsWithBalance.length ? "اختر العميل التجاري..." : "جاري تحميل العملاء..."}</span>}
+                      <ChevronsUpDown className="w-3.5 h-3.5 opacity-50 shrink-0" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="p-0 w-[var(--radix-popover-trigger-width)]" align="start" side="bottom" sideOffset={4} avoidCollisions={false}>
+                    <Command filter={(value, search) => value.toLowerCase().includes(search.toLowerCase()) ? 1 : 0}>
+                      <CommandInput placeholder="ابحث بالاسم أو رقم الهاتف..." className="text-sm" />
+                      <CommandList className="max-h-64">
+                        <CommandEmpty className="text-xs text-muted-foreground py-4">لا يوجد عميل بهذا الاسم</CommandEmpty>
+                        <CommandGroup>
+                          {clientsWithBalance.map(c => (
+                            <CommandItem
+                              key={c.id}
+                              value={`${c.name} ${c.phone || ""}`}
+                              onSelect={() => { pickClient(String(c.id)); setClientPickerOpen(false); }}
+                              className="text-sm flex items-center gap-2"
+                            >
+                              <Check className={`w-3.5 h-3.5 shrink-0 ${form.clientId === String(c.id) ? "opacity-100 text-primary" : "opacity-0"}`} />
+                              <span className="flex-1 truncate">{c.name} — رصيد: {fmt(c.balance)}</span>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
                 {selectedClient && clientBalance !== null && (
                   <div className={`mt-1.5 text-xs px-2 py-1 rounded flex items-center gap-1.5 ${clientBalance > 0 ? "bg-teal-500/10 text-teal-700" : "bg-muted text-muted-foreground"}`}>
                     <Wallet className="w-3 h-3"/>
@@ -502,7 +542,7 @@ export default function FinanceExpenses() {
             </div>
             <div className="flex gap-2 pt-2">
               <Button className="flex-1 h-9 font-bold" onClick={() => save.mutate()}
-                disabled={save.isPending || !form.title || !(parseFloat(form.amount) > 0) || ((form.category === "client_payment" || form.category === "client_collection") && !form.clientId)}>
+                disabled={save.isPending || !form.title || !(form.category === "client_payment" ? (form.amount !== "" && !isNaN(parseFloat(form.amount)) && parseFloat(form.amount) !== 0) : parseFloat(form.amount) > 0) || ((form.category === "client_payment" || form.category === "client_collection") && !form.clientId)}>
                 {save.isPending
                   ? "جاري الحفظ..."
                   : isCollection
