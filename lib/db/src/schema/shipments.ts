@@ -12,6 +12,8 @@ export const SHIPMENT_STATUSES = [
   "delayed",           // متأخرة
   "returned",          // مرتجع
   "cancelled",         // ملغية
+  "replaced",          // تم الاستبدال (بديل "تم التسليم" لطلبات الاستبدال)
+  "parcel_picked",     // تم إحضار الطرد (بديل "تم التسليم" لطلبات إحضار طرد)
 ] as const;
 export type ShipmentStatus = (typeof SHIPMENT_STATUSES)[number];
 
@@ -26,7 +28,52 @@ export const SHIPMENT_STATUS_LABELS: Record<ShipmentStatus, string> = {
   delayed:          "متأخرة",
   returned:         "مرتجع",
   cancelled:        "ملغية",
+  replaced:         "تم الاستبدال",
+  parcel_picked:    "تم إحضار الطرد",
 };
+
+// ─── نوع الطلب (shipmentKind) ────────────────────────────────────────────────
+// بيحدد طبيعة الشحنة من لحظة إنشائها، ومنه بيتحدد إيه حالة "الإنجاز" اللي
+// المندوب هيشوفها بدل "تم التسليم":
+//   new         → تم التسليم  (delivered)      — الافتراضي، السلوك القديم بالظبط
+//   replacement → تم الاستبدال (replaced)      — بيسلّم الجديد وياخد القديم مرتجع
+//   pickup      → تم إحضار الطرد (parcel_picked) — بياخد طرد من عميل لمكان تاني
+export const SHIPMENT_KINDS = ["new", "replacement", "pickup"] as const;
+export type ShipmentKind = (typeof SHIPMENT_KINDS)[number];
+
+export const SHIPMENT_KIND_LABELS: Record<ShipmentKind, string> = {
+  new:         "شحنة جديدة",
+  replacement: "طلب استبدال",
+  pickup:      "إحضار طرد",
+};
+
+// حالة "الإنجاز" المقابلة لكل نوع طلب — تُستخدم في تطبيق المندوب وفي الباك إند
+// عشان زرار "مسلَّم" يتحوّل تلقائيًا للحالة الصح حسب نوع الطلب.
+export const KIND_COMPLETION_STATUS: Record<ShipmentKind, ShipmentStatus> = {
+  new:         "delivered",
+  replacement: "replaced",
+  pickup:      "parcel_picked",
+};
+
+export function getCompletionStatusForKind(kind: string | null | undefined): ShipmentStatus {
+  const k = (kind ?? "new") as ShipmentKind;
+  return KIND_COMPLETION_STATUS[k] ?? "delivered";
+}
+
+// ─── حالات بتترتب عليها "رجلة مرتجع" لازم تتسجل في السيستم ──────────────────
+// الاستبدال وإحضار الطرد زيهم زي المرتجع بالظبط: فيه بضاعة فعليًا في إيد
+// المندوب لازم تتسلّم للمخزن أو للراسل، وإلا هتضيع. أي كويري بتدوّر على
+// "مرتجعات في اليد" لازم تستخدم الـ Set ده بدل ما تقارن على "returned" لوحدها.
+export const STATUSES_WITH_RETURN_LEG = new Set<string>([
+  "returned",
+  "partial_received",
+  "replaced",
+  "parcel_picked",
+]);
+
+export function hasReturnLeg(status: string | null | undefined): boolean {
+  return !!status && STATUSES_WITH_RETURN_LEG.has(status);
+}
 
 // ─── طرق الدفع ────────────────────────────────────────────────────────────────
 export const PAYMENT_METHODS = [
@@ -50,6 +97,14 @@ export const shipmentsTable = mysqlTable("shipments", {
   // ── رقم الشحنة ─────────────────────────────────────────────────────────
   shipmentNumber:  varchar("shipment_number", { length: 50 }),   // رقم مرجعي تلقائي
   trackingNumber:  varchar("tracking_number", { length: 100 }),  // رقم التتبع من شركة الشحن
+
+  // ── نوع الطلب ──────────────────────────────────────────────────────────
+  // "new" (افتراضي) | "replacement" | "pickup" — راجع SHIPMENT_KINDS فوق.
+  // بيتحدد وقت الإنشاء من شاشة "شحنة جديدة" ومابيتغيرش بعد كده إلا بتعديل صريح.
+  shipmentKind:    varchar("shipment_kind", { length: 20 }).default("new"),
+  // الشحنة الأصلية اللي العميل عايز يستبدلها (لطلبات الاستبدال فقط، اختياري).
+  // بتربط الطلب الجديد بالشحنة القديمة عشان يبان الاتنين في التتبع وفي حساب العميل.
+  originalShipmentId: int("original_shipment_id"),
 
   // ── بيانات المرسل / العميل ──────────────────────────────────────────────
   clientId:        int("client_id"),                             // من جدول clients (اختياري)
@@ -138,6 +193,8 @@ export const shipmentsTable = mysqlTable("shipments", {
   index("idx_shipments_assigned_user_id").on(t.assignedUserId),
   index("idx_shipments_shipping_company_id").on(t.shippingCompanyId),
   index("idx_shipments_warehouse_id").on(t.warehouseId),
+  index("idx_shipments_shipment_kind").on(t.shipmentKind),
+  index("idx_shipments_original_shipment_id").on(t.originalShipmentId),
   // composite index — بيغطي أشهر pattern فلترة: tenant + status + non-deleted
   index("idx_shipments_tenant_status_deleted").on(t.tenantId, t.status, t.deletedAt),
 ]);
@@ -225,6 +282,27 @@ export function getShipmentLocationNote(input: ShipmentLocationNoteInput): strin
     }
     // "warehouse" أو null (بيانات قديمة قبل إضافة returnReceivedBy)
     return warehouseName ? `مرتجع - في مخزن ${warehouseName}` : "مرتجع - تم استلامه في المخزن";
+  }
+
+  // ── استبدال / إحضار طرد: نفس منطق المرتجع بالظبط ───────────────────────────
+  // الطلبين دول بيخلّفوا بضاعة فعلية في إيد المندوب (المنتج القديم في حالة
+  // الاستبدال، أو الطرد نفسه في حالة إحضار الطرد). لازم نتتبعها بنفس دقة
+  // المرتجع عشان ما تضيعش — بنفس أعمدة returnReceived/returnReceivedBy.
+  if (status === "replaced" || status === "parcel_picked") {
+    const isPickup = status === "parcel_picked";
+    const noun = isPickup ? "الطرد" : "المرتجع";
+    const received = input.returnReceived === 1;
+    if (!received) {
+      return repName
+        ? `${isPickup ? "تم إحضار الطرد" : "تم الاستبدال"} - ${noun} ما زال مع المندوب ${repName}`
+        : `${isPickup ? "تم إحضار الطرد" : "تم الاستبدال"} - ${noun} ما زال مع المندوب`;
+    }
+    if (input.returnReceivedBy === "sender") {
+      return `${isPickup ? "تم إحضار الطرد" : "تم الاستبدال"} - تم تسليم ${noun} للراسل`;
+    }
+    return warehouseName
+      ? `${isPickup ? "تم إحضار الطرد" : "تم الاستبدال"} - ${noun} في مخزن ${warehouseName}`
+      : `${isPickup ? "تم إحضار الطرد" : "تم الاستبدال"} - تم استلام ${noun} في المخزن`;
   }
 
   // ── مؤجل: سبب التأجيل + اسم المندوب ─────────────────────────────────────────
