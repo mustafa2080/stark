@@ -237,7 +237,16 @@ export async function syncShipmentStatusToManifests(
   // لازم تتشال من بيان المندوب الحالي تلقائيًا، مش تفضل معلّقة فيه وهي في المخزن.
   // بنفحص "open" و"closedByRole" الاتنين (زي فحص الصلاحيات في DELETE اليدوي)
   // عشان منلمسش بيانات مقفولة نهائيًا (أرشيف تاريخي).
-  if (EXCLUDED_SHIPMENT_STATUSES.has(newShipmentStatus) && !options?.skipShipmentManifestItems) {
+  // ⚠️⚠️⚠️ إصلاح جذري (طلب بشمهندس مصطفى): الشرط ده كان بيتفحص أيضًا
+  // !options?.skipShipmentManifestItems، فكان بيتلغى بالكامل لما الاستدعاء
+  // جاي من PATCH /shipment-manifests/:id/items/:shipmentId (اللي بيبعت
+  // skipShipmentManifestItems:true عشان بس يمنع overwrite لقيمة deliveryStatus
+  // الدقيقة اللي اتحدثت يدويًا فوق) — النتيجة كانت إن الشحنة ترجع "قيد الانتظار"
+  // من داخل بيان المندوب نفسه ومتتشلش من بيانه المفتوح خالص، فتفضل قاعدة فيه
+  // غلط. الحذف التلقائي هنا لازم يشتغل دايمًا بغض النظر عن الفلاج ده، لأنه
+  // مكمّل للتحديث اليدوي مش متعارض معاه (لو الحالة النهائية pending/waiting/
+  // confirmed، الصف لازم يتشال بتاتًا مهما كانت آخر deliveryStatus اتكتبت له).
+  if (EXCLUDED_SHIPMENT_STATUSES.has(newShipmentStatus)) {
     try {
       const openRepItems = await db
         .select({

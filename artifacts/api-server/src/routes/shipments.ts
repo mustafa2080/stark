@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import rateLimit from "express-rate-limit";
 import { eq, desc, and, like, or, inArray, sql, isNull, isNotNull, gte, getTableColumns } from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
-import { db, shipmentsTable, shipmentItemsTable, shipmentZonesTable, zoneCostsTable, parcelTypePricingTable, clientsTable, shippingCompaniesTable, usersTable, warehousesTable, shipmentManifestsTable, shipmentManifestItemsTable, shipmentRatingsTable, clientAccountManifestItemsTable, SHIPMENT_STATUS_LABELS, getShipmentLocationNote } from "@workspace/db";
+import { db, shipmentsTable, shipmentItemsTable, shipmentZonesTable, zoneCostsTable, parcelTypePricingTable, clientsTable, shippingCompaniesTable, usersTable, warehousesTable, shipmentManifestsTable, shipmentManifestItemsTable, shipmentRatingsTable, clientAccountManifestItemsTable, SHIPMENT_STATUS_LABELS, getShipmentLocationNote, getCompletionStatusForKind, hasReturnLeg } from "@workspace/db";
 import { z } from "zod";
 import { getTenantId } from "../middlewares/requireTenant.js";
 import { processToShipping, reverseShipping, processReturn, syncShipmentItemsInventory } from "../lib/inventory.js";
@@ -350,6 +350,10 @@ publicShipmentsRouter.get("/shipments/public-prices", publicPricesLimiter, async
 
 // ─── Zod schemas ──────────────────────────────────────────────────────────────
 const CreateShipmentSchema = z.object({
+  // نوع الطلب — الافتراضي "new" عشان أي كلاينت قديم مش باعت الحقل ده يفضل
+  // يشتغل بنفس السلوك بالظبط من غير أي تغيير.
+  shipmentKind:    z.enum(["new", "replacement", "pickup"]).default("new"),
+  originalShipmentId: z.number().int().positive().nullish(),
   clientId:        z.number().int().positive().nullish(),
   senderName:      z.string().min(1),
   senderPhone:     z.string().nullish(),
@@ -732,6 +736,10 @@ router.get("/shipments", async (req, res): Promise<void> => {
           totalAmount:      shipmentsTable.totalAmount,
           collectedAmount:  shipmentsTable.collectedAmount,
           status:           shipmentsTable.status,
+          // نوع الطلب — لازم يرجع في القايمة دي تحديدًا لأن تطبيق المندوب
+          // بيعتمد عليه عشان يعرض "تم الاستبدال"/"تم إحضار الطرد" بدل "مسلَّم".
+          shipmentKind:       shipmentsTable.shipmentKind,
+          originalShipmentId: shipmentsTable.originalShipmentId,
           shippingCompanyId: shipmentsTable.shippingCompanyId,
           assignedUserId:   shipmentsTable.assignedUserId,
           createdByUserId:  shipmentsTable.createdByUserId,
@@ -1111,6 +1119,11 @@ router.post("/shipments", async (req, res): Promise<void> => {
     const result = await db.insert(shipmentsTable).values({
       ...(tenantId !== null ? { tenantId } : {}),
       shipmentNumber,
+      // نوع الطلب — بيتحدد مرة واحدة وقت الإنشاء. طلب الاستبدال بيتعامل من
+      // ناحية البيانات والأسعار معاملة الشحنة الجديدة بالظبط (نفس المنطقة/
+      // النوع/الرسوم)، والفرق الوحيد بيظهر عند التنفيذ في حالة الإنجاز.
+      shipmentKind:       d.shipmentKind,
+      originalShipmentId: d.shipmentKind === "replacement" ? (d.originalShipmentId ?? undefined) : undefined,
       clientId:        d.clientId    ?? undefined,
       senderName:      d.senderName,
       senderPhone:     d.senderPhone ?? undefined,
@@ -1300,6 +1313,26 @@ router.put("/shipments/:id", async (req, res): Promise<void> => {
     if (d.canOpen           !== undefined) updateData.canOpen          = d.canOpen === null ? null : Number(d.canOpen);
     if (d.isDivisible       !== undefined) updateData.isDivisible      = d.isDivisible === null ? null : Number(d.isDivisible);
     if (d.rejectionPolicy   !== undefined) updateData.rejectionPolicy  = d.rejectionPolicy;
+    if (d.shipmentKind      !== undefined) updateData.shipmentKind     = d.shipmentKind;
+    if (d.originalShipmentId !== undefined) updateData.originalShipmentId = d.originalShipmentId;
+
+    // ─── نوع الطلب (استبدال / إحضار طرد) — نفس منطق PATCH /shipments/:id ──────
+    // مكرر هنا عن قصد لأن المسارين منفصلين تمامًا في الملف ده؛ أي تعديل في
+    // واحد لازم ينزل على التاني. راجع الشرح المفصّل في PATCH تحت.
+    const putShipmentKind = updateData.shipmentKind ?? existingShipment.shipmentKind ?? "new";
+    if (updateData.status === "delivered" && putShipmentKind !== "new") {
+      updateData.status = getCompletionStatusForKind(putShipmentKind);
+    }
+    const putEffectiveStatus = updateData.status ?? existingShipment.status;
+    const putIsEnteringReturnLeg =
+      (putEffectiveStatus === "replaced" || putEffectiveStatus === "parcel_picked") &&
+      existingShipment.status !== putEffectiveStatus;
+    if (putIsEnteringReturnLeg && d.returnReceived === undefined) {
+      updateData.returnReceived = 0;
+      if (d.returnReason === undefined && !existingShipment.returnReason) {
+        updateData.returnReason = putEffectiveStatus === "replaced" ? "استبدال" : "إحضار طرد";
+      }
+    }
 
     // totalAmount: بيتحسب دايمًا في السيرفر لو أي حقل داخل في معادلته اتغيّر
     // (paymentMethod/codAmount/shippingFee/insuranceFee) — بنفس منطق POST /shipments،
@@ -1639,12 +1672,42 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
     if (d.canOpen            !== undefined) updateData.canOpen           = d.canOpen === null ? null : Number(d.canOpen);
     if (d.isDivisible        !== undefined) updateData.isDivisible       = d.isDivisible === null ? null : Number(d.isDivisible);
     if (d.rejectionPolicy    !== undefined) updateData.rejectionPolicy   = d.rejectionPolicy;
+    if (d.shipmentKind       !== undefined) updateData.shipmentKind      = d.shipmentKind;
+    if (d.originalShipmentId !== undefined) updateData.originalShipmentId = d.originalShipmentId;
 
-    // لو الحالة الجديدة مش returned ولا partial_received ولم يُرسَل returnReceived صريحًا
+    // ─── نوع الطلب: تحويل "تم التسليم" للحالة النوعية الصح ────────────────────
+    // تطبيق المندوب (و أي شاشة تانية) ممكن يبعت "delivered" عادي. لو الشحنة
+    // نوعها طلب استبدال أو إحضار طرد، السيرفر هو اللي بيحوّلها للحالة النوعية
+    // (replaced / parcel_picked) — كده التحويل مضمون مهما كان مصدر الطلب، حتى
+    // من شاشة قديمة مش عارفة حاجة عن الميزة دي.
+    const shipmentKind = updateData.shipmentKind ?? existingShipment.shipmentKind ?? "new";
+    if (updateData.status === "delivered" && shipmentKind !== "new") {
+      updateData.status = getCompletionStatusForKind(shipmentKind);
+    }
+
+    // لو الحالة الجديدة مالهاش "رجلة مرتجع" ولم يُرسَل returnReceived صريحًا
     // → نصفّره عشان ميفضلش متعلق بقيمة قديمة من حالة سابقة
     const effectiveStatus = updateData.status ?? existingShipment.status;
-    if (d.returnReceived === undefined && effectiveStatus !== "returned" && effectiveStatus !== "partial_received") {
+    if (d.returnReceived === undefined && !hasReturnLeg(effectiveStatus)) {
       updateData.returnReceived = null;
+    }
+
+    // ─── ربط مرتجع الاستبدال / الطرد المُحضَر بالسيستم ────────────────────────
+    // (ده جوهر المطلوب: "ربط المرتجع الخاص بها بالسيستم عشان ما يضيعش")
+    // أول ما الشحنة تدخل حالة replaced/parcel_picked، فيه بضاعة فعليًا في إيد
+    // المندوب (المنتج القديم، أو الطرد نفسه). بنفتح لها رجلة مرتجع بـ
+    // returnReceived = 0 — يعني "لسه مع المندوب" — فتفضل ظاهرة في المرتجعات
+    // لحد ما تتسلّم للمخزن أو للراسل وتتقفل بـ returnReceived = 1، بنفس
+    // المسار والشاشات الموجودة للمرتجع العادي بالظبط.
+    const isEnteringReturnLegStatus =
+      (effectiveStatus === "replaced" || effectiveStatus === "parcel_picked") &&
+      existingShipment.status !== effectiveStatus;
+    if (isEnteringReturnLegStatus && d.returnReceived === undefined) {
+      updateData.returnReceived = 0;
+      // سبب واضح في سجل المرتجعات بدل ما يفضل فاضي ومحدش يعرف الطرد ده جاي منين
+      if (d.returnReason === undefined && !existingShipment.returnReason) {
+        updateData.returnReason = effectiveStatus === "replaced" ? "استبدال" : "إحضار طرد";
+      }
     }
 
     // ─── لما المرتجع يتأكد استلامه فعليًا بالمخزن/الراسل (returnReceived=1)، ───

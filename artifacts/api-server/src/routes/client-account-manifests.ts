@@ -1347,16 +1347,16 @@ async function rolloverPendingItemsToNewManifest(
 
   const pendingItems = items.filter(item => {
     if (item.deliveryStatus === "pending" || item.deliveryStatus === "delayed") return true;
-    // ⚠️⚠️ إصلاح جوهري (2026-09-13، طلب مصطفى — العميل يعقوب): المرتجع اللي
-    // "لسه معلّق" — يعني اتسجّل returned بس لسه ما اتأكدش رجوعه فعليًا للمخزن
-    // (returnReceived !== 1) — لازم يترحّل للبيان الجديد بالظبط زي pending/delayed،
-    // وإلا أي حدث مالي لاحق عليه (تأكيد استلام، تغيير حالة) هيتسجل غلط على
-    // البيان القديم المقفول اللي مش قابل للتعديل، فيختفي من آخر بيان ويختل
-    // التسلسل الزمني. الاستثناء الوحيد: المرتجع اللي اتأكد استلامه فعلًا في
-    // المخزن (returnReceived === 1) وقت القفل — ده اتحسب ماليًا بالفعل في
-    // بيانه الأصلي، فمفيش داعي يترحّل، ويفضل زي ما هو في البيان القديم كسجل
-    // تاريخي نهائي (طلب صريح: "اللي رجع المخزن مفيش ترحيل بعد الاستلام").
-    if (item.deliveryStatus === "returned" && item.returnReceived !== 1) return true;
+    // ⚠️⚠️⚠️ إصلاح جذري (طلب بشمهندس مصطفى): أي بند "مرتجع" (returned) —
+    // بغض النظر عن السبب (returnReason) أو هل فيه قيمة مستلمة (returnValueReceived)
+    // أو حالة رجوعه للمخزن (returnReceived) — ميترحّلش أبدًا لبيان العميل
+    // التجاري الجديد عند الإغلاق. يفضل زي ما هو في البيان القديم المقفول
+    // كسجل تاريخي نهائي، تمامًا زي delivered. ده بيلغي المنطق القديم اللي
+    // كان بيرحّل "مرتجع لسه معلّق" (returnReceived !== 1) — القرار الحالي:
+    // أي مرتجع أيًا كانت حالته يقف عند بيانه الأصلي ولا يتحرك لأي بيان تاني.
+    // ملحوظة: ده خاص ببيان حساب العميل التجاري (clientAccountManifestItemsTable)
+    // فقط — بيان شركة الشحن (shipmentManifestItemsTable) له منطق منفصل
+    // ومش متأثر بالتعديل ده.
     return false;
   });
 
@@ -1389,14 +1389,31 @@ async function rolloverPendingItemsToNewManifest(
     ));
   const unlinkedCandidateIds = clientShipments.map(s => s.id);
 
+  // ⚠️⚠️⚠️ إصلاح جذري (طلب بشمهندس مصطفى — العميل 77، شحنة SHP26090497 /
+  // shipment_id=2634): شحنة اتسلّمت (delivered) في بيان مقفول (358) ظهرت
+  // تاني كـ"orphan" في البيان الجديد (372) رغم وجود صف ليها بالفعل في
+  // clientAccountManifestItemsTable. الفلتر الأصلي (alreadyInManifest، مبني
+  // على وجود أي صف خالص بغض النظر عن حالته) كان *المفروض* يمنعها، لكن طلب
+  // مصطفى صريح وقاطع: شحنة وصلت لحالة نهائية محسوبة ماليًا (مسلَّم/جزئي)
+  // في أي بيان قُفل عليها ميترحلش لبيان جديد أبدًا مهما حصل — فقط pending/
+  // delayed (وreturned لسه معلّق) هما اللي يترحلوا. الاستبعاد ده بيتطبق هنا
+  // بشكل صريح ومباشر (مش بس بالاعتماد على "الشحنة عندها صف")، كطبقة حماية
+  // إضافية تضمن الشرط ده يتحقق دايمًا بغض النظر عن أي سبب تاني ممكن يخلي
+  // الفلتر الأصلي يفلت (توقيت الاستعلامات، بيانات تاريخية، إلخ).
+  const FINALIZED_NO_ROLLOVER_STATUSES = new Set(["delivered", "partial_delivered", "partial_received"]);
   let orphanShipmentIds: number[] = [];
   if (unlinkedCandidateIds.length) {
     const existingItemRows = await db
-      .select({ shipmentId: clientAccountManifestItemsTable.shipmentId })
+      .select({ shipmentId: clientAccountManifestItemsTable.shipmentId, deliveryStatus: clientAccountManifestItemsTable.deliveryStatus })
       .from(clientAccountManifestItemsTable)
       .where(inArray(clientAccountManifestItemsTable.shipmentId, unlinkedCandidateIds));
     const alreadyInManifest = new Set(existingItemRows.map(r => r.shipmentId));
-    orphanShipmentIds = unlinkedCandidateIds.filter(sid => !alreadyInManifest.has(sid));
+    const finalizedElsewhere = new Set(
+      existingItemRows.filter(r => FINALIZED_NO_ROLLOVER_STATUSES.has(r.deliveryStatus)).map(r => r.shipmentId),
+    );
+    orphanShipmentIds = unlinkedCandidateIds.filter(
+      sid => !alreadyInManifest.has(sid) && !finalizedElsewhere.has(sid),
+    );
   }
 
   // كل إغلاق ينتج بياناً مفتوحاً جديداً، حتى لو لا توجد عناصر للترحيل.
@@ -1639,7 +1656,37 @@ router.post("/client-account-manifests/:id/add-shipments", async (req, res): Pro
       .from(clientAccountManifestItemsTable)
       .where(eq(clientAccountManifestItemsTable.manifestId, manifestId));
     const existingIds = new Set(existing.map(e => e.shipmentId));
-    const newIds = shipmentIds.filter(id => !existingIds.has(id));
+
+    // ⚠️⚠️⚠️ إصلاح جذري (طلب بشمهندس مصطفى — نفس منطق rolloverPendingItemsToNewManifest
+    // فوق): شحنة وصلت لحالة نهائية محسوبة ماليًا (delivered/partial_delivered/
+    // partial_received) في أي بيان *مقفول* سابق ميتسمحش تتضاف يدويًا هنا تاني
+    // لأي بيان جديد — فقط pending/delayed هما اللي المفروض يترحلوا.
+    // ⚠️⚠️⚠️ إصلاح جذري (طلب بشمهندس مصطفى): نفس منع أي بند "مرتجع" (returned) —
+    // بغض النظر عن السبب أو وجود قيمة مستلمة — من الترحيل التلقائي، هنا كمان
+    // بيتطبّق على الإضافة اليدوية: أي شحنة عندها بند returned في بيان مقفول
+    // سابق ميتسمحش تتضاف يدويًا لبيان جديد.
+    const candidateIds = shipmentIds.filter(id => !existingIds.has(id));
+    let finalizedElsewhereIds = new Set<number>();
+    if (candidateIds.length) {
+      const finalizedRows = await db
+        .select({
+          shipmentId: clientAccountManifestItemsTable.shipmentId,
+          deliveryStatus: clientAccountManifestItemsTable.deliveryStatus,
+        })
+        .from(clientAccountManifestItemsTable)
+        .innerJoin(clientAccountManifestsTable, eq(clientAccountManifestItemsTable.manifestId, clientAccountManifestsTable.id))
+        .where(and(
+          inArray(clientAccountManifestItemsTable.shipmentId, candidateIds),
+          eq(clientAccountManifestsTable.status, "closed"),
+        ));
+      const FINALIZED_STATUSES = new Set(["delivered", "partial_delivered", "partial_received", "returned"]);
+      finalizedElsewhereIds = new Set(
+        finalizedRows
+          .filter(r => FINALIZED_STATUSES.has(r.deliveryStatus))
+          .map(r => r.shipmentId),
+      );
+    }
+    const newIds = candidateIds.filter(id => !finalizedElsewhereIds.has(id));
 
     if (newIds.length === 0) {
       res.json({ added: 0, manifestNumber: manifest.manifestNumber });

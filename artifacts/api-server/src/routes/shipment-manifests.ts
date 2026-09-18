@@ -544,20 +544,29 @@ router.post("/shipment-manifests", async (req, res): Promise<void> => {
     // عشان "تسوية الرحلات والتحصيل" بعدين تعرض اسم المندوب الحقيقي حتى لو
     // اللي قفل البيان فعليًا أدمن تاني (زي sondos) نيابةً عنه.
     // ملحوظة (تصحيح 2026-09-03): الأدمن هو اللي بيعمل البيان فعليًا (مش
-    // المندوب نفسه)، فمينفعش نعتمد على reqUser.id. بدل كده بناخد
-    // assignedUserId من أول شحنة داخلة في البيان — الشحنات في العملي كلها
-    // بتاعة نفس المندوب لأن كل مندوب مش شايف غير شحناته وقت الاختيار.
+    // المندوب نفسه)، فمينفعش نعتمد على reqUser.id.
+    // تصحيح 2026-09-16 (حرج): كان بياخد assignedUserId من أول شحنة داخلة في
+    // البيان كـ fallback — ده غلط لأن assignedUserId ممكن يكون لسه معلّق على
+    // مندوب قديم (لو الشحنة اتشالت من بيان قديم ورجعت المخزن من غير ما تتصفّر،
+    // أو حتى لو اتصفّرت مبقتش null). ده كان بيسبب: بيان جديد بيتسجل
+    // representativeUserId = المندوب القديم الغلط، وبالتبعية assignedUserId
+    // الجديد المحسوب منه (تحت) كان بيرجّع نفس الاسم القديم — دايرة مفرغة.
+    // الصح: المندوب الحقيقي صاحب البيان الجديد هو صاحب shippingCompanyId ده
+    // فعليًا في usersTable (كل شركة شحن = مندوب واحد بيدخل بيها).
     let representativeUserId: number | null = null;
     if (!isClientRequest) {
       if (reqUser?.role === "representative") {
         representativeUserId = reqUser.id;
       } else {
-        const [firstShipment] = await db
-          .select({ assignedUserId: shipmentsTable.assignedUserId })
-          .from(shipmentsTable)
-          .where(eq(shipmentsTable.id, body.shipmentIds[0]))
+        const [repByCompany] = await db
+          .select({ id: usersTable.id })
+          .from(usersTable)
+          .where(and(
+            eq(usersTable.shippingCompanyId, body.shippingCompanyId!),
+            eq(usersTable.role, "representative"),
+          ))
           .limit(1);
-        representativeUserId = firstShipment?.assignedUserId ?? null;
+        representativeUserId = repByCompany?.id ?? null;
       }
     }
 
@@ -586,10 +595,20 @@ router.post("/shipment-manifests", async (req, res): Promise<void> => {
     // حدّث حالة الشحنات → in_shipping. لو الشركة (مندوب) هي اللي بتنشئ البيان
     // بنسجل shippingCompanyId على الشحنة كمان؛ لو عميل، ما نلمسش shippingCompanyId
     // بتاع الشحنة خالص (مالوش علاقة ببيان العميل).
+    // تصحيح 2026-09-16: لازم نحدّث assignedUserId هنا كمان للمندوب الجديد
+    // (representativeUserId المحسوب فوق) — وإلا الشحنة تفضل معلّقة على اسم
+    // المندوب القديم حتى لو دلوقتي في بيان مندوب تاني (سيناريو: شحنة اتشالت من
+    // بيان مندوب 1 فرجعت "قيد الشحن" بالمخزن، وبعدين اتضافت لبيان مندوب 2 —
+    // الاسم المعروض فضل "مندوب 1" لأن assignedUserId مكانش بيتحدّث هنا خالص).
     await db.update(shipmentsTable)
       .set(isClientRequest
         ? { status: "in_shipping", updatedAt: now }
-        : { status: "in_shipping", shippingCompanyId: body.shippingCompanyId!, updatedAt: now })
+        : {
+            status: "in_shipping",
+            shippingCompanyId: body.shippingCompanyId!,
+            assignedUserId: representativeUserId,
+            updatedAt: now,
+          })
       .where(inArray(shipmentsTable.id, body.shipmentIds));
 
     res.status(201).json({
@@ -781,7 +800,14 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
       returned:  "returned",
       delayed:   "delayed",
       partial_delivered: "partial_received",
-      pending:   "in_transit",
+      // ⚠️⚠️⚠️ إصلاح جذري (طلب بشمهندس مصطفى، SMF-3-002): "قيد الانتظار" هنا
+      // معناها إن الشحنة رجعت المخزن فعليًا ومحدّش استلمها لسه — يعني نفس
+      // معنى waiting العادي، مش "لسه معلّقة عند شركة الشحن" (ده معناه
+      // in_transit). كانت قبل كده بترجع "in_transit" غلط، فمكنش شرط
+      // EXCLUDED_SHIPMENT_STATUSES (اللي بيشيل البند تلقائيًا من بيان
+      // المندوب المفتوح) بيتفعّل خالص، فالشحنة كانت تفضل قاعدة في البيان
+      // حتى بعد ما تتغيّر حالتها لـ"قيد الانتظار" يدويًا من نفس الشاشة.
+      pending:   "waiting",
       // "مؤجل" (postponed) من خيارات البيان لازم ينعكس فعليًا كـ "delayed" في
       // shipments.status — كان بيتحول لـ "in_transit" فتختفي الشحنة من أي إحصائية
       // بتفلتر على status="delayed" (زي كارت "مؤجل" في صفحة العميل التجاري)
@@ -1762,19 +1788,37 @@ router.delete("/shipment-manifests/:id", async (req, res): Promise<void> => {
       return;
     }
 
+    // منع حذف أي بيان اتقفل "قفل نهائي" من الأدمن (closedByRole === "admin")
+    // بغض النظر عن دور اليوزر اللي بيحاول يحذف — لأن القفل النهائي بيكون عمل
+    // ترحيل مالي فعلي (حركة خزنة + خصم أجرة شحن من حسابات العملاء + ترحيل
+    // لتسوية الرحلات والتحصيل)، وحذف البيان بعد كده من غير عكس (reversal) كامل
+    // لكل الحركات دي هيسيب البيانات المالية "معلّقة" أو مزدوجة. الحذف في الحالة
+    // دي ممنوع تمامًا لحد ما يتضاف مسار reversal مخصص وموثوق.
+    const [manifestForDeleteCheck] = await db.select({
+      clientId: shipmentManifestsTable.clientId,
+      status: shipmentManifestsTable.status,
+      closedByRole: shipmentManifestsTable.closedByRole,
+    })
+      .from(shipmentManifestsTable).where(eq(shipmentManifestsTable.id, id)).limit(1);
+
+    if (!manifestForDeleteCheck) {
+      res.status(404).json({ error: "البيان غير موجود" });
+      return;
+    }
+
+    if (manifestForDeleteCheck.status === "closed" && manifestForDeleteCheck.closedByRole === "admin") {
+      res.status(403).json({ error: "لا يمكن حذف بيان مُقفل نهائيًا — تم بالفعل ترحيل الحركات المالية المرتبطة به (خزنة / حسابات عملاء / تسوية رحلات)" });
+      return;
+    }
+
     // العميل التجاري يقدر يحذف بيانه هو بس — وبس لو لسه مفتوح (بعد الإغلاق
     // الحذف بيبقى حصريًا للأدمن عشان البيان يبقى فيه سجل تاريخي)
     if (reqUser?.role === "client") {
-      const [existingManifest] = await db.select({
-        clientId: shipmentManifestsTable.clientId,
-        status: shipmentManifestsTable.status,
-      })
-        .from(shipmentManifestsTable).where(eq(shipmentManifestsTable.id, id)).limit(1);
-      if (!existingManifest || existingManifest.clientId !== reqUser.clientId) {
+      if (manifestForDeleteCheck.clientId !== reqUser.clientId) {
         res.status(403).json({ error: "غير مصرح بحذف هذا البيان" });
         return;
       }
-      if (existingManifest.status === "closed") {
+      if (manifestForDeleteCheck.status === "closed") {
         res.status(403).json({ error: "لا يمكن حذف بيان مُغلق — يرجى التواصل مع الأدمن" });
         return;
       }
@@ -1790,6 +1834,10 @@ router.delete("/shipment-manifests/:id", async (req, res): Promise<void> => {
         .set({ status: "waiting", updatedAt: new Date() })
         .where(inArray(shipmentsTable.id, ids));
     }
+    // حذف صريح لبنود البيان (بدل الاعتماد بس على ON DELETE CASCADE في الـ DB) —
+    // عشان نضمن مفيش بنود يتيمة (orphaned) لو الـ FK cascade مش مفعّل فعليًا
+    // على مستوى قاعدة البيانات نفسها.
+    await db.delete(shipmentManifestItemsTable).where(eq(shipmentManifestItemsTable.manifestId, id));
     await db.delete(shipmentManifestsTable).where(eq(shipmentManifestsTable.id, id));
     res.json({ success: true });
   } catch (e) {
