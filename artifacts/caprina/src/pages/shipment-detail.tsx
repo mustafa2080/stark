@@ -1436,6 +1436,8 @@ function InvoiceView({ orders, currentId, shippingCompanies, products, allVarian
                   {(o.status === "returned" || o.status === "partial_received") && (() => {
                     const received = o.returnReceived === 1 || o.returnReceived === true;
                     const isRet    = o.status === "returned";
+                    // returnReceivedBy === "sender" = المرتجع اتسلّم للعميل نفسه (مش رجع المخزن)
+                    const toSender = isRet && received && (o as any).returnReceivedBy === "sender";
                     return (
                       <div className={`flex items-center gap-2 rounded-xl px-4 py-3 border ${
                         received
@@ -1446,12 +1448,12 @@ function InvoiceView({ orders, currentId, shippingCompanies, products, allVarian
                         <div>
                           <p className={`text-xs font-bold ${received ? "text-emerald-400" : "text-amber-400"}`}>
                             {received
-                              ? (isRet ? "تم استلام الشحنة المرتجعة بنجاح" : "تم استلام الكمية الجزئية بنجاح")
+                              ? (isRet ? (toSender ? "تم تسليم الشحنة إلى العميل" : "تم استلام الشحنة المرتجعة بنجاح") : "تم استلام الكمية الجزئية بنجاح")
                               : (isRet ? "لم يتم استلام الشحنة بعد" : "لم يتم استلام الكمية الجزئية بعد")}
                           </p>
                           <p className="text-[10px] text-muted-foreground mt-0.5">
                             {received
-                              ? (isRet ? "تم استلام المرتجع وإعادته للمخزن" : "تم استلام الجزء المُرتجع وإعادته للمخزن")
+                              ? (isRet ? (toSender ? "تم تسليم المرتجع للراسل ولم يُضف للمخزن" : "تم استلام المرتجع وإعادته للمخزن") : "تم استلام الجزء المُرتجع وإعادته للمخزن")
                               : "بانتظار التأكيد — البضاعة لا تزال عند شركة الشحن"}
                           </p>
                         </div>
@@ -1655,6 +1657,7 @@ function InvoiceView({ orders, currentId, shippingCompanies, products, allVarian
                         {(o.status === "returned" || o.status === "partial_received") && (() => {
                           const received = o.returnReceived === 1 || o.returnReceived === true;
                           const isRet    = o.status === "returned";
+                          const toSender = isRet && received && (o as any).returnReceivedBy === "sender";
                           return (
                             <div className={`flex items-center gap-1.5 mt-1.5 px-2 py-1 rounded-md text-[10px] font-semibold border ${
                               received
@@ -1664,7 +1667,7 @@ function InvoiceView({ orders, currentId, shippingCompanies, products, allVarian
                               <span>{received ? "✓" : "⏳"}</span>
                               <span>
                                 {received
-                                  ? (isRet ? "تم استلام الشحنة المرتجعة بنجاح" : "تم استلام الكمية الجزئية بنجاح")
+                                  ? (isRet ? (toSender ? "تم تسليم الشحنة إلى العميل" : "تم استلام الشحنة المرتجعة بنجاح") : "تم استلام الكمية الجزئية بنجاح")
                                   : (isRet ? "بانتظار استلام الشحنة المرتجعة" : "بانتظار استلام الكمية الجزئية")}
                               </span>
                             </div>
@@ -4047,6 +4050,8 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                 {(order.status === "returned" || order.status === "partial_received") && (() => {
                   const received = (order as any).returnReceived === 1 || (order as any).returnReceived === true;
                   const isRet    = order.status === "returned";
+                  // returnReceivedBy === "sender" = المرتجع اتسلّم للعميل نفسه (مش رجع المخزن)
+                  const toSender = isRet && received && (order as any).returnReceivedBy === "sender";
                   return (
                     <div className={`mx-4 mb-3 mt-3 flex items-center gap-3 rounded-xl px-4 py-3 border ${
                       received ? "bg-emerald-500/10 border-emerald-500/30" : "bg-amber-500/10 border-amber-500/30"
@@ -4055,12 +4060,12 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                       <div>
                         <p className={`text-xs font-bold ${received ? "text-emerald-400" : "text-amber-400"}`}>
                           {received
-                            ? (isRet ? "تم استلام الشحنة المرتجعة بنجاح" : "تم استلام الكمية الجزئية بنجاح")
+                            ? (isRet ? (toSender ? "تم تسليم الشحنة إلى العميل" : "تم استلام الشحنة المرتجعة بنجاح") : "تم استلام الكمية الجزئية بنجاح")
                             : (isRet ? "لم يتم استلام الشحنة بعد" : "لم يتم استلام الكمية الجزئية بعد")}
                         </p>
                         <p className="text-[10px] text-muted-foreground mt-0.5">
                           {received
-                            ? (isRet ? "تم استلام المرتجع وإعادته للمخزن" : "تم استلام الجزء المُرتجع وإعادته للمخزن")
+                            ? (isRet ? (toSender ? "تم تسليم المرتجع للراسل ولم يُضف للمخزن" : "تم استلام المرتجع وإعادته للمخزن") : "تم استلام الجزء المُرتجع وإعادته للمخزن")
                             : "بانتظار التأكيد — البضاعة لا تزال عند شركة الشحن"}
                         </p>
                       </div>
