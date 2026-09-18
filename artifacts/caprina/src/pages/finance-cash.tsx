@@ -35,13 +35,14 @@ const TX_LABELS: Record<string, { label: string; color: string }> = {
   order_collected:  { label: "تحصيل طلب",        color: "text-emerald-500" },
   shipping_transfer:{ label: "تحويل شحن",        color: "text-emerald-500" },
   cash_sale:        { label: "مبيعات نقدية",     color: "text-emerald-500" },
+  client_collection:{ label: "تحصيل حساب عميل",  color: "text-emerald-500" },
   expense_paid:     { label: "دفع مصروف",        color: "text-rose-500"    },
   purchase_paid:    { label: "دفع مورد",         color: "text-rose-500"    },
   transfer_in:      { label: "تحويل وارد",       color: "text-sky-500"     },
   transfer_out:     { label: "تحويل صادر",       color: "text-amber-500"   },
 };
 
-const CREDIT_TYPES = ["deposit","order_collected","shipping_transfer","cash_sale","transfer_in"];
+const CREDIT_TYPES = ["deposit","order_collected","shipping_transfer","cash_sale","client_collection","transfer_in"];
 
 interface CashRegister {
   id: number; name: string; type: "main"|"branch";
@@ -92,7 +93,7 @@ export default function FinanceCashPage() {
   const [ledgerPage, setLedgerPage] = useState(1);
 
   const [newReg,  setNewReg]  = useState({ name: "", type: "branch", description: "", initialBalance: "", isDefault: false });
-  const [txForm,  setTxForm]  = useState({ type: "deposit", amount: "", description: "", referenceNumber: "", transactionDate: format(new Date(), "yyyy-MM-dd") });
+  const [txForm,  setTxForm]  = useState({ type: "deposit", amount: "", description: "", referenceNumber: "", transactionDate: format(new Date(), "yyyy-MM-dd"), clientId: "" });
   const [transfer, setTransfer] = useState({ fromId: "", toId: "", amount: "", description: "" });
   const [editForm, setEditForm] = useState({ name: "", description: "", isDefault: false });
   const [thresholdVal, setThresholdVal] = useState("");
@@ -161,6 +162,14 @@ export default function FinanceCashPage() {
   const stats        = ledgerData?.stats;
   const pagination   = ledgerData?.pagination;
 
+  const { data: clientsBalData } = useQuery<{ clients: { id: number; name: string; phone: string | null; balance: number }[] }>({
+    queryKey: ["/api/client-account-manifests/clients-with-balance"],
+    queryFn: () => apiFetch("/api/client-account-manifests/clients-with-balance"),
+    enabled: txOpen && txForm.type === "client_collection",
+  });
+  const clientsWithBalance = clientsBalData?.clients ?? [];
+  const selectedClient = clientsWithBalance.find(client => String(client.id) === txForm.clientId);
+
   const hasActiveFilters = ledgerType !== "all" || ledgerDirection !== "all" || ledgerSearch !== "" ||
     ledgerFrom !== format(subDays(new Date(), 30), "yyyy-MM-dd") || ledgerTo !== format(new Date(), "yyyy-MM-dd");
 
@@ -224,7 +233,7 @@ export default function FinanceCashPage() {
 
   const txMut = useMutation({
     mutationFn: (d: any) => apiFetch(`/api/cash-registers/${selectedReg!.id}/transaction`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(d) }),
-    onSuccess: () => { qc.invalidateQueries({queryKey:["/api/cash-registers"]}); qc.invalidateQueries({queryKey:["/api/cash-registers/ledger"]}); qc.invalidateQueries({queryKey:["/api/cash-registers/alerts"]}); setTxOpen(false); setTxForm({type:"deposit",amount:"",description:"",referenceNumber:"",transactionDate:format(new Date(),"yyyy-MM-dd")}); toast({title:"✅ تم تسجيل الحركة"}); },
+    onSuccess: () => { qc.invalidateQueries({queryKey:["/api/cash-registers"]}); qc.invalidateQueries({queryKey:["/api/cash-registers/ledger"]}); qc.invalidateQueries({queryKey:["/api/cash-registers/alerts"]}); qc.invalidateQueries({queryKey:["/api/client-account-manifests/clients-with-balance"]}); setTxOpen(false); setTxForm({type:"deposit",amount:"",description:"",referenceNumber:"",transactionDate:format(new Date(),"yyyy-MM-dd"),clientId:""}); toast({title:"✅ تم تسجيل الحركة"}); },
     onError: (e:any) => toast({title:"❌ خطأ", description:e.message, variant:"destructive"}),
   });
 
@@ -658,10 +667,10 @@ export default function FinanceCashPage() {
                             <td className="p-3 text-muted-foreground max-w-[180px] truncate">{tx.description??""}{tx.referenceNumber&&<span className="text-[10px] text-muted-foreground/60 mr-1">#{tx.referenceNumber}</span>}</td>
                             <td className="p-3 text-muted-foreground hidden lg:table-cell">{tx.createdByName??""}</td>
                             <td className="p-3">
-                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              {tx.type !== "client_collection" && <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <button onClick={() => { setSelectedTx(tx); setEditTxForm({ type: tx.type, amount: tx.amount, description: tx.description ?? "", referenceNumber: tx.referenceNumber ?? "", transactionDate: tx.transactionDate.slice(0,10) }); setEditTxOpen(true); }} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"><Pencil className="w-3 h-3"/></button>
                                 <button onClick={() => { if (confirm("حذف هذه الحركة نهائياً؟")) deleteTxMut.mutate(tx.id); }} className="p-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-900/20 text-muted-foreground hover:text-rose-500 transition-colors"><Trash2 className="w-3 h-3"/></button>
-                              </div>
+                              </div>}
                             </td>
                           </tr>
                         );
@@ -725,16 +734,23 @@ export default function FinanceCashPage() {
           <DialogHeader><DialogTitle className="flex items-center gap-2"><CreditCard className="w-4 h-4"/> تسجيل حركة — {selectedReg?.name}</DialogTitle></DialogHeader>
           <div className="space-y-3 pt-2">
             <div className="space-y-1"><Label className="text-xs">نوع الحركة</Label>
-              <Select value={txForm.type} onValueChange={v=>setTxForm(p=>({...p,type:v}))}>
+              <Select value={txForm.type} onValueChange={v=>setTxForm(p=>({...p,type:v,clientId:v === "client_collection" ? p.clientId : ""}))}>
                 <SelectTrigger className="text-sm"><SelectValue/></SelectTrigger>
                 <SelectContent>{Object.entries(TX_LABELS).map(([k,v])=><SelectItem key={k} value={k}>{v.label}</SelectItem>)}</SelectContent>
               </Select>
             </div>
+            {txForm.type === "client_collection" && <div className="space-y-1"><Label className="text-xs">العميل *</Label>
+              <Select value={txForm.clientId} onValueChange={clientId=>setTxForm(p=>({...p,clientId,description:p.description || `تحصيل حساب — ${clientsWithBalance.find(client=>String(client.id)===clientId)?.name ?? ""}`}))}>
+                <SelectTrigger className="text-sm"><SelectValue placeholder="اختر العميل التجاري..."/></SelectTrigger>
+                <SelectContent>{clientsWithBalance.map(client=><SelectItem key={client.id} value={String(client.id)}>{client.name} — رصيد: {fmt(client.balance)}</SelectItem>)}</SelectContent>
+              </Select>
+              {selectedClient && <p className="text-[11px] text-muted-foreground">رصيد العميل الحالي: {fmt(selectedClient.balance)}</p>}
+            </div>}
             <div className="space-y-1"><Label className="text-xs">المبلغ *</Label><Input type="number" placeholder="0.00" value={txForm.amount} onChange={e=>setTxForm(p=>({...p,amount:e.target.value}))} className="text-sm"/></div>
             <div className="space-y-1"><Label className="text-xs">التاريخ</Label><Input type="date" value={txForm.transactionDate} onChange={e=>setTxForm(p=>({...p,transactionDate:e.target.value}))} className="text-sm"/></div>
             <div className="space-y-1"><Label className="text-xs">رقم مرجعي</Label><Input placeholder="اختياري" value={txForm.referenceNumber} onChange={e=>setTxForm(p=>({...p,referenceNumber:e.target.value}))} className="text-sm"/></div>
             <div className="space-y-1"><Label className="text-xs">ملاحظة</Label><Textarea placeholder="وصف الحركة" value={txForm.description} onChange={e=>setTxForm(p=>({...p,description:e.target.value}))} className="text-sm" rows={2}/></div>
-            <Button className="w-full text-black font-bold" style={{background:"#DEA821"}} disabled={!txForm.amount||txMut.isPending} onClick={()=>txMut.mutate(txForm)}>{txMut.isPending?"جارٍ التسجيل...":"تسجيل الحركة"}</Button>
+            <Button className="w-full text-black font-bold" style={{background:"#DEA821"}} disabled={!txForm.amount || (txForm.type === "client_collection" && !txForm.clientId) || txMut.isPending} onClick={()=>txMut.mutate(txForm)}>{txMut.isPending?"جارٍ التسجيل...":"تسجيل الحركة"}</Button>
           </div>
         </DialogContent>
       </Dialog>

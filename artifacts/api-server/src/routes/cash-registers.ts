@@ -1,6 +1,6 @@
 import { Router } from "express";
 import ExcelJS from "exceljs";
-import { db, cashRegistersTable, cashTransactionsTable, shippingFinancialInvoicesTable, shippingCompaniesTable, shippingManifestsTable, CREDIT_TYPES, DEBIT_TYPES } from "@workspace/db";
+import { db, cashRegistersTable, cashTransactionsTable, shippingFinancialInvoicesTable, shippingCompaniesTable, shippingManifestsTable, clientAccountPaymentsTable, CREDIT_TYPES, DEBIT_TYPES } from "@workspace/db";
 import { eq, desc, sql, and, gte, lte, ne, inArray, isNull } from "drizzle-orm";
 import { getTenantId } from "../middlewares/requireTenant.js";
 import { invalidateSmartCache, invalidateChartsCache } from "./analytics.js";
@@ -13,6 +13,7 @@ export const cashRegistersRouter = Router();
 const TX_LABELS_AR: Record<string, string> = {
   deposit: "إيداع", withdrawal: "سحب", order_collected: "تحصيل طلب",
   shipping_transfer: "تحويل شحن", cash_sale: "مبيعات نقدية",
+  client_collection: "تحصيل حساب عميل",
   expense_paid: "دفع مصروف", purchase_paid: "دفع مورد",
   transfer_in: "تحويل وارد", transfer_out: "تحويل صادر",
 };
@@ -172,19 +173,31 @@ cashRegistersRouter.get("/alerts", async (req, res): Promise<any> => {
 // ─── POST transaction ─────────────────────────────────────────────────────────
 cashRegistersRouter.post("/:id/transaction", async (req, res): Promise<any> => {
   try {
-    const registerId=parseInt(req.params.id); const{type,amount,description,referenceNumber,transactionDate,orderId}=req.body as any; const amt=parseFloat(amount); const now=new Date();
+    const registerId=parseInt(req.params.id); const{type,amount,description,referenceNumber,transactionDate,orderId,clientId}=req.body as any; const amt=parseFloat(amount); const now=new Date();
+    if (!CREDIT_TYPES.includes(type) && !DEBIT_TYPES.includes(type)) return res.status(400).json({error:"نوع الحركة غير صالح"});
+    if (!Number.isFinite(amt) || amt <= 0) return res.status(400).json({error:"المبلغ لازم يكون أكبر من صفر"});
+    if (type === "client_collection" && (!Number.isInteger(Number(clientId)) || Number(clientId) <= 0)) return res.status(400).json({error:"لازم تحدد العميل لتحصيل حسابه"});
     const[register]=await db.select().from(cashRegistersTable).where(eq(cashRegistersTable.id,registerId));
     if(!register)return res.status(404).json({error:"الخزنة مش موجودة"});
     const balanceBefore=parseFloat(register.balance??"0"); const DEBIT=["withdrawal","expense_paid","purchase_paid","transfer_out"]; const isDebit=DEBIT.includes(type);
     const balanceAfter=isDebit?balanceBefore-amt:balanceBefore+amt;
     if(isDebit&&balanceAfter<0)return res.status(400).json({error:`الرصيد مش كفاية — المتاح: ${balanceBefore.toLocaleString("ar-EG")} ج.م`});
-    await db.update(cashRegistersTable).set({balance:String(balanceAfter),updatedAt:now}).where(eq(cashRegistersTable.id,registerId));
     // لو الفرونت بعت تاريخ بس من غير وقت (نفس تاريخ اليوم)، بيتحول لـ 00:00:00
     // وده بيكسر ترتيب "الأحدث فوق" في كشف الحساب. فبنستخدم اللحظة الحالية "now"
     // في الحالة دي، ونستخدم التاريخ المبعوت فقط لو فعلاً تاريخ رجعي (يوم مختلف).
     const isBackdated = transactionDate && new Date(transactionDate).toDateString() !== now.toDateString();
     const finalTxDate = isBackdated ? new Date(transactionDate) : now;
-    await db.insert(cashTransactionsTable).values({registerId,type,amount:String(amt),balanceBefore:String(balanceBefore),balanceAfter:String(balanceAfter),description,referenceNumber,orderId:orderId?Number(orderId):null,transactionDate:finalTxDate,createdByUserId:req.body.userId??null,createdByName:req.body.userName??null,createdAt:now});
+    await db.transaction(async (tx) => {
+      await tx.update(cashRegistersTable).set({balance:String(balanceAfter),updatedAt:now}).where(eq(cashRegistersTable.id,registerId));
+      await tx.insert(cashTransactionsTable).values({registerId,type,amount:String(amt),balanceBefore:String(balanceBefore),balanceAfter:String(balanceAfter),description,referenceNumber,orderId:orderId?Number(orderId):null,transactionDate:finalTxDate,createdByUserId:req.body.userId??null,createdByName:req.body.userName??null,createdAt:now});
+      if (type === "client_collection") {
+        await tx.insert(clientAccountPaymentsTable).values({
+          tenantId: getTenantId(req), clientId: Number(clientId), amount: String(-amt),
+          notes: description ?? "تحصيل حساب عميل", createdByUserId: req.body.userId ?? null,
+          createdByName: req.body.userName ?? null, createdAt: now,
+        });
+      }
+    });
     invalidateSmartCache(getTenantId(req));
     invalidateChartsCache(getTenantId(req));
     res.json({success:true,newBalance:balanceAfter});
@@ -406,6 +419,7 @@ cashRegistersRouter.patch("/transactions/:id", async (req, res): Promise<any> =>
 
     const [tx] = await db.select().from(cashTransactionsTable).where(eq(cashTransactionsTable.id, txId));
     if (!tx) return res.status(404).json({ error: "الحركة مش موجودة" });
+    if (tx.type === "client_collection") return res.status(400).json({ error: "لا يمكن تعديل تحصيل حساب عميل من كشف الخزنة حتى يظل رصيد العميل متطابقًا" });
 
     const updates: any = { updatedAt: new Date() };
     if (type)              updates.type = type;
@@ -427,6 +441,7 @@ cashRegistersRouter.delete("/transactions/:id", async (req, res): Promise<any> =
     const txId = parseInt(req.params.id);
     const [tx] = await db.select().from(cashTransactionsTable).where(eq(cashTransactionsTable.id, txId));
     if (!tx) return res.status(404).json({ error: "الحركة مش موجودة" });
+    if (tx.type === "client_collection") return res.status(400).json({ error: "لا يمكن حذف تحصيل حساب عميل من كشف الخزنة حتى يظل رصيد العميل متطابقًا" });
 
     // نرجع الرصيد للخزنة
     const [reg] = await db.select().from(cashRegistersTable).where(eq(cashRegistersTable.id, tx.registerId));

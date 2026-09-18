@@ -9,6 +9,7 @@ export const CASH_TRANSACTION_TYPES = [
   "order_collected",   // تحصيل طلب
   "shipping_transfer", // تحويل من شركة شحن
   "cash_sale",         // مبيعات نقدية
+  "client_collection", // تحصيل حساب عميل
   "expense_paid",      // دفع مصروف
   "purchase_paid",     // دفع مورد (أمر شراء)
   "transfer_in",       // تحويل وارد من خزنة أخرى
@@ -18,7 +19,7 @@ export type CashTransactionType = (typeof CASH_TRANSACTION_TYPES)[number];
 
 // ─── تصنيف الحركات (دخل / خرج) ───────────────────────────────────────────────
 export const CREDIT_TYPES = [
-  "deposit", "order_collected", "shipping_transfer", "cash_sale", "transfer_in",
+  "deposit", "order_collected", "shipping_transfer", "cash_sale", "client_collection", "transfer_in",
 ] as const;
 
 export const DEBIT_TYPES = [

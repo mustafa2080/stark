@@ -142,17 +142,16 @@ router.post("/finance/expenses", async (req, res): Promise<void> => {
   const now = new Date();
   const user = (req as any).user;
   const data = parsed.data;
-  const amt = data.amount;
-
-  if ((data.category === "client_payment" || data.category === "client_collection") && !data.clientId) {
-    res.status(400).json({ error: "لازم تحدد العميل عند اختيار تصنيف سداد/تحصيل حساب عميل" });
+  if (data.category === "client_collection") {
+    res.status(400).json({ error: "تحصيل حساب عميل يتم تسجيله من الخزنة عبر حركة جديدة" });
     return;
   }
+  const amt = data.amount;
 
-  // ── تحصيل حساب عميل = إيداع في الخزنة (بالموجب)، عكس سداد حساب عميل ──────
-  // "سداد" = الشركة بتدفع للعميل (يخرج من الخزنة). "تحصيل" = العميل بيدفع
-  // للشركة (يدخل في الخزنة) — زي حالة استلام فلوس كاش من العميل وتوريدها.
-  const isCollection = data.category === "client_collection";
+  if (data.category === "client_payment" && !data.clientId) {
+    res.status(400).json({ error: "لازم تحدد العميل عند اختيار تصنيف سداد حساب عميل" });
+    return;
+  }
 
   // ── تحديد الخزنة: المحددة من المستخدم أو الافتراضية تلقائياً ────────────
   let reg: any = null;
@@ -165,8 +164,8 @@ router.post("/finance/expenses", async (req, res): Promise<void> => {
       .where(and(eq(cashRegistersTable.id, resolvedRegisterId), eq(cashRegistersTable.isActive, true)));
     if (!found) { res.status(404).json({ error: "الخزنة المحددة غير موجودة أو غير نشطة" }); return; }
     balBefore = parseFloat(found.balance ?? "0");
-    balAfter  = isCollection ? balBefore + amt : balBefore - amt;
-    if (!isCollection && balAfter < 0) {
+    balAfter  = balBefore - amt;
+    if (balAfter < 0) {
       res.status(400).json({ error: `رصيد الخزنة "${found.name}" مش كفاية — المتاح: ${balBefore.toLocaleString("ar-EG")} ج.م` });
       return;
     }
@@ -178,8 +177,8 @@ router.post("/finance/expenses", async (req, res): Promise<void> => {
     const defaultReg = registers.find((r: any) => r.isDefault) ?? registers[0] ?? null;
     if (defaultReg) {
       balBefore = parseFloat(defaultReg.balance ?? "0");
-      balAfter  = isCollection ? balBefore + amt : balBefore - amt;
-      if (!isCollection && balAfter < 0) {
+      balAfter  = balBefore - amt;
+      if (balAfter < 0) {
         res.status(400).json({ error: `رصيد الخزنة الافتراضية "${defaultReg.name}" مش كفاية — المتاح: ${balBefore.toLocaleString("ar-EG")} ج.م` });
         return;
       }
@@ -206,7 +205,7 @@ router.post("/finance/expenses", async (req, res): Promise<void> => {
 
     await db.insert(cashTransactionsTable).values({
       registerId: resolvedRegisterId,
-      type: isCollection ? "deposit" : "expense_paid",
+      type: "expense_paid",
       amount: String(amt),
       balanceBefore: String(balBefore),
       balanceAfter: String(balAfter),
@@ -221,18 +220,11 @@ router.post("/finance/expenses", async (req, res): Promise<void> => {
   }
 
   // ── سداد حساب عميل: نسجّل مبلغ السداد عشان يتخصم من رصيد العميل ────────
-  // (تحصيل حساب عميل بيتسجل هنا بردو زي السداد بالظبط — العميل المديون
-  // (رصيده سالب) لازم يتقفل حسابه ويرجع صفر بعد التحصيل، مش يفضل سالب).
-  // ⚠️ إصلاح (طلب مصطفى): balance = totalManifestsValue - totalPaid. "سداد"
-  // لازم يقلل الرصيد (يبعده عن الصفر ناحية السالب) فبيتسجل بموجب amt زي
-  // ما هو. "تحصيل" لازم يزوّد الرصيد (يقرّبه من الصفر لو كان سالب) فلازم
-  // يتسجل بعكس إشارة amt (سالب) — عكس تمامًا حركة الخزنة اللي بتزيد بموجب amt.
-  if ((data.category === "client_payment" || data.category === "client_collection") && data.clientId) {
-    const clientPaymentAmount = isCollection ? -amt : amt;
+  if (data.category === "client_payment" && data.clientId) {
     await db.insert(clientAccountPaymentsTable).values({
       tenantId: getTenantId(req),
       clientId: data.clientId,
-      amount: String(clientPaymentAmount),
+      amount: String(amt),
       expenseId,
       notes: data.notes ?? null,
       createdByUserId: user?.id ?? null,

@@ -37,10 +37,9 @@ const EXPENSE_CATEGORIES = [
   { value: "pickup_fees",     label: "مصاريف بيك أب",              color: "#F97316", glow: "rgba(249,115,22,0.25)" },
   { value: "other",           label: "أخرى",                       color: "#6B7280", glow: "rgba(107,114,128,0.25)"},
   { value: "client_payment",  label: "سداد حساب عميل",             color: "#14B8A6", glow: "rgba(20,184,166,0.25)" },
-  { value: "client_collection", label: "تحصيل حساب عميل",          color: "#22C55E", glow: "rgba(34,197,94,0.25)"  },
 ];
 
-const catLabel = (v: string) => EXPENSE_CATEGORIES.find(c => c.value === v)?.label ?? v;
+const catLabel = (v: string) => EXPENSE_CATEGORIES.find(c => c.value === v)?.label ?? (v === "client_collection" ? "تحصيل حساب عميل" : v);
 const catColor = (v: string) => EXPENSE_CATEGORIES.find(c => c.value === v)?.color ?? "#6B7280";
 const catGlow  = (v: string) => EXPENSE_CATEGORIES.find(c => c.value === v)?.glow  ?? "rgba(107,114,128,0.25)";
 const fmt = (n: string | number) =>
@@ -120,20 +119,19 @@ export default function FinanceExpenses() {
   const { data: clientsBalData } = useQuery<{ clients: { id: number; name: string; phone: string | null; balance: number }[] }>({
     queryKey: ["/api/client-account-manifests/clients-with-balance"],
     queryFn:  () => api.get("/api/client-account-manifests/clients-with-balance"),
-    enabled:  form.category === "client_payment" || form.category === "client_collection",
+    enabled:  form.category === "client_payment",
   });
   const clientsWithBalance = clientsBalData?.clients ?? [];
   const selectedClient = clientsWithBalance.find(c => String(c.id) === form.clientId) ?? null;
   const clientBalance  = selectedClient?.balance ?? null;
-  const isCollection = form.category === "client_collection";
 
   const pickClient = (idStr: string) => {
     F("clientId", idStr);
     const c = clientsWithBalance.find(cl => String(cl.id) === idStr);
     const bal = c?.balance ?? 0;
-    if (!isCollection) F("amount", bal > 0 ? String(bal) : "");
+    F("amount", bal > 0 ? String(bal) : "");
     // العنوان بيتولّد تلقائيًا من اسم العميل — مفيش داعي اليوزر يكتبه يدوي
-    F("title", c ? (isCollection ? `تحصيل حساب — ${c.name}` : `سداد رصيد — ${c.name}`) : "");
+    F("title", c ? `سداد رصيد — ${c.name}` : "");
   };
 
   const resetClientPayment = () => { F("clientId", ""); };
@@ -144,7 +142,7 @@ export default function FinanceExpenses() {
       ...form,
       amount: parseFloat(form.amount),
       cashRegisterId: form.cashRegisterId ? parseInt(form.cashRegisterId) : null,
-      clientId: (form.category === "client_payment" || form.category === "client_collection") && form.clientId ? parseInt(form.clientId) : null,
+      clientId: form.category === "client_payment" && form.clientId ? parseInt(form.clientId) : null,
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["finance-expenses"] });
@@ -154,8 +152,6 @@ export default function FinanceExpenses() {
       toast({
         title: form.category === "client_payment"
           ? "✅ تم تسجيل السداد وخصمه من رصيد العميل"
-          : form.category === "client_collection"
-          ? "✅ تم تسجيل التحصيل وإضافته للخزنة"
           : "✅ تمت إضافة المصروف وتم الخصم من الخزنة",
       });
     },
@@ -404,21 +400,21 @@ export default function FinanceExpenses() {
           <div className="space-y-3 mt-2">
             <div>
               <Label className="text-xs mb-1 block">
-                العنوان *{(form.category === "client_payment" || form.category === "client_collection") && <span className="text-muted-foreground font-normal"> (يتولّد تلقائيًا من اسم العميل)</span>}
+                العنوان *{form.category === "client_payment" && <span className="text-muted-foreground font-normal"> (يتولّد تلقائيًا من اسم العميل)</span>}
               </Label>
               <Input
                 className="h-9 text-sm"
                 placeholder="مثال: إيجار مخزن يناير"
                 value={form.title}
                 onChange={e => F("title", e.target.value)}
-                readOnly={form.category === "client_payment" || form.category === "client_collection"}
-                disabled={form.category === "client_payment" || form.category === "client_collection"}
+                readOnly={form.category === "client_payment"}
+                disabled={form.category === "client_payment"}
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs mb-1 block">التصنيف</Label>
-                <Select value={form.category} onValueChange={v => { F("category", v); if (v !== "client_payment" && v !== "client_collection") resetClientPayment(); }}>
+                <Select value={form.category} onValueChange={v => { F("category", v); if (v !== "client_payment") resetClientPayment(); }}>
                   <SelectTrigger className="h-9 text-sm"><SelectValue/></SelectTrigger>
                   <SelectContent>{EXPENSE_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
                 </Select>
@@ -438,15 +434,11 @@ export default function FinanceExpenses() {
                     if (v === "" || pattern.test(v)) F("amount", v);
                   }}
                 />
-                {isCollection && !(parseFloat(form.amount) > 0) && form.amount !== "" && (
-                  <p className="text-[11px] text-rose-500 mt-1">المبلغ لازم يكون رقم أكبر من صفر (من غير إشارة سالب)</p>
-                )}
-                {isCollection && form.amount === "" && <p className="text-[11px] text-muted-foreground mt-1">اكتب المبلغ اللي حصّلته من العميل يدويًا</p>}
                 {form.category === "client_payment" && <p className="text-[11px] text-muted-foreground mt-1">يمكن إدخال قيمة سالبة هنا لو محتاج تصحيح رصيد العميل</p>}
               </div>
             </div>
 
-            {(form.category === "client_payment" || form.category === "client_collection") && (
+            {form.category === "client_payment" && (
               <div>
                 <Label className="text-xs mb-1 block flex items-center gap-1">
                   <Search className="w-3 h-3 text-teal-500"/> العميل *
@@ -508,12 +500,12 @@ export default function FinanceExpenses() {
             </div>
             <div>
               <Label className="text-xs mb-1 block flex items-center gap-1">
-                <Wallet className="w-3 h-3 text-emerald-500"/> {isCollection ? "إيداع في خزنة" : "خصم من خزنة"}
+                <Wallet className="w-3 h-3 text-emerald-500"/> خصم من خزنة
               </Label>
               <Select value={form.cashRegisterId} onValueChange={v => F("cashRegisterId", v === "auto" ? "" : v)}>
-                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder={isCollection ? "إيداع تلقائي في الخزنة الافتراضية" : "خصم تلقائي من الخزنة الافتراضية"}/></SelectTrigger>
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="خصم تلقائي من الخزنة الافتراضية"/></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="auto">{isCollection ? "إيداع تلقائي في الخزنة الافتراضية" : "خصم تلقائي من الخزنة الافتراضية"}</SelectItem>
+                  <SelectItem value="auto">خصم تلقائي من الخزنة الافتراضية</SelectItem>
                   {registers.map(r => (
                     <SelectItem key={r.id} value={String(r.id)}>
                       {r.name} — رصيد: {Number(r.balance).toLocaleString("ar-EG")} ج.م
@@ -522,18 +514,11 @@ export default function FinanceExpenses() {
                 </SelectContent>
               </Select>
               {selectedReg && form.amount && (
-                isCollection ? (
-                  <div className="mt-1.5 text-xs px-2 py-1 rounded flex items-center gap-1.5 bg-emerald-500/10 text-emerald-700">
-                    <Wallet className="w-3 h-3"/>
-                    الرصيد بعد الإيداع: <strong>{(parseFloat(selectedReg.balance ?? "0") + parseFloat(form.amount || "0")).toLocaleString("ar-EG")} ج.م</strong>
-                  </div>
-                ) : (
-                  <div className={`mt-1.5 text-xs px-2 py-1 rounded flex items-center gap-1.5 ${parseFloat(selectedReg.balance ?? "0") >= parseFloat(form.amount || "0") ? "bg-emerald-500/10 text-emerald-700" : "bg-rose-500/10 text-rose-700"}`}>
-                    <Wallet className="w-3 h-3"/>
-                    الرصيد بعد الخصم: <strong>{(parseFloat(selectedReg.balance ?? "0") - parseFloat(form.amount || "0")).toLocaleString("ar-EG")} ج.م</strong>
-                    {parseFloat(selectedReg.balance ?? "0") < parseFloat(form.amount || "0") && " ⚠️ رصيد غير كافٍ"}
-                  </div>
-                )
+                <div className={`mt-1.5 text-xs px-2 py-1 rounded flex items-center gap-1.5 ${parseFloat(selectedReg.balance ?? "0") >= parseFloat(form.amount || "0") ? "bg-emerald-500/10 text-emerald-700" : "bg-rose-500/10 text-rose-700"}`}>
+                  <Wallet className="w-3 h-3"/>
+                  الرصيد بعد الخصم: <strong>{(parseFloat(selectedReg.balance ?? "0") - parseFloat(form.amount || "0")).toLocaleString("ar-EG")} ج.م</strong>
+                  {parseFloat(selectedReg.balance ?? "0") < parseFloat(form.amount || "0") && " ⚠️ رصيد غير كافٍ"}
+                </div>
               )}
             </div>
             <div>
@@ -542,11 +527,9 @@ export default function FinanceExpenses() {
             </div>
             <div className="flex gap-2 pt-2">
               <Button className="flex-1 h-9 font-bold" onClick={() => save.mutate()}
-                disabled={save.isPending || !form.title || !(form.category === "client_payment" ? (form.amount !== "" && !isNaN(parseFloat(form.amount)) && parseFloat(form.amount) !== 0) : parseFloat(form.amount) > 0) || ((form.category === "client_payment" || form.category === "client_collection") && !form.clientId)}>
+                disabled={save.isPending || !form.title || !(form.category === "client_payment" ? (form.amount !== "" && !isNaN(parseFloat(form.amount)) && parseFloat(form.amount) !== 0) : parseFloat(form.amount) > 0) || (form.category === "client_payment" && !form.clientId)}>
                 {save.isPending
                   ? "جاري الحفظ..."
-                  : isCollection
-                  ? `حفظ والإيداع في ${registers.find(r=>String(r.id)===form.cashRegisterId)?.name ?? "الخزنة الافتراضية"}`
                   : form.cashRegisterId ? `حفظ والخصم من ${registers.find(r=>String(r.id)===form.cashRegisterId)?.name ?? "الخزنة"}` : "حفظ والخصم من الخزنة الافتراضية"}
               </Button>
               <Button variant="outline" className="h-9 border-border" onClick={() => setOpen(false)}>إلغاء</Button>
