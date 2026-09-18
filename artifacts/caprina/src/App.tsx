@@ -172,7 +172,6 @@ const ShipmentsPage         = lazy(() => import("@/pages/shipments-page"));
 const NewShipmentPage       = lazy(() => import("@/pages/new-shipment"));
 const ShipmentDetailPage    = lazy(() => import("@/pages/shipment-detail"));
 const OrderForm             = lazy(() => import("@/pages/order-form"));
-const OrderDetail           = lazy(() => import("@/pages/order-detail"));
 const Inventory             = lazy(() => import("@/pages/inventory"));
 const ShippingCompanies     = lazy(() => import("@/pages/shipping-companies"));
 const Invoices              = lazy(() => import("@/pages/invoices"));
@@ -478,10 +477,21 @@ function ProtectedRoute({ permission, component: Comp }: { permission: string; c
     // super_admin فقط → تجاوز كامل. admin العادي لازم يمر بفحص can()
     // عشان صلاحياته المحددة من إدارة المستخدمين تتفعّل فعليًا على مستوى الصفحة
     if (isSuperAdmin) return true;
-    // الـ new keys (تحتوي على نقطة)
-    if (permission.includes(".")) return can(permission);
-    // legacy keys — نفس المنطق القديم
-    return can(permission);
+    if (can(permission)) return true;
+    // Fallback: بعض صفحات الماليات (مثل تسوية الرحلات) مفيهاش checkbox مستقل
+    // لصلاحية "فتح الصفحة" في شاشة المستخدمين — بس فيها صلاحيات فرعية للعناصر
+    // جواها (مثال: finance_trip_settlement.close_button). لو اليوزر عنده أي
+    // صلاحية فرعية من نفس المجموعة، يبقى مقصود إنه يقدر يفتح الصفحة نفسها.
+    if (permission === "finance.trip_settlement") {
+      return can("finance_trip_settlement.archive_button")
+        || can("finance_trip_settlement.close_button")
+        || can("finance_trip_settlement.readiness_bar")
+        || can("finance_trip_settlement.totals_summary")
+        || can("finance_trip_settlement.alerts")
+        || can("finance_trip_settlement.reps_column")
+        || can("finance_trip_settlement.clients_column");
+    }
+    return false;
   })();
 
   if (!hasAccess) {
@@ -594,7 +604,6 @@ function Router() {
           <Route path="/shipments/:id"            component={() => <ProtectedRoute permission="shipments.view" component={ShipmentDetailPage} />} />
           <Route path="/orders/new"               component={() => <ProtectedRoute permission="orders.create" component={OrderForm} />} />
           <Route path="/invoices/:invoiceNumber"  component={() => <ProtectedRoute permission="invoices.view" component={InvoiceGroupPage} />} />
-          <Route path="/orders/:id"               component={() => <ProtectedRoute permission="orders.view" component={OrderDetail} />} />
           <Route path="/inventory"                component={() => <ProtectedRoute permission="inventory.view" component={Inventory} />} />
           <Route path="/shipping"                 component={() => <ProtectedRoute permission="reps.view" component={ShippingCompanies} />} />
           <Route path="/shipping/manifests/:id"          component={() => <ProtectedRoute permission="reps.view" component={ShippingManifestPage} />} />
@@ -602,7 +611,7 @@ function Router() {
           <Route path="/shipping/company/:id"     component={() => <ProtectedRoute permission="reps.view" component={ShippingCompanyDetail} />} />
           <Route path="/shipping/representative/:id" component={RepresentativeCompanyDetailPage} />
           <Route path="/invoices"                 component={() => <ProtectedRoute permission="shipments.invoices_btn" component={Invoices} />} />
-          <Route path="/import"                   component={() => <ProtectedRoute permission="import.view" component={Import} />} />
+          <Route path="/import"                   component={() => <ProtectedRoute permission="tools.import" component={Import} />} />
           <Route path="/movements"                component={() => <ProtectedRoute permission="inventory.movements" component={Movements} />} />
           <Route path="/product-performance"      component={() => <ProtectedRoute permission="analytics.products" component={ProductPerformance} />} />
           <Route path="/users"                    component={() => <ProtectedRoute permission="settings.users" component={UsersPage} />} />
@@ -622,7 +631,7 @@ function Router() {
           <Route path="/client-intelligence"      component={() => <ProtectedRoute permission="section_dashboard" component={ClientIntelligencePage} />} />
           <Route path="/whatsapp"                 component={() => <ProtectedRoute permission="settings.whatsapp" component={WhatsAppSettingsPage} />} />
           <Route path="/sessions-report"          component={() => <ProtectedRoute permission="settings.users" component={SessionsReportPage} />} />
-          <Route path="/export"                   component={() => <ProtectedRoute permission="import.view" component={ExportPage} />} />
+          <Route path="/export"                   component={() => <ProtectedRoute permission="tools.export" component={ExportPage} />} />
           {/* Finance */}
           <Route path="/finance"                  component={() => <ProtectedRoute permission="finance.view" component={FinanceHub} />} />
           <Route path="/finance/dashboard"        component={() => <Redirect to="/finance" />} />
