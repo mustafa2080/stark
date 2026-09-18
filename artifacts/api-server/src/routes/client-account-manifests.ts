@@ -22,7 +22,7 @@ import { getTenantId } from "../middlewares/requireTenant.js";
 import { syncManifestItemToShipment, SHIPMENT_STATUS_TO_DELIVERY, isShipmentVisibleInManifest } from "../lib/manifestSync.js";
 import { syncShipmentInventory } from "./shipments.js";
 import { syncShipmentItemsInventory } from "../lib/inventory.js";
-import { computeClosedManifestsForClient, computeClientBalancesForAllClients } from "../lib/clientAccountBalance.js";
+import { computeClosedManifestsForClient } from "../lib/clientAccountBalance.js";
 import { computeClientManifestNetDue } from "../lib/manifestFinance.js";
 import { autoAddClientToTripSettlement } from "../lib/tripSettlementSync.js";
 
@@ -353,17 +353,16 @@ router.get("/client-account-manifests/clients-with-balance", async (req, res): P
 
     const clientIds = clients.map(c => c.id);
 
-    // ⚠️ إصلاح (2026-08-31): الرصيد هنا لازم يطابق بالظبط "الرصيد المستحق" في
-    // صفحة بيان العميل — بنفس مصدر الحقيقة الوحيد المعتمد
-    // (computeClientBalancesForAllClients، بنفس منطق computeClosedManifestsForClient
-    // للعميل الفردي بالظبط). قبل كده كان فيه حساب يدوي منفصل هنا بيتجاهل شرط
-    // status="closed" وتصفير المؤجل/المعلَّق/المرتجع بسبب غير مالي، وبيستخدم
-    // shippingFee الثابت بدل سعر المنطقة الفعلي حسب تصنيف العميل — فكان الرقم
-    // يختلف عن صفحة البيان الفردي.
-    const balances = await computeClientBalancesForAllClients(clientIds);
+    // نستخدم نفس الحساب الفردي المعروض في كشف العميل لضمان تطابق رصيد القائمة
+    // مع رصيد الحساب الفعلي، بدل الحساب المجمع الذي قد يعيد صفراً لبعض العملاء.
+    const balanceRows = await Promise.all(clientIds.map(async clientId => {
+      const { balance } = await computeClosedManifestsForClient(clientId);
+      return [clientId, balance] as const;
+    }));
+    const balances = Object.fromEntries(balanceRows);
 
     const result = clients
-      .map(c => ({ id: c.id, name: c.name, phone: c.phone, balance: balances[c.id]?.balance ?? 0 }))
+      .map(c => ({ id: c.id, name: c.name, phone: c.phone, balance: balances[c.id] ?? 0 }))
       .sort((a, b) => a.name.localeCompare(b.name, "ar"));
 
     res.json({ clients: result });

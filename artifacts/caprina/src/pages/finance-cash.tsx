@@ -747,7 +747,7 @@ export default function FinanceCashPage() {
             {txForm.type === "client_collection" && <div className="space-y-1"><Label className="text-xs">العميل *</Label>
               <Select value={txForm.clientId} onValueChange={clientId=>setTxForm(p=>({...p,clientId,description:p.description || `تحصيل حساب — ${clientsWithBalance.find(client=>String(client.id)===clientId)?.name ?? ""}`}))}>
                 <SelectTrigger className="text-sm"><SelectValue placeholder="اختر العميل التجاري..."/></SelectTrigger>
-                <SelectContent className="max-h-64 overflow-y-auto">{clientsWithBalance.map(client=><SelectItem key={client.id} value={String(client.id)}>{client.name}{client.phone ? ` — ${client.phone}` : ""}</SelectItem>)}</SelectContent>
+                <SelectContent className="max-h-64 overflow-y-auto">{clientsWithBalance.map(client=><SelectItem key={client.id} value={String(client.id)}>{client.name} — رصيد: {fmt(client.balance)}</SelectItem>)}</SelectContent>
               </Select>
               {selectedClient && <p className="text-[11px] text-muted-foreground">رصيد العميل الحالي: {selectedClientBalance ? fmt(selectedClientBalance.balance) : "جارٍ حساب الرصيد..."}</p>}
             </div>}
