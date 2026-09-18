@@ -843,7 +843,7 @@ function ShipmentCard({ shipment, onEdit, onDelete }: { shipment: Shipment; onEd
                 <span>{received ? "✔" : "✗"}</span>
                 <span>
                   {received
-                    ? (isRet ? "تم تسليم الأوردر إلى العميل" : "تم استلام الكمية الجزئية بنجاح")
+                    ? (isRet ? "تم استلام الشحنة المرتجعة بنجاح" : "تم استلام الكمية الجزئية بنجاح")
                     : (isRet ? "بانتظار استلام الشحنة المرتجعة"  : "بانتظار استلام الكمية الجزئية")}
                 </span>
               </div>
