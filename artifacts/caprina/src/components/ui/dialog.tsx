@@ -29,8 +29,8 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
 
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => {
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & { fullScreen?: boolean }
+>(({ className, children, fullScreen, ...props }, ref) => {
   const localRef = React.useRef<HTMLDivElement | null>(null);
   React.useEffect(() => {
     const el = localRef.current;
@@ -63,7 +63,7 @@ const DialogContent = React.forwardRef<
     <DialogOverlay dir="ltr" style={{ zIndex: 2147483000, top: 0, left: 0, right: 0, bottom: 0 }} />
     <div
       dir="ltr"
-      className="fixed flex items-center justify-center p-4 pointer-events-none"
+      className={fullScreen ? "fixed flex items-center justify-center pointer-events-none" : "fixed flex items-center justify-center p-4 pointer-events-none"}
       style={{ zIndex: 2147483001, top: 0, left: 0, right: 0, bottom: 0 }}
     >
       <DialogPrimitive.Content
@@ -73,11 +73,13 @@ const DialogContent = React.forwardRef<
           else if (ref) (ref as React.MutableRefObject<HTMLDivElement | null>).current = node;
         }}
         className={cn(
-          "relative pointer-events-auto grid w-full max-w-lg gap-4 rounded-lg border border-white/10 dark:bg-[hsl(0,0%,16%)] bg-white p-6 shadow-2xl shadow-black/60 duration-200 max-h-[90vh] overflow-y-auto data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
+          fullScreen
+            ? "relative pointer-events-auto grid w-screen h-[100dvh] max-w-none max-h-none gap-4 border-0 dark:bg-[hsl(0,0%,16%)] bg-white p-6 shadow-2xl shadow-black/60 duration-200 overflow-y-auto data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95"
+            : "relative pointer-events-auto grid w-full max-w-lg gap-4 rounded-lg border border-white/10 dark:bg-[hsl(0,0%,16%)] bg-white p-6 shadow-2xl shadow-black/60 duration-200 max-h-[90vh] overflow-y-auto data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
           className
         )}
         {...props}
-        style={{ ...props.style, maxWidth: "min(32rem, calc(100vw - 2rem))" }}
+        style={fullScreen ? { ...props.style } : { ...props.style, maxWidth: "min(32rem, calc(100vw - 2rem))" }}
       >
         {children}
         <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground">

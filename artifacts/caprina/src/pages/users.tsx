@@ -1,4 +1,4 @@
-﻿import { useState, useRef } from "react";
+﻿import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { usersApi, type AppUser, shippingApi, financeClientsApi } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogFooter, AlertDialogTitle, AlertDialogDescription, AlertDialogAction, AlertDialogCancel } from "@/components/ui/alert-dialog";
 import { Separator } from "@/components/ui/separator";
 import { UserPlus, Edit2, Trash2, Shield, Users, Eye, EyeOff, TrendingUp, Package, BarChart3, LayoutGrid, Lock, User, Settings2, ChevronDown, ChevronUp, ToggleLeft, Camera, X, Crown, AlertTriangle, Search, KeyRound, Power, Home, ShoppingCart, Truck, BarChart2, Wallet, Wrench, Cog, MonitorCheck, MapPin, Receipt, Archive } from "lucide-react";
 
@@ -217,11 +218,11 @@ const PERM_TO_SECTION: Record<string, string> = {
   "inventory_page.parcel_total_revenue":     "section_inventory",
   "inventory_page.parcel_price_range":       "section_inventory",
   "inventory_page.parcel_types_table":       "section_inventory",
-  // الشحن
-  "shipping.view":             "section_shipping",
-  "shipping.edit":             "section_shipping",
-  "shipping.financials":       "section_shipping",
-  "shipping.manifests":        "section_shipping",
+  // بيانات المندوب (سابقًا "الشحن")
+  "shipping.view":             "section_reps",
+  "shipping.edit":             "section_reps",
+  "shipping.financials":       "section_reps",
+  "shipping.manifests":        "section_reps",
   // الشحنات
   "shipments.view":             "section_shipments",
   "shipments.create":           "section_shipments",
@@ -389,7 +390,6 @@ const SECTION_TO_PRIMARY_PERM: Record<string, string> = {
   "section_archive":             "orders.view",
   "section_shipping_followup":   "section_shipping_followup",
   "section_shipments_analytics": "analytics.smart",
-  "section_shipping":            "shipping.view",
   "section_shipments":           "shipments.view",
   "section_zones":               "zones.view",
   "section_reps":                "reps.view",
@@ -513,16 +513,6 @@ const SECTION_GROUPS: Array<{
     ],
   },
   {
-    id: "shipping", label: "الشحن والتوصيل", color: "text-purple-400", bgColor: "bg-purple-500/10 border-purple-500/30",
-    icon: <Truck className="w-4 h-4" />,
-    permissions: [
-      { key: "shipping.view",       label: "رؤية شركات الشحن",     desc: "دخول صفحة الشحن" },
-      { key: "shipping.edit",       label: "تعديل شركات الشحن",    desc: "تعديل الأسعار والبيانات" },
-      { key: "shipping.financials", label: "تكاليف الشحن المالية",  desc: "إظهار إذا مُنح", sensitive: true },
-      { key: "shipping.manifests",  label: "بوليصات الشحن",         desc: "إنشاء وتصدير البوليصات" },
-    ],
-  },
-  {
     id: "shipments", label: "الشحنات", color: "text-orange-400", bgColor: "bg-orange-500/10 border-orange-500/30",
     icon: <Truck className="w-4 h-4" />,
     permissions: [
@@ -555,7 +545,7 @@ const SECTION_GROUPS: Array<{
     ],
   },
   {
-    id: "reps", label: "مناديب الشحن", color: "text-teal-400", bgColor: "bg-teal-500/10 border-teal-500/30",
+    id: "reps", label: "مناديب STARK", color: "text-teal-400", bgColor: "bg-teal-500/10 border-teal-500/30",
     icon: <Truck className="w-4 h-4" />,
     permissions: [
       { key: "reps.view",                  label: "رؤية مناديب الشحن",              desc: "دخول قائمة مناديب الشحن" },
@@ -568,6 +558,10 @@ const SECTION_GROUPS: Array<{
       { key: "reps.manifest_net_revenue",  label: "رؤية صافي الإيراد الحقيقي",      desc: "إظهار صافي الإيراد الحقيقي لبيان الشحن", sensitive: true },
       { key: "reps.card_total_revenue",    label: "رؤية إجمالي الإيرادات بالكارت",  desc: "إظهار إجمالي الإيرادات في كارت المندوب", sensitive: true },
       { key: "reps.login_account",         label: "حساب الدخول لمندوب الشحن",       desc: "إنشاء حساب / تغيير كلمة السر / إيقاف حساب المندوب" },
+      { key: "shipping.view",       label: "رؤية صفحة تفاصيل المندوب",  desc: "دخول صفحة تفاصيل المندوب" },
+      { key: "shipping.edit",       label: "تعديل بيانات المندوب",      desc: "تعديل الأسعار والبيانات" },
+      { key: "shipping.financials", label: "تكاليف المندوب المالية",    desc: "إظهار إذا مُنح", sensitive: true },
+      { key: "shipping.manifests",  label: "بوليصات بيان الشحن",        desc: "إنشاء وتصدير بوليصات بيان المندوب" },
     ],
   },
   {
@@ -862,6 +856,8 @@ export default function UsersPage() {
   const qc = useQueryClient();
 
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+  const [confirmCloseOpen, setConfirmCloseOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<AppUser | null>(null);
   const [form, setForm] = useState<UserForm>(emptyForm());
   const [modalTab, setModalTab] = useState<string>("account");
@@ -876,6 +872,26 @@ export default function UsersPage() {
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(
     Object.fromEntries(SECTION_GROUPS.map(g => [g.id, true]))
   );
+  const [permSearch, setPermSearch] = useState("");
+
+  // بعد ما الفورم يتفتح (create/edit)، أي تغيير بعد كده يعتبر "تعديل غير محفوظ"
+  const isFirstFormRender = useRef(true);
+  useEffect(() => {
+    if (!dialogOpen) { isFirstFormRender.current = true; return; }
+    if (isFirstFormRender.current) { isFirstFormRender.current = false; return; }
+    setIsDirty(true);
+  }, [form, dialogOpen]);
+
+  // محاولة إغلاق المودال — لو فيه تعديلات غير محفوظة اطلب تأكيد بدل الإغلاق المباشر
+  const attemptCloseDialog = () => {
+    if (isDirty) { setConfirmCloseOpen(true); return; }
+    setDialogOpen(false);
+  };
+  const confirmDiscardAndClose = () => {
+    setConfirmCloseOpen(false);
+    setIsDirty(false);
+    setDialogOpen(false);
+  };
 
   // ── إضافة حساب مندوب/عميل ──────────────────────────────────────────────────
   const [repClientDialogOpen, setRepClientDialogOpen] = useState(false);
@@ -888,7 +904,7 @@ export default function UsersPage() {
 
   const createMutation = useMutation({
     mutationFn: usersApi.create,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["users"] }); setDialogOpen(false); toast({ title: "تم إضافة المستخدم" }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["users"] }); setIsDirty(false); setDialogOpen(false); toast({ title: "تم إضافة المستخدم" }); },
     onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
   });
 
@@ -896,6 +912,7 @@ export default function UsersPage() {
     mutationFn: ({ id, data }: { id: number; data: any }) => usersApi.update(id, data),
     onSuccess: (_result, variables) => {
       qc.invalidateQueries({ queryKey: ["users"] });
+      setIsDirty(false);
       setDialogOpen(false);
       setResetPasswordOpen(false);
       toast({ title: "تم تحديث المستخدم بنجاح" });
@@ -910,7 +927,7 @@ export default function UsersPage() {
     onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
   });
 
-  const openCreate = () => { setEditingUser(null); setForm(emptyForm()); setShowPassword(false); setDialogOpen(true); };
+  const openCreate = () => { setEditingUser(null); setForm(emptyForm()); setShowPassword(false); setIsDirty(false); setPermSearch(""); setDialogOpen(true); };
 
   // تحويل الصلاحيات القديمة للجديدة تلقائياً
   const migrateOldPermissions = (perms: string[]): string[] => {
@@ -976,6 +993,8 @@ export default function UsersPage() {
     setSelectedTemplate(savedCustomName ? "custom" : null);
     setCustomRoleName(savedCustomName);
     setModalTab("account");
+    setIsDirty(false);
+    setPermSearch("");
     setDialogOpen(true);
   };
 
@@ -1347,11 +1366,11 @@ export default function UsersPage() {
       )}
 
       {/* ── Create / Edit Dialog ── */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) attemptCloseDialog(); else setDialogOpen(true); }}>
         <DialogContent
-          className="bg-[#0f0f11] border border-white/[0.07] w-[96vw] max-w-2xl p-0 overflow-hidden flex flex-col gap-0 rounded-2xl shadow-2xl"
+          fullScreen
+          className="bg-[#0f0f11] p-0 overflow-hidden flex flex-col gap-0"
           dir="rtl"
-          style={{ maxHeight: "92dvh" }}
         >
           <DialogTitle className="sr-only">{editingUser ? "تعديل مستخدم" : "إضافة مستخدم جديد"}</DialogTitle>
           <DialogDescription className="sr-only">نموذج إدارة بيانات وصلاحيات المستخدم</DialogDescription>
@@ -1409,7 +1428,7 @@ export default function UsersPage() {
 
               {/* Close */}
               <button
-                onClick={() => setDialogOpen(false)}
+                onClick={attemptCloseDialog}
                 className="shrink-0 w-8 h-8 rounded-xl border border-white/10 flex items-center justify-center text-muted-foreground hover:text-white hover:border-white/30 transition-all"
               >
                 <X className="w-3.5 h-3.5" />
@@ -1725,13 +1744,40 @@ export default function UsersPage() {
                     </div>
                   </div>
 
+                  {/* Search box للصلاحيات */}
+                  <div className="relative">
+                    <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+                    <Input
+                      value={permSearch}
+                      onChange={e => setPermSearch(e.target.value)}
+                      placeholder="ابحث عن صلاحية... (مثلاً: حذف، تصدير، مندوب)"
+                      className="h-9 text-xs bg-white/[0.04] border-white/[0.08] focus:border-primary/50 rounded-xl pr-9 pl-8"
+                    />
+                    {permSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setPermSearch("")}
+                        className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-white"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
                   {/* 9 Section Groups */}
                   {SECTION_GROUPS.map(group => {
+                    const q = permSearch.trim().toLowerCase();
+                    const visiblePermissions = q
+                      ? group.permissions.filter(p =>
+                          p.label.toLowerCase().includes(q) || (p.desc || "").toLowerCase().includes(q)
+                        )
+                      : group.permissions;
+                    if (q && visiblePermissions.length === 0) return null;
                     const groupKeys = group.permissions.map(p => p.key);
                     const allOn  = groupKeys.every(k => form.permissions.includes(k));
                     const someOn = groupKeys.some(k => form.permissions.includes(k));
                     const [open, setOpen] = [
-                      openGroups[group.id] ?? true,
+                      q ? true : (openGroups[group.id] ?? true),
                       (v: boolean) => setOpenGroups(g => ({ ...g, [group.id]: v })),
                     ];
                     const toggleAll = () => {
@@ -1768,14 +1814,14 @@ export default function UsersPage() {
 
                         {/* Permissions list */}
                         {open && (
-                          <div className="divide-y divide-white/[0.04]">
-                            {group.permissions.map(perm => {
+                          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 divide-y lg:divide-y-0 divide-white/[0.04] lg:gap-px lg:bg-white/[0.04]">
+                            {visiblePermissions.map(perm => {
                               const active = form.permissions.includes(perm.key);
                               return (
                                 <label
                                   key={perm.key}
-                                  className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors
-                                    ${active ? "bg-white/[0.03]" : "hover:bg-white/[0.02]"}`}
+                                  className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors lg:bg-[#0f0f11]
+                                    ${active ? "bg-white/[0.03] lg:bg-white/[0.04]" : "hover:bg-white/[0.02]"}`}
                                 >
                                   <input
                                     type="checkbox"
@@ -1803,6 +1849,19 @@ export default function UsersPage() {
                       </div>
                     );
                   })}
+
+                  {/* لا نتائج بحث */}
+                  {permSearch.trim() && SECTION_GROUPS.every(group =>
+                    group.permissions.filter(p =>
+                      p.label.toLowerCase().includes(permSearch.trim().toLowerCase()) ||
+                      (p.desc || "").toLowerCase().includes(permSearch.trim().toLowerCase())
+                    ).length === 0
+                  ) && (
+                    <div className="text-center py-10 text-muted-foreground">
+                      <Search className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                      <p className="text-sm">مفيش صلاحية باسم "{permSearch.trim()}"</p>
+                    </div>
+                  )}
                 </div>
               );
 
@@ -1832,7 +1891,7 @@ export default function UsersPage() {
                     if (!editingUser && !isFirst) {
                       setModalTab(tabs[activeIdx - 1].id);
                     } else {
-                      setDialogOpen(false);
+                      attemptCloseDialog();
                     }
                   }}
                 >
@@ -1878,6 +1937,24 @@ export default function UsersPage() {
 
         </DialogContent>
       </Dialog>
+
+      {/* ── تأكيد الخروج بدون حفظ ── */}
+      <AlertDialog open={confirmCloseOpen} onOpenChange={setConfirmCloseOpen}>
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>تجاهل التعديلات؟</AlertDialogTitle>
+            <AlertDialogDescription>
+              عندك تعديلات لسه ما اتحفظتش. لو خرجت دلوقتي هتتفقد كل التعديلات اللي عملتها.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>ارجع للتعديل</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDiscardAndClose} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+              تجاهل واخرج
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* ── Reset Password Dialog ── */}
       <Dialog open={resetPasswordOpen} onOpenChange={setResetPasswordOpen}>
