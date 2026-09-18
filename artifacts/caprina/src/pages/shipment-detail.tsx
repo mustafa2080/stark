@@ -1422,6 +1422,16 @@ function InvoiceView({ orders, currentId, shippingCompanies, products, allVarian
                     </div>
                   )}
 
+                  {/* ملاحظة التسليم للعميل */}
+                  {o.status === "received" && (
+                    <div className="flex items-center gap-2 rounded-xl px-4 py-3 border bg-emerald-500/10 border-emerald-500/30">
+                      <span className="text-lg">✓</span>
+                      <div>
+                        <p className="text-xs font-bold text-emerald-400">تم تسليم الشحنة إلى العميل</p>
+                      </div>
+                    </div>
+                  )}
+
                   {/* ملاحظة الاستلام — مرتجع أو استلام جزئي */}
                   {(o.status === "returned" || o.status === "partial_received") && (() => {
                     const received = o.returnReceived === 1 || o.returnReceived === true;
@@ -3428,6 +3438,21 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                     <Lock className="w-2.5 h-2.5" /> مقفل
                   </Badge>
                 )}
+                {(order as any).shipmentKind === "replacement" && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-purple-500 dark:text-purple-300 bg-purple-500/10 border border-purple-500/30 rounded-full px-2 py-0.5">
+                    🔄 طلب استبدال
+                    {(order as any).originalShipmentId && (
+                      <Link href={`/shipments/${(order as any).originalShipmentId}`} className="underline decoration-dotted hover:text-purple-300">
+                        (الأصلية #{(order as any).originalShipmentId})
+                      </Link>
+                    )}
+                  </span>
+                )}
+                {(order as any).shipmentKind === "parcel_pickup" && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-cyan-500 dark:text-cyan-300 bg-cyan-500/10 border border-cyan-500/30 rounded-full px-2 py-0.5">
+                    📦 إحضار طرد
+                  </span>
+                )}
                 {!isEditing && (
                   <button
                     type="button"
@@ -4005,6 +4030,16 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                         <span className="text-xs text-foreground">{(order as any).notes}</span>
                       </div>
                     )}
+                  </div>
+                )}
+
+                {/* ── حالة التسليم للعميل ── */}
+                {order.status === "received" && (
+                  <div className="mx-4 mb-3 mt-3 flex items-center gap-3 rounded-xl px-4 py-3 border bg-emerald-500/10 border-emerald-500/30">
+                    <span className="text-lg shrink-0">✓</span>
+                    <div>
+                      <p className="text-xs font-bold text-emerald-400">تم تسليم الشحنة إلى العميل</p>
+                    </div>
                   </div>
                 )}
 

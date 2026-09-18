@@ -1422,6 +1422,16 @@ function InvoiceView({ orders, currentId, shippingCompanies, products, allVarian
                     </div>
                   )}
 
+                  {/* ملاحظة التسليم للعميل */}
+                  {o.status === "received" && (
+                    <div className="flex items-center gap-2 rounded-xl px-4 py-3 border bg-emerald-500/10 border-emerald-500/30">
+                      <span className="text-lg">✓</span>
+                      <div>
+                        <p className="text-xs font-bold text-emerald-400">تم تسليم الشحنة إلى العميل</p>
+                      </div>
+                    </div>
+                  )}
+
                   {/* ملاحظة الاستلام — مرتجع أو استلام جزئي */}
                   {(o.status === "returned" || o.status === "partial_received") && (() => {
                     const received = o.returnReceived === 1 || o.returnReceived === true;
@@ -4007,6 +4017,16 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                         <span className="text-xs text-foreground">{(order as any).notes}</span>
                       </div>
                     )}
+                  </div>
+                )}
+
+                {/* ── حالة التسليم للعميل ── */}
+                {order.status === "received" && (
+                  <div className="mx-4 mb-3 mt-3 flex items-center gap-3 rounded-xl px-4 py-3 border bg-emerald-500/10 border-emerald-500/30">
+                    <span className="text-lg shrink-0">✓</span>
+                    <div>
+                      <p className="text-xs font-bold text-emerald-400">تم تسليم الشحنة إلى العميل</p>
+                    </div>
                   </div>
                 )}
 
