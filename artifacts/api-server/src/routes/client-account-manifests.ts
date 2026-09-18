@@ -1315,8 +1315,7 @@ router.delete("/client-account-manifests/:id/items/:shipmentId", async (req, res
 //       القديم، عشان أي شحنة orphan تتضاف للبيان الجديد فور القفل بدل ما تفضل
 //       معلّقة لحد ما توصل warehouse_ready).
 //   (ب) شحنات البيان القديم اللي لسه "قيد الانتظار" (pending) أو "مؤجلة"
-//       (delayed) أو "مرتجعة ولسه محدّش استلمها" (returned + returnReceived != 1)
-//       — دي بتترحّل كـ"نسخة" (نفس الشحنة بتتضاف كبند جديد deliveryStatus="pending"
+//       (delayed) فقط — دي بتترحّل كـ"نسخة" (نفس الشحنة بتتضاف كبند جديد
 //       في البيان الجديد)، والبيان القديم المقفول بيفضل زي ما هو بنفس القيم
 //       القديمة كسجل تاريخي/أرشيف — من غير أي تعديل عليه.
 // آمنة idempotent: بتتنفذ فقط جوه لحظة الإغلاق نفسها. الشحنات المعلّقة بيتم
@@ -1363,14 +1362,20 @@ async function rolloverPendingItemsToNewManifest(
   // نستبعد أي بند شحنته اتحذفت (soft delete) من الترحيل — الشحنة المحذوفة مالهاش
   // تترحّل لبيان جديد. بنتحقق من الحذف مباشرةً من جدول الشحنات (مش عبر عضوية
   // clientShipments) عشان منستبعدش بالغلط بند شحنته سليمة وموجودة.
+  // المرتجع لا يُرحّل مطلقًا، حتى لو كان بند البيان القديم مسجلاً pending/delayed
+  // بالخطأ بينما حالة الشحنة الحية صارت مرتجعًا. الحالات الجزئية هنا تتضمن جزءًا
+  // مرتجعًا أيضًا، لذلك نعاملها بنفس القاعدة.
+  const RETURN_SHIPMENT_STATUSES = new Set(["returned", "returned_to_warehouse", "partial_received", "return_delivered"]);
   const pendingShipmentIds = pendingItems.map(i => i.shipmentId);
   let nonDeletedPendingSet = new Set<number>();
   if (pendingShipmentIds.length) {
     const nd = await db
-      .select({ id: shipmentsTable.id })
+      .select({ id: shipmentsTable.id, status: shipmentsTable.status })
       .from(shipmentsTable)
       .where(and(inArray(shipmentsTable.id, pendingShipmentIds), isNull(shipmentsTable.deletedAt)));
-    nonDeletedPendingSet = new Set(nd.map(r => r.id));
+    nonDeletedPendingSet = new Set(nd
+      .filter(r => !RETURN_SHIPMENT_STATUSES.has(r.status))
+      .map(r => r.id));
   }
   const pendingItemsToRoll = pendingItems.filter(i => nonDeletedPendingSet.has(i.shipmentId));
 
@@ -1380,14 +1385,18 @@ async function rolloverPendingItemsToNewManifest(
     ? or(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.tenantId))
     : undefined;
   const clientShipments = await db
-    .select({ id: shipmentsTable.id })
+    .select({ id: shipmentsTable.id, status: shipmentsTable.status })
     .from(shipmentsTable)
     .where(and(
       eq(shipmentsTable.clientId, clientId),
       isNull(shipmentsTable.deletedAt), // الشحنة المحذوفة مالهاش تترحّل كـ orphan
       tenantCondition,
     ));
-  const unlinkedCandidateIds = clientShipments.map(s => s.id);
+  // حتى لو المرتجع ليس له بند سابق (بيانات قديمة/حالة سُجلت بعد الإضافة)، لا
+  // نسمح لمسار الـ orphan أن ينقله إلى البيان الجديد عند الإغلاق.
+  const unlinkedCandidateIds = clientShipments
+    .filter(s => !RETURN_SHIPMENT_STATUSES.has(s.status))
+    .map(s => s.id);
 
   // ⚠️⚠️⚠️ إصلاح جذري (طلب بشمهندس مصطفى — العميل 77، شحنة SHP26090497 /
   // shipment_id=2634): شحنة اتسلّمت (delivered) في بيان مقفول (358) ظهرت
@@ -1396,11 +1405,11 @@ async function rolloverPendingItemsToNewManifest(
   // على وجود أي صف خالص بغض النظر عن حالته) كان *المفروض* يمنعها، لكن طلب
   // مصطفى صريح وقاطع: شحنة وصلت لحالة نهائية محسوبة ماليًا (مسلَّم/جزئي)
   // في أي بيان قُفل عليها ميترحلش لبيان جديد أبدًا مهما حصل — فقط pending/
-  // delayed (وreturned لسه معلّق) هما اللي يترحلوا. الاستبعاد ده بيتطبق هنا
+  // delayed فقط هما اللي يترحلوا. الاستبعاد ده بيتطبق هنا
   // بشكل صريح ومباشر (مش بس بالاعتماد على "الشحنة عندها صف")، كطبقة حماية
   // إضافية تضمن الشرط ده يتحقق دايمًا بغض النظر عن أي سبب تاني ممكن يخلي
   // الفلتر الأصلي يفلت (توقيت الاستعلامات، بيانات تاريخية، إلخ).
-  const FINALIZED_NO_ROLLOVER_STATUSES = new Set(["delivered", "partial_delivered", "partial_received"]);
+  const FINALIZED_NO_ROLLOVER_STATUSES = new Set(["delivered", "partial_delivered", "partial_received", "returned"]);
   let orphanShipmentIds: number[] = [];
   if (unlinkedCandidateIds.length) {
     const existingItemRows = await db
@@ -1430,14 +1439,8 @@ async function rolloverPendingItemsToNewManifest(
   });
   const newManifestId = (result as any).insertId as number;
 
-  // ─── وقت الترحيل ────────────────────────────────────────────────────────
-  // ⚠️⚠️ تحديث (2026-09-13): بعد إصلاح فلتر pendingItems فوق، المرتجع اللي
-  // لسه معلّق (returnReceived !== 1) بقى فعليًا داخل pendingItemsToRoll —
-  // فـ returnedStillAtShippingToRoll تحت بقت بترحّله فعلًا كبند "returned"
-  // جديد في البيان الجديد (نفس السبب وحالة الاستلام، بدون قيمة مالية —
-  // returnValueReceived بيتصفّر عمدًا لحد ما يحصل حدث مالي جديد بعد الترحيل).
-  const delayedOrPendingToRoll = pendingItemsToRoll.filter(i => i.deliveryStatus !== "returned");
-  const returnedStillAtShippingToRoll = pendingItemsToRoll.filter(i => i.deliveryStatus === "returned");
+  // ─── وقت الترحيل: pending و delayed فقط، بلا أي استثناء للمرتجع ──────────
+  const delayedOrPendingToRoll = pendingItemsToRoll;
 
   const newItems = [
     // ⚠️ deliveryStatus هنا لازم يفضل نفس حالة البند الأصلية (pending أو delayed)
@@ -1451,15 +1454,6 @@ async function rolloverPendingItemsToNewManifest(
       deliveryStatus: item.deliveryStatus as "pending" | "delayed",
       deliveryNote:   item.deliveryNote ?? null,
       addedAt:        now,
-    })),
-    ...returnedStillAtShippingToRoll.map(item => ({
-      manifestId:          newManifestId,
-      shipmentId:          item.shipmentId,
-      deliveryStatus:      "returned" as const,
-      returnReason:        item.returnReason,
-      returnReceived:      item.returnReceived,
-      returnValueReceived: null,
-      addedAt:             now,
     })),
     ...orphanShipmentIds.map(sid => ({
       manifestId:     newManifestId,
@@ -1484,7 +1478,7 @@ async function rolloverPendingItemsToNewManifest(
     orderCount:              newItems.length,
     postponedCount:          delayedOrPendingToRoll.filter(i => i.deliveryStatus === "delayed").length,
     pendingCount:            delayedOrPendingToRoll.filter(i => i.deliveryStatus === "pending").length + orphanShipmentIds.length,
-    returnedInShippingCount: returnedStillAtShippingToRoll.length,
+    returnedInShippingCount: 0,
     partialInShippingCount:  0,
   };
 

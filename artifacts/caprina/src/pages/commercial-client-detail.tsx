@@ -2189,10 +2189,10 @@ function ReturnShipmentRow({ s, clientId }: { s: ClientShipment; clientId: numbe
   );
 }
 
-// ─── زرارين "تم التسليم للراسل" / "لم يتم التسليم" (بطلب مصطفى 2026-09-12) ──
+// ─── زرارين "تم التسليم للعميل" / "لم يتم التسليم" (بطلب مصطفى 2026-09-12) ──
 // اتلغى الشرط اللي كان بيخفي زرار "تم الاستلام" لو الشحنة لسه مربوطة بمندوب/
 // شركة شحن (stillWithRep) — دلوقتي الزرارين ظاهرين دايمًا بدون أي شرط:
-// - "تم التسليم للراسل": نفس سلوك زرار "تم الاستلام" القديم بالظبط (نفس الـ
+// - "تم التسليم للعميل": نفس سلوك زرار "تم الاستلام" القديم بالظبط (نفس الـ
 //   mutation) — بيرحّل المرتجع لبيان المرتجعات المفتوح ويعلّم returnReceived=1.
 // - "لم يتم التسليم": مجرد تأشير بصري محلي (state في الواجهة بس)، من غير أي
 //   نداء API أو تعديل في الداتابيز — بيرجع لحالته الطبيعية لو ضغطت زرار تاني
@@ -2223,7 +2223,7 @@ function SimpleReturnReceivedButton({ shipment, clientId }: { shipment: ClientSh
           className="flex flex-1 sm:flex-initial flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg border text-[10px] font-bold transition-all min-w-[72px] border-border text-muted-foreground hover:border-emerald-700 hover:text-emerald-400 hover:bg-emerald-900/10 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <span className="text-sm">✅</span>
-          <span>تم التسليم للراسل</span>
+          <span>تم التسليم للعميل</span>
         </button>
         <button
           type="button"

@@ -2153,7 +2153,7 @@ export default function Orders() {
                             const receivedBy = (order as any).returnReceivedBy as "warehouse" | "sender" | null | undefined;
                             if (receivedBy === "sender") {
                               return (
-                                <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-emerald-600 dark:text-emerald-400">↪ تم تسليمه للراسل</span>
+                                <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-emerald-600 dark:text-emerald-400">↪ تم التسليم للعميل</span>
                               );
                             }
                             return (
@@ -2396,7 +2396,7 @@ export default function Orders() {
                                 return (
                                   <div className="flex items-center justify-center gap-0.5 mt-1">
                                     <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-600 dark:text-emerald-400 leading-none">
-                                      ↪ تم تسليمه للراسل
+                                      ↪ تم التسليم للعميل
                                     </span>
                                   </div>
                                 );

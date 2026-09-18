@@ -409,7 +409,7 @@ function ReturnCard({ item }: { item: ReturnItem }) {
               <span className="text-[11px] font-bold px-2 py-0.5 rounded-full text-emerald-300"
                 style={{ background: "rgba(16,185,129,0.12)" }}>
                 <CheckCircle2 size={11} className="inline-block ml-1 -mt-0.5" />
-                تم الاستلام
+                تم التسليم للعميل
               </span>
             )}
           </div>
@@ -461,4 +461,3 @@ function ReturnCard({ item }: { item: ReturnItem }) {
     </div>
   );
 }
-

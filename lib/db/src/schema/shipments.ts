@@ -162,7 +162,7 @@ export const shipmentsTable = mysqlTable("shipments", {
   returnReason:    varchar("return_reason", { length: 100 }),  // سبب الإرجاع
   returnReceived:  int("return_received"),                      // 1=تم الاستلام، 0/null=ما زال عند شركة الشحن/المندوب (للـ returned و partial_received)
   // مين استلم المرتجع فعليًا (بيتحدد بس لما returnReceived = 1):
-  // "warehouse" = رجع لمخزن (warehouseId بيحدد الفرع)، "sender" = تم تسليمه للراسل نفسه.
+  // "warehouse" = رجع لمخزن (warehouseId بيحدد الفرع)، "sender" = تم تسليمه للعميل نفسه.
   // null مع returnReceived=1 = بيانات قديمة قبل إضافة العمود ده (نعرضها كـ"استُلم" بدون تفصيل).
   returnReceivedBy: varchar("return_received_by", { length: 20 }),
   returnNote:      text("return_note"),                         // ملاحظة الإرجاع (لو other)
@@ -278,7 +278,7 @@ export function getShipmentLocationNote(input: ShipmentLocationNoteInput): strin
       return repName ? `مرتجع - ما زال مع المندوب ${repName}` : "مرتجع - ما زال مع المندوب";
     }
     if (input.returnReceivedBy === "sender") {
-      return "مرتجع - تم تسليمه للراسل";
+      return "مرتجع - تم التسليم للعميل";
     }
     // "warehouse" أو null (بيانات قديمة قبل إضافة returnReceivedBy)
     return warehouseName ? `مرتجع - في مخزن ${warehouseName}` : "مرتجع - تم استلامه في المخزن";

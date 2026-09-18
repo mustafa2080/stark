@@ -129,6 +129,12 @@ router.post("/client-return-manifests/:clientId/confirm-delivery/:shipmentId", a
       addedAt:        now,
     });
 
+    // ─── الشحنة نفسها هي مصدر الحقيقة للواجهات والتتبع. لا يكفي تحديث بند
+    // البيان وحده، وإلا يظل جدول الشحنات/التتبع يعرضان أنها في المخزن. ───────
+    await db.update(shipmentsTable)
+      .set({ returnReceived: 1, returnReceivedBy: "sender", updatedAt: now })
+      .where(eq(shipmentsTable.id, shipmentId));
+
     // ─── تسجيل returnReceived=1 على بند بيان حساب العميل العادي (لو موجود) ───
     await db.update(clientAccountManifestItemsTable)
       .set({ returnReceived: 1 })

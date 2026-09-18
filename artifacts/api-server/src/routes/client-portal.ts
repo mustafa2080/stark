@@ -2042,6 +2042,12 @@ router.post("/client-portal/manifests/:manifestId/items/:itemId/confirm-return",
       .set({ returnReceived: 1 })
       .where(eq(clientAccountManifestItemsTable.id, itemId));
 
+    // تأكيد العميل من البوابة لازم ينعكس على الشحنة نفسها أيضًا؛ صفحة الشحنات
+    // والتتبع يقرآن منها، لا من بند البيان فقط.
+    await db.update(shipmentsTable)
+      .set({ returnReceived: 1, returnReceivedBy: "sender", updatedAt: new Date() })
+      .where(eq(shipmentsTable.id, item.shipmentId));
+
     res.json({ success: true });
   } catch (e) {
     console.error("[POST /client-portal/manifests/:manifestId/items/:itemId/confirm-return]", e);

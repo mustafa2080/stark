@@ -728,24 +728,11 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
       }
     }
 
-    // ─── منع تأكيد "تم استلام المرتجع" طول ما الشحنة لسه مربوطة بمندوب (assignedUserId) ──
-    // (بطلب مصطفى 2026-09-10): نفس فحص /client-account-manifests — المرتجع ميتأكدش
-    // استلامه (رجع فعليًا للمخزن/الراسل) طول ما لسه في shipmentsTable.assignedUserId
-    // مندوب معيّن شايله فعليًا. ────────────────────────────────────────────────────
-    if (body.returnReceived === true) {
-      const [shipmentRow] = await db
-        .select({ assignedUserId: shipmentsTable.assignedUserId, assignedUserName: usersTable.displayName })
-        .from(shipmentsTable)
-        .leftJoin(usersTable, eq(shipmentsTable.assignedUserId, usersTable.id))
-        .where(eq(shipmentsTable.id, shipmentId))
-        .limit(1);
-      if (shipmentRow?.assignedUserId) {
-        res.status(400).json({
-          error: `لا يمكن تأكيد الاستلام — الشحنة ما زالت مرتبطة بالمندوب ${shipmentRow.assignedUserName || "غير معروف"}`,
-        });
-        return;
-      }
-    }
+    // ─── تأكيد استلام المرتجع ينهي عهدة المندوب ────────────────────────────────
+    // assignedUserId لا يُمسح لمجرد إغلاق البيان؛ لذلك لا يصلح كشرط سابق يمنع
+    // التأكيد هنا، وإلا يصبح استلام مرتجع من مندوبه نفسه مستحيلاً. الضغط على
+    // «تم الاستلام» هو مصدر الحقيقة للحيازة الفعلية، وبعده نفصل الشحنة عن
+    // المندوب/شركة الشحن في shipmentPatch أدناه.
 
     // ─── الحفاظ على بادئة [ROLLED_OVER] عبر أي تعديل ───────────────────────────
     // البند المُرحَّل من بيان مقفول معلَّم بـ "[ROLLED_OVER]" في deliveryNote عشان
@@ -840,6 +827,10 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
       shipmentPatch.returnReceived = body.returnReceived == null ? null : body.returnReceived ? 1 : 0;
     } else {
       shipmentPatch.returnReceived = null;
+    }
+    if (body.returnReceived === true) {
+      shipmentPatch.assignedUserId = null;
+      shipmentPatch.shippingCompanyId = null;
     }
     // returnReason: لو الطلب مابعتهش (زرار "تم الاستلام" السريع) نسيبها زي ما هي
     if (body.deliveryStatus === "returned" && body.returnReason !== undefined) {

@@ -49,6 +49,7 @@ interface ShipmentRow {
   returnReason: string | null;
   returnNote: string | null;
   returnReceived: 0 | 1 | boolean | null;
+  returnReceivedBy: "warehouse" | "sender" | null;
   partialQuantity: number | null;
   createdAt: string;
 }
@@ -67,6 +68,8 @@ const STATUS_LABELS: Record<string, { label: string; color: string; bg: string }
   cancelled:         { label: "ملغية",               color: "#6b7280", bg: "rgba(107,114,128,0.12)" },
   partial_received:  { label: "استلم جزئى",          color: "#38bdf8", bg: "rgba(56,189,248,0.12)" },
   received:          { label: "استلم",               color: "#22c55e", bg: "rgba(34,197,94,0.12)" },
+  replaced:          { label: "تم الاستبدال",         color: "#a855f7", bg: "rgba(168,85,247,0.12)" },
+  parcel_picked:     { label: "تم إحضار الطرد",       color: "#06b6d4", bg: "rgba(6,182,212,0.12)" },
   still_in_warehouse:{ label: "في المخزن",           color: "#38bdf8", bg: "rgba(56,189,248,0.12)" },
 };
 function statusMeta(status: string) {
@@ -736,7 +739,7 @@ export default function ClientShipmentsPage() {
                                 )}
                                 {isReceived ? (
                                   <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-600 dark:text-emerald-400 leading-none">
-                                    ↪ في مخزن {s.warehouseName || "—"}
+                                    ↪ {s.returnReceivedBy === "sender" ? "تم التسليم للعميل" : `في مخزن ${s.warehouseName || "—"}`}
                                   </span>
                                 ) : s.shippingCompanyName ? (
                                   <span className="inline-flex items-center gap-1 text-[9px] font-bold text-blue-500 dark:text-blue-300 leading-none">

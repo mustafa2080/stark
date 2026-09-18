@@ -1167,6 +1167,7 @@ router.get("/finance/clients/:id/shipments", async (req, res): Promise<void> => 
       pieces:         shipmentsTable.pieces,
       returnReason:   shipmentsTable.returnReason,
       returnReceived: shipmentsTable.returnReceived,
+      returnReceivedBy: shipmentsTable.returnReceivedBy,
       // ─── هل الشحنة لسه مربوطة بمندوب داخلي أو شركة شحن خارجية؟ (بطلب مصطفى
       // 2026-09-11) — لازم الفرونت يعرف ده عشان مايسمحش بزرار "تم الاستلام" في
       // تاب المرتجعات طول ما المرتجع لسه فعليًا شايله حد (مندوب داخلي أو شركة

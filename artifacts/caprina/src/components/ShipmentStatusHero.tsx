@@ -27,6 +27,11 @@ const STATUS_GROUP_MAP: Record<string, StatusGroup> = {
   out_for_delivery: "courier",
   received: "delivered",
   delivered: "delivered",
+  // الاستبدال وإحضار الطرد بيتبعوا مجموعة "delivered" عشان ياخدوا نفس
+  // الأنيميشن والتصميم بتاع النجاح، والعنوان/اللون بيتعدلوا بعدها من
+  // STATUS_META_OVERRIDE تحت.
+  replaced: "delivered",
+  parcel_picked: "delivered",
   partial_received: "delivered",
   return_delivered: "delivered",
   delayed: "exception",
@@ -44,6 +49,27 @@ const GROUP_META: Record<StatusGroup, { title: string; subtitle: string; accent:
   exception: { title: "تنبيه بخصوص الشحنة", subtitle: "هناك تحديث يحتاج انتباهك بخصوص هذه الشحنة", accent: "#f87171", accent2: "#fca5a5", glow: "rgba(248,113,113,0.35)" },
 };
 
+// ─── تخصيص العنوان/اللون لحالات إنجاز نوع الطلب ──────────────────────────────
+// الحالتين دول بياخدوا تصميم وأنيميشن مجموعة "delivered" زي ما هي، بس
+// العميل لازم يشوف إن اللي حصل استبدال أو إحضار طرد مش تسليم عادي.
+const STATUS_META_OVERRIDE: Record<string, Partial<(typeof GROUP_META)["delivered"]>> = {
+  replaced: {
+    title: "تم الاستبدال بنجاح",
+    subtitle: "تم تسليم البديل واستلام المنتج القديم، شكراً لثقتك بنا",
+    accent: "#a78bfa", accent2: "#c4b5fd", glow: "rgba(167,139,250,0.35)",
+  },
+  parcel_picked: {
+    title: "تم إحضار الطرد",
+    subtitle: "تم استلام الطرد بنجاح وهو الآن في عهدتنا",
+    accent: "#22d3ee", accent2: "#67e8f9", glow: "rgba(34,211,238,0.35)",
+  },
+  return_delivered: {
+    title: "تم التسليم للعميل",
+    subtitle: "تم تسليم المرتجع للعميل بنجاح",
+    accent: "#a3e635", accent2: "#bef264", glow: "rgba(163,230,53,0.35)",
+  },
+};
+
 interface ShipmentStatusHeroProps {
   status: string;
   trackingNumber?: string;
@@ -53,7 +79,10 @@ interface ShipmentStatusHeroProps {
 
 export default function ShipmentStatusHero({ status, trackingNumber, returnReason, returnNote }: ShipmentStatusHeroProps) {
   const group = useMemo<StatusGroup>(() => STATUS_GROUP_MAP[status] ?? "pending", [status]);
-  const meta = GROUP_META[group];
+  const meta = useMemo(
+    () => ({ ...GROUP_META[group], ...(STATUS_META_OVERRIDE[status] ?? {}) }),
+    [group, status],
+  );
 
   return (
     <div

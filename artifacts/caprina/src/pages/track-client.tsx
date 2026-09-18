@@ -25,6 +25,7 @@ interface Shipment {
   notes?: string;
   returnReason?: string | null;
   returnNote?: string | null;
+  returnReceivedBy?: "warehouse" | "sender" | null;
   createdAt?: string;
   warehouseName?: string | null;
   warehouseCity?: string | null;
@@ -48,11 +49,13 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; 
   out_for_delivery:        { label: "خرجت للتسليم",                   color: "#f97316", bg: "rgba(249,115,22,0.1)",  icon: Truck,         step: 5 },
   received:                { label: "تم التسليم بنجاح",                color: "#4ade80", bg: "rgba(74,222,128,0.1)",  icon: CheckCircle,   step: 6 },
   delivered:                { label: "تم التسليم بنجاح",                color: "#4ade80", bg: "rgba(74,222,128,0.1)",  icon: CheckCircle,   step: 6 },
+  replaced:                { label: "تم الاستبدال بنجاح",              color: "#a78bfa", bg: "rgba(167,139,250,0.1)", icon: CheckCircle,   step: 6 },
+  parcel_picked:           { label: "تم إحضار الطرد",                  color: "#22d3ee", bg: "rgba(34,211,238,0.1)",  icon: CheckCircle,   step: 6 },
   partial_received:        { label: "استلام جزئي",                    color: "#22d3ee", bg: "rgba(34,211,238,0.1)",  icon: CheckCircle,   step: 6 },
   delayed:                 { label: "الشحنة مؤجلة",                    color: "#fb923c", bg: "rgba(251,146,60,0.1)",  icon: AlertTriangle, step: -1, isException: true },
   returned:                { label: "الشحنة مرتجعة",                   color: "#f87171", bg: "rgba(248,113,113,0.1)", icon: ArrowRight,    step: -1, isException: true },
   returned_to_warehouse:   { label: "مرتجعة — في المخزن",              color: "#fb923c", bg: "rgba(251,146,60,0.1)",  icon: Package,       step: -1, isException: true },
-  return_delivered:        { label: "مرتجعة — تم التسليم للراسل",      color: "#a3e635", bg: "rgba(163,230,53,0.1)",  icon: CheckCircle,   step: -1, isException: true },
+  return_delivered:        { label: "مرتجعة — تم التسليم للعميل",      color: "#a3e635", bg: "rgba(163,230,53,0.1)",  icon: CheckCircle,   step: -1, isException: true },
   cancelled:               { label: "الشحنة ملغية",                    color: "#f87171", bg: "rgba(248,113,113,0.1)", icon: XCircle,       step: -1, isException: true },
 };
 
@@ -99,7 +102,7 @@ export default function TrackClientPage() {
         {/* Hero — حالة الشحنة الرئيسية بالرسوم المتحركة */}
         {!loading && !error && shipments.length > 0 && (
           <ShipmentStatusHero
-            status={shipments[0].status}
+            status={shipments[0].status === "returned" && shipments[0].returnReceivedBy === "sender" ? "return_delivered" : shipments[0].status}
             trackingNumber={shipments[0].trackingNumber || shipments[0].shipmentNumber}
             returnReason={shipments[0].returnReason}
             returnNote={shipments[0].returnNote}
@@ -145,7 +148,10 @@ export default function TrackClientPage() {
         {!loading && shipments.length > 0 && (
           <div className="w-full max-w-2xl flex flex-col gap-4">
             {shipments.map(shipment => {
-              const cfg = STATUS_CONFIG[shipment.status] ?? STATUS_CONFIG.pending;
+              const displayStatus = shipment.status === "returned" && shipment.returnReceivedBy === "sender"
+                ? "return_delivered"
+                : shipment.status;
+              const cfg = STATUS_CONFIG[displayStatus] ?? STATUS_CONFIG.pending;
               const StatusIcon = cfg.icon;
               const c = cfg.color;
               return (
