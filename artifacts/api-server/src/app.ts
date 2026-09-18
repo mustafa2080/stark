@@ -294,6 +294,57 @@ async function ensureShipmentWhatsappSentAt() {
 }
 if (IS_PRIMARY_INSTANCE) ensureShipmentWhatsappSentAt();
 
+// ─── Ensure shipments kind columns exist (طلب استبدال / إحضار طرد) ───────────
+// shipment_kind: نوع الطلب ("new" | "replacement" | "pickup") — الافتراضي "new"
+// عشان كل الشحنات القديمة تفضل شغالة بنفس السلوك بالظبط.
+// original_shipment_id: الشحنة الأصلية اللي بيتم استبدالها (لطلبات الاستبدال).
+async function ensureShipmentKindColumns() {
+  // نتحقق من information_schema الأول بدل الاعتماد على catch الأخطاء —
+  // كده الدالة بتبقى idempotent فعليًا وملهاش أي أثر (لا أعمدة ولا إندكسات
+  // مكررة، ولا رسائل "Duplicate column/key" في اللوج) بعد أول تشغيلة ناجحة.
+  try {
+    const [existingCols] = await db.execute(sql`
+      SELECT COLUMN_NAME FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'shipments'
+        AND COLUMN_NAME IN ('shipment_kind', 'original_shipment_id')
+    `);
+    const colNames = new Set((existingCols as unknown as any[]).map((r) => r.COLUMN_NAME));
+
+    if (!colNames.has("shipment_kind")) {
+      await db.execute(sql`ALTER TABLE shipments ADD COLUMN shipment_kind VARCHAR(20) NULL DEFAULT 'new'`);
+    }
+    if (!colNames.has("original_shipment_id")) {
+      await db.execute(sql`ALTER TABLE shipments ADD COLUMN original_shipment_id INT NULL`);
+    }
+
+    const [existingIdx] = await db.execute(sql`
+      SELECT DISTINCT INDEX_NAME FROM information_schema.STATISTICS
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'shipments'
+        AND INDEX_NAME IN ('idx_shipments_shipment_kind', 'idx_shipments_original_shipment_id')
+    `);
+    const idxNames = new Set((existingIdx as unknown as any[]).map((r) => r.INDEX_NAME));
+
+    if (!idxNames.has("idx_shipments_shipment_kind")) {
+      await db.execute(sql`ALTER TABLE shipments ADD INDEX idx_shipments_shipment_kind (shipment_kind)`);
+    }
+    if (!idxNames.has("idx_shipments_original_shipment_id")) {
+      await db.execute(sql`ALTER TABLE shipments ADD INDEX idx_shipments_original_shipment_id (original_shipment_id)`);
+    }
+  } catch (err) {
+    logger.error({ err }, "ensureShipmentKindColumns failed");
+  }
+  // الشحنات القديمة اللي اتعملت قبل العمود — نخليها "new" صراحةً بدل NULL عشان
+  // أي فلترة على shipment_kind تلاقيها. الـ WHERE بيخلي الاستعلام رخيص جدًا
+  // (no-op) في أي تشغيلة بعد الأولى، فمفيش داعي لأي شرط إضافي.
+  try {
+    await db.execute(sql`UPDATE shipments SET shipment_kind = 'new' WHERE shipment_kind IS NULL`);
+  } catch (err) {
+    logger.error({ err }, "Failed to backfill shipments.shipment_kind");
+  }
+  logger.info("shipments kind columns ensured");
+}
+if (IS_PRIMARY_INSTANCE) ensureShipmentKindColumns();
+
 // ─── Ensure shipping_companies.logo column exists ─────────────────────────────
 async function ensureShippingCompanyLogo() {
   try {
