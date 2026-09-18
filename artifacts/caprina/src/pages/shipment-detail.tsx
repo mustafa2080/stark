@@ -1446,12 +1446,12 @@ function InvoiceView({ orders, currentId, shippingCompanies, products, allVarian
                         <div>
                           <p className={`text-xs font-bold ${received ? "text-emerald-400" : "text-amber-400"}`}>
                             {received
-                              ? (isRet ? "تم استلام الشحنة المرتجعة بنجاح" : "تم استلام الكمية الجزئية بنجاح")
+                              ? (isRet ? "تم تسليم الأوردر إلى العميل" : "تم استلام الكمية الجزئية بنجاح")
                               : (isRet ? "لم يتم استلام الشحنة بعد" : "لم يتم استلام الكمية الجزئية بعد")}
                           </p>
                           <p className="text-[10px] text-muted-foreground mt-0.5">
                             {received
-                              ? (isRet ? "تم استلام المرتجع وإعادته للمخزن" : "تم استلام الجزء المُرتجع وإعادته للمخزن")
+                              ? (isRet ? "" : "تم استلام الجزء المُرتجع وإعادته للمخزن")
                               : "بانتظار التأكيد — البضاعة لا تزال عند شركة الشحن"}
                           </p>
                         </div>
@@ -1664,7 +1664,7 @@ function InvoiceView({ orders, currentId, shippingCompanies, products, allVarian
                               <span>{received ? "✓" : "⏳"}</span>
                               <span>
                                 {received
-                                  ? (isRet ? "تم استلام الشحنة المرتجعة بنجاح" : "تم استلام الكمية الجزئية بنجاح")
+                                  ? (isRet ? "تم تسليم الأوردر إلى العميل" : "تم استلام الكمية الجزئية بنجاح")
                                   : (isRet ? "بانتظار استلام الشحنة المرتجعة" : "بانتظار استلام الكمية الجزئية")}
                               </span>
                             </div>
@@ -4055,12 +4055,12 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                       <div>
                         <p className={`text-xs font-bold ${received ? "text-emerald-400" : "text-amber-400"}`}>
                           {received
-                            ? (isRet ? "تم استلام الشحنة المرتجعة بنجاح" : "تم استلام الكمية الجزئية بنجاح")
+                            ? (isRet ? "تم تسليم الأوردر إلى العميل" : "تم استلام الكمية الجزئية بنجاح")
                             : (isRet ? "لم يتم استلام الشحنة بعد" : "لم يتم استلام الكمية الجزئية بعد")}
                         </p>
                         <p className="text-[10px] text-muted-foreground mt-0.5">
                           {received
-                            ? (isRet ? "تم استلام المرتجع وإعادته للمخزن" : "تم استلام الجزء المُرتجع وإعادته للمخزن")
+                            ? (isRet ? "" : "تم استلام الجزء المُرتجع وإعادته للمخزن")
                             : "بانتظار التأكيد — البضاعة لا تزال عند شركة الشحن"}
                         </p>
                       </div>
