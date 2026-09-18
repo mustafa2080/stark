@@ -169,6 +169,11 @@ export default function FinanceCashPage() {
   });
   const clientsWithBalance = clientsBalData?.clients ?? [];
   const selectedClient = clientsWithBalance.find(client => String(client.id) === txForm.clientId);
+  const { data: selectedClientBalance } = useQuery<{ balance: number }>({
+    queryKey: ["/api/client-account-manifests/balance", txForm.clientId],
+    queryFn: () => apiFetch(`/api/client-account-manifests/balance/${txForm.clientId}`),
+    enabled: txOpen && txForm.type === "client_collection" && !!txForm.clientId,
+  });
 
   const hasActiveFilters = ledgerType !== "all" || ledgerDirection !== "all" || ledgerSearch !== "" ||
     ledgerFrom !== format(subDays(new Date(), 30), "yyyy-MM-dd") || ledgerTo !== format(new Date(), "yyyy-MM-dd");
@@ -233,7 +238,7 @@ export default function FinanceCashPage() {
 
   const txMut = useMutation({
     mutationFn: (d: any) => apiFetch(`/api/cash-registers/${selectedReg!.id}/transaction`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(d) }),
-    onSuccess: () => { qc.invalidateQueries({queryKey:["/api/cash-registers"]}); qc.invalidateQueries({queryKey:["/api/cash-registers/ledger"]}); qc.invalidateQueries({queryKey:["/api/cash-registers/alerts"]}); qc.invalidateQueries({queryKey:["/api/client-account-manifests/clients-with-balance"]}); setTxOpen(false); setTxForm({type:"deposit",amount:"",description:"",referenceNumber:"",transactionDate:format(new Date(),"yyyy-MM-dd"),clientId:""}); toast({title:"✅ تم تسجيل الحركة"}); },
+    onSuccess: () => { qc.invalidateQueries({queryKey:["/api/cash-registers"]}); qc.invalidateQueries({queryKey:["/api/cash-registers/ledger"]}); qc.invalidateQueries({queryKey:["/api/cash-registers/alerts"]}); qc.invalidateQueries({queryKey:["/api/client-account-manifests/clients-with-balance"]}); qc.invalidateQueries({queryKey:["/api/client-account-manifests/balance"]}); setTxOpen(false); setTxForm({type:"deposit",amount:"",description:"",referenceNumber:"",transactionDate:format(new Date(),"yyyy-MM-dd"),clientId:""}); toast({title:"✅ تم تسجيل الحركة"}); },
     onError: (e:any) => toast({title:"❌ خطأ", description:e.message, variant:"destructive"}),
   });
 
@@ -742,9 +747,9 @@ export default function FinanceCashPage() {
             {txForm.type === "client_collection" && <div className="space-y-1"><Label className="text-xs">العميل *</Label>
               <Select value={txForm.clientId} onValueChange={clientId=>setTxForm(p=>({...p,clientId,description:p.description || `تحصيل حساب — ${clientsWithBalance.find(client=>String(client.id)===clientId)?.name ?? ""}`}))}>
                 <SelectTrigger className="text-sm"><SelectValue placeholder="اختر العميل التجاري..."/></SelectTrigger>
-                <SelectContent className="max-h-64 overflow-y-auto">{clientsWithBalance.map(client=><SelectItem key={client.id} value={String(client.id)}>{client.name} — رصيد: {fmt(client.balance)}</SelectItem>)}</SelectContent>
+                <SelectContent className="max-h-64 overflow-y-auto">{clientsWithBalance.map(client=><SelectItem key={client.id} value={String(client.id)}>{client.name}{client.phone ? ` — ${client.phone}` : ""}</SelectItem>)}</SelectContent>
               </Select>
-              {selectedClient && <p className="text-[11px] text-muted-foreground">رصيد العميل الحالي: {fmt(selectedClient.balance)}</p>}
+              {selectedClient && <p className="text-[11px] text-muted-foreground">رصيد العميل الحالي: {selectedClientBalance ? fmt(selectedClientBalance.balance) : "جارٍ حساب الرصيد..."}</p>}
             </div>}
             <div className="space-y-1"><Label className="text-xs">المبلغ *</Label><Input type="number" placeholder="0.00" value={txForm.amount} onChange={e=>setTxForm(p=>({...p,amount:e.target.value}))} className="text-sm"/></div>
             <div className="space-y-1"><Label className="text-xs">التاريخ</Label><Input type="date" value={txForm.transactionDate} onChange={e=>setTxForm(p=>({...p,transactionDate:e.target.value}))} className="text-sm"/></div>
