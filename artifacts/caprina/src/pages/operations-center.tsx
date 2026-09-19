@@ -33,6 +33,39 @@ const fc = (n: number) =>
   new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(n);
 const fn = (n: number) => new Intl.NumberFormat("ar-EG").format(Math.round(n));
 
+// ── توزيع أعمدة ديناميكي على الكروت الظاهرة فقط (بيتكيف مع أي صلاحيات) ─────────
+// كل كارت له "وزن" مفضّل (عدد الأعمدة من 4). لو مجموع الأوزان أقل من 4، الكارت
+// الأوسع (flex) بياخد الباقي. لو أكتر من 4، بنقلّل الأوزان بالتناسب. والنتيجة دايمًا
+// بتملأ الصف بالكامل من غير أي فراغ، مهما كان عدد الكروت الظاهرة.
+const OC_SPAN_CLASS: Record<number, string> = {
+  1: "xl:col-span-1", 2: "xl:col-span-2", 3: "xl:col-span-3", 4: "xl:col-span-4",
+  5: "xl:col-span-5", 6: "xl:col-span-6", 7: "xl:col-span-7", 8: "xl:col-span-8",
+};
+type OcSlot = { key: string; show: boolean; weight: number; flex?: boolean };
+function ocSpans(slots: OcSlot[], total: number): { cols: number; spans: Record<string, string> } {
+  const visible = slots.filter((s) => s.show);
+  const spans: Record<string, string> = {};
+  if (visible.length === 0) return { cols: total, spans };
+  const sum = visible.reduce((a, s) => a + s.weight, 0);
+  const widths: Record<string, number> = {};
+  if (sum === total) {
+    visible.forEach((s) => { widths[s.key] = s.weight; });
+  } else if (sum < total) {
+    // فيه أعمدة فاضية → الكارت المرن ياخدها (ولو مفيش مرن، آخر كارت)
+    const flexSlot = visible.find((s) => s.flex) ?? visible[visible.length - 1];
+    visible.forEach((s) => { widths[s.key] = s.weight; });
+    widths[flexSlot.key] += total - sum;
+  } else {
+    // زيادة عن الحد → نوزّع بالتساوي (min 1 لكل كارت)
+    const base = Math.max(1, Math.floor(total / visible.length));
+    visible.forEach((s) => { widths[s.key] = base; });
+    let used = base * visible.length;
+    for (let i = visible.length - 1; used < total && i >= 0; i--) { widths[visible[i].key] += 1; used += 1; }
+  }
+  visible.forEach((s) => { spans[s.key] = OC_SPAN_CLASS[widths[s.key]] ?? "xl:col-span-1"; });
+  return { cols: total, spans };
+}
+
 // ── نوع الفلتر الزمني الموحّد (يوم/أسبوع/شهر/سنة/فترة محددة) ───────────────────
 type OcPeriodFilter =
   | { type: "today" | "week" | "month" | "year" }
@@ -1631,12 +1664,22 @@ export default function OperationsCenterPage() {
 
   const showRecentEvents = can("dashboard.recent_events");
   const showRecentShipments = can("dashboard.recent_shipments");
-  const row4EventsShipmentsSpan = (showRecentEvents && showRecentShipments) ? "xl:col-span-2" : "xl:col-span-4";
+  const row4 = ocSpans([
+    { key: "events", show: showRecentEvents, weight: 2 },
+    { key: "shipments", show: showRecentShipments, weight: 2 },
+  ], 4);
+  const row4EventsShipmentsSpan = row4.spans.events ?? row4.spans.shipments ?? "xl:col-span-4";
+  const row4EventsSpan = row4.spans.events ?? "xl:col-span-4";
+  const row4ShipmentsSpan = row4.spans.shipments ?? "xl:col-span-4";
 
   const showStatusDistribution = can("dashboard.status_distribution");
   const showWeeklyShipments = can("dashboard.weekly_shipments");
-  const row1StatusSpan = (showStatusDistribution && showWeeklyShipments) ? "xl:col-span-1" : "xl:col-span-3";
-  const row1WeeklySpan = (showStatusDistribution && showWeeklyShipments) ? "xl:col-span-2" : "xl:col-span-3";
+  const row1 = ocSpans([
+    { key: "status", show: showStatusDistribution, weight: 1 },
+    { key: "weekly", show: showWeeklyShipments, weight: 2, flex: true },
+  ], 3);
+  const row1StatusSpan = row1.spans.status ?? "xl:col-span-3";
+  const row1WeeklySpan = row1.spans.weekly ?? "xl:col-span-3";
 
   // ── الصف التاني: عمود مركز العمليات + الخريطة + مؤشرات الأداء ──
   const showSideColumn =
@@ -1646,8 +1689,14 @@ export default function OperationsCenterPage() {
   const showPerfMetrics = can("dashboard.performance_metrics");
   const row2HasAny = showSideColumn || showLiveMap || showPerfMetrics;
   // الخريطة تاخد الأعمدة الفاضية: 4 - (عمود جانبي؟1:0) - (مؤشرات الأداء؟1:0)
-  const row2MapCols = 4 - (showSideColumn ? 1 : 0) - (showPerfMetrics ? 1 : 0);
-  const row2MapSpan = row2MapCols === 4 ? "xl:col-span-4" : row2MapCols === 3 ? "xl:col-span-3" : row2MapCols === 2 ? "xl:col-span-2" : "xl:col-span-1";
+  const row2 = ocSpans([
+    { key: "side", show: showSideColumn, weight: 1 },
+    { key: "map", show: showLiveMap, weight: 2, flex: true },
+    { key: "perf", show: showPerfMetrics, weight: 1 },
+  ], 4);
+  const row2SideSpan = row2.spans.side ?? "xl:col-span-1";
+  const row2MapSpan = row2.spans.map ?? "xl:col-span-2";
+  const row2PerfSpan = row2.spans.perf ?? "xl:col-span-1";
 
   // ── الصف التالت: ملخص الإيرادات + اتجاه الإيرادات + مركز الذكاء الاصطناعي ──
   const showRevenueSummary = can("dashboard.revenue_summary");
@@ -1655,14 +1704,24 @@ export default function OperationsCenterPage() {
   const showAiCenter = can("dashboard.ai_center");
   const row3HasAny = showRevenueSummary || showRevenueTrend || showAiCenter;
   // اتجاه الإيرادات هو الكارت المرن: ياخد الأعمدة الفاضية
-  const row3TrendCols = 4 - (showRevenueSummary ? 1 : 0) - (showAiCenter ? 1 : 0);
-  const row3TrendSpan = row3TrendCols === 4 ? "xl:col-span-4" : row3TrendCols === 3 ? "xl:col-span-3" : row3TrendCols === 2 ? "xl:col-span-2" : "xl:col-span-1";
+  const row3 = ocSpans([
+    { key: "summary", show: showRevenueSummary, weight: 1 },
+    { key: "trend", show: showRevenueTrend, weight: 2, flex: true },
+    { key: "ai", show: showAiCenter, weight: 1 },
+  ], 4);
+  const row3SummarySpan = row3.spans.summary ?? "xl:col-span-1";
+  const row3TrendSpan = row3.spans.trend ?? "xl:col-span-2";
+  const row3AiSpan = row3.spans.ai ?? "xl:col-span-1";
 
   // ── صف: إجراءات سريعة + جدول المندوبين اليومي (xl:grid-cols-3) ──
   const showQuickActions = can("dashboard.quick_actions");
   const showRepsDailyTable = can("dashboard.reps_daily_table");
-  const rowQaQuickSpan = (showQuickActions && showRepsDailyTable) ? "xl:col-span-1" : "xl:col-span-3";
-  const rowQaRepsSpan = (showQuickActions && showRepsDailyTable) ? "xl:col-span-2" : "xl:col-span-3";
+  const rowQa = ocSpans([
+    { key: "quick", show: showQuickActions, weight: 1 },
+    { key: "reps", show: showRepsDailyTable, weight: 2, flex: true },
+  ], 3);
+  const rowQaQuickSpan = rowQa.spans.quick ?? "xl:col-span-3";
+  const rowQaRepsSpan = rowQa.spans.reps ?? "xl:col-span-3";
 
   const handleExportReport = async () => {
     if (isExportingReport) return;
@@ -2068,7 +2127,7 @@ export default function OperationsCenterPage() {
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-4 items-stretch xl:h-[680px]">
         {/* العمود الجانبي — مركز العمليات (سكرول واحد موحّد للحاويات الأربع) */}
         {showSideColumn && (
-        <div className="xl:col-span-1 flex flex-col gap-3 xl:h-full xl:overflow-y-auto pr-1 min-h-0">
+        <div className={`${row2SideSpan} flex flex-col gap-3 xl:h-full xl:overflow-y-auto pr-1 min-h-0`}>
           {can("dashboard.delayed_shipments") && (
           <Card className="oc-kpi-card shrink-0 flex flex-col" style={{ ["--tone" as any]: "#ef4444" }}>
             <CardHeader className="pb-2">
@@ -2230,7 +2289,7 @@ export default function OperationsCenterPage() {
 
         {/* مؤشرات الأداء الرئيسية */}
         {showPerfMetrics && (
-        <div className="xl:col-span-1">
+        <div className={row2PerfSpan}>
           <Card className="oc-kpi-card h-full" style={{ ["--tone" as any]: "#6366f1" }}>
             <CardHeader className="pb-2 space-y-3">
               <div className="flex items-center justify-between gap-2">
@@ -2292,7 +2351,7 @@ export default function OperationsCenterPage() {
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
         {/* ملخص الأرباح */}
         {showRevenueSummary && (
-        <Card className="oc-kpi-card xl:col-span-1" style={{ ["--tone" as any]: "#14b8a6" }}>
+        <Card className={`oc-kpi-card ${row3SummarySpan}`} style={{ ["--tone" as any]: "#14b8a6" }}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <DollarSign className="w-4 h-4 text-teal-500" /> ملخص الإيرادات
@@ -2407,7 +2466,7 @@ export default function OperationsCenterPage() {
 
         {/* مركز الذكاء الاصطناعي */}
         {showAiCenter && (
-        <Card className="oc-kpi-card xl:col-span-1" style={{ ["--tone" as any]: "#d946ef" }}>
+        <Card className={`oc-kpi-card ${row3AiSpan}`} style={{ ["--tone" as any]: "#d946ef" }}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <Brain className="w-4 h-4 text-fuchsia-500" /> مركز الذكاء الاصطناعي
@@ -2469,9 +2528,9 @@ export default function OperationsCenterPage() {
               ))}
             </div>
           ) : staleManifestsItems.length === 0 ? (
-            <div className="flex flex-col items-center gap-3 py-10 text-center">
-              <div className="flex items-center justify-center w-14 h-14 rounded-full bg-emerald-500/10">
-                <PackageCheck className="w-7 h-7 text-emerald-500" />
+            <div className="flex flex-col items-center gap-2 py-3 text-center">
+              <div className="flex items-center justify-center w-10 h-10 rounded-full bg-emerald-500/10">
+                <PackageCheck className="w-5 h-5 text-emerald-500" />
               </div>
               <div>
                 <p className="text-sm font-bold">كل البيانات المفتوحة حديثة</p>
@@ -2515,6 +2574,7 @@ export default function OperationsCenterPage() {
       )}
 
       {/* ── أفضل العملاء / أفضل المندوبين ───────────────────────────────── */}
+      {(showTopClients || showTopReps) && (
       <div className={`grid grid-cols-1 ${row3ClientsRepsCols} gap-4`}>
         {showTopClients && (
         <Card className="oc-kpi-card" style={{ ["--tone" as any]: "#a855f7" }}>
@@ -2631,12 +2691,14 @@ export default function OperationsCenterPage() {
         </Card>
         )}
       </div>
+      )}
 
       {/* ── الصف الرابع ──────────────────────────────────────────────────── */}
+      {(showRecentEvents || showRecentShipments) && (
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
         {/* أحدث التنبيهات */}
         {showRecentEvents && (
-        <Card className={`oc-kpi-card ${row4EventsShipmentsSpan}`} style={{ ["--tone" as any]: "#ef4444" }}>
+        <Card className={`oc-kpi-card ${row4EventsSpan}`} style={{ ["--tone" as any]: "#ef4444" }}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <Bell className="w-4 h-4 text-red-500" /> أحدث التنبيهات
@@ -2667,7 +2729,7 @@ export default function OperationsCenterPage() {
 
         {/* آخر الشحنات */}
         {showRecentShipments && (
-        <Card className={`oc-kpi-card ${row4EventsShipmentsSpan}`} style={{ ["--tone" as any]: "#64748b" }}>
+        <Card className={`oc-kpi-card ${row4ShipmentsSpan}`} style={{ ["--tone" as any]: "#64748b" }}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <FileText className="w-4 h-4 text-slate-500" /> آخر الشحنات
@@ -2712,6 +2774,7 @@ export default function OperationsCenterPage() {
         </Card>
         )}
       </div>
+      )}
 
       {/* ── إجراءات سريعة + جدول المندوبين اليومي ───────────────────────── */}
       {(showQuickActions || showRepsDailyTable) && (
