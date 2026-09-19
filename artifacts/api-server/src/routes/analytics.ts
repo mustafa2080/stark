@@ -3466,18 +3466,28 @@ router.get("/analytics/stale-manifests", requireAuth, async (req, res): Promise<
     const cached = getCached<any>(cacheKey);
     if (cached) { res.json(cached); return; }
 
+    // ملاحظة: بيانات المناديب الفعلية للشحنات في shipment_manifests (مش shipping_manifests
+    // الخاص بالطلبات القديمة). البيان ممكن يتبع عميل تجاري (clientId) بدل شركة شحن،
+    // فبنستبعده لأن الحاوية دي مخصصة للمناديب (شركات الشحن) فقط.
     const cond = tenantId !== null
-      ? and(eq(shippingManifestsTable.tenantId, tenantId), eq(shippingManifestsTable.status, "open"))
-      : eq(shippingManifestsTable.status, "open");
+      ? and(
+          eq(shipmentManifestsTable.tenantId, tenantId),
+          eq(shipmentManifestsTable.status, "open"),
+          isNotNull(shipmentManifestsTable.shippingCompanyId),
+        )
+      : and(
+          eq(shipmentManifestsTable.status, "open"),
+          isNotNull(shipmentManifestsTable.shippingCompanyId),
+        );
 
     const [openManifests, companies] = await Promise.all([
       db.select({
-          id: shippingManifestsTable.id,
-          manifestNumber: shippingManifestsTable.manifestNumber,
-          createdAt: shippingManifestsTable.createdAt,
-          shippingCompanyId: shippingManifestsTable.shippingCompanyId,
+          id: shipmentManifestsTable.id,
+          manifestNumber: shipmentManifestsTable.manifestNumber,
+          createdAt: shipmentManifestsTable.createdAt,
+          shippingCompanyId: shipmentManifestsTable.shippingCompanyId,
         })
-        .from(shippingManifestsTable)
+        .from(shipmentManifestsTable)
         .where(cond),
       tenantId !== null
         ? db.select({ id: shippingCompaniesTable.id, name: shippingCompaniesTable.name, phone: shippingCompaniesTable.phone })
@@ -3491,7 +3501,8 @@ router.get("/analytics/stale-manifests", requireAuth, async (req, res): Promise<
     const seventyTwoHoursAgo = new Date(now.getTime() - 72 * 60 * 60 * 1000);
 
     const items = openManifests
-      .filter((m) => new Date(m.createdAt) <= seventyTwoHoursAgo)
+      .filter((m): m is typeof m & { shippingCompanyId: number } =>
+        m.shippingCompanyId !== null && new Date(m.createdAt) <= seventyTwoHoursAgo)
       .map((m) => {
         const hoursOpen = Math.floor((now.getTime() - new Date(m.createdAt).getTime()) / (1000 * 60 * 60));
         const company = companyById.get(m.shippingCompanyId);
