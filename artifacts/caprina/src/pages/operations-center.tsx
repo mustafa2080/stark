@@ -1725,6 +1725,8 @@ export default function OperationsCenterPage() {
     { key: "reps", show: sideReps, weight: 1 },
     { key: "followup", show: sideFollowup, weight: 1 },
   ], 4);
+  // في الوضع العمودي (مع الخريطة): كل كارت ظاهر يتمدد بالتساوي ويملأ ارتفاع الصف (min-h-0 عشان السكرول)
+  const sideCardFill = row2SideOnly ? "shrink-0" : "flex-1 min-h-0 overflow-hidden";
   const sideCardSpan = (key: string) =>
     row2SideOnly ? (OC_SPAN_TO_MD[sideSlots.spans[key] ?? "xl:col-span-1"] ?? "md:col-span-1") : "";
 
@@ -2159,7 +2161,7 @@ export default function OperationsCenterPage() {
         {showSideColumn && (
         <div className={`${row2SideSpan} ${row2SideLayout}`}>
           {can("dashboard.delayed_shipments") && (
-          <Card className={`oc-kpi-card shrink-0 flex flex-col ${sideCardSpan("delayed")}`} style={{ ["--tone" as any]: "#ef4444" }}>
+          <Card className={`oc-kpi-card ${sideCardFill} flex flex-col ${sideCardSpan("delayed")}`} style={{ ["--tone" as any]: "#ef4444" }}>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
                 <AlertOctagon className="w-4 h-4 text-red-500" /> شحنات متأخرة
@@ -2194,13 +2196,13 @@ export default function OperationsCenterPage() {
           )}
 
           {can("dashboard.problem_shipments") && (
-          <Card className={`oc-kpi-card shrink-0 flex flex-col ${sideCardSpan("problem")}`} style={{ ["--tone" as any]: "#f59e0b" }}>
+          <Card className={`oc-kpi-card ${sideCardFill} flex flex-col ${sideCardSpan("problem")}`} style={{ ["--tone" as any]: "#f59e0b" }}>
             <CardHeader className="pb-2 shrink-0">
               <CardTitle className="text-sm flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 text-amber-500" /> شحنات فيها مشكلة
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2 pr-4 pl-2">
+            <CardContent className="space-y-2 pr-4 pl-2 overflow-y-auto min-h-0 flex-1">
               {opsCenterLoading && problemShipments.length === 0 ? (
                 Array.from({ length: 3 }).map((_, i) => (
                   <div key={i} className="flex items-center justify-between text-xs border-b last:border-0 pb-2 last:pb-0 animate-pulse">
@@ -2229,13 +2231,13 @@ export default function OperationsCenterPage() {
           )}
 
           {can("dashboard.online_reps") && (
-          <Card className={`oc-kpi-card shrink-0 flex flex-col ${sideCardSpan("reps")}`} style={{ ["--tone" as any]: "#0ea5e9" }}>
+          <Card className={`oc-kpi-card ${sideCardFill} flex flex-col ${sideCardSpan("reps")}`} style={{ ["--tone" as any]: "#0ea5e9" }}>
             <CardHeader className="pb-2 shrink-0">
               <CardTitle className="text-sm flex items-center gap-2">
                 <Truck className="w-4 h-4 text-sky-500" /> المندوبين الموجودين حالياً
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2 pr-4 pl-2">
+            <CardContent className="space-y-2 pr-4 pl-2 overflow-y-auto min-h-0 flex-1">
               {opsCenterLoading && representatives.length === 0 ? (
                 Array.from({ length: 3 }).map((_, i) => (
                   <div key={i} className="h-8 rounded bg-muted animate-pulse" />
@@ -2261,13 +2263,13 @@ export default function OperationsCenterPage() {
           )}
 
           {can("dashboard.clients_followup") && (
-          <Card className={`oc-kpi-card shrink-0 flex flex-col ${sideCardSpan("followup")}`} style={{ ["--tone" as any]: "#d946ef" }}>
+          <Card className={`oc-kpi-card ${sideCardFill} flex flex-col ${sideCardSpan("followup")}`} style={{ ["--tone" as any]: "#d946ef" }}>
             <CardHeader className="pb-2 shrink-0">
               <CardTitle className="text-sm flex items-center gap-2">
                 <Phone className="w-4 h-4 text-fuchsia-500" /> عملاء محتاجين متابعة
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2 pr-4 pl-2">
+            <CardContent className="space-y-2 pr-4 pl-2 overflow-y-auto min-h-0 flex-1">
               {opsCenterLoading && clientsNeedingFollowup.length === 0 ? (
                 Array.from({ length: 3 }).map((_, i) => (
                   <div key={i} className="h-8 rounded bg-muted animate-pulse" />
@@ -2496,13 +2498,13 @@ export default function OperationsCenterPage() {
 
         {/* مركز الذكاء الاصطناعي */}
         {showAiCenter && (
-        <Card className={`oc-kpi-card ${row3AiSpan}`} style={{ ["--tone" as any]: "#d946ef" }}>
-          <CardHeader className="pb-2">
+        <Card className={`oc-kpi-card flex flex-col ${row3AiSpan}`} style={{ ["--tone" as any]: "#d946ef" }}>
+          <CardHeader className="pb-2 shrink-0">
             <CardTitle className="text-sm flex items-center gap-2">
               <Brain className="w-4 h-4 text-fuchsia-500" /> مركز الذكاء الاصطناعي
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
+          <CardContent className="flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto">
             {opsAlertsLoading && aiInsights.length === 0 ? (
               Array.from({ length: 3 }).map((_, i) => (
                 <div key={i} className="h-8 rounded bg-muted animate-pulse" />
@@ -2511,7 +2513,7 @@ export default function OperationsCenterPage() {
               <p className="text-xs text-muted-foreground text-center py-6">لا توجد تنبيهات حالياً — كل شيء يسير بشكل طبيعي</p>
             ) : (
               aiInsights.map((a) => (
-                <div key={a.id} className="flex items-start gap-2 text-xs p-2 rounded-lg bg-muted/40">
+                <div key={a.id} className="flex flex-1 items-center gap-2 text-xs p-3 rounded-lg bg-muted/40 min-h-[56px]">
                   <Zap className={`w-3.5 h-3.5 mt-0.5 shrink-0 ${
                     a.type === "warning" ? "text-amber-500" : a.type === "critical" ? "text-red-500" :
                     a.type === "opportunity" ? "text-emerald-500" : "text-blue-500"}`} />
