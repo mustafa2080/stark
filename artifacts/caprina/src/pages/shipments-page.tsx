@@ -2131,7 +2131,9 @@ export default function Orders() {
                             <span className="inline-flex flex-col gap-0 text-[9px] font-bold leading-tight">
                               {pq != null && <span className="text-teal-600 dark:text-teal-400">✓ استُلم {formatCurrency(pq)} من {formatCurrency(totalPrice)}</span>}
                               {rr === 1
-                                ? <span className="text-emerald-600 dark:text-emerald-400">↪ الباقي في مخزن {(order as any).warehouseName || "—"}</span>
+                                ? ((order as any).returnReceivedBy === "sender"
+                                    ? <span className="text-emerald-600 dark:text-emerald-400">↪ تم تسليم باقي الأوردر للعميل</span>
+                                    : <span className="text-emerald-600 dark:text-emerald-400">↪ الباقي في مخزن {(order as any).warehouseName || "—"}</span>)
                                 : <span className="text-orange-500 dark:text-orange-400">🚚 الباقي ما زال عند مندوب الشحن</span>}
                             </span>
                           );
@@ -2427,7 +2429,9 @@ export default function Orders() {
                               <div className="flex flex-col items-center gap-0 mt-1 text-[9px] font-bold leading-tight">
                                 {pq != null && <span className="text-teal-600 dark:text-teal-400">✓ استُلم {formatCurrency(pq)} من {formatCurrency(totalPrice)}</span>}
                                 {rr === 1
-                                  ? <span className="text-emerald-600 dark:text-emerald-400">↪ الباقي في مخزن {(o as any).warehouseName || "—"}</span>
+                                  ? ((o as any).returnReceivedBy === "sender"
+                                      ? <span className="text-emerald-600 dark:text-emerald-400">↪ تم تسليم باقي الأوردر للعميل</span>
+                                      : <span className="text-emerald-600 dark:text-emerald-400">↪ الباقي في مخزن {(o as any).warehouseName || "—"}</span>)
                                   : <span className="text-orange-500 dark:text-orange-400">🚚 الباقي ما زال عند مندوب الشحن</span>}
                               </div>
                             );

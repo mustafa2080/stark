@@ -755,7 +755,9 @@ export default function ClientShipmentsPage() {
                                 <span className="text-teal-600 dark:text-teal-400">✓ استُلم {formatCurrency(Number(s.partialQuantity))} من {formatCurrency(Number(s.totalAmount ?? 0))}</span>
                               )}
                               {(s.returnReceived === 1)
-                                ? <span className="text-emerald-600 dark:text-emerald-400">↪ الباقي في مخزن {s.warehouseName || "—"}</span>
+                                ? (s.returnReceivedBy === "sender"
+                                    ? <span className="text-emerald-600 dark:text-emerald-400">↪ تم تسليم باقي الأوردر للعميل</span>
+                                    : <span className="text-emerald-600 dark:text-emerald-400">↪ الباقي في مخزن {s.warehouseName || "—"}</span>)
                                 : <span className="text-orange-500 dark:text-orange-400">🚚 الباقي ما زال عند مندوب الشحن</span>}
                             </div>
                           )}

@@ -26,6 +26,7 @@ interface Shipment {
   returnReason?: string | null;
   returnNote?: string | null;
   returnReceivedBy?: "warehouse" | "sender" | null;
+  returnReceived?: number | boolean | null;
   createdAt?: string;
   warehouseName?: string | null;
   warehouseCity?: string | null;
@@ -56,6 +57,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; 
   returned:                { label: "الشحنة مرتجعة",                   color: "#f87171", bg: "rgba(248,113,113,0.1)", icon: ArrowRight,    step: -1, isException: true },
   returned_to_warehouse:   { label: "مرتجعة — في المخزن",              color: "#fb923c", bg: "rgba(251,146,60,0.1)",  icon: Package,       step: -1, isException: true },
   return_delivered:        { label: "مرتجعة — تم التسليم للعميل",      color: "#a3e635", bg: "rgba(163,230,53,0.1)",  icon: CheckCircle,   step: -1, isException: true },
+  partial_return_delivered: { label: "استلام جزئي — تم تسليم باقي الأوردر للعميل", color: "#a3e635", bg: "rgba(163,230,53,0.1)", icon: CheckCircle, step: 6 },
   cancelled:               { label: "الشحنة ملغية",                    color: "#f87171", bg: "rgba(248,113,113,0.1)", icon: XCircle,       step: -1, isException: true },
 };
 
@@ -150,7 +152,9 @@ export default function TrackClientPage() {
             {shipments.map(shipment => {
               const displayStatus = shipment.status === "returned" && shipment.returnReceivedBy === "sender"
                 ? "return_delivered"
-                : shipment.status;
+                : shipment.status === "partial_received" && (shipment.returnReceived === 1 || shipment.returnReceived === true) && shipment.returnReceivedBy === "sender"
+                  ? "partial_return_delivered"
+                  : shipment.status;
               const cfg = STATUS_CONFIG[displayStatus] ?? STATUS_CONFIG.pending;
               const StatusIcon = cfg.icon;
               const c = cfg.color;

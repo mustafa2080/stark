@@ -284,6 +284,24 @@ export function getShipmentLocationNote(input: ShipmentLocationNoteInput): strin
     return warehouseName ? `مرتجع - في مخزن ${warehouseName}` : "مرتجع - تم استلامه في المخزن";
   }
 
+  // ── استلام جزئي: الجزء المستلم اتسلّم للمستلم، والباقي هو المرتجع ─────────────
+  // نفس منطق المرتجع العادي بالظبط (returnReceived/returnReceivedBy)، بس العبارة
+  // بتوضّح إن اللي اتسلّم للعميل هو "باقي الأوردر" مش الأوردر كله.
+  if (status === "partial_received") {
+    const received = input.returnReceived === 1;
+    if (!received) {
+      return repName
+        ? `استلام جزئي - الباقي ما زال مع المندوب ${repName}`
+        : "استلام جزئي - الباقي ما زال مع المندوب";
+    }
+    if (input.returnReceivedBy === "sender") {
+      return "استلام جزئي - تم تسليم باقي الأوردر للعميل";
+    }
+    return warehouseName
+      ? `استلام جزئي - الباقي في مخزن ${warehouseName}`
+      : "استلام جزئي - تم استلام الباقي في المخزن";
+  }
+
   // ── استبدال / إحضار طرد: نفس منطق المرتجع بالظبط ───────────────────────────
   // الطلبين دول بيخلّفوا بضاعة فعلية في إيد المندوب (المنتج القديم في حالة
   // الاستبدال، أو الطرد نفسه في حالة إحضار الطرد). لازم نتتبعها بنفس دقة

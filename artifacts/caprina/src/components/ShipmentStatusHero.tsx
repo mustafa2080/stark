@@ -33,6 +33,7 @@ const STATUS_GROUP_MAP: Record<string, StatusGroup> = {
   replaced: "delivered",
   parcel_picked: "delivered",
   partial_received: "delivered",
+  partial_return_delivered: "delivered",
   return_delivered: "delivered",
   delayed: "exception",
   returned: "exception",
@@ -66,6 +67,11 @@ const STATUS_META_OVERRIDE: Record<string, Partial<(typeof GROUP_META)["delivere
   return_delivered: {
     title: "تم التسليم للعميل",
     subtitle: "تم تسليم المرتجع للعميل بنجاح",
+    accent: "#a3e635", accent2: "#bef264", glow: "rgba(163,230,53,0.35)",
+  },
+  partial_return_delivered: {
+    title: "استلام جزئي",
+    subtitle: "تم تسليم باقي الأوردر للعميل بنجاح",
     accent: "#a3e635", accent2: "#bef264", glow: "rgba(163,230,53,0.35)",
   },
 };
