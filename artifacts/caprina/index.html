@@ -7,7 +7,7 @@
          سكريبت inline أو من مصدر خارجي. السكريبتات المسموحة = ملفات نفس الدومين فقط.
          style-src بيسمح بـ 'unsafe-inline' لأن مكتبة shadcn/tailwind بتستخدم
          أنماط runtime، وده خطره أقل بكثير من سكريبت inline. -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self' ws: wss:; object-src 'none'; base-uri 'self'; form-action 'self'" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' blob: 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self' ws: wss: https://tiles.openfreemap.org; object-src 'none'; base-uri 'self'; form-action 'self'" />
 
     <!-- Viewport + PWA display -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />

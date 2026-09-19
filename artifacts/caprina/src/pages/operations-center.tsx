@@ -1834,14 +1834,14 @@ export default function OperationsCenterPage() {
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           {/* يمين: الترحيب + التاريخ */}
           <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-black flex items-center gap-2">
-              مرحباً بك، {user?.displayName} <span className="inline-block">👋</span>
+            <h1 className="text-lg sm:text-xl lg:text-2xl font-black flex items-center flex-wrap gap-2">
+              <span>مرحباً بك، {user?.displayName}</span> <span className="inline-block">👋</span>
             </h1>
             <p className="text-sm text-muted-foreground mt-1">{today} — هذه نظرة شاملة على حالة الشركة الآن</p>
           </div>
 
           {/* شمال: الساعة + الأدوات */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3 lg:shrink-0">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 flex-wrap min-w-0">
             {/* الساعة */}
             <div className="flex items-center gap-2 text-muted-foreground shrink-0">
               <Clock className="w-4 h-4 text-sky-500" />
