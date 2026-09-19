@@ -1025,19 +1025,13 @@ export default function UsersPage() {
     const has = f.permissions.includes(key);
     let perms = has ? f.permissions.filter(p => p !== key) : [...f.permissions, key];
 
-    // لو الصلاحية مرتبطة بـ section → نضيف/نشيل الـ section تلقائياً
+    // لو الصلاحية مرتبطة بـ section → نضيف الـ section تلقائياً عند التفعيل بس.
+    // (عمداً من غير إزالة تلقائية عند الإلغاء: كل صلاحية فرعية لازم تكون مستقلة
+    // تمامًا عن باقي صلاحيات نفس الـ section — إلغاء واحدة ميأثرش على التانية.
+    // لو حابب تقفل القسم كله دفعة واحدة، استخدم زرار القسم نفسه (toggleSection)).
     const section = PERM_TO_SECTION[key];
-    if (section) {
-      if (!has) {
-        // أضفنا الصلاحية → نضيف الـ section لو مش موجود
-        if (!perms.includes(section)) perms = [...perms, section];
-      } else {
-        // شلنا الصلاحية → نشيل الـ section لو مفيش صلاحية تانية تحتاجه
-        const otherPermsNeedSection = Object.entries(PERM_TO_SECTION)
-          .filter(([k, v]) => v === section && k !== key)
-          .some(([k]) => perms.includes(k));
-        if (!otherPermsNeedSection) perms = perms.filter(p => p !== section);
-      }
+    if (section && !has && !perms.includes(section)) {
+      perms = [...perms, section];
     }
 
     return { ...f, permissions: perms };
