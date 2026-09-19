@@ -41,6 +41,14 @@ const OC_SPAN_CLASS: Record<number, string> = {
   1: "xl:col-span-1", 2: "xl:col-span-2", 3: "xl:col-span-3", 4: "xl:col-span-4",
   5: "xl:col-span-5", 6: "xl:col-span-6", 7: "xl:col-span-7", 8: "xl:col-span-8",
 };
+// نفس الخريطة بـ md: (لازم literal strings كاملة عشان Tailwind يولّدها)
+const OC_SPAN_CLASS_MD: Record<number, string> = {
+  1: "md:col-span-1", 2: "md:col-span-2", 3: "md:col-span-3", 4: "md:col-span-4",
+};
+const OC_SPAN_TO_MD: Record<string, string> = {
+  "xl:col-span-1": OC_SPAN_CLASS_MD[1], "xl:col-span-2": OC_SPAN_CLASS_MD[2],
+  "xl:col-span-3": OC_SPAN_CLASS_MD[3], "xl:col-span-4": OC_SPAN_CLASS_MD[4],
+};
 type OcSlot = { key: string; show: boolean; weight: number; flex?: boolean };
 function ocSpans(slots: OcSlot[], total: number): { cols: number; spans: Record<string, string> } {
   const visible = slots.filter((s) => s.show);
@@ -1703,8 +1711,22 @@ export default function OperationsCenterPage() {
   const row2SideOnly = showSideColumn && !showLiveMap && !showPerfMetrics;
   const row2Height = row2NeedsFixedHeight ? "xl:h-[680px]" : "";
   const row2SideLayout = row2SideOnly
-    ? "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 items-start"
+    ? "grid grid-cols-1 md:grid-cols-4 gap-3 items-start"
     : "flex flex-col gap-3 xl:h-full xl:overflow-y-auto pr-1 min-h-0";
+  // لما العمود الجانبي لوحده: الكروت الظاهرة بس بتتوزع على 4 أعمدة وتملأ العرض كله
+  // (md: عشان الحساب يشتغل على أي شاشة متوسطة فأكبر، وتحتها كل كارت بعرض كامل).
+  const sideDelayed = can("dashboard.delayed_shipments");
+  const sideProblem = can("dashboard.problem_shipments");
+  const sideReps = can("dashboard.online_reps");
+  const sideFollowup = can("dashboard.clients_followup");
+  const sideSlots = ocSpans([
+    { key: "delayed", show: sideDelayed, weight: 1 },
+    { key: "problem", show: sideProblem, weight: 1 },
+    { key: "reps", show: sideReps, weight: 1 },
+    { key: "followup", show: sideFollowup, weight: 1 },
+  ], 4);
+  const sideCardSpan = (key: string) =>
+    row2SideOnly ? (OC_SPAN_TO_MD[sideSlots.spans[key] ?? "xl:col-span-1"] ?? "md:col-span-1") : "";
 
   // ── الصف التالت: ملخص الإيرادات + اتجاه الإيرادات + مركز الذكاء الاصطناعي ──
   const showRevenueSummary = can("dashboard.revenue_summary");
@@ -2137,7 +2159,7 @@ export default function OperationsCenterPage() {
         {showSideColumn && (
         <div className={`${row2SideSpan} ${row2SideLayout}`}>
           {can("dashboard.delayed_shipments") && (
-          <Card className="oc-kpi-card shrink-0 flex flex-col" style={{ ["--tone" as any]: "#ef4444" }}>
+          <Card className={`oc-kpi-card shrink-0 flex flex-col ${sideCardSpan("delayed")}`} style={{ ["--tone" as any]: "#ef4444" }}>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
                 <AlertOctagon className="w-4 h-4 text-red-500" /> شحنات متأخرة
@@ -2172,7 +2194,7 @@ export default function OperationsCenterPage() {
           )}
 
           {can("dashboard.problem_shipments") && (
-          <Card className="oc-kpi-card shrink-0 flex flex-col" style={{ ["--tone" as any]: "#f59e0b" }}>
+          <Card className={`oc-kpi-card shrink-0 flex flex-col ${sideCardSpan("problem")}`} style={{ ["--tone" as any]: "#f59e0b" }}>
             <CardHeader className="pb-2 shrink-0">
               <CardTitle className="text-sm flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 text-amber-500" /> شحنات فيها مشكلة
@@ -2207,7 +2229,7 @@ export default function OperationsCenterPage() {
           )}
 
           {can("dashboard.online_reps") && (
-          <Card className="oc-kpi-card shrink-0 flex flex-col" style={{ ["--tone" as any]: "#0ea5e9" }}>
+          <Card className={`oc-kpi-card shrink-0 flex flex-col ${sideCardSpan("reps")}`} style={{ ["--tone" as any]: "#0ea5e9" }}>
             <CardHeader className="pb-2 shrink-0">
               <CardTitle className="text-sm flex items-center gap-2">
                 <Truck className="w-4 h-4 text-sky-500" /> المندوبين الموجودين حالياً
@@ -2239,7 +2261,7 @@ export default function OperationsCenterPage() {
           )}
 
           {can("dashboard.clients_followup") && (
-          <Card className="oc-kpi-card shrink-0 flex flex-col" style={{ ["--tone" as any]: "#d946ef" }}>
+          <Card className={`oc-kpi-card shrink-0 flex flex-col ${sideCardSpan("followup")}`} style={{ ["--tone" as any]: "#d946ef" }}>
             <CardHeader className="pb-2 shrink-0">
               <CardTitle className="text-sm flex items-center gap-2">
                 <Phone className="w-4 h-4 text-fuchsia-500" /> عملاء محتاجين متابعة
