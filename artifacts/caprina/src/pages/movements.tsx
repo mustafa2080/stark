@@ -349,8 +349,13 @@ const TRANSFER_STATUS_MAP: Record<string, { label: string; color: string; bg: st
   returned:         { label: "مرتجع",              color: "text-red-600",          bg: "bg-red-500/10" },
   cancelled:        { label: "ملغية",              color: "text-gray-500",         bg: "bg-gray-500/10" },
   partial_delivered:{ label: "تسليم جزئي",          color: "text-violet-600",       bg: "bg-violet-500/10" },
-  partial_received: { label: "مرتجع جزئي",          color: "text-teal-600",         bg: "bg-teal-500/10" },
+  partial_received: { label: "مرتجع عن استلام جزئي", color: "text-teal-600",         bg: "bg-teal-500/10" },
 };
+
+// الحالات الوحيدة المسموحة في حاوية "نقل شحنات بين المخازن" — أي حالة تانية
+// (في الطريق، مسلّمة، ملغية...) مش شحنة موجودة فعليًا في مخزن تقدر تنقلها.
+const TRANSFERABLE_STATUSES = ["warehouse_ready", "returned", "partial_received"] as const;
+type TransferStatusKey = typeof TRANSFERABLE_STATUSES[number];
 
 const formatTransferCurrency = (value: number) =>
   new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(value || 0);
@@ -429,10 +434,13 @@ function ShipmentsTransferDialog({ onClose }: { onClose: () => void }) {
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("warehouse_ready");
+  // الحالات المسموحة في حاوية النقل: قيد الشحن في المخزن / مرتجع / مرتجع عن استلام جزئي فقط.
+  // لا توجد قيمة "كل الحالات" — الافتراضي "قيد الشحن في المخزن" وهي الأكثر استخدامًا للنقل.
+  const [statusFilter, setStatusFilter] = useState<TransferStatusKey>("warehouse_ready");
   const [selectedShipmentIds, setSelectedShipmentIds] = useState<Set<number>>(new Set());
-  const [fromWarehouseId, setFromWarehouseId] = useState<string>("all");
-  const [toWarehouseId, setToWarehouseId] = useState<string>("none");
+  // "" = لم يُختر مخزن بعد (لا توجد قيمة "كل الفروع"، ولا "بدون مخزن" كوجهة).
+  const [fromWarehouseId, setFromWarehouseId] = useState<string>("");
+  const [toWarehouseId, setToWarehouseId] = useState<string>("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [notes, setNotes] = useState("");
@@ -455,20 +463,20 @@ function ShipmentsTransferDialog({ onClose }: { onClose: () => void }) {
   });
 
   // لو المستخدم اختار "نقل من" مخزن معيّن، نمنع اختيار نفس المخزن كوجهة —
-  // ولو الوجهة الحالية بقت نفس المصدر، نرجّعها لـ "بدون مخزن" تلقائيًا.
+  // ولو الوجهة الحالية بقت نفس المصدر، نفضّيها ليختار وجهة تانية.
   useEffect(() => {
-    if (fromWarehouseId !== "all" && toWarehouseId === fromWarehouseId) {
-      setToWarehouseId("none");
+    if (fromWarehouseId && toWarehouseId === fromWarehouseId) {
+      setToWarehouseId("");
     }
   }, [fromWarehouseId]);
 
-  // افتراضياً نعرض الشحنات "قيد الشحن في المخزن" — وهي أكثر حالة محتاجة نقل بين مخازن.
-  // البحث (رقم شحنة/اسم/فون) بيشتغل جنب فلتر الحالة، مش بدلاً منه — إلا لو المستخدم اختار "كل الحالات".
+  // نعرض فقط الحالات المسموح نقلها (قيد الشحن في المخزن / مرتجع / مرتجع عن استلام جزئي)،
+  // والافتراضي "قيد الشحن في المخزن". البحث (رقم شحنة/اسم/فون) بيشتغل جنب فلتر الحالة.
   const { data: shipmentsRes, isLoading } = useQuery({
     queryKey: ["shipments-for-transfer", debouncedSearch, statusFilter],
     queryFn: () => shipmentsApi.list({
       ...(debouncedSearch ? { search: debouncedSearch } : {}),
-      ...(statusFilter !== "all" ? { status: statusFilter } : {}),
+      status: statusFilter,
       limit: 1000,
     }),
   });
@@ -494,7 +502,7 @@ function ShipmentsTransferDialog({ onClose }: { onClose: () => void }) {
   // الـ backend عشانهم.
   const shipments = useMemo(() => {
     let list = shipmentsRes?.data ?? [];
-    if (fromWarehouseId !== "all") {
+    if (fromWarehouseId) {
       list = list.filter(s => String((s as any).warehouseId ?? "") === fromWarehouseId);
     }
     if (dateFrom) {
@@ -572,11 +580,16 @@ function ShipmentsTransferDialog({ onClose }: { onClose: () => void }) {
       toast({ title: "اختر شحنة واحدة على الأقل", variant: "destructive" });
       return;
     }
+    // الوجهة إجبارية: مفيش نقل "بدون مخزن" — كان بيخلّي الشحنة تخرج من أي مخزن.
+    if (!toWarehouseId) {
+      toast({ title: "اختر المخزن المنقول إليه", variant: "destructive" });
+      return;
+    }
     setSaving(true);
     try {
       const res = await warehousesApi.transferShipmentsBulk({
         shipmentIds: Array.from(selectedShipmentIds),
-        toWarehouseId: toWarehouseId === "none" ? null : Number(toWarehouseId),
+        toWarehouseId: Number(toWarehouseId),
         notes: notes.trim() || undefined,
       });
       invalidateAll();
@@ -628,15 +641,12 @@ function ShipmentsTransferDialog({ onClose }: { onClose: () => void }) {
                 className="h-9 text-sm pr-8"
               />
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="h-9 text-xs w-40 shrink-0"><SelectValue /></SelectTrigger>
+            <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v as TransferStatusKey); setSelectedShipmentIds(new Set()); }}>
+              <SelectTrigger className="h-9 text-xs w-52 shrink-0"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">كل الحالات</SelectItem>
-                {/* فلتر النقل بين المخازن مخصص لحالتين بس: قيد الشحن في المخزن، ومرتجع —
-                    الحالات التانية (قيد الانتظار، مؤكدة، تم الاستلام، في الطريق، مع المندوب،
-                    مسلّمة، ملغية، تسليم/مرتجع جزئي) مش منطقية هنا لأنها مش شحنات موجودة
-                    فعليًا داخل مخزن تقدر تنقلها. */}
-                {(["warehouse_ready", "returned"] as const).map((k) => (
+                {/* فقط: قيد الشحن في المخزن / مرتجع / مرتجع عن استلام جزئي — مفيش "كل الحالات".
+                    باقي الحالات مش شحنات موجودة فعليًا داخل مخزن تقدر تنقلها. */}
+                {TRANSFERABLE_STATUSES.map((k) => (
                   <SelectItem key={k} value={k}>{TRANSFER_STATUS_MAP[k].label}</SelectItem>
                 ))}
               </SelectContent>
@@ -648,9 +658,8 @@ function ShipmentsTransferDialog({ onClose }: { onClose: () => void }) {
             <div className="space-y-1 flex-1 min-w-[180px]">
               <Label className="text-xs flex items-center gap-1"><WarehouseIcon className="w-3 h-3" />نقل من</Label>
               <Select value={fromWarehouseId} onValueChange={setFromWarehouseId}>
-                <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="كل الفروع" /></SelectTrigger>
+                <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="اختر المخزن..." /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">كل الفروع</SelectItem>
                   {warehouses.map((w: any) => (
                     <SelectItem key={w.id} value={String(w.id)}>
                       {w.name}{w.city ? ` — ${w.city}` : ""}
@@ -754,9 +763,8 @@ function ShipmentsTransferDialog({ onClose }: { onClose: () => void }) {
             <Select value={toWarehouseId} onValueChange={setToWarehouseId}>
               <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="اختر المخزن..." /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">— بدون مخزن —</SelectItem>
                 {warehouses
-                  .filter((w: any) => fromWarehouseId === "all" || String(w.id) !== fromWarehouseId)
+                  .filter((w: any) => !fromWarehouseId || String(w.id) !== fromWarehouseId)
                   .map((w: any) => (
                     <SelectItem key={w.id} value={String(w.id)}>
                       {w.name}{w.city ? ` — ${w.city}` : ""}
@@ -780,7 +788,7 @@ function ShipmentsTransferDialog({ onClose }: { onClose: () => void }) {
           <Button variant="outline" onClick={onClose} className="text-xs h-8">إلغاء</Button>
           <Button
             onClick={handleConfirm}
-            disabled={saving || selectedShipmentIds.size === 0}
+            disabled={saving || selectedShipmentIds.size === 0 || !toWarehouseId}
             className="text-xs h-8 gap-1 bg-teal-600 hover:bg-teal-700 text-white"
           >
             <ArrowRightLeft className="w-3 h-3" />
