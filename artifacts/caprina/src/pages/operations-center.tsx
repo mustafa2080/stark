@@ -1638,6 +1638,32 @@ export default function OperationsCenterPage() {
   const row1StatusSpan = (showStatusDistribution && showWeeklyShipments) ? "xl:col-span-1" : "xl:col-span-3";
   const row1WeeklySpan = (showStatusDistribution && showWeeklyShipments) ? "xl:col-span-2" : "xl:col-span-3";
 
+  // ── الصف التاني: عمود مركز العمليات + الخريطة + مؤشرات الأداء ──
+  const showSideColumn =
+    can("dashboard.delayed_shipments") || can("dashboard.problem_shipments") ||
+    can("dashboard.online_reps") || can("dashboard.clients_followup");
+  const showLiveMap = can("dashboard.live_map");
+  const showPerfMetrics = can("dashboard.performance_metrics");
+  const row2HasAny = showSideColumn || showLiveMap || showPerfMetrics;
+  // الخريطة تاخد الأعمدة الفاضية: 4 - (عمود جانبي؟1:0) - (مؤشرات الأداء؟1:0)
+  const row2MapCols = 4 - (showSideColumn ? 1 : 0) - (showPerfMetrics ? 1 : 0);
+  const row2MapSpan = row2MapCols === 4 ? "xl:col-span-4" : row2MapCols === 3 ? "xl:col-span-3" : row2MapCols === 2 ? "xl:col-span-2" : "xl:col-span-1";
+
+  // ── الصف التالت: ملخص الإيرادات + اتجاه الإيرادات + مركز الذكاء الاصطناعي ──
+  const showRevenueSummary = can("dashboard.revenue_summary");
+  const showRevenueTrend = can("dashboard.revenue_trend");
+  const showAiCenter = can("dashboard.ai_center");
+  const row3HasAny = showRevenueSummary || showRevenueTrend || showAiCenter;
+  // اتجاه الإيرادات هو الكارت المرن: ياخد الأعمدة الفاضية
+  const row3TrendCols = 4 - (showRevenueSummary ? 1 : 0) - (showAiCenter ? 1 : 0);
+  const row3TrendSpan = row3TrendCols === 4 ? "xl:col-span-4" : row3TrendCols === 3 ? "xl:col-span-3" : row3TrendCols === 2 ? "xl:col-span-2" : "xl:col-span-1";
+
+  // ── صف: إجراءات سريعة + جدول المندوبين اليومي (xl:grid-cols-3) ──
+  const showQuickActions = can("dashboard.quick_actions");
+  const showRepsDailyTable = can("dashboard.reps_daily_table");
+  const rowQaQuickSpan = (showQuickActions && showRepsDailyTable) ? "xl:col-span-1" : "xl:col-span-3";
+  const rowQaRepsSpan = (showQuickActions && showRepsDailyTable) ? "xl:col-span-2" : "xl:col-span-3";
+
   const handleExportReport = async () => {
     if (isExportingReport) return;
     setIsExportingReport(true);
@@ -2038,8 +2064,10 @@ export default function OperationsCenterPage() {
       </div>
 
       {/* ── الصف الثاني: مركز العمليات + الخريطة + KPIs ────────────────── */}
+      {row2HasAny && (
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-4 items-stretch xl:h-[680px]">
         {/* العمود الجانبي — مركز العمليات (سكرول واحد موحّد للحاويات الأربع) */}
+        {showSideColumn && (
         <div className="xl:col-span-1 flex flex-col gap-3 xl:h-full xl:overflow-y-auto pr-1 min-h-0">
           {can("dashboard.delayed_shipments") && (
           <Card className="oc-kpi-card shrink-0 flex flex-col" style={{ ["--tone" as any]: "#ef4444" }}>
@@ -2172,10 +2200,11 @@ export default function OperationsCenterPage() {
           </Card>
           )}
         </div>
+        )}
 
         {/* الخريطة المباشرة (MapLibre GL — تجميع الشحنات حسب المحافظة) */}
-        {can("dashboard.live_map") && (
-        <div className="xl:col-span-2">
+        {showLiveMap && (
+        <div className={row2MapSpan}>
           <Card className="oc-kpi-card h-full flex flex-col" style={{ ["--tone" as any]: "#06b6d4" }}>
             <CardHeader className="pb-2 flex-row items-center justify-between shrink-0">
               <CardTitle className="text-sm flex items-center gap-2">
@@ -2200,7 +2229,7 @@ export default function OperationsCenterPage() {
         )}
 
         {/* مؤشرات الأداء الرئيسية */}
-        {can("dashboard.performance_metrics") && (
+        {showPerfMetrics && (
         <div className="xl:col-span-1">
           <Card className="oc-kpi-card h-full" style={{ ["--tone" as any]: "#6366f1" }}>
             <CardHeader className="pb-2 space-y-3">
@@ -2256,11 +2285,13 @@ export default function OperationsCenterPage() {
         </div>
         )}
       </div>
+      )}
 
       {/* ── الصف الثالث: أرباح + اتجاه إيرادات + AI ────────────────────── */}
+      {row3HasAny && (
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
         {/* ملخص الأرباح */}
-        {can("dashboard.revenue_summary") && (
+        {showRevenueSummary && (
         <Card className="oc-kpi-card xl:col-span-1" style={{ ["--tone" as any]: "#14b8a6" }}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
@@ -2316,8 +2347,8 @@ export default function OperationsCenterPage() {
         )}
 
         {/* اتجاه صافي الإيرادات */}
-        {can("dashboard.revenue_trend") && (
-        <Card className="oc-kpi-card xl:col-span-2" style={{ ["--tone" as any]: "#3b82f6" }}>
+        {showRevenueTrend && (
+        <Card className={`oc-kpi-card ${row3TrendSpan}`} style={{ ["--tone" as any]: "#3b82f6" }}>
           <CardHeader className="pb-2 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <CardTitle className="text-sm flex items-center gap-2">
@@ -2375,7 +2406,7 @@ export default function OperationsCenterPage() {
         )}
 
         {/* مركز الذكاء الاصطناعي */}
-        {can("dashboard.ai_center") && (
+        {showAiCenter && (
         <Card className="oc-kpi-card xl:col-span-1" style={{ ["--tone" as any]: "#d946ef" }}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
@@ -2406,6 +2437,7 @@ export default function OperationsCenterPage() {
         </Card>
         )}
       </div>
+      )}
 
       {/* ── بيانات مفتوحة تحتاج متابعة (أكتر من 72 ساعة) — حاوية مستقلة بعرض كامل ── */}
       {can("dashboard.ai_center") && (
@@ -2682,9 +2714,10 @@ export default function OperationsCenterPage() {
       </div>
 
       {/* ── إجراءات سريعة + جدول المندوبين اليومي ───────────────────────── */}
+      {(showQuickActions || showRepsDailyTable) && (
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-        {can("dashboard.quick_actions") && (
-        <Card className="oc-kpi-card xl:col-span-1" style={{ ["--tone" as any]: "#eab308" }}>
+        {showQuickActions && (
+        <Card className={`oc-kpi-card ${rowQaQuickSpan}`} style={{ ["--tone" as any]: "#eab308" }}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <Zap className="w-4 h-4 text-yellow-500" /> إجراءات سريعة
@@ -2725,8 +2758,8 @@ export default function OperationsCenterPage() {
 
         )}
 
-        {can("dashboard.reps_daily_table") && (
-        <Card className="oc-kpi-card xl:col-span-2" style={{ ["--tone" as any]: "#0ea5e9" }}>
+        {showRepsDailyTable && (
+        <Card className={`oc-kpi-card ${rowQaRepsSpan}`} style={{ ["--tone" as any]: "#0ea5e9" }}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center justify-between gap-2 flex-wrap">
               <span className="flex items-center gap-2">
@@ -2770,6 +2803,7 @@ export default function OperationsCenterPage() {
         </Card>
         )}
       </div>
+      )}
 
       {/* ── شاشة المدير التنفيذي ─────────────────────────────────────────── */}
       {can("dashboard.executive_summary") && (
