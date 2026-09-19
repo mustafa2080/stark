@@ -1623,6 +1623,21 @@ export default function OperationsCenterPage() {
   };
   const today = new Intl.DateTimeFormat("ar-EG", { weekday: "long", year: "numeric", month: "long", day: "numeric" }).format(new Date());
 
+  // ── حساب أعمدة الصفوف اللي فيها كروت اختيارية، عشان الكارت الظاهر لوحده
+  // ياخد العرض الكامل بدل ما يسيب فراغ مكان الكارت المخفي بصلاحية مقفولة ──
+  const showTopClients = can("dashboard.top_clients");
+  const showTopReps = can("dashboard.top_reps");
+  const row3ClientsRepsCols = (showTopClients && showTopReps) ? "lg:grid-cols-2" : "grid-cols-1";
+
+  const showRecentEvents = can("dashboard.recent_events");
+  const showRecentShipments = can("dashboard.recent_shipments");
+  const row4EventsShipmentsSpan = (showRecentEvents && showRecentShipments) ? "xl:col-span-2" : "xl:col-span-4";
+
+  const showStatusDistribution = can("dashboard.status_distribution");
+  const showWeeklyShipments = can("dashboard.weekly_shipments");
+  const row1StatusSpan = (showStatusDistribution && showWeeklyShipments) ? "xl:col-span-1" : "xl:col-span-3";
+  const row1WeeklySpan = (showStatusDistribution && showWeeklyShipments) ? "xl:col-span-2" : "xl:col-span-3";
+
   const handleExportReport = async () => {
     if (isExportingReport) return;
     setIsExportingReport(true);
@@ -1985,8 +2000,8 @@ export default function OperationsCenterPage() {
       })()}
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-        {can("dashboard.status_distribution") && (
-        <div className="xl:col-span-1">
+        {showStatusDistribution && (
+        <div className={row1StatusSpan}>
           {statusDistLoading && statusDonutData.length === 0 ? (
             <div className="h-56 rounded-2xl bg-muted animate-pulse" />
           ) : statusDonutData.length === 0 ? (
@@ -2000,8 +2015,8 @@ export default function OperationsCenterPage() {
         </div>
         )}
 
-        {can("dashboard.weekly_shipments") && (
-        <Card className="oc-card xl:col-span-2 overflow-hidden">
+        {showWeeklyShipments && (
+        <Card className={`oc-card ${row1WeeklySpan} overflow-hidden`}>
           <CardHeader className="pb-2 flex flex-row items-center justify-between">
             <div>
               <CardTitle className="text-sm flex items-center gap-2">
@@ -2468,8 +2483,8 @@ export default function OperationsCenterPage() {
       )}
 
       {/* ── أفضل العملاء / أفضل المندوبين ───────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {can("dashboard.top_clients") && (
+      <div className={`grid grid-cols-1 ${row3ClientsRepsCols} gap-4`}>
+        {showTopClients && (
         <Card className="oc-kpi-card" style={{ ["--tone" as any]: "#a855f7" }}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center justify-between gap-2 flex-wrap">
@@ -2524,7 +2539,7 @@ export default function OperationsCenterPage() {
 
         )}
 
-        {can("dashboard.top_reps") && (
+        {showTopReps && (
         <Card className="oc-kpi-card" style={{ ["--tone" as any]: "#0ea5e9" }}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center justify-between gap-2 flex-wrap">
@@ -2588,8 +2603,8 @@ export default function OperationsCenterPage() {
       {/* ── الصف الرابع ──────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
         {/* أحدث التنبيهات */}
-        {can("dashboard.recent_events") && (
-        <Card className="oc-kpi-card xl:col-span-2" style={{ ["--tone" as any]: "#ef4444" }}>
+        {showRecentEvents && (
+        <Card className={`oc-kpi-card ${row4EventsShipmentsSpan}`} style={{ ["--tone" as any]: "#ef4444" }}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <Bell className="w-4 h-4 text-red-500" /> أحدث التنبيهات
@@ -2619,8 +2634,8 @@ export default function OperationsCenterPage() {
         )}
 
         {/* آخر الشحنات */}
-        {can("dashboard.recent_shipments") && (
-        <Card className="oc-kpi-card xl:col-span-2" style={{ ["--tone" as any]: "#64748b" }}>
+        {showRecentShipments && (
+        <Card className={`oc-kpi-card ${row4EventsShipmentsSpan}`} style={{ ["--tone" as any]: "#64748b" }}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <FileText className="w-4 h-4 text-slate-500" /> آخر الشحنات
