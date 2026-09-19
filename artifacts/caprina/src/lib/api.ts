@@ -1035,6 +1035,7 @@ export interface RevenueTrendDay {
 }
 export interface RevenueTrendResponse {
   days: RevenueTrendDay[];
+  granularity?: "day" | "month";
   generatedAt: string;
 }
 
@@ -1413,6 +1414,8 @@ export const analyticsApi = {
     if (params.period === "custom") { q.set("from", params.from); q.set("to", params.to); }
     return apiFetch<RepsDailyResponse>(`/analytics/reps-daily?${q.toString()}`);
   },
+  // تاريخ أول شحنة في السيستم (YYYY-MM-DD) — لفلتر "أول المدة"
+  systemStart: () => apiFetch<{ from: string | null }>("/analytics/system-start"),
 };
 
 export interface BatchCreateOrderBody {

@@ -36,7 +36,9 @@ const fn = (n: number) => new Intl.NumberFormat("ar-EG").format(Math.round(n));
 // ── نوع الفلتر الزمني الموحّد (يوم/أسبوع/شهر/سنة/فترة محددة) ───────────────────
 type OcPeriodFilter =
   | { type: "today" | "week" | "month" | "year" }
-  | { type: "custom"; from: string; to: string }; // from/to بصيغة YYYY-MM-DD
+// allTime = "أول المدة": مدى من أول شحنة سُجّلت في السيستم لحد النهاردة. بيتعامل كـ custom
+// في كل الـ hooks والـ endpoints، والعلامة دي بس عشان الواجهة تفرّق تبويب "أول المدة".
+  | { type: "custom"; from: string; to: string; allTime?: boolean }; // from/to بصيغة YYYY-MM-DD
 
 const timeAgo = (iso: string): string => {
   const diffMin = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
@@ -475,6 +477,37 @@ const ocToYmd = (d: Date) => {
   return `${y}-${m}-${day}`;
 };
 
+// مدى التواريخ الفعلي لكل فترة جاهزة — نفس تعريف الباك اند (operations-kpis)
+// اليوم = النهاردة | أسبوع = من بداية الأسبوع (الأحد) | شهر = من أول الشهر | سنة = من 1 يناير
+const ocRangeOf = (t: "today" | "week" | "month" | "year"): { from: string; to: string } => {
+  const now = new Date();
+  const from = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (t === "week") from.setDate(from.getDate() - from.getDay());
+  else if (t === "month") from.setDate(1);
+  else if (t === "year") { from.setMonth(0); from.setDate(1); }
+  return { from: ocToYmd(from), to: ocToYmd(now) };
+};
+
+// endpoint اتجاه الإيرادات بيقبل مدى تواريخ بس (أي فترة تانية بيرجّعها آخر 7 أيام) →
+// نحوّل أي فترة جاهزة لمدى تواريخ عشان تتبع الفلتر الموحّد فعلًا.
+const ocToRangeFilter = (v: OcPeriodFilter): OcPeriodFilter =>
+  v.type === "custom" ? v : { type: "custom", ...ocRangeOf(v.type) };
+
+// endpoint جدول المناديب اليومي بيقبل اليوم/الأسبوع/مدى تواريخ بس، وأي حاجة تانية
+// (شهر/سنة) بيعاملها كـ "اليوم" بصمت → نحوّل الشهر والسنة لمدى تواريخ.
+const ocToRepsDailyFilter = (v: OcPeriodFilter): OcPeriodFilter =>
+  v.type === "month" || v.type === "year" ? { type: "custom", ...ocRangeOf(v.type) } : v;
+
+// تاريخ أول شحنة في السيستم — لفلتر "أول المدة" (بيتكاش ساعة كاملة)
+function useSystemStart() {
+  return useQuery({
+    queryKey: ["analytics-system-start"],
+    queryFn: analyticsApi.systemStart,
+    staleTime: 60 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+}
+
 // ── رأس تنقّل شهر/سنة عصري واحترافي: أسهم شهر + بادج سنة قابل للفتح + زر "اليوم" ──
 const OC_NAV_MONTH_NAMES = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
 
@@ -566,11 +599,12 @@ function OcMonthYearNav({
 
 // ── فلتر الفترة الزمني الموحّد: تبويبات + زر "فترة محددة" بتقويم منبثق ─────────
 function OcPeriodFilterBar({
-  value, onChange, compact = false,
+  value, onChange, compact = false, systemStartDate,
 }: {
   value: OcPeriodFilter;
   onChange: (v: OcPeriodFilter) => void;
   compact?: boolean;
+  systemStartDate?: string;
 }) {
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [draftRange, setDraftRange] = useState<{ from?: Date; to?: Date }>(() =>
@@ -631,6 +665,16 @@ function OcPeriodFilterBar({
           {t.label}
         </button>
       ))}
+      {!compact && systemStartDate && (
+        <button
+          onClick={() => onChange({ type: "custom", from: systemStartDate, to: ocToYmd(new Date()), allTime: true })}
+          className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${
+            value.type === "custom" && (value as any).allTime ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted/70"
+          }`}
+        >
+          أول المدة
+        </button>
+      )}
       <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
         <PopoverTrigger asChild>
           <button
@@ -1566,6 +1610,17 @@ export default function OperationsCenterPage() {
   const [repsDailyFilter, setRepsDailyFilter] = useState<OcPeriodFilter>({ type: "today" });
   const { data: repsDailyData, isLoading: repsDailyLoading } = useRepsDaily(repsDailyFilter);
   const repsDailyRows = repsDailyData?.representatives ?? [];
+  const { data: systemStartData } = useSystemStart();
+  const systemStartDate = systemStartData?.from ?? undefined;
+  // الفلتر الموحّد: بيحدّث كل فلاتر الفترة الخمسة في الصفحة مرة واحدة،
+  // مع تحويل الفترة لصيغة كل endpoint المناسبة له (نطاق تواريخ لو محتاج).
+  const applyUnifiedPeriod = (v: OcPeriodFilter) => {
+    setOcPeriodFilter(v);
+    setRepsPeriodFilter(v);
+    setClientsPeriodFilter(v);
+    setRevenueTrendFilter(ocToRangeFilter(v));
+    setRepsDailyFilter(ocToRepsDailyFilter(v));
+  };
   const today = new Intl.DateTimeFormat("ar-EG", { weekday: "long", year: "numeric", month: "long", day: "numeric" }).format(new Date());
 
   const handleExportReport = async () => {
@@ -1723,7 +1778,7 @@ export default function OperationsCenterPage() {
       <>
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <span className="text-xs text-muted-foreground font-semibold">نظرة عامة على الشحنات والإيرادات</span>
-        <OcPeriodFilterBar value={ocPeriodFilter} onChange={setOcPeriodFilter} />
+        <OcPeriodFilterBar value={ocPeriodFilter} onChange={applyUnifiedPeriod} systemStartDate={systemStartDate} />
       </div>
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
         {opsKpisLoading && overviewCards.length === 0 ? (
@@ -1787,7 +1842,7 @@ export default function OperationsCenterPage() {
               <Wallet className="w-3.5 h-3.5 text-emerald-500" /> إجمالي أرصدة الخزن
               <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-300 ${isTreasuryOpen ? "rotate-180" : ""}`} />
             </button>
-            <OcPeriodFilterBar value={ocPeriodFilter} onChange={setOcPeriodFilter} />
+            <OcPeriodFilterBar value={ocPeriodFilter} onChange={applyUnifiedPeriod} systemStartDate={systemStartDate} />
           </div>
 
           {!isTreasuryOpen && (
@@ -1882,7 +1937,7 @@ export default function OperationsCenterPage() {
                 data={data}
                 tone={tone}
                 active={ocPeriodFilter.type === key}
-                onClick={() => setOcPeriodFilter({ type: key })}
+                onClick={() => applyUnifiedPeriod({ type: key })}
               />
             ))}
             {ocPeriodFilter.type === "custom" && periodProfitData.custom && (
@@ -2143,7 +2198,7 @@ export default function OperationsCenterPage() {
                 )}
               </div>
               <div className="rounded-2xl border border-indigo-500/20 bg-indigo-500/5 p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-                <OcPeriodFilterBar value={ocPeriodFilter} onChange={setOcPeriodFilter} compact />
+                <OcPeriodFilterBar value={ocPeriodFilter} onChange={applyUnifiedPeriod} compact />
                 <p className="mt-2 text-center text-[10px] font-semibold text-muted-foreground">
                   يتم تحديث مؤشرات الأداء حسب الفترة المختارة
                 </p>

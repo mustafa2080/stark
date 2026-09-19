@@ -4428,6 +4428,37 @@ router.get("/analytics/executive-summary", requireAuth, async (req, res): Promis
   }
 });
 
+// ─── GET /analytics/system-start ─────────────────────────────────────────────
+// تاريخ أول شحنة اتسجلت في السيستم (بتوقيت القاهرة) — بيستخدمه فلتر "أول المدة"
+// في مركز العمليات عشان يجيب البيانات من أول ما السيستم اشتغل. null لو مفيش شحنات.
+router.get("/analytics/system-start", requireAuth, async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const cacheKey = `system-start:${tenantId ?? "global"}`;
+    const cached = getCached<any>(cacheKey);
+    if (cached) { res.json(cached); return; }
+
+    const cond = tenantId !== null
+      ? and(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.deletedAt))
+      : isNull(shipmentsTable.deletedAt);
+    const [row] = await db
+      .select({ first: sql<Date | string | null>`MIN(${shipmentsTable.createdAt})` })
+      .from(shipmentsTable)
+      .where(cond);
+
+    const firstAt = row?.first ? new Date(row.first as any) : null;
+    const from = firstAt && !Number.isNaN(firstAt.getTime())
+      ? new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit" }).format(firstAt)
+      : null;
+
+    const result = { from };
+    setCached(cacheKey, result, 60 * 60 * 1000);
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // لوحة العمليات: اتجاه الإيرادات والأرباح اليومي — آخر 7 أيام أو فترة محددة.
 // نفس منطق manifests-pnl-summary/computeManifestsPnl بالظبط (بيانات مقفولة فقط،
 // status="closed")، لكن مجمّعة يوميًا على أساس تاريخ إغلاق البيان (closedAt) بدل
@@ -4596,7 +4627,30 @@ router.get("/analytics/revenue-trend", requireAuth, async (req, res): Promise<vo
       b.profit = Math.round(b.profit);
     }
 
-    const result = { days: buckets, generatedAt: new Date().toISOString() };
+    // ─── فترة أطول من سنة (مثلًا "أول المدة") → تجميع شهري بدل يومي ───────────────
+    // آلاف النقط اليومية بتخلّي الرسم مزدحم ومش مقروء، فبنجمّع كل شهر في نقطة واحدة
+    // (مجموع الإيراد ومجموع الربح لنفس الشهر). الفترات القصيرة بتفضل يومية زي ما هي.
+    let outBuckets = buckets;
+    let granularity: "day" | "month" = "day";
+    if (buckets.length > 366) {
+      granularity = "month";
+      const MONTH_NAMES = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+      const byMonth = new Map<string, { day: string; date: string; revenue: number; profit: number }>();
+      for (const b of buckets) {
+        const key = b.date.slice(0, 7); // YYYY-MM
+        let m = byMonth.get(key);
+        if (!m) {
+          const [y, mo] = key.split("-").map(Number);
+          m = { day: `${MONTH_NAMES[mo - 1]} ${y}`, date: `${key}-01`, revenue: 0, profit: 0 };
+          byMonth.set(key, m);
+        }
+        m.revenue += b.revenue;
+        m.profit += b.profit;
+      }
+      outBuckets = [...byMonth.values()];
+    }
+
+    const result = { days: outBuckets, granularity, generatedAt: new Date().toISOString() };
     setCached(cacheKey, result, 5 * 60 * 1000);
     res.json(result);
   } catch (err: any) {
