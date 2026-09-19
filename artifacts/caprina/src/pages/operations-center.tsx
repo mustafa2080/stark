@@ -1697,6 +1697,14 @@ export default function OperationsCenterPage() {
   const row2SideSpan = row2.spans.side ?? "xl:col-span-1";
   const row2MapSpan = row2.spans.map ?? "xl:col-span-2";
   const row2PerfSpan = row2.spans.perf ?? "xl:col-span-1";
+  // الارتفاع الثابت مطلوب بس لو الخريطة أو مؤشرات الأداء ظاهرين (محتاجين ارتفاع).
+  // لو العمود الجانبي لوحده → الصف بيبقى بارتفاع محتواه من غير فراغ.
+  const row2NeedsFixedHeight = showLiveMap || showPerfMetrics;
+  const row2SideOnly = showSideColumn && !showLiveMap && !showPerfMetrics;
+  const row2Height = row2NeedsFixedHeight ? "xl:h-[680px]" : "";
+  const row2SideLayout = row2SideOnly
+    ? "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 items-start"
+    : "flex flex-col gap-3 xl:h-full xl:overflow-y-auto pr-1 min-h-0";
 
   // ── الصف التالت: ملخص الإيرادات + اتجاه الإيرادات + مركز الذكاء الاصطناعي ──
   const showRevenueSummary = can("dashboard.revenue_summary");
@@ -2124,10 +2132,10 @@ export default function OperationsCenterPage() {
 
       {/* ── الصف الثاني: مركز العمليات + الخريطة + KPIs ────────────────── */}
       {row2HasAny && (
-      <div className="grid grid-cols-1 xl:grid-cols-4 gap-4 items-stretch xl:h-[680px]">
+      <div className={`grid grid-cols-1 xl:grid-cols-4 gap-4 items-stretch ${row2Height}`}>
         {/* العمود الجانبي — مركز العمليات (سكرول واحد موحّد للحاويات الأربع) */}
         {showSideColumn && (
-        <div className={`${row2SideSpan} flex flex-col gap-3 xl:h-full xl:overflow-y-auto pr-1 min-h-0`}>
+        <div className={`${row2SideSpan} ${row2SideLayout}`}>
           {can("dashboard.delayed_shipments") && (
           <Card className="oc-kpi-card shrink-0 flex flex-col" style={{ ["--tone" as any]: "#ef4444" }}>
             <CardHeader className="pb-2">
