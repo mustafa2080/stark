@@ -510,6 +510,18 @@ function ProtectedRoute({ permission, component: Comp }: { permission: string; c
         </div>
       );
     }
+    // صفحات الشحنات: لو الصلاحية اتشالت (مثلاً حد فتح اللينك من bookmark) نعرض رسالة
+    // واضحة مكان الصفحة بدل ما نطرد اليوزر للداشبورد. باقي الموقع سلوكه زي ما هو.
+    if (permission.startsWith("shipments.")) {
+      return (
+        <div className="flex items-center justify-center min-h-[60vh]" dir="rtl">
+          <div className="text-center space-y-2 p-6">
+            <p className="text-lg font-bold text-foreground">ليس لديك صلاحية لفتح هذه الصفحة</p>
+            <p className="text-sm text-muted-foreground">تواصل مع المدير لإضافة الصلاحية المناسبة.</p>
+          </div>
+        </div>
+      );
+    }
     return <Redirect to="/" />;
   }
   return <Comp />;

@@ -382,8 +382,15 @@ export default function Layout({ children }: LayoutProps) {
       "/client-dashboard", "/client-profile", "/client-account", "/client-shipment", "/client-shipment-detail",
       "/client-shipments", "/client-shipping-invoices", "/client-wallet", "/client-pickup-requests",
       "/client-smart-analytics",
+      // صفحات الشحنات: ProtectedRoute في App.tsx هو اللي بيتعامل معاها (رسالة "ليس لديك صلاحية")
+      // فمينفعش الـ effect ده يطرد اليوزر منها للداشبورد ويلغي الرسالة.
+      // ملاحظة: "/shipments" لوحدها هي صفحة المناطق (zones.view) — مش بنستثنيها، بس
+      // sub-routes بتاعتها (/shipments/new و /shipments/:id) بتتغطى بالاستثناء اللي تحت.
+      "/shipments-list", "/invoices", "/shipping-followup", "/shipments-intelligence",
     ];
     if (globalPages.some(p => location === p || location.startsWith(p + "/"))) return;
+    // صفحات الشحنات الفرعية (جديدة / تفاصيل / تعديل) — نفس الفكرة، بدون ما نلمس صفحة المناطق
+    if (location.startsWith("/shipments/")) return;
     // أي sub-route تحت nav item متاح → لا redirect
     const allowed = visibleNav.map(i => i.href);
     if (allowed.length === 0) return;

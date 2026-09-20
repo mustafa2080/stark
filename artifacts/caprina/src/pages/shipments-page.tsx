@@ -1039,7 +1039,9 @@ export default function Orders() {
   const canFinancials  = isAdmin || can("shipments.profitability");
   const isCustomRole   = user?.role === "custom";
   const canExport      = isAdmin || can("shipments.export");
-  const canInvoices    = isAdmin || can("invoices.view");
+  // نفس مفتاح راوت /invoices ("زر فواتير الشحن") — لو الصلاحية اتشالت الزرار بيختفي
+  // بدل ما يفضل ظاهر ويودّي لصفحة ممنوعة (redirect).
+  const canInvoices    = isAdmin || can("shipments.invoices_btn");
   // canWriteOrders: للـ bulk select والواتساب (أي صلاحية تعديل)
   const canWriteOrders = isAdmin || canEdit || canCreate;
   const updateOrder = useUpdateOrder();
@@ -1643,7 +1645,7 @@ export default function Orders() {
                 <CheckSquare className="w-3.5 h-3.5" />تحديد
               </Button>
               )}
-              {/* زر الفواتير — فقط لو عنده invoices.view */}
+              {/* زر الفواتير — فقط لو عنده shipments.invoices_btn */}
               {canInvoices && (
               <Link href="/invoices">
                 <Button variant="outline" size="sm" className="gap-1 text-xs h-9">

@@ -605,7 +605,9 @@ export default function Dashboard() {
     refetchOnWindowFocus: false,
     refetchOnMount: false,
     placeholderData: (prev) => prev,
-    enabled: isAdmin || can("shipping.view"),
+    // نفس مفتاح صفحة /shipping-followup: لو الصلاحية اتشالت، الكارد كله بيختفي
+    // من الداشبورد ومنجيبش بياناته أصلاً (بدل زرار يودّي لصفحة ممنوعة).
+    enabled: isAdmin || can("shipments.tracking_btn"),
   });
 
   const { data: shippingCompanies = [] } = useQuery<any[]>({
@@ -767,7 +769,8 @@ export default function Dashboard() {
          ══════════════════════════════════════════════════════════════ */}
 
       {/* === تحذير متابعة الشحن === */}
-      {shippingFollowup.length > 0 && (() => {
+      {/* بيظهر بس لو عنده صلاحية "زر متابعة الشحن" — غير كده الكارد كله بيختفي ومفيش فراغ */}
+      {(isAdmin || can("shipments.tracking_btn")) && shippingFollowup.length > 0 && (() => {
         const urgent   = shippingFollowup.filter((o: any) => o.daysPending >= 7);
         const delayed  = shippingFollowup.filter((o: any) => o.daysPending >= 3 && o.daysPending < 7);
         const isUrgent = urgent.length > 0;
