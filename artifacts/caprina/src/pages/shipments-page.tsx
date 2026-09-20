@@ -2317,12 +2317,16 @@ export default function Orders() {
                               // القيمة المستلمة ممكن تتسجل من بيان شركة الشحن أو من بيان حساب
                               // العميل التجاري (أيهما اتقفل منه التسليم فعليًا) — نجرب الاتنين.
                               const dvr = o.deliveredValueReceived ?? o.clientAccountDeliveredValueReceived;
-                              // codAmount بيبقى فعليًا > 0 بس لو فيه مبلغ منفصل اتسجل عليه (نادر)؛
-                              // القيمة الحقيقية المطلوب تحصيلها في الأغلب هي totalAmount (سعر الشحنة كامل).
-                              // Number(codAmount) > 0 مش != null، عشان "0.00" (اللي شائعة جدًا) تتجاهل صح.
+                              // القيمة المستلمة = صافي البضاعة + سعر الشحن = سعر الشحنة (طلب مصطفى) — دايمًا شامل الشحن.
+                              // - dvr فاضي: صافي البضاعة (codAmount) + الشحن (وده = totalAmount في الشحنات العادية).
+                              // - dvr مسجّل <= صافي البضاعة: اتسجّل صافي، فنضيف عليه الشحن.
+                              // - dvr مسجّل أكبر من صافي البضاعة: اتسجّل شامل الشحن أصلًا، فنعرضه زي ما هو.
+                              // الفرق الحقيقي (استلام ناقص/زيادة) بيفضل ظاهر لأننا مبنعوّضش dvr بالإجمالي.
+                              const fee = Number(o.shippingFee ?? 0);
+                              const cod = Math.max(0, Number(o.codAmount ?? 0)); // codAmount ممكن يبقى سالب في بيانات شاذة
                               const base = dvr != null
-                                ? Number(dvr)
-                                : (Number(o.codAmount ?? 0) > 0 ? Number(o.codAmount) : Number(o.totalAmount ?? 0));
+                                ? (Number(dvr) <= cod ? Number(dvr) + fee : Number(dvr))
+                                : (cod > 0 || fee > 0 ? cod + fee : Number(o.totalAmount ?? 0));
                               return formatCurrency(base);
                             }
                             // أي حالة تانية (قيد الشحن، في المخزن، ...) يعني المندوب لسه مستلمش حاجة فعليًا

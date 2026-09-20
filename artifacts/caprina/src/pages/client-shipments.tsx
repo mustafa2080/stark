@@ -683,9 +683,16 @@ export default function ClientShipmentsPage() {
                           }
                           if (s.status === "delivered") {
                             const dvr = s.deliveredValueReceived ?? s.clientAccountDeliveredValueReceived;
+                            // القيمة المستلمة = صافي البضاعة + سعر الشحن = سعر الشحنة (طلب مصطفى) — دايمًا شامل الشحن.
+                            // - dvr فاضي: صافي البضاعة (codAmount) + الشحن (وده = totalAmount في الشحنات العادية).
+                            // - dvr مسجّل <= صافي البضاعة: اتسجّل صافي، فنضيف عليه الشحن.
+                            // - dvr مسجّل أكبر من صافي البضاعة: اتسجّل شامل الشحن أصلًا، فنعرضه زي ما هو.
+                            // الفرق الحقيقي (استلام ناقص/زيادة) بيفضل ظاهر لأننا مبنعوّضش dvr بالإجمالي.
+                            const fee = Number(s.shippingFee ?? 0);
+                            const cod = Math.max(0, Number(s.codAmount ?? 0)); // codAmount ممكن يبقى سالب في بيانات شاذة
                             const base = dvr != null
-                              ? Number(dvr)
-                              : (Number(s.codAmount ?? 0) > 0 ? Number(s.codAmount) : Number(s.totalAmount ?? 0));
+                              ? (Number(dvr) <= cod ? Number(dvr) + fee : Number(dvr))
+                              : (cod > 0 || fee > 0 ? cod + fee : Number(s.totalAmount ?? 0));
                             return formatCurrency(base);
                           }
                           return formatCurrency(0);
