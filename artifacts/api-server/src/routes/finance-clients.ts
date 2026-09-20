@@ -93,8 +93,8 @@ async function syncClientStats(clientName: string, tenantId: number | null) {
 // status='open') — البيانات المقفولة أو المسواة مالياً تفضل زي ما هي.
 // المعادلة نفسها المستخدمة وقت إنشاء الشحنة (new-shipment):
 //   shippingFee = zonePrice(حسب التصنيف) + parcelTypePrice
-//   ولو الدفع عند الاستلام: codAmount = totalAmount - shippingFee → بنعدّل
-//   الـ codAmount بفرق رسوم الشحن عشان الإجمالي يفضل ثابت زي ما العميل دخّله.
+//   القيمة المستلمة (codAmount) لا تُمس هنا إطلاقًا (طلب مصطفى 2026-09-20) —
+//   بتتحدد من العميل وقت إنشاء الشحنة وتفضل ثابتة حتى لو اتغيّر تصنيف العميل بعدين.
 async function syncOpenManifestShipmentPrices(clientId: number, newType: string): Promise<number> {
   // 1. شحنات العميل الموجودة في بيانات مفتوحة فقط
   const itemRows = await db
@@ -139,15 +139,13 @@ async function syncOpenManifestShipmentPrices(clientId: number, newType: string)
     const delta        = Math.round((newFee - oldFee) * 100) / 100;
     if (delta === 0 && oldZonePrice === newZonePrice) continue;
 
-    const isCod = sh.paymentMethod === "cod";
-    const newCod = isCod
-      ? Math.round((Number(sh.codAmount ?? 0) - delta) * 100) / 100
-      : Number(sh.codAmount ?? 0);
-
+    // ملحوظة (طلب مصطفى 2026-09-20): القيمة المستلمة (codAmount) بتتحدد من العميل
+    // وقت إنشاء الشحنة ولازم تفضل ثابتة زي ما هي — مينفعش تتطرح منها فرق سعر الشحن
+    // تلقائيًا لمجرد تغيير تصنيف العميل. بنحدّث zonePrice وshippingFee بس، وcodAmount
+    // بيفضل زي ما هو من غير أي لمسة.
     await db.update(shipmentsTable).set({
       zonePrice: String(newZonePrice),
       shippingFee: String(Math.round(newFee * 100) / 100),
-      ...(isCod ? { codAmount: String(newCod) } : {}),
       updatedAt: new Date(),
     }).where(eq(shipmentsTable.id, sh.id));
     updatedCount++;
