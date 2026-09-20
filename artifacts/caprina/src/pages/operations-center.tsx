@@ -2157,7 +2157,7 @@ export default function OperationsCenterPage() {
             {shipmentChartsOcLoading && !shipmentChartsOc ? (
               <div className="h-56 rounded bg-muted animate-pulse" />
             ) : (
-              <WeeklyShipmentBars data={shipmentChartsOc} />
+              <WeeklyShipmentBars data={shipmentChartsOc} periodFilter={ocPeriodFilter} />
             )}
           </CardContent>
         </Card>

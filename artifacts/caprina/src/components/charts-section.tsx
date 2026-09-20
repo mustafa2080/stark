@@ -1132,6 +1132,31 @@ const SHIPMENT_VIEW_TABS: { id: ShipmentView; label: string; emoji: string; colo
   { id: "custom", label: "فترة محددة", emoji: "🗓️", color: "#EC4899" },
 ];
 
+// ── ربط الحاوية بفلتر المدة العلوي (مركز العمليات: اليوم/أسبوع/شهر/سنة/فترة محددة) ──
+// نفس تعريفات السيرفر: الأسبوع = من بداية الأسبوع التقويمي، الشهر = من أول الشهر، السنة = من 1 يناير.
+export type ShipmentPeriodFilter =
+  | { type: "today" | "week" | "month" | "year" }
+  | { type: "custom"; from: string; to: string; allTime?: boolean };
+
+const parseYmdLocal = (s: string): Date => {
+  const [y, m, d] = s.split("-").map(Number);
+  return new Date(y, (m || 1) - 1, d || 1);
+};
+
+function shipmentSelectionFromPeriod(
+  p: ShipmentPeriodFilter,
+  todayStr: string,
+): { view: ShipmentView; range: { from?: Date; to?: Date } } {
+  const today = parseYmdLocal(todayStr);
+  switch (p.type) {
+    case "week":  return { view: "current", range: {} };
+    case "month": return { view: "monthly", range: {} };
+    case "today": return { view: "custom", range: { from: today, to: today } };
+    case "year":  return { view: "custom", range: { from: new Date(today.getFullYear(), 0, 1), to: today } };
+    case "custom": return { view: "custom", range: { from: parseYmdLocal(p.from), to: parseYmdLocal(p.to) } };
+  }
+}
+
 function ShipmentXTick({ x, y, payload, enriched }: any) {
   const todayStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
   const item = (enriched ?? []).find((d: any) => d.label === payload.value);
@@ -1184,13 +1209,31 @@ function ShipmentBarTip({ active, payload }: any) {
 
 export const WeeklyShipmentBars = memo(function WeeklyShipmentBars({
   data,
+  periodFilter,
 }: {
   data: ShipmentChartsData | undefined | null;
+  // لو اتبعت: الحاوية بتتبع فلتر المدة العلوي (وتقدر لسه تغيّر التبويب يدوي بعدها)
+  periodFilter?: ShipmentPeriodFilter;
 }) {
-  const [view, setView] = React.useState<ShipmentView>("current");
-  const [customRange, setCustomRange] = React.useState<{ from?: Date; to?: Date }>({});
-  const [customPickerOpen, setCustomPickerOpen] = React.useState(false);
   const todayStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  const [view, setView] = React.useState<ShipmentView>(() =>
+    periodFilter ? shipmentSelectionFromPeriod(periodFilter, todayStr).view : "current");
+  const [customRange, setCustomRange] = React.useState<{ from?: Date; to?: Date }>(() =>
+    periodFilter ? shipmentSelectionFromPeriod(periodFilter, todayStr).range : {});
+  const [customPickerOpen, setCustomPickerOpen] = React.useState(false);
+
+  // كل ما فلتر المدة العلوي يتغير → نحدّث التبويب/الفترة هنا بنفس اختياره
+  const periodKey = periodFilter
+    ? (periodFilter.type === "custom" ? `custom|${periodFilter.from}|${periodFilter.to}` : periodFilter.type)
+    : "";
+  React.useEffect(() => {
+    if (!periodFilter) return;
+    const sel = shipmentSelectionFromPeriod(periodFilter, todayStr);
+    setView(sel.view);
+    setCustomRange(sel.range);
+    setCustomPickerOpen(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [periodKey]);
   const customFrom = customRange.from ? format(customRange.from, "yyyy-MM-dd") : undefined;
   const customTo = customRange.to ? format(customRange.to, "yyyy-MM-dd") : undefined;
   const hasCompleteCustomRange = Boolean(customFrom && customTo);
