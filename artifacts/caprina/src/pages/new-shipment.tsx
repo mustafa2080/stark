@@ -11,6 +11,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch, warehousesApi, usersApi, shipmentsApi } from "@/lib/api";
+import { BulkShipmentCards, emptyDraft, validateDraft, type BulkShipmentDraft, type DraftErrors } from "@/components/bulk-shipment-cards";
 
 type PaymentMethod = "cod" | "prepaid" | "deferred";
 type ParcelType    = "document" | "normal" | "fragile" | "heavy" | "electronics" | "clothing" | "food" | "other";
@@ -29,6 +30,7 @@ const PAYMENT_COLORS: Record<PaymentMethod, string> = {
   prepaid:  "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-400/40",
   deferred: "bg-blue-500/10   text-blue-600   dark:text-blue-400   border-blue-400/40",
 };
+
 
 const fc = (n: number) =>
   new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(n);
@@ -106,6 +108,12 @@ export default function NewShipmentPage() {
   const [govOpen, setGovOpen] = useState(false);
   const [clientOpen, setClientOpen] = useState(false);
   const [clientOpen2, setClientOpen2] = useState(false);
+
+  // ── الوضع المتعدد: بيتفعّل لما يتختار عميل تجاري وإحنا في وضع الإنشاء ──
+  // بيانات العميل (الراسل/المخزن/المصدر) ثابتة فوق، وكل كارت = شحنة (المستلم/المنطقة/السعر...).
+  const [drafts, setDrafts] = useState<BulkShipmentDraft[]>(() => [emptyDraft()]);
+  const [openDraftUid, setOpenDraftUid] = useState<string | null>(null);
+  const [showDraftErrors, setShowDraftErrors] = useState(false);
 
   const set = (k: keyof typeof form, v: string) => setForm(f => ({ ...f, [k]: v }));
 
@@ -225,6 +233,13 @@ export default function NewShipmentPage() {
   const total           = Number(form.codAmount) || 0;
   const cod             = form.paymentMethod === "cod" ? (total - shippingFee) : total;
 
+  const isBulkMode = !isEditMode && !!form.clientId;
+  const draftErrors: DraftErrors[] = useMemo(() => drafts.map(validateDraft), [drafts]);
+  const getZonePriceById = (zoneId: string) => {
+    const z = zones.find(x => String(x.id) === zoneId);
+    return z ? getZonePriceForClient(z) : 0;
+  };
+
   const mutation = useMutation({
     mutationFn: (data: any) => isEditMode
       ? apiFetch(`/shipments/${editId}`, { method: "PATCH", body: JSON.stringify(data) })
@@ -242,6 +257,94 @@ export default function NewShipmentPage() {
     },
     onError: (e: any) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
   });
+
+  // ── إنشاء شحنات متعددة (all-or-nothing على السيرفر) ──
+  const bulkMutation = useMutation({
+    mutationFn: (shipments: Array<Record<string, unknown>>) => shipmentsApi.bulkCreate(shipments),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ["shipments"] });
+      toast({ title: `تم إنشاء ${res.count} شحنة بنجاح ✅` });
+      navigate("/shipments-list");
+    },
+    onError: (e: any) => {
+      // السيرفر بيرجّع issues[{index, field, message}] لو الـ validation فشل — نفتح أول كارت فيه مشكلة
+      const issues: Array<{ index: number | null; message: string }> | undefined = e?.data?.issues;
+      const firstIdx = issues?.find(i => i.index != null)?.index;
+      if (firstIdx != null && drafts[firstIdx - 1]) {
+        setShowDraftErrors(true);
+        setOpenDraftUid(drafts[firstIdx - 1].uid);
+      }
+      const detail = issues?.length
+        ? issues.slice(0, 3).map(i => (i.index != null ? `شحنة ${i.index}: ` : "") + i.message).join(" — ")
+        : e.message;
+      toast({ title: "لم يتم إنشاء أي شحنة", description: detail, variant: "destructive" });
+    },
+  });
+
+  function handleBulkSubmit() {
+    // 1) بيانات العميل الثابتة
+    if (!form.senderName) {
+      toast({ title: "الحقول المطلوبة", description: "اسم الراسل مطلوب", variant: "destructive" });
+      return;
+    }
+    if (!form.warehouseId) {
+      toast({ title: "المخزن مطلوب", description: "من فضلك اختر المخزن الذي ستُودَع فيه الشحنات", variant: "destructive" });
+      return;
+    }
+    // 2) تحقق من كل الكروت قبل الإرسال — لو أي كارت فيه خطأ ما بيتبعتش ولا واحدة
+    const bad = draftErrors.findIndex(e => Object.keys(e).length > 0);
+    if (bad !== -1) {
+      setShowDraftErrors(true);
+      setOpenDraftUid(drafts[bad].uid);
+      const badCount = draftErrors.filter(e => Object.keys(e).length > 0).length;
+      toast({
+        title: "لم يتم إنشاء أي شحنة",
+        description: `${badCount} شحنة ناقصة أو فيها خطأ — راجع الكروت المعلّمة بالأحمر`,
+        variant: "destructive",
+      });
+      return;
+    }
+    // 3) نبني الـ payload: بيانات العميل الثابتة + بيانات كل كارت
+    const payload = drafts.map(d => {
+      const zp = getZonePriceById(d.zoneId);
+      const pp = Number(parcelPricing.find(p => p.parcelType === d.parcelType)?.basePrice) || 0;
+      const fee = zp + pp;
+      const tot = Number(d.codAmount) || 0;
+      const codAmt = d.paymentMethod === "cod" ? tot - fee : tot;
+      return {
+        clientId:        form.clientId ? Number(form.clientId) : undefined,
+        senderName:      form.senderName,
+        senderPhone:     form.senderPhone || undefined,
+        senderPhone2:    form.senderPhone2 || undefined,
+        senderCity:      form.senderCity || undefined,
+        receiverName:    d.receiverName,
+        receiverPhone:   d.receiverPhone || undefined,
+        receiverPhone2:  d.receiverPhone2 || undefined,
+        receiverAddress: d.receiverAddress || undefined,
+        zoneId:          d.zoneId ? Number(d.zoneId) : undefined,
+        zonePrice:       zp,
+        parcelType:      d.parcelType || undefined,
+        parcelTypePrice: pp,
+        weight:          d.weight || undefined,
+        pieces:          1,
+        paymentMethod:   d.paymentMethod,
+        codAmount:       codAmt,
+        shippingFee:     fee,
+        totalAmount:     tot,
+        notes:           d.notes || undefined,
+        adSource:        form.adSource || undefined,
+        adCampaign:      form.adCampaign || undefined,
+        warehouseId:     form.warehouseId ? Number(form.warehouseId) : undefined,
+        assignedUserId:  form.assignedUserId ? Number(form.assignedUserId) : undefined,
+        shippingCompanyId: form.shippingCompanyId ? Number(form.shippingCompanyId) : undefined,
+        canOpen:         d.canOpen     !== "" ? Number(d.canOpen)     : undefined,
+        isDivisible:     d.isDivisible !== "" ? Number(d.isDivisible) : undefined,
+        rejectionPolicy: d.rejectionPolicy || undefined,
+        status:          "waiting",
+      };
+    });
+    bulkMutation.mutate(payload);
+  }
 
   function handleSubmit() {
     if (!form.senderName || !form.receiverName) {
@@ -400,6 +503,20 @@ export default function NewShipmentPage() {
         </section>
 
         {/* بيانات المستلم */}
+        {isBulkMode ? (
+          <BulkShipmentCards
+            drafts={drafts}
+            onChange={setDrafts}
+            errors={draftErrors}
+            showErrors={showDraftErrors}
+            zoneOptions={toGovernorates}
+            getZonePrice={getZonePriceById}
+            parcelPricing={parcelPricing}
+            parcelLabels={PARCEL_LABELS}
+            openUid={openDraftUid}
+            onOpenChange={setOpenDraftUid}
+          />
+        ) : (<>
         <section className="space-y-4">
           <h3 className="text-xs font-black text-muted-foreground uppercase tracking-widest flex items-center gap-2 border-b border-border pb-2">
             <MapPin className="w-3.5 h-3.5" /> بيانات المستلم والعنوان
@@ -567,12 +684,10 @@ export default function NewShipmentPage() {
           <div>
             <Label className="text-xs font-bold mb-2 block">طريقة الدفع</Label>
             <div className="flex flex-wrap gap-2">
-              {(["cod","prepaid","deferred"] as PaymentMethod[]).map(m => (
-                <button key={m} type="button" onClick={() => set("paymentMethod", m)}
-                  className={`flex-1 min-w-[120px] px-4 py-2.5 rounded-xl text-xs font-bold border transition-all ${form.paymentMethod === m ? PAYMENT_COLORS[m] + " ring-2 ring-offset-1 ring-current/30" : "bg-muted/30 text-muted-foreground border-border hover:bg-muted/60"}`}>
-                  {PAYMENT_LABELS[m]}
-                </button>
-              ))}
+              <button type="button" disabled
+                className={`flex-1 min-w-[120px] px-4 py-2.5 rounded-xl text-xs font-bold border transition-all ${PAYMENT_COLORS.cod} ring-2 ring-offset-1 ring-current/30`}>
+                {PAYMENT_LABELS.cod}
+              </button>
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -587,6 +702,7 @@ export default function NewShipmentPage() {
 
         {/* ملاحظات */}
         <div><Label className="text-xs font-bold mb-1.5 block">ملاحظات</Label><Input className="text-sm" placeholder="أي تعليمات خاصة..." value={form.notes} onChange={e => set("notes", e.target.value)} /></div>
+        </>)}
 
         {/* المخزن */}
         <section className="space-y-4 rounded-xl border border-teal-900/40 bg-teal-900/5 p-4">
@@ -729,7 +845,27 @@ export default function NewShipmentPage() {
 
               {/* التفاصيل */}
               <div className="px-5 py-4 space-y-3">
-                {[
+                {isBulkMode ? (() => {
+                  // ملخص إجمالي لكل الشحنات (نفس منطق حساب الكارت الواحد)
+                  const rows = drafts.map(d => {
+                    const zp = getZonePriceById(d.zoneId);
+                    const pp = Number(parcelPricing.find(p => p.parcelType === d.parcelType)?.basePrice) || 0;
+                    const tot = Number(d.codAmount) || 0;
+                    return { fee: zp + pp, tot };
+                  });
+                  const sumFee = rows.reduce((a, r) => a + r.fee, 0);
+                  const sumTot = rows.reduce((a, r) => a + r.tot, 0);
+                  return [
+                    { label: "عدد الشحنات", value: String(drafts.length) },
+                    { label: "إجمالي رسوم الشحن", value: fc(sumFee) },
+                    { label: "إجمالي سعر الشحنات", value: fc(sumTot), highlight: true },
+                  ].map((row: any, i) => (
+                    <div key={i} className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">{row.label}</span>
+                      <span className={`font-bold ${row.highlight ? "text-amber-500 dark:text-amber-400" : "text-foreground"}`}>{row.value}</span>
+                    </div>
+                  ));
+                })() : [
                   { label: "سعر منطقة التوصيل", value: fc(zonePrice) },
                   { label: "إضافة نوع الشحنة",  value: fc(parcelPrice) },
                   form.paymentMethod === "cod" ? { label: "مبلغ COD", value: fc(cod), highlight: true } : null,
@@ -742,17 +878,23 @@ export default function NewShipmentPage() {
                 ))}
                 <div className="flex items-center justify-between border-t border-primary/20 pt-3 mt-1">
                   <span className="text-sm font-black">الإجمالي</span>
-                  <span className="text-lg font-black text-primary">{fc(total)}</span>
+                  <span className="text-lg font-black text-primary">
+                    {isBulkMode ? fc(drafts.reduce((a, d) => a + (Number(d.codAmount) || 0), 0)) : fc(total)}
+                  </span>
                 </div>
               </div>
 
               {/* الأزرار */}
               <div className="px-5 pb-5 space-y-2">
-                <Button onClick={handleSubmit} disabled={mutation.isPending} className="w-full gap-2">
-                  {mutation.isPending
+                <Button
+                  onClick={isBulkMode ? handleBulkSubmit : handleSubmit}
+                  disabled={mutation.isPending || bulkMutation.isPending}
+                  className="w-full gap-2"
+                >
+                  {(mutation.isPending || bulkMutation.isPending)
                     ? <RefreshCw className="w-4 h-4 animate-spin" />
                     : isEditMode ? <Save className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-                  {isEditMode ? "حفظ التعديلات" : "إنشاء الشحنة"}
+                  {isEditMode ? "حفظ التعديلات" : isBulkMode ? (drafts.length > 1 ? `إنشاء ${drafts.length} شحنات` : "إنشاء الشحنة") : "إنشاء الشحنة"}
                 </Button>
                 <Button variant="outline" onClick={() => navigate(isEditMode ? `/shipments/${editId}` : "/orders")} className="w-full">إلغاء</Button>
               </div>

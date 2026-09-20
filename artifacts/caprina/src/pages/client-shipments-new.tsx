@@ -319,12 +319,10 @@ export default function NewShipmentPage() {
           <div>
             <Label className="text-xs font-bold mb-2 block">طريقة الدفع</Label>
             <div className="flex flex-wrap gap-2">
-              {(["cod","prepaid","deferred"] as PaymentMethod[]).map(m => (
-                <button key={m} type="button" onClick={() => set("paymentMethod", m)}
-                  className={`flex-1 min-w-[120px] px-4 py-2.5 rounded-xl text-xs font-bold border transition-all ${form.paymentMethod === m ? PAYMENT_COLORS[m] + " ring-2 ring-offset-1 ring-current/30" : "bg-muted/30 text-muted-foreground border-border hover:bg-muted/60"}`}>
-                  {PAYMENT_LABELS[m]}
-                </button>
-              ))}
+              <button type="button" disabled
+                className={`flex-1 min-w-[120px] px-4 py-2.5 rounded-xl text-xs font-bold border transition-all ${PAYMENT_COLORS.cod} ring-2 ring-offset-1 ring-current/30`}>
+                {PAYMENT_LABELS.cod}
+              </button>
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

@@ -1241,6 +1241,172 @@ router.post("/shipments", async (req, res): Promise<void> => {
   }
 });
 
+// ─── POST /shipments/bulk ─────────────────────────────────────────────────────
+// إنشاء أكتر من شحنة لنفس العميل في طلب واحد (شاشة "شحنة جديدة" متعددة).
+// - كله أو ولا حاجة: كل الإدراجات جوه transaction واحد، أي خطأ = rollback للكل.
+// - الترقيم: بنولّد أول رقم مرة واحدة وبنزوّد منه تسلسليًا (نفس أسلوب import.ts)،
+//   عشان generateShipmentNumber بتقرا آخر رقم وممكن تكرر نفس الرقم لو اتنادت بالتوازي.
+// - الـ side effects (المخزون / كشف حساب العميل / الإشعارات) بتتشغّل بعد نجاح الـ commit بس.
+const BulkCreateShipmentsSchema = z.object({
+  shipments: z.array(CreateShipmentSchema).min(1).max(50),
+});
+
+router.post("/shipments/bulk", async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const user     = (req as any).user;
+    const parsed   = BulkCreateShipmentsSchema.safeParse(req.body);
+    if (!parsed.success) {
+      // نحدد أنهي شحنة فيها المشكلة (index بيبدأ من 1 عشان يطابق ترتيب الكروت في الواجهة)
+      const issues = parsed.error.issues.map((i) => {
+        const idx = typeof i.path[1] === "number" ? (i.path[1] as number) + 1 : null;
+        return { index: idx, field: i.path.slice(2).join(".") || null, message: i.message };
+      });
+      res.status(400).json({ error: "بيانات بعض الشحنات غير صالحة", issues });
+      return;
+    }
+
+    const list = parsed.data.shipments;
+    const now  = new Date();
+
+    // المناطق: نجيب receiverCity الناقصة من zone مرة واحدة لكل zoneId مميز
+    const zoneIds = Array.from(new Set(list.map((d) => d.zoneId).filter((z): z is number => !!z)));
+    const zoneGov = new Map<number, string | null>();
+    if (zoneIds.length) {
+      const zs = await db.select({ id: shipmentZonesTable.id, toGovernorate: shipmentZonesTable.toGovernorate })
+        .from(shipmentZonesTable).where(inArray(shipmentZonesTable.id, zoneIds));
+      for (const z of zs) zoneGov.set(z.id, z.toGovernorate ?? null);
+    }
+
+    const firstNumber = await generateShipmentNumber(tenantId);
+    const numberPrefix = firstNumber.slice(0, -4);
+    let nextSeq = parseInt(firstNumber.slice(-4), 10);
+
+    const insertedIds: number[] = [];
+
+    await db.transaction(async (tx) => {
+      for (const d of list) {
+        const shipmentNumber = `${numberPrefix}${String(nextSeq).padStart(4, "0")}`;
+        nextSeq++;
+
+        const resolvedReceiverCity =
+          d.receiverCity ?? (d.zoneId ? (zoneGov.get(d.zoneId) ?? undefined) : undefined);
+
+        const result = await tx.insert(shipmentsTable).values({
+          ...(tenantId !== null ? { tenantId } : {}),
+          shipmentNumber,
+          shipmentKind:       d.shipmentKind,
+          originalShipmentId: d.shipmentKind === "replacement" ? (d.originalShipmentId ?? undefined) : undefined,
+          clientId:        d.clientId    ?? undefined,
+          senderName:      d.senderName,
+          senderPhone:     d.senderPhone ?? undefined,
+          senderPhone2:    d.senderPhone2 ?? undefined,
+          senderCity:      d.senderCity  ?? undefined,
+          receiverName:    d.receiverName,
+          receiverPhone:   d.receiverPhone  ?? undefined,
+          receiverPhone2:  d.receiverPhone2 ?? undefined,
+          receiverAddress: d.receiverAddress ?? undefined,
+          receiverCity:    resolvedReceiverCity,
+          zoneId:          d.zoneId      ?? undefined,
+          zonePrice:       String(d.zonePrice),
+          parcelType:      d.parcelType  ?? undefined,
+          parcelTypePrice: String(d.parcelTypePrice),
+          weight:          d.weight      ? String(d.weight) : undefined,
+          pieces:          d.pieces,
+          description:     d.description ?? undefined,
+          productId:       d.productId   ?? undefined,
+          variantId:       d.variantId   ?? undefined,
+          warehouseId:     d.warehouseId ?? undefined,
+          declaredValue:   String(d.declaredValue),
+          canOpen:         d.canOpen === undefined || d.canOpen === null ? null : Number(d.canOpen),
+          isDivisible:     d.isDivisible === undefined || d.isDivisible === null ? null : Number(d.isDivisible),
+          rejectionPolicy: d.rejectionPolicy ?? null,
+          paymentMethod:   d.paymentMethod,
+          codAmount:       String(d.codAmount),
+          shippingFee:     String(d.shippingFee),
+          insuranceFee:    String(d.insuranceFee),
+          totalAmount:     String(computeTotalAmount(d.paymentMethod, d.codAmount, d.shippingFee, d.insuranceFee)),
+          collectedAmount: "0",
+          status:          d.status ?? "waiting",
+          notes:           d.notes ?? undefined,
+          shippingCompanyId: d.shippingCompanyId ?? undefined,
+          createdByUserId: user?.id,
+          createdByName:   user?.displayName ?? user?.username,
+          createdAt:       now,
+          updatedAt:       now,
+        });
+
+        const insertId = (result as any)[0]?.insertId ?? (result as any).insertId;
+        if (!insertId) throw new Error("فشل الحصول على رقم الشحنة بعد الإدراج");
+        insertedIds.push(Number(insertId));
+
+        if (d.items && d.items.length > 0) {
+          await tx.insert(shipmentItemsTable).values(
+            d.items.map((it) => ({
+              shipmentId:  Number(insertId),
+              tenantId:    tenantId ?? null,
+              productId:   it.productId ?? null,
+              variantId:   it.variantId ?? null,
+              warehouseId: it.warehouseId ?? d.warehouseId ?? null,
+              product:     it.product ?? null,
+              color:       it.color ?? null,
+              size:        it.size ?? null,
+              quantity:    it.quantity,
+              unitPrice:   String(it.unitPrice),
+              costPrice:   String(it.costPrice),
+              totalPrice:  String(it.quantity * it.unitPrice),
+              createdAt:   now,
+              updatedAt:   now,
+            }))
+          );
+        }
+      }
+    });
+
+    // ── بعد الـ commit: نفس الـ side effects بتاعة POST /shipments (best-effort، مش بتأثر على النجاح) ──
+    const created: any[] = [];
+    for (const id of insertedIds) {
+      try {
+        let [row] = await db.select().from(shipmentsTable).where(eq(shipmentsTable.id, id)).limit(1);
+        if (!row) continue;
+        const invPatch: any = {};
+        await syncShipmentInventory(row, invPatch);
+        if (Object.keys(invPatch).length) {
+          await db.update(shipmentsTable).set(invPatch).where(eq(shipmentsTable.id, id));
+        }
+        await syncShipmentItemsInventory(id, row.status);
+        [row] = await db.select().from(shipmentsTable).where(eq(shipmentsTable.id, id)).limit(1);
+        created.push(row);
+
+        if (row.clientId) {
+          autoAddShipmentToClientAccountManifest(id, row.clientId, tenantId, row.status)
+            .catch((e) => console.error("[POST /shipments/bulk] auto-add manifest error", e));
+        }
+      } catch (e) {
+        console.error("[POST /shipments/bulk] post-commit sync failed for shipment", id, e);
+      }
+    }
+
+    // إشعار واحد مجمّع بدل N إشعارات
+    pushNotification({
+      tenantId: tenantId,
+      excludeUserId: user?.id,
+      type: "shipment_new",
+      severity: "info",
+      title: "شحنات جديدة",
+      message: `تم إنشاء ${insertedIds.length} شحنة للعميل ${list[0].senderName}`,
+      entityType: "shipment",
+      entityId: insertedIds[0],
+      link: `/shipments/${insertedIds[0]}`,
+    });
+
+    res.status(201).json({ count: insertedIds.length, shipments: created });
+  } catch (e) {
+    console.error("[POST /shipments/bulk]", e);
+    res.status(500).json({ error: "فشل إنشاء الشحنات، ولم يتم حفظ أي شحنة" });
+  }
+});
+
 // ─── PUT /shipments/:id ───────────────────────────────────────────────────────
 router.put("/shipments/:id", async (req, res): Promise<void> => {
   try {

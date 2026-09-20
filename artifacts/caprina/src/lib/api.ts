@@ -24,6 +24,7 @@ export async function apiFetch<T>(path: string, options?: RequestInit): Promise<
   if (!res.ok) {
     const err = new Error(data.error || `HTTP ${res.status}`) as any;
     err.status = res.status;
+    err.data = data; // بيسمح للشاشات اللي محتاجة تفاصيل الخطأ (زي issues في POST /shipments/bulk)
     throw err;
   }
   return data as T;
@@ -1810,7 +1811,7 @@ export const warehousesApi = {
     apiFetch<WarehouseStats>(`/warehouses/${warehouseId}/stats`),
   transferShipment: (data: { shipmentId: number; toWarehouseId: number | null; notes?: string; shippingCompanyId?: number | null; newStatus?: string }) =>
     apiFetch<{ success: boolean }>("/warehouses/transfer", { method: "POST", body: JSON.stringify(data) }),
-  transferShipmentsBulk: (data: { shipmentIds: number[]; toWarehouseId: number | null; notes?: string; shippingCompanyId?: number | null; newStatus?: string }) =>
+  transferShipmentsBulk: (data: { shipmentIds: number[]; toWarehouseId: number; notes?: string; shippingCompanyId?: number | null; newStatus?: string }) =>
     apiFetch<{ success: boolean; transferred: number; notFound: number[] }>("/warehouses/transfer-bulk", { method: "POST", body: JSON.stringify(data) }),
   transferHistory: (shipmentId: number) =>
     apiFetch<WarehouseTransfer[]>(`/warehouses/transfers/${shipmentId}`),
@@ -2428,6 +2429,9 @@ export const shipmentsApi = {
   get: (id: number) => apiFetch<Shipment>(`/shipments/${id}`),
   create: (data: Partial<Shipment> & { senderName: string; receiverName: string }) =>
     apiFetch<Shipment>("/shipments", { method: "POST", body: JSON.stringify(data) }),
+  /** إنشاء أكتر من شحنة في طلب واحد (all-or-nothing على السيرفر) */
+  bulkCreate: (shipments: Array<Record<string, unknown>>) =>
+    apiFetch<{ count: number; shipments: Shipment[] }>("/shipments/bulk", { method: "POST", body: JSON.stringify({ shipments }) }),
   update: (id: number, data: Partial<Shipment>) =>
     apiFetch<Shipment>(`/shipments/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   patch: (id: number, data: Partial<Shipment>) =>
