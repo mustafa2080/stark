@@ -1008,6 +1008,9 @@ router.get("/shipments/:id", async (req, res): Promise<void> => {
       .select({
         ...getTableColumns(shipmentsTable),
         assignedUserName: usersTable.displayName,
+        // بيانات تواصل المندوب المسؤول (حاوية المندوب في تفاصيل الشحنة) — بالاسم فقط، مش users.* عشان مفيش تسريب لبيانات حساسة
+        assignedUserPhone: usersTable.phone,
+        assignedUserAvatar: usersTable.avatar,
         shippingCompanyName: sql<string>`COALESCE(${shippingCompaniesTable.name}, ${manifestShippingCompanyTable.name})`,
         // ── تكلفة شركة الشحن الفعلية: من الشحنة مباشرة، أو من المندوب المرتبط ببيان الشحن (fallback) ──
         // بيان الشحن هو المصدر الحقيقي غالبًا لأن shipping_company_id بيفضل فاضي على مستوى الشحنة نفسها

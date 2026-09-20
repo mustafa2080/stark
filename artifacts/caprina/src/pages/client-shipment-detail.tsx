@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ShipmentCourierCard } from "@/components/shipment-courier-card";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -4813,6 +4814,14 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
               })()}
             </CardContent>
           </Card>
+
+          {/* ── المندوب المسؤول (يظهر للأدمن وللعميل التجاري) ── */}
+          <ShipmentCourierCard
+            name={(order as any).assignedUserName}
+            phone={(order as any).assignedUserPhone}
+            avatar={(order as any).assignedUserAvatar}
+            shipmentNumber={(order as any).shipmentNumber}
+          />
 
           {/* ── تحليل الربحية ── */}
           {canViewProfitability && (() => {
