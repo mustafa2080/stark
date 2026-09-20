@@ -614,6 +614,7 @@ function ShipmentsTransferDialog({ onClose }: { onClose: () => void }) {
       <DialogContent
         className="max-w-[min(1400px,95vw)]! w-full max-h-[90vh] overflow-y-auto"
         dir="rtl"
+        hideCloseButton
         onInteractOutside={e => e.preventDefault()}
         onEscapeKeyDown={e => e.preventDefault()}
       >
