@@ -576,6 +576,11 @@ function ShipmentsTransferDialog({ onClose }: { onClose: () => void }) {
   };
 
   const handleConfirm = async () => {
+    // "نقل من" إجباري — الزرار مقفول من غيره، وده حماية إضافية لو اتنادى بأي طريقة تانية.
+    if (!fromWarehouseId) {
+      toast({ title: "يرجى تحديد المخزن المنقول منه (نقل من)", variant: "destructive" });
+      return;
+    }
     if (selectedShipmentIds.size === 0) {
       toast({ title: "اختر شحنة واحدة على الأقل", variant: "destructive" });
       return;
@@ -606,6 +611,13 @@ function ShipmentsTransferDialog({ onClose }: { onClose: () => void }) {
   };
 
   const allSelected = shipments.length > 0 && selectedShipmentIds.size === shipments.length;
+
+  // زرار النقل مايشتغلش إلا لما "نقل من" و"نقل إلى" وشحنة واحدة على الأقل يتحددوا.
+  const missingTransferFields: string[] = [];
+  if (!fromWarehouseId) missingTransferFields.push("نقل من");
+  if (!toWarehouseId) missingTransferFields.push("نقل إلى");
+  if (selectedShipmentIds.size === 0) missingTransferFields.push("شحنة واحدة على الأقل");
+  const canTransfer = missingTransferFields.length === 0;
 
   // منع الإغلاق التلقائي عند الضغط بره الحاوية — الإغلاق بقى مخصص لزر (X) فقط
   // عشان منضيعش التحديدات لو المستخدم ضغط بالغلط برة الشاشة أثناء العمل.
@@ -786,10 +798,15 @@ function ShipmentsTransferDialog({ onClose }: { onClose: () => void }) {
         </div>
 
         <DialogFooter>
+          {!canTransfer && !saving && (
+            <p className="text-[11px] font-medium text-amber-500 self-center flex-1 text-right">
+              يرجى تحديد: {missingTransferFields.join("، ")}
+            </p>
+          )}
           <Button variant="outline" onClick={onClose} className="text-xs h-8">إلغاء</Button>
           <Button
             onClick={handleConfirm}
-            disabled={saving || selectedShipmentIds.size === 0 || !toWarehouseId}
+            disabled={saving || !canTransfer}
             className="text-xs h-8 gap-1 bg-teal-600 hover:bg-teal-700 text-white"
           >
             <ArrowRightLeft className="w-3 h-3" />
