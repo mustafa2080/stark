@@ -4834,8 +4834,6 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
             </CardContent>
           </Card>
 
-          {/* ── تحليل الربحية ── */}
-          {canViewProfitability && (() => {
           {/* ── المندوب المسؤول (يظهر للأدمن وللعميل التجاري) ── */}
           <ShipmentCourierCard
             name={(order as any).assignedUserName}
@@ -4844,6 +4842,8 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
             shipmentNumber={(order as any).shipmentNumber}
           />
 
+          {/* ── تحليل الربحية ── */}
+          {canViewProfitability && (() => {
             // ── الحالات التي يظهر فيها التحليل ───────────────────────────────
             // نعرض التحليل من حالة "قيد الشحن" (in_shipping) فصاعداً
             const ACTIVE_STATUSES = ["in_shipping", "in_transit", "picked_up", "out_for_delivery", "delivered", "partial_received", "returned", "delayed", "with_courier", "at_warehouse", "returned_to_warehouse", "return_delivered", "postponed"];
