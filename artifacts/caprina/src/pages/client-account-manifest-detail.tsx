@@ -562,6 +562,22 @@ function OrderDeliveryRow({
             <p className="text-[10px] text-orange-400 font-semibold">🚚 المرتجع ما زال في شركة الشحن</p>
           </>
         )}
+        {/* ─── رجلة مرتجع الاستبدال / إحضار الطرد ───────────────────────────
+            البند نفسه بيتعرض "مسلَّم" لأن الطلب اتنفذ والفلوس اتحصّلت، بس فيه
+            بضاعة فعليًا في إيد المندوب (المنتج القديم في الاستبدال، أو الطرد
+            نفسه في إحضار الطرد) لازم ترجع المخزن. السطر ده بيوضّح وصلت ولا لأ
+            — بنفس شكل ومنطق الاستلام الجزئي فوق بالظبط. */}
+        {((order as any).status === "replaced" || (order as any).status === "parcel_picked") && (
+          (order as any).shipmentReturnReceived === 1 ? (
+            <p className="text-[10px] text-emerald-600 font-semibold">
+              ↩ {(order as any).status === "replaced" ? "المنتج القديم وصل المخزن" : "الطرد وصل المخزن"}
+            </p>
+          ) : (
+            <p className="text-[10px] text-orange-500 font-semibold">
+              🚚 {(order as any).status === "replaced" ? "المنتج القديم ما زال مع المندوب" : "الطرد ما زال مع المندوب"}
+            </p>
+          )
+        )}
         {order.deliveryStatus === "delayed" && order.deliveryNote && !editing && (
           <p className="text-[10px] text-orange-400 mt-0.5 font-semibold">
             ⏸ {order.deliveryNote}

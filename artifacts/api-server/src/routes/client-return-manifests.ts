@@ -9,6 +9,7 @@ import {
   clientsTable,
   usersTable,
   shippingCompaniesTable,
+  hasReturnLeg,
 } from "@workspace/db";
 import { z } from "zod";
 import { requireAuth } from "../middlewares/requireAuth";
@@ -81,7 +82,12 @@ router.post("/client-return-manifests/:clientId/confirm-delivery/:shipmentId", a
     // مش لمندوب داخلي، فـ assignedUserId بيفضل null عليها برضو وهي لسه فعليًا هناك.
     // returnReceived=1 هو مصدر الحقيقة الوحيد اللي بيستخدمه باقي النظام (شوف نفس
     // المنطق في routes/shipments.ts) للتفرقة بين "لسه عند الشحن" و"رجع المخزن فعلًا".
-    const isActualReturn = (shipment as any).status === "returned" || (shipment as any).status === "partial_received";
+    // ⚠️ التوسعة (2026-09-21): الحارس ده كان بيقارن على "returned"/"partial_received"
+    // بالنص. طلب الاستبدال وإحضار الطرد ليهم نفس رجلة المرتجع بالظبط (بضاعة فعليًا
+    // في إيد المندوب)، فكانوا بيعدّوا من الحارس ساكت ويتقفلوا والبضاعة لسه معاه.
+    // hasReturnLeg هي المصدر الموحّد للحالات اللي ليها رجلة مرتجع — أي حالة جديدة
+    // تتضاف للـ Set في السكيما هتتحمي هنا تلقائيًا من غير تعديل.
+    const isActualReturn = hasReturnLeg((shipment as any).status);
     const isReturnConfirmedReceived = (shipment as any).returnReceived === 1;
     if (isActualReturn && !isReturnConfirmedReceived) {
       let stillWithLabel = "شركة الشحن";

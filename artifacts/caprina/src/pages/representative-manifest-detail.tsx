@@ -445,6 +445,21 @@ function OrderDeliveryRow({
           {order.deliveryStatus === "partial_received" && (order as any).returnReceived !== 1 && (
             <p className="text-[10px] text-orange-400 mt-0.5 font-semibold">🚚 المرتجع ما زال عند مندوب الشحن</p>
           )}
+          {/* ─── رجلة مرتجع الاستبدال / إحضار الطرد ─────────────────────────
+              البند بيتعرض "مسلَّم" لأن الطلب اتنفذ والفلوس اتحصّلت، لكن فيه بضاعة
+              فعليًا في إيد المندوب (المنتج القديم في الاستبدال، أو الطرد نفسه في
+              إحضار الطرد) لازم ترجع المخزن — نفس شكل الاستلام الجزئي فوق. */}
+          {((order as any).shipmentStatus === "replaced" || (order as any).shipmentStatus === "parcel_picked") && (
+            (order as any).returnReceived === 1 ? (
+              <p className="text-[10px] text-emerald-600 mt-0.5 font-semibold">
+                ↩ {(order as any).shipmentStatus === "replaced" ? "المنتج القديم" : "الطرد"} في مخزن {(order as any).warehouseName || "—"}
+              </p>
+            ) : (
+              <p className="text-[10px] text-orange-400 mt-0.5 font-semibold">
+                🚚 {(order as any).shipmentStatus === "replaced" ? "المنتج القديم" : "الطرد"} ما زال مع المندوب
+              </p>
+            )
+          )}
           {/* sub-status لمسلَّم جزئي (shipment) — partialQuantity هنا قيمة مالية (مبلغ) دفعه العميل فعليًا */}
           {order.deliveryStatus === "partial_delivered" && order.partialQuantity != null && (
             <p className="text-[10px] text-teal-400 mt-0.5 font-semibold">

@@ -470,11 +470,17 @@ export async function syncShipmentInventory(
 
   const newStatus = afterPatch.status as string | undefined;
   const wasDeducted = !!before.inventoryDeducted;
+  const kind = (afterPatch.shipmentKind ?? before.shipmentKind ?? "new") as string;
+
+  // ⚠️ "إحضار طرد" (pickup) اتجاهه معكوس: مفيش أي بضاعة بتخرج من المخزن، المندوب
+  //    رايح ياخد طرد من العميل ويجيبه. فأي خصم هنا كان بيسجّل كمية وهمية خارجة
+  //    ومش موجودة أصلاً. الدخول بيتسجل بعدين في الخطوة (4) لما الطرد يوصل فعلاً.
+  const isPickupKind = kind === "pickup";
 
   // 1) اخصم المخزون أول مرة عند تحول الحالة لـ in_shipping (خرجت من المخزن مع المندوب)
   //    أو لو اتربط منتج بالشحنة لأول مرة بغض النظر عن الحالة
   const isMovingToShipping = newStatus === "in_shipping" && before.status !== "in_shipping";
-  if (!wasDeducted && (isMovingToShipping || !newStatus)) {
+  if (!isPickupKind && !wasDeducted && (isMovingToShipping || !newStatus)) {
     await processToShipping(orderShape, totalPieces, null, before.id);
     afterPatch.inventoryDeducted = 1;
   }
@@ -505,6 +511,23 @@ export async function syncShipmentInventory(
         await reverseShipping(orderShape, remaining, null, before.id);
         afterPatch.inventoryReturned = 1; // يمنع تكرار الإرجاع لو الحالة اتعدلت تاني لنفس partial
       }
+    }
+  }
+
+  // 4) رجلة مرتجع الاستبدال / إحضار الطرد → دخول للمخزن ────────────────────────
+  //    الاتنين ليهم بضاعة فعليًا في إيد المندوب لازم تدخل المخزن، بالظبط زي
+  //    المرتجع العادي، وبنفس الانضباط: مبنسجّلش الدخول غير لما returnReceived=1
+  //    (يعني اتأكد وصولها فعلًا)، مش بمجرد ما الحالة تبقى replaced/parcel_picked
+  //    والبضاعة لسه مع المندوب.
+  //      • replacement → المنتج القديم اللي المندوب أخده من العميل راجع المخزن
+  //        (البديل الجديد اتخصم عادي في الخطوة 1 وقت in_shipping)
+  //      • pickup      → الطرد اللي المندوب راح جابه بيتسجل دخول (مفيش خصم قبله)
+  if (newStatus === "replaced" || newStatus === "parcel_picked") {
+    const wasReturnReceived = before.returnReceived === 1;
+    const isReturnReceivedNow = afterPatch.returnReceived === 1;
+    if (isReturnReceivedNow && !wasReturnReceived && !wasReturned) {
+      await reverseShipping(orderShape, totalPieces, null, before.id);
+      afterPatch.inventoryReturned = 1;
     }
   }
 }

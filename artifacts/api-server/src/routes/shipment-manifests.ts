@@ -303,6 +303,12 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
         invoiceNumber: sh?.shipmentNumber ?? "",
         warehouseName: sh?.warehouseId ? (warehouseNameMap[sh.warehouseId] ?? null) : null,
         returnReceived: sh?.returnReceived ?? null,
+        // ─── نوع الطلب وحالته الفعلية — لعرض رجلة مرتجع الاستبدال/إحضار الطرد ──
+        // البند بيتعرض "مسلَّم" (لأن deliveryStatus بيتماب على delivered)، فالفرونت
+        // محتاج الحالة الحقيقية عشان يعرف إن فيه بضاعة لسه في إيد المندوب لازم
+        // ترجع المخزن، ويعرض سطر المرتجع تحته زي الاستلام الجزئي بالظبط.
+        shipmentStatus: sh?.status ?? null,
+        shipmentKind:   sh?.shipmentKind ?? "new",
         manifestRepName,
       };
     });

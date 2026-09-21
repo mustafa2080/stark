@@ -15,6 +15,7 @@ import {
   clientAccountPaymentsTable,
   shipmentManifestItemsTable,
   parcelTypePricingTable,
+  hasReturnLeg,
 } from "@workspace/db";
 import { z } from "zod";
 import { requireAuth } from "../middlewares/requireAuth";
@@ -841,6 +842,15 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
         // deliveryStatus البيان لسه "pending". من غيرها order.status بيفضل
         // undefined دايمًا فيرجع "قيد الانتظار" حتى لو الشحنة فعليًا قيد الشحن.
         status:        sh?.status ?? null,
+        // ─── رجلة مرتجع الاستبدال / إحضار الطرد ──────────────────────────────
+        // الحالتين دول (replaced / parcel_picked) بيتمابوا على "delivered" في
+        // البيان لأن الطلب اتنفذ والفلوس اتحصّلت — بس ورا كده فيه بضاعة فعليًا في
+        // إيد المندوب لازم ترجع المخزن. الفرونت بيعرض سطر المرتجع تحت البند
+        // بالظبط زي الاستلام الجزئي، وبيقرا الحقلين دول عشان يعرف يعرضه ويعرف
+        // اتقفل ولا لأ. ⚠️ اسم مستقل (shipmentReturnReceived) عن
+        // item.returnReceived اللي فوق — ده بتاع بند البيان ومستخدم في الجزئي.
+        shipmentKind:           sh?.shipmentKind ?? "new",
+        shipmentReturnReceived: sh?.returnReceived ?? null,
         customerName:  sh?.receiverName  ?? "",
         phone:         sh?.receiverPhone ?? "",
         city:          sh?.receiverCity  ?? "",
@@ -1195,7 +1205,7 @@ router.patch("/client-account-manifests/:id/items/:shipmentId", async (req, res)
         .leftJoin(usersTable, eq(shipmentsTable.assignedUserId, usersTable.id))
         .where(eq(shipmentsTable.id, shipmentId))
         .limit(1);
-      const isActualReturn = shipmentRow?.status === "returned" || shipmentRow?.status === "partial_received";
+      const isActualReturn = hasReturnLeg(shipmentRow?.status);
       const isReturnConfirmedReceived = shipmentRow?.returnReceived === 1;
       if (isActualReturn && !isReturnConfirmedReceived) {
         let stillWithLabel = "شركة الشحن";

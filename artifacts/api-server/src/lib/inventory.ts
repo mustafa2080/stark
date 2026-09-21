@@ -1,5 +1,5 @@
 import { eq, like, and, sum } from "drizzle-orm";
-import { db, productsTable, productVariantsTable, inventoryMovementsTable, warehouseStockTable, warehousesTable, shipmentItemsTable } from "@workspace/db";
+import { db, productsTable, productVariantsTable, inventoryMovementsTable, warehouseStockTable, warehousesTable, shipmentItemsTable, shipmentsTable } from "@workspace/db";
 import type { MovementReason } from "@workspace/db";
 
 /**
@@ -770,8 +770,19 @@ export async function syncShipmentItemsInventory(
 
   if (items.length === 0) return;
 
+  // ── نوع الطلب: بيحدد اتجاه الحركة ────────────────────────────────────────
+  // "إحضار طرد" (pickup) اتجاهه معكوس — مفيش بضاعة بتخرج من المخزن أصلاً،
+  // فمفيش خصم. الدخول بيتسجل في الخطوة (4) تحت لما الطرد يوصل فعلاً.
+  const [shipmentRow] = await db
+    .select({ kind: shipmentsTable.shipmentKind })
+    .from(shipmentsTable)
+    .where(eq(shipmentsTable.id, shipmentId))
+    .limit(1);
+  const isPickupKind = (shipmentRow?.kind ?? "new") === "pickup";
+
   // ── 1. خصم أولي لأي بند لسه ماخصمش ────────────────────────────────────────
   for (const item of items) {
+    if (isPickupKind) break;
     if (item.inventoryDeducted) continue;
     if (!item.productId && !item.variantId) continue;
     await processToShipping(
@@ -843,6 +854,34 @@ export async function syncShipmentItemsInventory(
       }
       await db.update(shipmentItemsTable)
         .set({ inventoryReturned: 1, receivedQuantity: received, updatedAt: new Date() })
+        .where(eq(shipmentItemsTable.id, item.id));
+    }
+    return;
+  }
+
+  // ── 4. رجلة مرتجع الاستبدال / إحضار الطرد → دخول كامل للمخزن ───────────────
+  //     نفس قاعدة المرتجع العادي بالظبط: مبنسجّلش الدخول غير لما يتأكد الاستلام
+  //     فعليًا (returnReceived === true)، لأن البضاعة لحد اللحظة دي لسه في إيد
+  //     المندوب. replacement = المنتج القديم راجع، pickup = الطرد اللي اتحضر.
+  if ((newStatus === "replaced" || newStatus === "parcel_picked") && returnReceived === true) {
+    for (const item of items) {
+      if (item.inventoryReturned) continue;
+      if (!item.productId && !item.variantId) continue;
+      await reverseShipping(
+        {
+          productId: item.productId,
+          variantId: item.variantId,
+          product: item.product,
+          color: item.color,
+          size: item.size,
+          warehouseId: item.warehouseId,
+        },
+        item.quantity,
+        null,
+        shipmentId,
+      );
+      await db.update(shipmentItemsTable)
+        .set({ inventoryReturned: 1, updatedAt: new Date() })
         .where(eq(shipmentItemsTable.id, item.id));
     }
   }
