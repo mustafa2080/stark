@@ -17,6 +17,13 @@ export interface ShipmentCourierCardProps {
   avatar?: string | null;
   /** رقم الشحنة، بيتحط في رسالة الواتساب الجاهزة */
   shipmentNumber?: string | null;
+  /**
+   * بيانات شركة الشحن/المندوب الخارجي — بتُستخدم كبديل لما مفيش مستخدم مندوب معيّن (assignedUser)
+   * لأن الشحنة ممكن تكون "مع احمد بدوي" عن طريق shipping_companies مش users.
+   */
+  fallbackName?: string | null;
+  fallbackPhone?: string | null;
+  fallbackAvatar?: string | null;
 }
 
 /** أول حرفين من الاسم عشان الـ avatar الافتراضي */
@@ -39,9 +46,15 @@ function displayPhone(raw: string): string {
   return raw.trim();
 }
 
-export function ShipmentCourierCard({ name, phone, avatar, shipmentNumber }: ShipmentCourierCardProps) {
-  const cleanName = (name ?? "").trim();
-  const cleanPhone = (phone ?? "").trim();
+export function ShipmentCourierCard({
+  name, phone, avatar, shipmentNumber,
+  fallbackName, fallbackPhone, fallbackAvatar,
+}: ShipmentCourierCardProps) {
+  // الأولوية للمستخدم المندوب المعيّن؛ لو مفيش → شركة الشحن/المندوب الخارجي (نفس ترتيب "🚚 مع ..." في الهيدر)
+  const hasAssignedUser = (name ?? "").trim().length > 0;
+  const cleanName = ((hasAssignedUser ? name : fallbackName) ?? "").trim();
+  const cleanPhone = ((hasAssignedUser ? phone : fallbackPhone) ?? "").trim();
+  avatar = hasAssignedUser ? avatar : fallbackAvatar;
   const hasCourier = cleanName.length > 0;
   const hasPhone = cleanPhone.replace(/\D/g, "").length >= 8;
 

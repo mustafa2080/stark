@@ -4821,6 +4821,9 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
             phone={(order as any).assignedUserPhone}
             avatar={(order as any).assignedUserAvatar}
             shipmentNumber={(order as any).shipmentNumber}
+            fallbackName={(order as any).shippingCompanyName}
+            fallbackPhone={(order as any).shippingCompanyPhone}
+            fallbackAvatar={(order as any).shippingCompanyLogo}
           />
 
           {/* ── تحليل الربحية ── */}
