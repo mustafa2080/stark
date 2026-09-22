@@ -1531,7 +1531,7 @@ function InvoiceGroupDeliveryRow({
                 )}
               </div>
             )}
-            {/* زرار التقفيل + الاستعجال جنب بعض */}
+            {/* زرار التقفيل */}
             {!locked && (
               <div className="flex items-center gap-1 mt-1">
                 {bulkEditing ? (
@@ -1562,32 +1562,6 @@ function InvoiceGroupDeliveryRow({
                     <Edit2 className="w-3 h-3 ml-0.5" />تقفيل
                   </Button>
                 )}
-                {/* ── زرار الاستعجال جنب التقفيل — للأدمن فقط ── */}
-                {isShipmentManifest && (
-                  <div onClick={e => e.stopPropagation()}>
-                    <UrgentButton
-                      manifestId={manifestId}
-                      shipmentId={(rep as any).shipmentId ?? rep.id}
-                      isUrgent={!!(rep as any).isUrgent}
-                      urgentNote={(rep as any).urgentNote}
-                      onToggled={onSaved}
-                      disabled={false}
-                    />
-                  </div>
-                )}
-              </div>
-            )}
-            {/* لو البيان مغلق وعايزين نعرض الاستعجال بس */}
-            {locked && isShipmentManifest && (
-              <div className="mt-1" onClick={e => e.stopPropagation()}>
-                <UrgentButton
-                  manifestId={manifestId}
-                  shipmentId={(rep as any).shipmentId ?? rep.id}
-                  isUrgent={!!(rep as any).isUrgent}
-                  urgentNote={(rep as any).urgentNote}
-                  onToggled={onSaved}
-                  disabled={false}
-                />
               </div>
             )}
           </div>
