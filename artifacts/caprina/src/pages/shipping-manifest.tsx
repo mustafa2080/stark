@@ -1404,10 +1404,10 @@ function InvoiceGroupDeliveryRow({
               <p className="text-muted-foreground/40 text-[10px]">—</p>
             )}
           </div>
-          {/* العنوان التفصيلي */}
-          <div className="hidden md:flex min-w-0 px-1.5 items-start overflow-hidden">
+          {/* العنوان التفصيلي — يظهر كامل دايمًا حتى لو الصف طال، من غير قص */}
+          <div className="hidden md:flex min-w-0 px-1.5 py-1 items-start">
             {(rep as any).address ? (
-              <p className="text-[10px] leading-relaxed text-foreground/80 truncate">{(rep as any).address}</p>
+              <p className="text-[11px] leading-relaxed tracking-wide text-foreground/80 whitespace-normal break-normal [overflow-wrap:break-word]">{(rep as any).address}</p>
             ) : (
               <p className="text-muted-foreground/40 text-[10px]">—</p>
             )}
