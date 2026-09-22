@@ -3692,12 +3692,22 @@ export default function ShippingManifestPage() {
   const id = Number(params.id);
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { canViewFinancials, isAdmin, can } = useAuth();
-  const canAddShipments = isAdmin || can("reps.manifest_add_shipments");
-  const canCloseManifest = isAdmin || can("reps.manifest_close");
-  const canDeleteManifest = isAdmin || can("reps.manifest_delete");
-  const canRemoveOrder = isAdmin || can("reps.manifest_remove_order");
-  const canNetRevenue = isAdmin || can("reps.manifest_net_revenue");
+  const { isAdmin, can } = useAuth();
+  // ⚠️ الصلاحيات الخمسة دي من غير استثناء isAdmin عمداً — لازم تتحكم حتى
+  // في حساب الأدمن نفسه (لو اتلغت من إدارة المستخدمين، تختفي/تتعطّل للأدمن كمان).
+  const canAddShipments = can("reps.manifest_add_shipments");
+  const canCloseManifest = can("reps.manifest_close");
+  const canDeleteManifest = can("reps.manifest_delete");
+  const canRemoveOrder = can("reps.manifest_remove_order");
+  const canNetRevenue = can("reps.manifest_net_revenue");
+  // صلاحية عرض كارت "إجمالي الإيرادات" فقط ببيان مناديب الشحن —
+  // مستقلة عن canViewFinancials (اللي بتتحكم في صفحة الأوردرات عبر "orders.financials").
+  // ⚠️ من غير استثناء isAdmin عمداً — الـ checkbox "رؤية إجمالي الإيرادات بالكارت"
+  // (مفتاحها الصحيح: reps.card_total_revenue) لازم يتحكم حتى في حساب الأدمن نفسه.
+  // ملحوظة: القسم المالي كله (تكلفة الشحن / الرصيد المستحق من المندوب / صافي الإيراد
+  // الحقيقي) بيظهر دايمًا بغض النظر عن الصلاحية دي — هي بتتحكم في كارت "إجمالي
+  // الإيرادات" بس، مش القسم كله.
+  const canViewCardTotalRevenue = can("reps.card_total_revenue");
   const { brand } = useBrand();
   // تكلفة المنطقة (لحاوية صافي المستحق) — نفس مصدر صافي الربح الحقيقي
   // costPrice = التكلفة الحقيقية من جدول "تكاليف المناطق" (zone_costs.delivery_cost)
@@ -5085,7 +5095,8 @@ export default function ShippingManifestPage() {
       })()}
 
       {/* ─── P&L Summary for shipment manifests ─── */}
-      {canViewFinancials && (() => {
+      {/* القسم كله ظاهر دايمًا؛ كارت "إجمالي الإيرادات" بس هو اللي يتحكم فيه canViewCardTotalRevenue جوه */}
+      {(() => {
         // returned: يستبعد بالكامل من الحسابات المالية دايمًا — سواء لسه عند الشحن أو اتأكد استلامه
         // (كان لازم يتصرف في البيان القديم المغلق، مايرجعش فلوسه هنا بعد الترحيل).
         // partial_delivered/partial_received: الجزء المُسلَّم فعلي وحقيقي فيتحسب ماليًا عادي؛
@@ -5235,12 +5246,14 @@ export default function ShippingManifestPage() {
         // مش shippingCost القديمة الثابتة اللي بتطلع صفر لو company.shippingCost مش مسجَّل).
         const totalDueToCourier = deliveredCOD - displayedShippingCost;
         return (
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 print:hidden">
-            <Card className="border-emerald-900/40 bg-emerald-900/10 p-4">
-              <p className="text-xs text-emerald-400 mb-1">إجمالي الإيرادات</p>
-              <p className="text-lg font-black text-emerald-400">{formatCurrency(deliveredCOD)}</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">{deliveredOrders.length} شحنة</p>
-            </Card>
+          <div className={`grid ${canViewCardTotalRevenue ? "grid-cols-2 md:grid-cols-3" : "grid-cols-1 md:grid-cols-2"} gap-3 print:hidden`}>
+            {canViewCardTotalRevenue && (
+              <Card className="border-emerald-900/40 bg-emerald-900/10 p-4">
+                <p className="text-xs text-emerald-400 mb-1">إجمالي الإيرادات</p>
+                <p className="text-lg font-black text-emerald-400">{formatCurrency(deliveredCOD)}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">{deliveredOrders.length} شحنة</p>
+              </Card>
+            )}
             <Card className="border-amber-900/40 bg-amber-900/10 p-4">
               <p className="text-xs text-amber-400 mb-1">إجمالي تكلفة الشحن</p>
               <p className="text-lg font-black text-amber-400">{formatCurrency(displayedShippingCost)}</p>
