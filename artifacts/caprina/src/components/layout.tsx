@@ -108,11 +108,6 @@ const ALL_NAV = [
   { href: "/warehouses",        label: "المخازن",               icon: Warehouse,    permission: "inventory.view",          section: "section_warehouses",         iconColor: "text-indigo-400",     group: "inventory"    },
   { href: "/movements",         label: "حركات المخزون",       icon: Activity,                    permission: "inventory.movements",     section: "section_movements",          iconColor: "text-purple-400",     group: "inventory"    },
   { href: "/inventory-intelligence", label: "تحليل المخزون الذكي", icon: Brain,                  permission: "inventory.view",          section: "section_inventory",          iconColor: "text-violet-400",     group: "inventory"    },
-  { href: "/product-performance",label: "أداء الشحنات",      icon: BarChart3,                   permission: "analytics.products",      section: "section_product_performance", iconColor: "text-pink-400",      group: "analytics"    },
-  { href: "/smart",             label: "التحليل الذكي",       icon: Brain,                       permission: "analytics.smart",         section: "section_smart_analytics",    iconColor: "text-fuchsia-400",    group: "analytics"    },
-  { href: "/ads-analytics",     label: "تحليل الإعلانات",    icon: Megaphone,                   permission: "analytics.ads",           section: "section_ads_analytics",      iconColor: "text-rose-400",       group: "analytics"    },
-  { href: "/finance/cash/analytics", label: "تحليل الماليات الذكي", icon: Brain,                  permission: "analytics.smart",         section: "section_smart_analytics",    iconColor: "text-teal-400",       group: "analytics"    },
-  { href: "/sessions-report",   label: "تقارير الجلسات",      icon: Clock,                       permission: "settings.sessions",       section: "section_sessions_report",    iconColor: "text-slate-400",      group: "analytics"    },
   { href: "/team",              label: "إدارة الفريق",        icon: UserCog,                     permission: "team.view",               section: "section_team_management",    iconColor: "text-lime-400",       group: "team",         exact: true },
   { href: "/team-performance",  label: "أداء فريق المبيعات",         icon: UserCheck,                   permission: "team.performance",        section: "section_team_management",    iconColor: "text-lime-300",       group: "team"         },
   { href: "/users",             label: "إدارة المستخدمين",   icon: Users,                       permission: "settings.users",          section: "section_users",              iconColor: "text-green-400",      group: "team"         },
@@ -121,6 +116,7 @@ const ALL_NAV = [
   { href: "/export",            label: "تصدير البيانات",      icon: Download,                    permission: "tools.export",            section: "section_export_data",        iconColor: "text-orange-300",     group: "tools"        },
   { href: "/archive",           label: "الأرشيف",             icon: Archive,                     permission: "section_archive",         section: "section_archive",            iconColor: "text-stone-400",      group: "tools"        },
   { href: "/clients-showcase",  label: "عملاؤنا",             icon: Users,                       permission: "section_dashboard",       section: "section_dashboard",          iconColor: "text-purple-400",     group: "tools"        },
+  { href: "/sessions-report",   label: "تقارير الجلسات",      icon: Clock,                       permission: "settings.sessions",       section: "section_sessions_report",    iconColor: "text-slate-400",      group: "tools"        },
   { href: "/whatsapp",          label: "إعدادات واتساب",     icon: WhatsAppIcon,                permission: "settings.whatsapp",       section: "section_whatsapp",           iconColor: "text-[#25D366]",      group: "settings"     },
   { href: "/audit-logs",        label: "سجل التعديلات",       icon: Shield,                      permission: "settings.audit",          section: "section_audit",              iconColor: "text-red-400",        group: "settings"     },
 ];
@@ -362,15 +358,14 @@ export default function Layout({ children }: LayoutProps) {
       if ((item as any).employeeOnly) return user?.role === "employee";
       // لوحة التحكم → تتخفى عن الـ employee (عنده لوحتي بدلها)
       if (item.href === "/" && user?.role === "employee") return false;
-      // super_admin فقط → تجاوز كامل لكل الصلاحيات
-      // (admin العادي لازم يمر بفحص can() عشان صلاحياته من إدارة المستخدمين تتفعّل فعليًا)
-      if (isSuperAdmin) return true;
+      // super_admin و admin → كل الصفحات (الاتنين مع بعض)
+      if (isSuperAdmin || isAdmin) return true;
       // لو مفيش permission مطلوب → اظهر دايماً
       if (!item.permission) return true;
       // تحقق من الصلاحية
       return can(item.permission);
     });
-  }, [can, isSuperAdmin, user?.role]);
+  }, [can, isSuperAdmin, isAdmin, user?.role]);
 
   // لو اليوزر واقف على صفحة اتشالت صلاحيتها → ننقله لأول صفحة متاحة
   const redirectingRef = useRef(false);
@@ -1125,12 +1120,6 @@ export default function Layout({ children }: LayoutProps) {
               </NavGroup>
             )}
 
-            {visibleNav.some(i => i.group === "analytics") && (
-              <NavGroup label="التحليلات" icon={BarChart3} iconColor="text-pink-400" location={location} prefixes={["/product-performance","/smart","/ads-analytics","/team-performance","/sessions-report","/finance/cash/analytics"]} isOpen={openGroup === "analytics"} onToggle={() => toggleGroup("analytics", visibleNav.find(i => i.group === "analytics")?.href)} collapsed={sidebarCollapsed} onExpandSidebar={() => setSidebarCollapsed(false)} firstHref={visibleNav.find(i => i.group === "analytics")?.href} groupKey="analytics">
-                {visibleNav.filter(i => i.group === "analytics").map(item => <NavItem key={item.href+item.label} item={item} location={location} sub />)}
-              </NavGroup>
-            )}
-
             {can("finance.view") && (
               <NavGroup label="الماليات" icon={DollarSign} iconColor="text-emerald-400" location={location} prefixes={["/finance"]} excludePrefixes={["/finance/cash/analytics","/finance/clients","/finance/client-account-sheet"]} isOpen={openGroup === "finance"} onToggle={() => toggleGroup("finance", FINANCE_NAV[0]?.href)} collapsed={sidebarCollapsed} onExpandSidebar={() => setSidebarCollapsed(false)} firstHref={FINANCE_NAV[0]?.href} groupKey="finance">
                 {FINANCE_NAV.map((item) => {
@@ -1168,7 +1157,7 @@ export default function Layout({ children }: LayoutProps) {
             )}
 
             {visibleNav.some(i => i.group === "tools") && (
-              <NavGroup label="الأدوات" icon={Upload} iconColor="text-amber-400" location={location} prefixes={["/import","/export","/archive","/clients-showcase"]} isOpen={openGroup === "tools"} onToggle={() => toggleGroup("tools", visibleNav.find(i => i.group === "tools")?.href)} collapsed={sidebarCollapsed} onExpandSidebar={() => setSidebarCollapsed(false)} firstHref={visibleNav.find(i => i.group === "tools")?.href} groupKey="tools">
+              <NavGroup label="الأدوات" icon={Upload} iconColor="text-amber-400" location={location} prefixes={["/import","/export","/archive","/clients-showcase","/sessions-report"]} isOpen={openGroup === "tools"} onToggle={() => toggleGroup("tools", visibleNav.find(i => i.group === "tools")?.href)} collapsed={sidebarCollapsed} onExpandSidebar={() => setSidebarCollapsed(false)} firstHref={visibleNav.find(i => i.group === "tools")?.href} groupKey="tools">
                 {visibleNav.filter(i => i.group === "tools").map(item => <NavItem key={item.href} item={item} location={location} sub />)}
               </NavGroup>
             )}
