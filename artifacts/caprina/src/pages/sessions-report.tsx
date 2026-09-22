@@ -8,12 +8,19 @@ import { Clock, Users, LogIn, LogOut, Timer, Lock, Wifi } from "lucide-react";
 
 const ROLE_LABELS: Record<string, string> = {
   admin: "مدير", employee: "موظف مبيعات", warehouse: "مسؤول مخزون",
+  super_admin: "مالك الحساب", "super-admin": "مالك الحساب",
+  representative: "مندوب", client: "عميل", custom: "صلاحيات مخصصة",
 };
 
 const ROLE_COLORS: Record<string, string> = {
   admin:     "border-amber-700   dark:border-amber-700   bg-amber-50   dark:bg-amber-900/20   text-amber-700   dark:text-amber-400",
   employee:  "border-sky-700     dark:border-sky-700     bg-sky-50     dark:bg-sky-900/20     text-sky-700     dark:text-sky-400",
   warehouse: "border-emerald-700 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400",
+  super_admin: "border-purple-700 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400",
+  "super-admin": "border-purple-700 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400",
+  representative: "border-orange-700 dark:border-orange-700 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400",
+  client:    "border-teal-700    dark:border-teal-700    bg-teal-50    dark:bg-teal-900/20    text-teal-700    dark:text-teal-400",
+  custom:    "border-slate-700   dark:border-slate-700   bg-slate-50   dark:bg-slate-900/20   text-slate-700   dark:text-slate-400",
 };
 
 type Period = "week" | "month" | "year" | "custom";
