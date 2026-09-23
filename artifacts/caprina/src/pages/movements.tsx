@@ -91,16 +91,21 @@ type ColFilters = Record<ColKey, Set<string>>;
 // ColFilterBtn معمول generic (<K extends string>) عشان يتقدر يتستخدم مع أي
 // نوع أعمدة (ColKey لجدول الحركات، أو ShipmentColKey لجدول الشحنات جوه حاوية
 // نقل الشحنات) من غير تكرار نفس الكومبوننت مرتين.
-function ColFilterBtn<K extends string>({ col, colFilters, getColOptions, toggleColFilter, clearColFilter }: {
+function ColFilterBtn<K extends string>({ col, colFilters, getColOptions, toggleColFilter, clearColFilter, sortCol, sortDir, onSort }: {
   col: K;
   colFilters: Record<K, Set<string>>;
   getColOptions: (col: K) => string[];
   toggleColFilter: (col: K, val: string) => void;
   clearColFilter: (col: K) => void;
+  sortCol: K | null;
+  sortDir: "asc" | "desc";
+  onSort: (col: K, dir: "asc" | "desc") => void;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [sort, setSort] = useState<"asc" | "desc">("asc");
+  // الترتيب بقى جاي من الأب (sortCol/sortDir) بدل state محلي — عشان فعلاً
+  // يرتب صفوف الجدول، مش بس قايمة الاختيارات جوه البانل نفسه.
+  const sort = sortCol === col ? sortDir : "asc";
   const btnRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -288,11 +293,11 @@ function ColFilterBtn<K extends string>({ col, colFilters, getColOptions, toggle
             )}
           </div>
           <div className="flex gap-1.5 p-2 border-b border-border/50 shrink-0">
-            <button type="button" onClick={() => setSort("asc")}
+            <button type="button" onClick={() => onSort(col, "asc")}
               className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg border text-[10px] transition-all ${sort === "asc" ? "border-primary bg-primary/10 text-primary font-bold" : "border-border text-muted-foreground hover:bg-muted/30"}`}>
               <ChevronUp className="w-2.5 h-2.5" />أ→ي
             </button>
-            <button type="button" onClick={() => setSort("desc")}
+            <button type="button" onClick={() => onSort(col, "desc")}
               className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg border text-[10px] transition-all ${sort === "desc" ? "border-primary bg-primary/10 text-primary font-bold" : "border-border text-muted-foreground hover:bg-muted/30"}`}>
               <ChevronDown className="w-2.5 h-2.5" />ي→أ
             </button>
@@ -451,6 +456,12 @@ function ShipmentsTransferDialog({ onClose }: { onClose: () => void }) {
   const [showShipmentColFilters, setShowShipmentColFilters] = useState(false);
   const [shipmentColFilters, setShipmentColFilters] = useState<ShipmentColFilters>(EMPTY_SHIPMENT_COL_FILTERS);
   const shipmentColFilterHasActive = Object.values(shipmentColFilters).some(s => s.size > 0);
+  // ترتيب أبجدي لجدول الشحنات (نفس فكرة sortCol/sortDir لجدول الحركات فوق).
+  const [shipmentSortCol, setShipmentSortCol] = useState<ShipmentColKey | null>(null);
+  const [shipmentSortDir, setShipmentSortDir] = useState<"asc" | "desc">("asc");
+  const handleShipmentSort = useCallback((col: ShipmentColKey, dir: "asc" | "desc") => {
+    setShipmentSortCol(col); setShipmentSortDir(dir);
+  }, []);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search.trim()), 350);
@@ -523,8 +534,15 @@ function ShipmentsTransferDialog({ onClose }: { onClose: () => void }) {
         })
       );
     }
+    if (shipmentSortCol) {
+      const col = shipmentSortCol;
+      list = [...list].sort((a, b) => {
+        const cmp = getShipmentColVal(col, a).localeCompare(getShipmentColVal(col, b), "ar", { numeric: true });
+        return shipmentSortDir === "asc" ? cmp : -cmp;
+      });
+    }
     return list;
-  }, [shipmentsRes, fromWarehouseId, dateFrom, dateTo, shipmentColFilters, shipmentColFilterHasActive, getShipmentColVal]);
+  }, [shipmentsRes, fromWarehouseId, dateFrom, dateTo, shipmentColFilters, shipmentColFilterHasActive, getShipmentColVal, shipmentSortCol, shipmentSortDir]);
 
   // خيارات كل عمود مبنية من كامل نتيجة البحث/الحالة (قبل فلاتر الأعمدة نفسها
   // وقبل فلاتر نقل-من/التاريخ) — زي الإكسيل بالظبط: قايمة الخيارات ثابتة
@@ -732,25 +750,25 @@ function ShipmentsTransferDialog({ onClose }: { onClose: () => void }) {
                     <TableRow className="border-border hover:bg-transparent">
                       <TableHead className="w-10 text-center"></TableHead>
                       <TableHead className="text-center text-xs">
-                        <div className="flex items-center justify-center gap-1">الكود {showShipmentColFilters && <ColFilterBtn col="code" colFilters={shipmentColFilters} getColOptions={getShipmentColOptions} toggleColFilter={toggleShipmentColFilter} clearColFilter={clearShipmentColFilter} />}</div>
+                        <div className="flex items-center justify-center gap-1">الكود {showShipmentColFilters && <ColFilterBtn col="code" colFilters={shipmentColFilters} getColOptions={getShipmentColOptions} toggleColFilter={toggleShipmentColFilter} clearColFilter={clearShipmentColFilter} sortCol={shipmentSortCol} sortDir={shipmentSortDir} onSort={handleShipmentSort} />}</div>
                       </TableHead>
                       <TableHead className="text-center text-xs">
-                        <div className="flex items-center justify-center gap-1">التاريخ {showShipmentColFilters && <ColFilterBtn col="date" colFilters={shipmentColFilters} getColOptions={getShipmentColOptions} toggleColFilter={toggleShipmentColFilter} clearColFilter={clearShipmentColFilter} />}</div>
+                        <div className="flex items-center justify-center gap-1">التاريخ {showShipmentColFilters && <ColFilterBtn col="date" colFilters={shipmentColFilters} getColOptions={getShipmentColOptions} toggleColFilter={toggleShipmentColFilter} clearColFilter={clearShipmentColFilter} sortCol={shipmentSortCol} sortDir={shipmentSortDir} onSort={handleShipmentSort} />}</div>
                       </TableHead>
                       <TableHead className="text-center text-xs">
-                        <div className="flex items-center justify-center gap-1">الراسل {showShipmentColFilters && <ColFilterBtn col="sender" colFilters={shipmentColFilters} getColOptions={getShipmentColOptions} toggleColFilter={toggleShipmentColFilter} clearColFilter={clearShipmentColFilter} />}</div>
+                        <div className="flex items-center justify-center gap-1">الراسل {showShipmentColFilters && <ColFilterBtn col="sender" colFilters={shipmentColFilters} getColOptions={getShipmentColOptions} toggleColFilter={toggleShipmentColFilter} clearColFilter={clearShipmentColFilter} sortCol={shipmentSortCol} sortDir={shipmentSortDir} onSort={handleShipmentSort} />}</div>
                       </TableHead>
                       <TableHead className="text-center text-xs">
-                        <div className="flex items-center justify-center gap-1">المستلم {showShipmentColFilters && <ColFilterBtn col="receiver" colFilters={shipmentColFilters} getColOptions={getShipmentColOptions} toggleColFilter={toggleShipmentColFilter} clearColFilter={clearShipmentColFilter} />}</div>
+                        <div className="flex items-center justify-center gap-1">المستلم {showShipmentColFilters && <ColFilterBtn col="receiver" colFilters={shipmentColFilters} getColOptions={getShipmentColOptions} toggleColFilter={toggleShipmentColFilter} clearColFilter={clearShipmentColFilter} sortCol={shipmentSortCol} sortDir={shipmentSortDir} onSort={handleShipmentSort} />}</div>
                       </TableHead>
                       <TableHead className="text-center text-xs">
-                        <div className="flex items-center justify-center gap-1">الهاتف {showShipmentColFilters && <ColFilterBtn col="phone" colFilters={shipmentColFilters} getColOptions={getShipmentColOptions} toggleColFilter={toggleShipmentColFilter} clearColFilter={clearShipmentColFilter} />}</div>
+                        <div className="flex items-center justify-center gap-1">الهاتف {showShipmentColFilters && <ColFilterBtn col="phone" colFilters={shipmentColFilters} getColOptions={getShipmentColOptions} toggleColFilter={toggleShipmentColFilter} clearColFilter={clearShipmentColFilter} sortCol={shipmentSortCol} sortDir={shipmentSortDir} onSort={handleShipmentSort} />}</div>
                       </TableHead>
                       <TableHead className="text-center text-xs">
-                        <div className="flex items-center justify-center gap-1">المحافظة {showShipmentColFilters && <ColFilterBtn col="city" colFilters={shipmentColFilters} getColOptions={getShipmentColOptions} toggleColFilter={toggleShipmentColFilter} clearColFilter={clearShipmentColFilter} />}</div>
+                        <div className="flex items-center justify-center gap-1">المحافظة {showShipmentColFilters && <ColFilterBtn col="city" colFilters={shipmentColFilters} getColOptions={getShipmentColOptions} toggleColFilter={toggleShipmentColFilter} clearColFilter={clearShipmentColFilter} sortCol={shipmentSortCol} sortDir={shipmentSortDir} onSort={handleShipmentSort} />}</div>
                       </TableHead>
                       <TableHead className="text-center text-xs">
-                        <div className="flex items-center justify-center gap-1">سعر الشحنة {showShipmentColFilters && <ColFilterBtn col="price" colFilters={shipmentColFilters} getColOptions={getShipmentColOptions} toggleColFilter={toggleShipmentColFilter} clearColFilter={clearShipmentColFilter} />}</div>
+                        <div className="flex items-center justify-center gap-1">سعر الشحنة {showShipmentColFilters && <ColFilterBtn col="price" colFilters={shipmentColFilters} getColOptions={getShipmentColOptions} toggleColFilter={toggleShipmentColFilter} clearColFilter={clearShipmentColFilter} sortCol={shipmentSortCol} sortDir={shipmentSortDir} onSort={handleShipmentSort} />}</div>
                       </TableHead>
                       <TableHead className="text-center text-xs">الحالة</TableHead>
                     </TableRow>
@@ -1058,6 +1076,13 @@ export default function Movements() {
   });
   const [showColFilters, setShowColFilters] = useState(false);
   const colFilterHasActive = Object.values(colFilters).some(s => s.size > 0);
+  // ترتيب أبجدي (أ→ي / ي→أ) بيتحدد من زراير الترتيب جوه بانل الفلتر، وبيتطبق
+  // فعليًا على صفوف الجدول هنا (مش بس على قايمة الاختيارات جوه البانل).
+  const [sortCol, setSortCol] = useState<ColKey | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const handleSort = useCallback((col: ColKey, dir: "asc" | "desc") => {
+    setSortCol(col); setSortDir(dir);
+  }, []);
 
   const getColVal = useCallback((col: ColKey, m: InventoryMovement): string => {
     const isTransfer = m.reason === "transfer";
@@ -1135,8 +1160,16 @@ export default function Movements() {
       });
     }
 
+    if (sortCol) {
+      const col = sortCol;
+      list = [...list].sort((a, b) => {
+        const cmp = getColVal(col, a).localeCompare(getColVal(col, b), "ar", { numeric: true });
+        return sortDir === "asc" ? cmp : -cmp;
+      });
+    }
+
     return list;
-  }, [movements, colFilters, colFilterHasActive, getColVal, debouncedSearchQuery]);
+  }, [movements, colFilters, colFilterHasActive, getColVal, debouncedSearchQuery, sortCol, sortDir]);
 
   const createMutation = useMutation({
     mutationFn: movementsApi.create,
@@ -1540,6 +1573,9 @@ ${filtersRow}
                       getColOptions={getColOptions}
                       toggleColFilter={toggleColFilter}
                       clearColFilter={clearColFilter}
+                      sortCol={sortCol}
+                      sortDir={sortDir}
+                      onSort={handleSort}
                     />
                   </div>
                 ))}
@@ -1602,37 +1638,37 @@ ${filtersRow}
                     </TableHead>
                   )}
                   <TableHead className="text-right text-[11px] w-24">
-                    <div className="flex items-center gap-1">التاريخ {showColFilters && <ColFilterBtn col="date" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} />}</div>
+                    <div className="flex items-center gap-1">التاريخ {showColFilters && <ColFilterBtn col="date" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
                   </TableHead>
                   <TableHead className="text-center text-[11px] w-16">
-                    <div className="flex items-center justify-center gap-1">النوع {showColFilters && <ColFilterBtn col="type" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} />}</div>
+                    <div className="flex items-center justify-center gap-1">النوع {showColFilters && <ColFilterBtn col="type" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
                   </TableHead>
                   <TableHead className="text-right text-[11px] w-24">
-                    <div className="flex items-center gap-1">المنتج {showColFilters && <ColFilterBtn col="product" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} />}</div>
+                    <div className="flex items-center gap-1">المنتج {showColFilters && <ColFilterBtn col="product" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
                   </TableHead>
                   <TableHead className="text-right text-[11px] w-20">
-                    <div className="flex items-center gap-1">اللون / المقاس {showColFilters && <ColFilterBtn col="variant" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} />}</div>
+                    <div className="flex items-center gap-1">اللون / المقاس {showColFilters && <ColFilterBtn col="variant" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
                   </TableHead>
                   <TableHead className="text-center text-[11px] w-12">
-                    <div className="flex items-center justify-center gap-1">الكمية {showColFilters && <ColFilterBtn col="qty" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} />}</div>
+                    <div className="flex items-center justify-center gap-1">الكمية {showColFilters && <ColFilterBtn col="qty" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
                   </TableHead>
                   <TableHead className="text-center text-[11px] w-20">
-                    <div className="flex items-center justify-center gap-1">السبب {showColFilters && <ColFilterBtn col="reason" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} />}</div>
+                    <div className="flex items-center justify-center gap-1">السبب {showColFilters && <ColFilterBtn col="reason" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
                   </TableHead>
                   <TableHead className="text-center text-[11px] w-16">
-                    <div className="flex items-center justify-center gap-1">طلب {showColFilters && <ColFilterBtn col="order" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} />}</div>
+                    <div className="flex items-center justify-center gap-1">طلب {showColFilters && <ColFilterBtn col="order" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
                   </TableHead>
                   <TableHead className="text-right text-[11px] w-20">
-                    <div className="flex items-center gap-1">العميل {showColFilters && <ColFilterBtn col="customer" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} />}</div>
+                    <div className="flex items-center gap-1">العميل {showColFilters && <ColFilterBtn col="customer" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
                   </TableHead>
                   <TableHead className="text-right text-[11px] w-20">
-                    <div className="flex items-center gap-1">الفون {showColFilters && <ColFilterBtn col="phone" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} />}</div>
+                    <div className="flex items-center gap-1">الفون {showColFilters && <ColFilterBtn col="phone" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
                   </TableHead>
                   <TableHead className="text-right text-[11px] w-32">
-                    <div className="flex items-center gap-1">الموقع {showColFilters && <ColFilterBtn col="location" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} />}</div>
+                    <div className="flex items-center gap-1">الموقع {showColFilters && <ColFilterBtn col="location" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
                   </TableHead>
                   <TableHead className="text-right text-[11px] w-20">
-                    <div className="flex items-center gap-1">ملاحظات {showColFilters && <ColFilterBtn col="notes" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} />}</div>
+                    <div className="flex items-center gap-1">ملاحظات {showColFilters && <ColFilterBtn col="notes" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
                   </TableHead>
                   <TableHead className="text-center text-[11px] w-10">تعديل</TableHead>
                   {isAdmin && <TableHead className="text-center text-[11px] w-10">حذف</TableHead>}
