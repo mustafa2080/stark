@@ -56,11 +56,17 @@ async function generateManifestNumber(clientId: number): Promise<string> {
   return `CAM-${clientId}-${seq}`;
 }
 
-// ─── فتح بيان فارغ تلقائياً عند أول أوردر بعد الإغلاق ────────────────────────
-// طلب الإدارة: إذا لم يكن للعميل بيان مفتوح (أي أن آخر بيان أُغلق)، فإن إنشاء
-// أي أوردر يفتح بياناً جديداً **فارغاً** فقط. الأوردر نفسه، وكل الأوردرات اللاحقة
-// خلال الفترة، تظل معلّقة خارج البيان ولا ينشأ لها item هنا. عند إغلاق البيان
-// تُلتقط هذه الأوردرات دفعة واحدة داخل البيان التالي.
+// ─── فتح بيان تلقائياً عند أول أوردر فعلي (قيد الشحن) بعد الإغلاق ────────────
+// ⚠️⚠️⚠️ إصلاح جذري (بلاغ المدير 2026-09-24): قديمًا كانت الدالة بتفتح بيان
+// جديد **فارغ** فقط عند أول أوردر بعد الإغلاق، من غير ما تضيف الشحنة اللي
+// سببت الفتح — فكانت تفضل معلّقة برّه لحد القفل الجاي، وده كان بيعني إن
+// البيان بيتفتح رسميًا وهو لسه فاضي 0 شحنة لفترة، بعكس مطلوب المدير الصريح:
+// "ميعملش بيان جديد إلا لما يكون فيه شحنة مرتبطة فعلاً وقيد الشحن في المخزن".
+// الحل: البيان الجديد بيتفتح ومعاه فورًا الشحنة اللي سببت النداء كأول بند
+// فيه — بشرط إنها فعلاً "ظاهرة" في البيان (isShipmentVisibleInManifest، أي
+// وصلت المخزن فأبعد، مش لسه pending/waiting/confirmed). لو الشحنة نفسها لسه
+// قبل المخزن، منعملش حاجة خالص هنا (لا بيان ولا item) — هتُلتقط تلقائيًا لما
+// تدخل المخزن فعلاً وتستدعي الدالة دي تاني بحالتها الجديدة.
 //
 // الدالة idempotent: وجود بيان مفتوح يمنع إنشاء بيان ثانٍ، ووجود item قديم
 // للشحنة لا يغيّر شيئاً عند إعادة المزامنة.
@@ -68,7 +74,7 @@ export async function autoAddShipmentToClientAccountManifest(
   shipmentId: number,
   clientId: number | null | undefined,
   tenantId: number | null,
-  _shipmentStatus?: string | null,
+  shipmentStatus?: string | null,
 ): Promise<void> {
   if (!clientId) return;
 
@@ -87,6 +93,10 @@ export async function autoAddShipmentToClientAccountManifest(
     .limit(1);
   if (existingItem) return;
 
+  // الشحنة لسه قبل المخزن (pending/waiting/confirmed) → مش "موجودة" فعليًا في
+  // أي بيان بعد. متفتحش بيان جديد بسببها؛ هتتلقط لما تدخل المخزن فعلاً.
+  if (!isShipmentVisibleInManifest(shipmentStatus ?? null)) return;
+
   const tenantCondition = tenantId !== null
     ? or(eq(clientAccountManifestsTable.tenantId, tenantId), isNull(clientAccountManifestsTable.tenantId))
     : undefined;
@@ -102,11 +112,11 @@ export async function autoAddShipmentToClientAccountManifest(
     .limit(1);
   if (openManifest) return;
 
-  // لا يوجد بيان مفتوح: افتح بياناً فارغاً. لا تضف الأوردر الذي تسبب في
-  // الإنشاء؛ سيُرحّل مع بقية المعلّقين عند إغلاق هذا البيان.
+  // لا يوجد بيان مفتوح، والشحنة فعليًا قيد الشحن: افتح بياناً جديداً وضيف
+  // الشحنة اللي سببت الفتح كأول بند فيه فورًا — البيان ميظهرش فاضي 0 شحنة.
   const now = new Date();
   const manifestNumber = await generateManifestNumber(clientId);
-  await db.insert(clientAccountManifestsTable).values({
+  const [result] = await db.insert(clientAccountManifestsTable).values({
     tenantId: tenantId ?? null,
     manifestNumber,
     clientId,
@@ -114,6 +124,14 @@ export async function autoAddShipmentToClientAccountManifest(
     notes: null,
     createdAt: now,
     scheduledCloseAt: computeNextClosingDate(now),
+  });
+  const newManifestId = (result as any).insertId as number;
+  const deliveryStatus = SHIPMENT_STATUS_TO_DELIVERY[shipmentStatus ?? ""] ?? "pending";
+  await db.insert(clientAccountManifestItemsTable).values({
+    manifestId: newManifestId,
+    shipmentId,
+    deliveryStatus: deliveryStatus as "pending" | "delivered" | "delayed" | "returned" | "partial_delivered",
+    addedAt: now,
   });
 }
 
@@ -1401,7 +1419,18 @@ async function rolloverPendingItemsToNewManifest(
       .from(shipmentsTable)
       .where(and(inArray(shipmentsTable.id, pendingShipmentIds), isNull(shipmentsTable.deletedAt)));
     nonDeletedPendingSet = new Set(nd
-      .filter(r => !RETURN_SHIPMENT_STATUSES.has(r.status))
+      // ⚠️⚠️⚠️ إصلاح جذري (بلاغ مصطفى — CAM-3-005..007: بيان بيقفل ويفتح بيان
+      // جديد "فاضٍ" تلقائيًا كل شوية رغم عدم وجود أي شحنة ظاهرة فعليًا فيه):
+      // بند deliveryStatus="pending" في البيان كان بيترحّل للبيان الجديد حتى لو
+      // الشحنة الحقيقية وراه لسه في حالة "قبل المخزن" (pending/waiting/confirmed
+      // — نفس معيار isShipmentVisibleInManifest المستخدم في كل مكان تاني لعرض/
+      // حساب البيان). الشحنة دي مش موجودة فعليًا في البيان من الأساس (بتُستبعد
+      // من visibleItems في GET /:id)، فترحيلها لبيان جديد كان بينتج "بند شبح"
+      // يخلي totalToRoll > 0 ويفتح بيان جديد يظهر فاضي 0 شحنة في الشاشة، وبيتكرر
+      // نفس الشيء عند كل قفل تالي لأن البند الشبح فضل بيترحّل من بيان لبيان.
+      // الحل: نفس معيار isShipmentVisibleInManifest يتطبّق هنا كمان — لو الشحنة
+      // لسه قبل المخزن، مترحّلش، لأنها أصلًا مش "موجودة" في البيان الحالي.
+      .filter(r => !RETURN_SHIPMENT_STATUSES.has(r.status) && isShipmentVisibleInManifest(r.status))
       .map(r => r.id));
   }
   const pendingItemsToRoll = pendingItems.filter(i => nonDeletedPendingSet.has(i.shipmentId));
@@ -1424,6 +1453,8 @@ async function rolloverPendingItemsToNewManifest(
   const unlinkedCandidateIds = clientShipments
     .filter(s => !RETURN_SHIPMENT_STATUSES.has(s.status))
     .map(s => s.id);
+  // حالة الشحنة الفعلية لكل orphan — بتُستخدم تحت لتوليد deliveryStatus الصح للبند.
+  const orphanStatusById = new Map(clientShipments.map(s => [s.id, s.status as string]));
 
   // ⚠️⚠️⚠️ إصلاح جذري (طلب بشمهندس مصطفى — العميل 77، شحنة SHP26090497 /
   // shipment_id=2634): شحنة اتسلّمت (delivered) في بيان مقفول (358) ظهرت
@@ -1447,8 +1478,14 @@ async function rolloverPendingItemsToNewManifest(
     const finalizedElsewhere = new Set(
       existingItemRows.filter(r => FINALIZED_NO_ROLLOVER_STATUSES.has(r.deliveryStatus)).map(r => r.shipmentId),
     );
+    // ⚠️⚠️⚠️ إصلاح جذري (بلاغ مصطفى — نفس مشكلة CAM-3-005..007 فوق): شحنة
+    // orphan (مالهاش أي صف في أي بيان) كانت بتترحّل بغض النظر عن حالتها
+    // الفعلية، حتى لو لسه قبل المخزن (pending/waiting/confirmed). ده بيعمل
+    // نفس "البند الشبح" اللي بيخلي البيان الجديد يتفتح ويظهر فاضي في
+    // الشاشة رغم totalToRoll > 0. نفس معيار isShipmentVisibleInManifest
+    // بيتطبّق هنا: orphan ميترحّلش إلا لو شحنته فعليًا "موجودة" (بعد المخزن).
     orphanShipmentIds = unlinkedCandidateIds.filter(
-      sid => !alreadyInManifest.has(sid) && !finalizedElsewhere.has(sid),
+      sid => !alreadyInManifest.has(sid) && !finalizedElsewhere.has(sid) && isShipmentVisibleInManifest(orphanStatusById.get(sid) ?? null),
     );
   }
 
@@ -1495,10 +1532,14 @@ async function rolloverPendingItemsToNewManifest(
       deliveryNote:   item.deliveryNote ?? null,
       addedAt:        now,
     })),
+    // ⚠️ الـ orphan لازم يتولّد بحالته الفعلية (مش "pending" ثابتة): شحنة اتنفّذت
+    // فعلاً (زي replaced/parcel_picked اللي بتتماب على "delivered") كانت بتظهر
+    // "قيد الانتظار" في بيان العميل رغم إنها "تم الاستبدال" في قسم الشحنات.
     ...orphanShipmentIds.map(sid => ({
       manifestId:     newManifestId,
       shipmentId:     sid,
-      deliveryStatus: "pending" as const,
+      deliveryStatus: (SHIPMENT_STATUS_TO_DELIVERY[orphanStatusById.get(sid) ?? ""] ?? "pending") as
+        "pending" | "delivered" | "delayed" | "returned" | "partial_delivered",
       addedAt:        now,
     })),
   ];
