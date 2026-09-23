@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
   ArrowRight, Truck, FileText, Lock,
-  CheckCircle2, RotateCcw, Clock, TrendingUp, TrendingDown,
+  CheckCircle2, RotateCcw, Clock,
   ChevronRight, Calendar, Package, Phone, Globe, X, Send,
   MapPin, User, Search, Wallet, DollarSign, History,
 } from "lucide-react";
@@ -151,20 +151,29 @@ export default function RepresentativeCompanyDetailPage() {
   });
   const repUserId = (repAccount as any)?.id;
 
-  // ── محفظة المندوب: الرصيد الحالي (من إحصائيات الشركة) + سجل التصفيات ──
-  const { data: dashForRep } = useQuery({
-    queryKey: ["rep-wallet-dashboard", companyId],
-    queryFn: () => apiFetch(`/representative/dashboard?companyId=${companyId}`),
-    enabled: !isNaN(companyId) && activeTab === "wallet" && canFinancials,
-  });
+  // ── محفظة المندوب: نفس مصدر بوابة المندوب بالظبط (/representative/wallet) ──
+  // الرصيد الحالي = صافي المستحق من البيان المفتوح (المحصَّل − تكلفة الشحن)، مش
+  // إجمالي تحصيل كل الشحنات من أول يوم. لازم companyId يتبعت مع userId عشان الـ
+  // endpoint يحسب الرصيد للأدمن (للمندوب نفسه بياخده من حسابه).
   const { data: walletData, isLoading: walletLoading } = useQuery({
-    queryKey: ["rep-wallet", repUserId],
-    queryFn: () => apiFetch(`/representative/wallet?userId=${repUserId}`),
+    queryKey: ["rep-wallet", repUserId, companyId],
+    queryFn: () => apiFetch(`/representative/wallet?userId=${repUserId}&companyId=${companyId}`),
     enabled: !!repUserId && activeTab === "wallet",
   });
   const walletTransactions = (walletData as any)?.transactions ?? [];
   const totalSettled = (walletData as any)?.totalSettled ?? 0;
-  const currentBalance = (dashForRep as any)?.totalCollected ?? 0;
+  const currentBalance = (walletData as any)?.currentBalance ?? 0;
+
+  // إجمالي المحصَّل من العملاء + المتبقي عليه (البيان المفتوح) — نفس حقلين كارت
+  // "التحصيل والمالية" في بوابة المندوب (openManifestCollected / openManifestPending)،
+  // فالرقمين هنا بيطابقوا اللي المندوب شايفه بالظبط. ملحوظة: openManifestCollected
+  // هنا هو نفسه صافي المستحق (نفس computeManifestNetDue) اللي بيتحسب منه currentBalance.
+  const { data: repDash } = useQuery({
+    queryKey: ["rep-wallet-open-manifest", companyId],
+    queryFn: () => apiFetch(`/representative/dashboard?companyId=${companyId}`),
+    enabled: !isNaN(companyId) && activeTab === "wallet" && canFinancials,
+  });
+  const openPending = (repDash as any)?.openManifestPending ?? 0;
 
   const { data: shipmentsData, isLoading: shipmentsLoading } = useQuery({
     queryKey: ["company-shipments", companyId],
@@ -232,7 +241,7 @@ export default function RepresentativeCompanyDetailPage() {
 
       {/* ─── Stats Cards ─── */}
       {stats && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           <Card className="border-border bg-card p-3 text-center">
             <p className="text-[10px] text-muted-foreground mb-0.5">إجمالي الطلبيات</p>
             <p className="text-2xl font-black">{stats.total}</p>
@@ -247,28 +256,6 @@ export default function RepresentativeCompanyDetailPage() {
             <p className="text-[10px] text-red-400 mb-0.5">مُرتجَع</p>
             <p className="text-2xl font-black text-red-400">{stats.returned}</p>
             <p className="text-[10px] text-amber-600">{(stats as any).postponed ?? stats.pending} مؤجَّل</p>
-          </Card>
-          <Card className={`p-3 text-center border ${stats.netProfit >= 0 ? "border-primary/30 bg-primary/5" : "border-red-900/40 bg-red-900/10"}`}>
-            {canFinancials ? (
-              <>
-                <p className="text-[10px] text-muted-foreground mb-0.5">صافي الربح</p>
-                <p className={`text-xl font-black ${stats.netProfit >= 0 ? "text-primary" : "text-red-400"}`}>
-                  {formatCurrency(Math.abs(stats.netProfit))}
-                </p>
-                <p className="text-[10px] flex items-center justify-center gap-0.5 text-muted-foreground">
-                  {stats.netProfit >= 0
-                    ? <TrendingUp className="w-3 h-3 text-emerald-400" />
-                    : <TrendingDown className="w-3 h-3 text-red-400" />}
-                  {stats.netProfit >= 0 ? "ربح" : "خسارة"}
-                </p>
-              </>
-            ) : (
-              <>
-                <p className="text-[10px] text-muted-foreground mb-0.5">البيانات</p>
-                <p className="text-xl font-black text-muted-foreground">—</p>
-                <p className="text-[10px] text-muted-foreground/50">غير مصرّح</p>
-              </>
-            )}
           </Card>
         </div>
       )}
@@ -520,8 +507,9 @@ export default function RepresentativeCompanyDetailPage() {
                       <Wallet className="w-5 h-5 text-emerald-400" />
                     </div>
                     <div>
-                      <p className="text-[11px] text-muted-foreground font-medium">الرصيد الحالي (غير المُقفل)</p>
+                      <p className="text-[11px] text-muted-foreground font-medium">المستحق على المندوب للشركة (البيان المفتوح)</p>
                       <p className="text-2xl font-black text-emerald-400 leading-tight">{formatCurrency(currentBalance)}</p>
+                      <p className="text-[9px] text-muted-foreground/70 mt-0.5">المحصَّل من العملاء − تكلفة الشحن · يُصفَّر عند قفل البيان</p>
                     </div>
                   </div>
                   <div className="text-left">
@@ -534,7 +522,13 @@ export default function RepresentativeCompanyDetailPage() {
               </div>
 
               {/* ── إجمالي التصفيات (أرشيف) ── */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
+                <Card className="border-border bg-card p-3 text-center">
+                  <p className="text-[10px] text-muted-foreground mb-0.5 flex items-center justify-center gap-1">
+                    <DollarSign className="w-3 h-3" />المطلوب المتبقي
+                  </p>
+                  <p className="text-xl font-black text-amber-400">{formatCurrency(openPending)}</p>
+                </Card>
                 <Card className="border-border bg-card p-3 text-center">
                   <p className="text-[10px] text-muted-foreground mb-0.5 flex items-center justify-center gap-1">
                     <DollarSign className="w-3 h-3" />إجمالي المُصفّى

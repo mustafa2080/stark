@@ -645,7 +645,12 @@ router.get("/shipments", async (req, res): Promise<void> => {
       }
     }
     if (shippingCompanyId) {
-      conditions.push(eq(shipmentsTable.shippingCompanyId, parseInt(shippingCompanyId)));
+      // الشحنة تتنسب للمندوب (شركة الشحن) لو shippingCompanyId عليها = المندوب،
+      // أو (لو فاضي عليها) لو أحدث بيان مرتبطة بيه تابع للمندوب. نفس الـ COALESCE
+      // اللي بيعرضه عمود shippingCompanyName تحت — كان الفلتر بيبص على العمود
+      // المباشر بس فالشحنات المربوطة بالمندوب عن طريق البيان بس كانت بتضيع من
+      // القايمة ومن الـ total (بادج تاب "الشحنات" في صفحة المندوب).
+      conditions.push(sql`COALESCE(${shipmentsTable.shippingCompanyId}, ${shipmentManifestsTable.shippingCompanyId}) = ${parseInt(shippingCompanyId)}`);
     }
     if (clientId) {
       conditions.push(eq(shipmentsTable.clientId, parseInt(clientId)));
@@ -832,7 +837,17 @@ router.get("/shipments", async (req, res): Promise<void> => {
         .orderBy(desc(shipmentsTable.createdAt))
         .limit(parseInt(limit))
         .offset(parseInt(offset)),
-      db.select({ count: sql<number>`count(*)` }).from(shipmentsTable).where(where),
+      // نفس الـ joins اللازمة للفلاتر (فلتر shippingCompanyId بيعتمد على
+      // shipmentManifestsTable) — من غيرها الـ where بيكسر أو الـ total بيفضل غلط.
+      // كل الـ joins هنا many-to-one (بند البيان محصور بأحدث id فقط) فمفيش تضاعف صفوف.
+      db.select({ count: sql<number>`count(*)` })
+        .from(shipmentsTable)
+        .leftJoin(shipmentManifestItemsTable, and(
+          eq(shipmentManifestItemsTable.shipmentId, shipmentsTable.id),
+          eq(shipmentManifestItemsTable.id, latestManifestItemIdSql),
+        ))
+        .leftJoin(shipmentManifestsTable, eq(shipmentManifestsTable.id, shipmentManifestItemsTable.manifestId))
+        .where(where),
     ]);
 
     // normalize: لو receiverCity فاضية خد من zoneGovernorate
