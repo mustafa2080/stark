@@ -4137,7 +4137,7 @@ export default function ShippingManifestPage() {
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet"/>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    @page { size: A4 portrait; margin: 8mm 10mm; }
+    @page { size: A4 landscape; margin: 5mm 6mm; }
     body {
       font-family: 'Cairo', 'Segoe UI', Arial, sans-serif;
       font-size: 10pt;
@@ -4203,6 +4203,39 @@ export default function ShippingManifestPage() {
     .mp-sig-title { font-size:9pt; color:#64748b; margin-bottom:8mm; font-weight:700; }
     .mp-sig-line  { border-top:1.5px solid #333; width:80%; margin:0 auto; }
     .mp-sig-name  { font-size:8pt; color:#555; margin-top:2mm; }
+
+    /* Excel-inspired compact layout: more shipment rows per landscape page. */
+    body { font-size:7pt; padding:0; }
+    .mp-header { background:#163a70; color:#fff; border:0; padding:2mm 4mm; margin-bottom:1.5mm; min-height:18mm; }
+    .mp-stark-brand { margin-bottom:0.5mm; }
+    .mp-stark-name { font-size:12pt; color:#f4c86a; background:none; -webkit-text-fill-color:#f4c86a; }
+    .mp-stark-tagline { color:#f4c86a; border-color:#f4c86a; font-size:5.5pt; }
+    .mp-title, .mp-company-name { color:#fff; font-size:12pt; }
+    .mp-meta, .mp-company-sub { color:#d7e3f4; font-size:6.5pt; margin-top:0.5mm; line-height:1.35; }
+    .mp-logo { width:11mm; height:11mm; border-width:1px; }
+    .mp-badge { margin-top:1mm; padding:0.35mm 2mm; border-radius:1mm; font-size:6pt; }
+    .mp-stats { border:0.4mm solid #163a70; border-radius:0; margin-bottom:1.5mm; }
+    .mp-stat { padding:0.8mm 1mm; border-left:0.2mm solid #cbd5e1; }
+    .mp-stat-lbl { font-size:5.8pt; margin-bottom:0; } .mp-stat-val { font-size:9pt; }
+    .mp-table { table-layout:fixed; margin-bottom:1.5mm; font-size:6.6pt; border:0.35mm solid #163a70; }
+    .mp-table thead { display:table-header-group; }
+    .mp-table th { padding:1mm 0.8mm; text-align:center; font-size:6.5pt; line-height:1.15; border:0.2mm solid #b9c8db; }
+    .mp-table td { padding:0.85mm 0.8mm; border:0.2mm solid #cbd5e1; line-height:1.2; overflow-wrap:anywhere; }
+    .mp-table tr { break-inside:avoid; page-break-inside:avoid; }
+    .mp-row-alt td { background:#f5f8fc; }
+    .mp-num, .mp-note, .mp-td-ltr { font-size:5.8pt; } .mp-sub { font-size:5.5pt; margin-top:0; }
+    .st-d, .st-r, .st-p, .st-x, .st-n { background:transparent; padding:0; border-radius:0; font-size:6pt; }
+    .mp-totals { gap:1.5mm; margin-bottom:1.5mm; }
+    .mp-total-card { border-width:0.25mm; border-radius:0; padding:1.25mm 2mm; }
+    .mp-total-lbl { font-size:6pt; margin-bottom:0; } .mp-total-val { font-size:9pt; }
+    .mp-footer { padding-top:1.5mm; margin-top:1.5mm; }
+    .mp-sig-title { font-size:6.5pt; margin-bottom:5mm; } .mp-sig-name, .mp-watermark { font-size:5.5pt; }
+    .mp-excel-header { margin-bottom:1.5mm; text-align:center; color:#fff; background:#173969; border:0.35mm solid #173969; }
+    .mp-excel-brand { padding:1.1mm 2mm 0.7mm; color:#efc26b; font-size:12pt; font-weight:900; letter-spacing:0.8mm; line-height:1; }
+    .mp-excel-title { padding:0.75mm 2mm; color:#efc26b; font-size:8.5pt; font-weight:900; border-top:0.2mm solid rgba(255,255,255,.14); }
+    .mp-excel-title span { margin-right:4mm; } .mp-excel-meta { padding:0.65mm 2mm; color:#d9e6f5; font-size:6.2pt; background:#214a80; }
+    .mp-excel-meta b { padding:0 2.5mm; color:#a9bdd6; }
+    .mp-table thead tr { background:#214a80; } .mp-table td { height:6.2mm; }
   </style>
 </head>
 <body>
@@ -4356,43 +4389,11 @@ export default function ShippingManifestPage() {
     {/* ══════════════ PRINT-ONLY ══════════════ */}
     <div className="manifest-print print:block hidden" dir="rtl">
 
-      {/* ─── Header ─── */}
-      <div className="mp-header">
-        <div className="mp-header-left">
-          <div className="mp-stark-brand">
-            <span className="mp-stark-name">STARK</span>
-            <span className="mp-stark-tagline">SHIPPING &amp; LOGISTICS</span>
-          </div>
-          <div className="mp-title">بيان الشحن — {manifest.manifestNumber}</div>
-          <div className="mp-meta">
-            تاريخ الإنشاء: {format(new Date(manifest.createdAt), "yyyy/MM/dd")}
-            {manifest.closedAt && <>&emsp;أُغلق: {format(new Date(manifest.closedAt), "yyyy/MM/dd")}</>}
-            <br />طُبع: {format(new Date(), "yyyy/MM/dd — HH:mm")}
-          </div>
-          <span className={`mp-badge ${manifest.status === "closed" ? "mp-badge-closed" : "mp-badge-open"}`}>
-            {manifest.status === "closed" ? "✓ مغلق" : "● مفتوح"}
-          </span>
-        </div>
-        <div className="mp-header-right">
-          {manifest.companyLogo
-            ? <img src={manifest.companyLogo} className="mp-logo" alt={manifest.companyName} crossOrigin="anonymous" />
-            : null
-          }
-          <div>
-            <div className="mp-company-name">{manifest.companyName}</div>
-            <div className="mp-company-sub">SHIPPING MANIFEST</div>
-          </div>
-        </div>
-      </div>
-
-      {/* ─── Stats strip ─── */}
-      <div className="mp-stats">
-        <div className="mp-stat"><div className="mp-stat-lbl">إجمالي الطلبيات</div><div className="mp-stat-val">{groupedTotalCount}</div></div>
-        <div className="mp-stat mp-stat-delivered"><div className="mp-stat-lbl">مسلَّم</div><div className="mp-stat-val">{groupedDeliveredCount}</div></div>
-        <div className="mp-stat mp-stat-returned"><div className="mp-stat-lbl">مرتجع</div><div className="mp-stat-val">{groupedReturnedCount}</div></div>
-        <div className="mp-stat mp-stat-postponed"><div className="mp-stat-lbl">مؤجل</div><div className="mp-stat-val">{groupedPostponedCount}</div></div>
-        <div className="mp-stat mp-stat-partial"><div className="mp-stat-lbl">جزئي</div><div className="mp-stat-val">{groupedPartialCount}</div></div>
-        <div className="mp-stat"><div className="mp-stat-lbl">نسبة التسليم</div><div className="mp-stat-val">{screenDeliveryRate}%</div></div>
+      {/* ─── Excel-style title area ─── */}
+      <div className="mp-excel-header">
+        <div className="mp-excel-brand">STARK&nbsp;&nbsp;·&nbsp;&nbsp;WIN OR DIE</div>
+        <div className="mp-excel-title">بيان الشحن — {manifest.manifestNumber}<span> | {manifest.companyName} | {format(new Date(manifest.createdAt), "yyyy/MM/dd")}</span></div>
+        <div className="mp-excel-meta">طُبع: {format(new Date(), "yyyy/MM/dd HH:mm")} <b>|</b> إجمالي المسلم: {groupedDeliveredCount} من {groupedTotalCount} <b>|</b> نسبة التسليم: {screenDeliveryRate}%</div>
       </div>
 
       {/* ─── Orders table ─── */}
@@ -4400,16 +4401,17 @@ export default function ShippingManifestPage() {
         <thead>
           <tr>
             <th style={{ width: "3%" }}>#</th>
-            <th style={{ width: "10%" }}>الراسل</th>
-            <th style={{ width: "13%" }}>العميل</th>
-            <th style={{ width: "9%" }}>الهاتف</th>
-            <th style={{ width: "7%" }}>المحافظة</th>
-            <th style={{ width: "16%" }}>العنوان</th>
-            <th style={{ width: "9%" }}>اجمالى سعر الشحنة</th>
-            <th style={{ width: "9%" }}>القيمة المستلمة</th>
-            <th style={{ width: "8%" }}>تكلفة الشحن</th>
-            <th style={{ width: "8%" }}>حالة الاوردر</th>
+            <th style={{ width: "9%" }}>اسم الراسل</th>
+            <th style={{ width: "10%" }}>اسم العميل</th>
+            <th style={{ width: "8%" }}>رقم تليفون العميل</th>
+            <th style={{ width: "6%" }}>المحافظة</th>
+            <th style={{ width: "15%" }}>العنوان</th>
+            <th style={{ width: "8%" }}>إجمالي سعر الشحنة</th>
+            <th style={{ width: "8%" }}>القيمة المستلمة</th>
+            <th style={{ width: "7%" }}>تكلفة الشحن</th>
+            <th style={{ width: "7%" }}>حالة الأوردر</th>
             <th style={{ width: "8%" }}>ملاحظات</th>
+            <th style={{ width: "11%" }}>رقم الشحنة</th>
           </tr>
         </thead>
         <tbody>
@@ -4454,6 +4456,7 @@ export default function ShippingManifestPage() {
                 </td>
                 <td className="mp-td-center"><span className={cls}>{isSingleStatus ? label : "متعددة"}</span></td>
                 <td className="mp-note">{notes}</td>
+                <td className="mp-td-center mp-td-ltr">{(rep as any).shipmentNumber ?? (rep as any).trackingNumber ?? "—"}</td>
               </tr>
             );
           })}
@@ -5529,6 +5532,39 @@ export default function ShippingManifestPage() {
     .mp-sig-title { font-size:9pt; color:#64748b; margin-bottom:8mm; font-weight:700; }
     .mp-sig-line { border-top:1.5px solid #333; width:80%; margin:0 auto; }
     .mp-sig-name { font-size:8pt; color:#555; margin-top:2mm; }
+
+    /* Keep the preview identical to the compact landscape printout. */
+    body { font-size:7pt; padding:5mm 6mm; }
+    .mp-header { background:#163a70; color:#fff; border:0; padding:2mm 4mm; margin-bottom:1.5mm; min-height:18mm; }
+    .mp-stark-brand { margin-bottom:0.5mm; }
+    .mp-stark-name { font-size:12pt; color:#f4c86a; background:none; -webkit-text-fill-color:#f4c86a; }
+    .mp-stark-tagline { color:#f4c86a; border-color:#f4c86a; font-size:5.5pt; }
+    .mp-title, .mp-company-name { color:#fff; font-size:12pt; }
+    .mp-meta, .mp-company-sub { color:#d7e3f4; font-size:6.5pt; margin-top:0.5mm; line-height:1.35; }
+    .mp-logo { width:11mm; height:11mm; border-width:1px; }
+    .mp-badge { margin-top:1mm; padding:0.35mm 2mm; border-radius:1mm; font-size:6pt; }
+    .mp-stats { border:0.4mm solid #163a70; border-radius:0; margin-bottom:1.5mm; }
+    .mp-stat { padding:0.8mm 1mm; border-left:0.2mm solid #cbd5e1; }
+    .mp-stat-lbl { font-size:5.8pt; margin-bottom:0; } .mp-stat-val { font-size:9pt; }
+    .mp-table { table-layout:fixed; margin-bottom:1.5mm; font-size:6.6pt; border:0.35mm solid #163a70; }
+    .mp-table thead { display:table-header-group; }
+    .mp-table th { padding:1mm 0.8mm; text-align:center; font-size:6.5pt; line-height:1.15; border:0.2mm solid #b9c8db; }
+    .mp-table td { padding:0.85mm 0.8mm; border:0.2mm solid #cbd5e1; line-height:1.2; overflow-wrap:anywhere; }
+    .mp-table tr { break-inside:avoid; page-break-inside:avoid; }
+    .mp-row-alt td { background:#f5f8fc; }
+    .mp-num, .mp-note, .mp-td-ltr { font-size:5.8pt; } .mp-sub { font-size:5.5pt; margin-top:0; }
+    .st-d, .st-r, .st-p, .st-x, .st-n { background:transparent; padding:0; border-radius:0; font-size:6pt; }
+    .mp-totals { gap:1.5mm; margin-bottom:1.5mm; }
+    .mp-total-card { border-width:0.25mm; border-radius:0; padding:1.25mm 2mm; }
+    .mp-total-lbl { font-size:6pt; margin-bottom:0; } .mp-total-val { font-size:9pt; }
+    .mp-footer { padding-top:1.5mm; margin-top:1.5mm; }
+    .mp-sig-title { font-size:6.5pt; margin-bottom:5mm; } .mp-sig-name, .mp-watermark { font-size:5.5pt; }
+    .mp-excel-header { margin-bottom:1.5mm; text-align:center; color:#fff; background:#173969; border:0.35mm solid #173969; }
+    .mp-excel-brand { padding:1.1mm 2mm 0.7mm; color:#efc26b; font-size:12pt; font-weight:900; letter-spacing:0.8mm; line-height:1; }
+    .mp-excel-title { padding:0.75mm 2mm; color:#efc26b; font-size:8.5pt; font-weight:900; border-top:0.2mm solid rgba(255,255,255,.14); }
+    .mp-excel-title span { margin-right:4mm; } .mp-excel-meta { padding:0.65mm 2mm; color:#d9e6f5; font-size:6.2pt; background:#214a80; }
+    .mp-excel-meta b { padding:0 2.5mm; color:#a9bdd6; }
+    .mp-table thead tr { background:#214a80; } .mp-table td { height:6.2mm; }
   </style>
 </head>
 <body>${html}</body>
