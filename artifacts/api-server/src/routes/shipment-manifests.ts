@@ -841,6 +841,12 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
     // returnReason: لو الطلب مابعتهش (زرار "تم الاستلام" السريع) نسيبها زي ما هي
     if (body.deliveryStatus === "returned" && body.returnReason !== undefined) {
       shipmentPatch.returnReason = body.returnReason ?? null;
+      // returnNote: لازم تتسجل على جدول shipments نفسه برضو (مش بس
+      // shipment_manifest_items.deliveryNote) — لأن /shipments list بتقرأ
+      // returnNote من shipmentsTable مباشرة عشان تعرض تفاصيل "سبب آخر" اللي
+      // كتبها المندوب. من غير السطر ده، الملاحظة كانت بتتسجل على بند البيان
+      // بس وتفضل غايبة في صفحة الشحنات (بتظهر "سبب آخر" بدون النص فعليًا).
+      shipmentPatch.returnNote = nextDeliveryNote;
     }
 
     if (inventoryStatus) {
