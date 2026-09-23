@@ -119,7 +119,7 @@ export default function ClientReturnManifestDetailPage() {
   const manifest = data?.manifest ?? null;
   const items = data?.items ?? [];
 
-  const reasonLabelOf = (it: typeof items[number]) => it.returnReason ? returnReasonLabel(it.returnReason) : "-";
+  const reasonLabelOf = (it: typeof items[number]) => it.returnReason ? returnReasonLabel(it.returnReason, (it as any).deliveryNote) : "-";
   const cityOf = (it: typeof items[number]) => it.receiverCity ?? "-";
   const totalOf = (it: typeof items[number]) =>
     parseFloat(it.shipmentCodAmount ?? "0") + parseFloat(it.shippingFee ?? "0");
@@ -207,7 +207,7 @@ export default function ClientReturnManifestDetailPage() {
         <td class="mp-td-center mp-td-bold mp-td-primary">${formatCurrency(totalOf(it))}</td>
         <td class="mp-td-center">
           <span class="mp-badge">مرتجع</span>
-          <div class="mp-sub">${it.returnReason ? returnReasonLabel(it.returnReason) : "-"}</div>
+          <div class="mp-sub">${it.returnReason ? returnReasonLabel(it.returnReason, (it as any).deliveryNote) : "-"}</div>
         </td>
       </tr>`).join("");
 
@@ -344,7 +344,7 @@ export default function ClientReturnManifestDetailPage() {
       it.shippingFee != null ? parseFloat(it.shippingFee) : 0,
       totalOf(it),
       "مرتجع",
-      it.returnReason ? returnReasonLabel(it.returnReason) : "-",
+      it.returnReason ? returnReasonLabel(it.returnReason, (it as any).deliveryNote) : "-",
     ]);
     const infoRows = [
       ["رقم البيان", manifest.manifestNumber],
@@ -667,7 +667,7 @@ export default function ClientReturnManifestDetailPage() {
                       <div className="flex flex-col items-center gap-0.5">
                         <span className="text-[11px] font-semibold text-red-400">مرتجع</span>
                         <span className="text-[10px] text-amber-400">
-                          {it.returnReason ? returnReasonLabel(it.returnReason) : "-"}
+                          {it.returnReason ? returnReasonLabel(it.returnReason, (it as any).deliveryNote) : "-"}
                         </span>
                       </div>
                     </TableCell>

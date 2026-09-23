@@ -734,7 +734,7 @@ export default function ClientShipmentsPage() {
                             </div>
                           )}
                           {s.status === "returned" && (() => {
-                            const reason = s.returnReason ? (s.returnReason === "other" && s.returnNote ? s.returnNote : returnReasonLabel(s.returnReason)) : null;
+                            const reason = s.returnReason ? returnReasonLabel(s.returnReason, s.returnNote) : null;
                             const isReceived = s.returnReceived === 1 || s.returnReceived === true;
                             return (
                               <div className="flex flex-col items-center gap-0.5 mt-1">

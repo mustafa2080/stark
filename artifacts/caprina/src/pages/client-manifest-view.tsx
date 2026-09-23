@@ -357,7 +357,7 @@ function buildClientManifestPrintHtml(manifest: ManifestDetail, groups: Manifest
         if ((status === "delayed" || status === "postponed") && rep.deliveryNote) {
           noteHtml = `<div class="mp-sub">⏸ ${rep.deliveryNote}</div>`;
         } else if (status === "returned" && rep.returnReason) {
-          noteHtml = `<div class="mp-sub">↳ ${returnReasonLabel(rep.returnReason)}</div>`;
+          noteHtml = `<div class="mp-sub">↳ ${returnReasonLabel(rep.returnReason, rep.deliveryNote)}</div>`;
         } else if (status === "partial_received" || status === "partial_delivered") {
           noteHtml = `<div class="mp-sub">◑ ${rep.partialQuantity ?? 0}/${group.reduce((s, i) => s + i.quantity, 0)}</div>`;
         }
@@ -932,7 +932,7 @@ export default function ClientManifestViewPage() {
                           )}
                           {status === "returned" && (
                             <p className="text-[10px] text-red-400 flex items-center gap-0.5">
-                              ↳ {rep.returnReason ? returnReasonLabel(rep.returnReason) : "لم يحدد السبب"}
+                              ↳ {rep.returnReason ? returnReasonLabel(rep.returnReason, rep.deliveryNote) : "لم يحدد السبب"}
                             </p>
                           )}
                           {(status === "partial_received" || status === "partial_delivered") && (

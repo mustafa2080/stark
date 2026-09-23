@@ -24,6 +24,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { returnReasonLabel } from "@/lib/order-constants";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type ShipmentStatus =
@@ -75,6 +76,8 @@ interface Shipment {
   collectedAmount?: string | number;
   status: ShipmentStatus;
   returnReceived?: number | boolean | null;
+  returnReason?: string | null;
+  deliveryNote?: string | null;
   shippingCompanyId?: number;
   shippingCompanyName?: string;
   notes?: string;
@@ -849,6 +852,14 @@ function ShipmentCard({ shipment, onEdit, onDelete }: { shipment: Shipment; onEd
               </div>
             );
           })()}
+
+          {/* سبب الإرجاع */}
+          {shipment.status === "returned" && shipment.returnReason && (
+            <p className="text-[10px] text-red-500 dark:text-red-400 flex items-center gap-1 mt-1">
+              <span>↳</span>
+              <span>{returnReasonLabel(shipment.returnReason, shipment.deliveryNote)}</span>
+            </p>
+          )}
         </div>
       </div>
     </div>

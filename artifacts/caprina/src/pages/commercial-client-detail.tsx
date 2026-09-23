@@ -1908,7 +1908,7 @@ function ReturnsTabContent({ shipments, clientId }: { shipments: ClientShipment[
                     {s.returnManifestNumber && <span className="text-muted-foreground/70"> — بيان: {s.returnManifestNumber}</span>}
                   </p>
                   {s.returnReason && (
-                    <p className="text-[10px] font-semibold text-emerald-400/80 mt-0.5">{returnReasonLabel(s.returnReason)}</p>
+                    <p className="text-[10px] font-semibold text-emerald-400/80 mt-0.5">{returnReasonLabel(s.returnReason, (s as any).deliveryNote)}</p>
                   )}
                   {s.manifestPartialQty != null && s.manifestDeliveryStatus === "partial_delivered" && (
                     <p className="text-[10px] font-semibold text-teal-400/80 mt-0.5">
@@ -2170,7 +2170,7 @@ function ReturnShipmentRow({ s, clientId }: { s: ClientShipment; clientId: numbe
           {s.returnManifestNumber && <span className="text-muted-foreground/70"> — بيان مرتجعات: {s.returnManifestNumber}</span>}
         </p>
         {s.returnReason && (
-          <p className="text-[10px] font-semibold text-red-400 mt-0.5">{returnReasonLabel(s.returnReason)}</p>
+          <p className="text-[10px] font-semibold text-red-400 mt-0.5">{returnReasonLabel(s.returnReason, (s as any).deliveryNote)}</p>
         )}
         {isPartial && s.manifestPartialQty != null && (
           <p className="text-[10px] font-semibold text-teal-400 mt-0.5">

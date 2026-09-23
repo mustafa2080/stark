@@ -4748,8 +4748,8 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                 <p className="text-xs text-red-400 font-bold mb-1 flex items-center gap-1">
                   <RotateCcw className="w-3 h-3" />سبب الإرجاع
                 </p>
-                <p className="text-sm font-semibold text-red-300">{returnReasonLabel(orderReturnReason)}</p>
-                {orderReturnNote && <p className="text-xs text-muted-foreground mt-1">{orderReturnNote}</p>}
+                <p className="text-sm font-semibold text-red-300">{returnReasonLabel(orderReturnReason, orderReturnNote)}</p>
+                {orderReturnNote && orderReturnReason !== "other" && <p className="text-xs text-muted-foreground mt-1">{orderReturnNote}</p>}
               </div>
             )}
 
@@ -5182,7 +5182,7 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
 
             // الملاحظة تُؤخذ تلقائياً من سبب الرفض/ملاحظة الإرجاع الموجودة في الشحنة — إن وُجدت
             note: orderReturnReason
-              ? (returnReasonLabel ? returnReasonLabel(orderReturnReason) : orderReturnReason) + (orderReturnNote ? ` — ${orderReturnNote}` : "")
+              ? (returnReasonLabel ? returnReasonLabel(orderReturnReason, orderReturnNote) : orderReturnReason) + (orderReturnNote && orderReturnReason !== "other" ? ` — ${orderReturnNote}` : "")
               : (orderReturnNote || null),
 
             products: (shipmentItems || []).map((it: any) => ({

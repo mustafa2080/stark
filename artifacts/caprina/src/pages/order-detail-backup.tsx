@@ -653,9 +653,9 @@ export default function OrderDetail() {
                       <RotateCcw className="w-3 h-3" />╪│╪ذ╪ذ ╪د┘╪ح╪▒╪ش╪د╪╣
                     </p>
                     <p className="text-sm font-semibold text-red-300">
-                      {returnReasonLabel(orderReturnReason)}
+                      {returnReasonLabel(orderReturnReason, orderReturnNote)}
                     </p>
-                    {orderReturnNote && (
+                    {orderReturnNote && orderReturnReason !== "other" && (
                       <p className="text-xs text-muted-foreground mt-1">{orderReturnNote}</p>
                     )}
                   </div>

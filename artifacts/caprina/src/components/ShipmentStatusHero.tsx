@@ -131,10 +131,10 @@ export default function ShipmentStatusHero({ status, trackingNumber, returnReaso
                 color: meta.accent,
               }}
             >
-              السبب: {returnReasonLabel(returnReason)}
+              السبب: {returnReasonLabel(returnReason, returnNote)}
             </div>
           )}
-          {returnNote && (
+          {returnNote && returnReason !== "other" && (
             <p
               className="max-w-md mx-auto mt-3 text-xs sm:text-sm leading-relaxed break-words px-2"
               style={{ color: "rgba(255,255,255,0.55)", overflowWrap: "anywhere", wordBreak: "break-word" }}

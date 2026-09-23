@@ -7,10 +7,25 @@ export const RETURN_REASONS: { value: string; label: string }[] = [
   { value: "no_answer",          label: "لا يوجد رد" },
   { value: "out_of_coverage",    label: "خارج نطاق التغطية" },
   { value: "closed",             label: "مغلق" },
+  { value: "postponed_by_client", label: "العميل طلب التأجيل" },
+  { value: "damaged",            label: "الشحنة تالفة" },
+  { value: "unclear_address",    label: "العنوان غير واضح" },
+  { value: "bad_timing",         label: "وقت العميل غير مناسب مع وقت المندوب" },
+  { value: "other",              label: "سبب آخر" },
 ];
 
-export const returnReasonLabel = (reason: string | null | undefined): string => {
+/**
+ * تسمية سبب الإرجاع للعرض. لو السبب "سبب آخر" (other) وفيه ملاحظة مكتوبة من
+ * المندوب، بيتم عرض نص الملاحظة نفسها بدل كلمة "سبب آخر" الجامدة — عشان يبقى
+ * السبب الفعلي واضح ومفهوم لأي حد (مندوب / عميل / أدمن) من غير ما يحتاج يفتح
+ * تفاصيل الطلبية عشان يشوف الملاحظة لوحدها.
+ */
+export const returnReasonLabel = (
+  reason: string | null | undefined,
+  note?: string | null,
+): string => {
   if (!reason) return "—";
+  if (reason === "other") return note?.trim() || "سبب آخر";
   return RETURN_REASONS.find(r => r.value === reason)?.label ?? reason;
 };
 
