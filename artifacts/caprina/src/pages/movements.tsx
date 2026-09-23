@@ -352,6 +352,7 @@ const TRANSFER_STATUS_MAP: Record<string, { label: string; color: string; bg: st
   warehouse_ready:  { label: "قيد الشحن فى المخزن", color: "text-orange-600",       bg: "bg-orange-500/10" },
   delivered:        { label: "مسلّمة",             color: "text-emerald-600",      bg: "bg-emerald-500/10" },
   returned:         { label: "مرتجع",              color: "text-red-600",          bg: "bg-red-500/10" },
+  returns:          { label: "المرتجعات (شامل الاستلام الجزئي)", color: "text-red-600", bg: "bg-red-500/10" },
   cancelled:        { label: "ملغية",              color: "text-gray-500",         bg: "bg-gray-500/10" },
   partial_delivered:{ label: "تسليم جزئي",          color: "text-violet-600",       bg: "bg-violet-500/10" },
   partial_received: { label: "مرتجع عن استلام جزئي", color: "text-teal-600",         bg: "bg-teal-500/10" },
@@ -359,7 +360,7 @@ const TRANSFER_STATUS_MAP: Record<string, { label: string; color: string; bg: st
 
 // الحالات الوحيدة المسموحة في حاوية "نقل شحنات بين المخازن" — أي حالة تانية
 // (في الطريق، مسلّمة، ملغية...) مش شحنة موجودة فعليًا في مخزن تقدر تنقلها.
-const TRANSFERABLE_STATUSES = ["warehouse_ready", "returned", "partial_received"] as const;
+const TRANSFERABLE_STATUSES = ["warehouse_ready", "returns"] as const;
 type TransferStatusKey = typeof TRANSFERABLE_STATUSES[number];
 
 const formatTransferCurrency = (value: number) =>
@@ -439,7 +440,7 @@ function ShipmentsTransferDialog({ onClose }: { onClose: () => void }) {
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  // الحالات المسموحة في حاوية النقل: قيد الشحن في المخزن / مرتجع / مرتجع عن استلام جزئي فقط.
+  // الحالات المسموحة في حاوية النقل: قيد الشحن في المخزن أو كل المرتجعات.
   // لا توجد قيمة "كل الحالات" — الافتراضي "قيد الشحن في المخزن" وهي الأكثر استخدامًا للنقل.
   const [statusFilter, setStatusFilter] = useState<TransferStatusKey>("warehouse_ready");
   const [selectedShipmentIds, setSelectedShipmentIds] = useState<Set<number>>(new Set());
@@ -481,15 +482,31 @@ function ShipmentsTransferDialog({ onClose }: { onClose: () => void }) {
     }
   }, [fromWarehouseId]);
 
-  // نعرض فقط الحالات المسموح نقلها (قيد الشحن في المخزن / مرتجع / مرتجع عن استلام جزئي)،
+  // نعرض فقط الحالات المسموح نقلها (قيد الشحن في المخزن أو المرتجعات بكل أنواعها)،
   // والافتراضي "قيد الشحن في المخزن". البحث (رقم شحنة/اسم/فون) بيشتغل جنب فلتر الحالة.
   const { data: shipmentsRes, isLoading } = useQuery({
     queryKey: ["shipments-for-transfer", debouncedSearch, statusFilter],
-    queryFn: () => shipmentsApi.list({
-      ...(debouncedSearch ? { search: debouncedSearch } : {}),
-      status: statusFilter,
-      limit: 1000,
-    }),
+    queryFn: async () => {
+      const params = {
+        ...(debouncedSearch ? { search: debouncedSearch } : {}),
+        limit: 1000,
+      };
+
+      if (statusFilter !== "returns") {
+        return shipmentsApi.list({ ...params, status: statusFilter });
+      }
+
+      const [returned, partialReturns] = await Promise.all([
+        shipmentsApi.list({ ...params, status: "returned" }),
+        shipmentsApi.list({ ...params, status: "partial_received" }),
+      ]);
+      const shipmentsById = new Map([...returned.data, ...partialReturns.data].map(shipment => [shipment.id, shipment]));
+
+      return {
+        data: [...shipmentsById.values()],
+        total: returned.total + partialReturns.total,
+      };
+    },
   });
 
   // استخراج قيمة نصية من الشحنة لعمود فلتر معيّن — نفس مبدأ getColVal في جدول
@@ -675,7 +692,7 @@ function ShipmentsTransferDialog({ onClose }: { onClose: () => void }) {
             <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v as TransferStatusKey); setSelectedShipmentIds(new Set()); }}>
               <SelectTrigger className="h-9 text-xs w-52 shrink-0"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {/* فقط: قيد الشحن في المخزن / مرتجع / مرتجع عن استلام جزئي — مفيش "كل الحالات".
+                {/* فقط: قيد الشحن في المخزن / المرتجعات (شامل الاستلام الجزئي) — مفيش "كل الحالات".
                     باقي الحالات مش شحنات موجودة فعليًا داخل مخزن تقدر تنقلها. */}
                 {TRANSFERABLE_STATUSES.map((k) => (
                   <SelectItem key={k} value={k}>{TRANSFER_STATUS_MAP[k].label}</SelectItem>
