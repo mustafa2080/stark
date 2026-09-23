@@ -1048,7 +1048,7 @@ export interface RepDailyRow {
   successRate: number;
 }
 export interface RepsDailyResponse {
-  period: "today" | "week" | "custom";
+  period: "today" | "week" | "month" | "year" | "custom";
   representatives: RepDailyRow[];
   generatedAt: string;
 }
@@ -1409,7 +1409,7 @@ export const analyticsApi = {
     const qs = q.toString();
     return apiFetch<RevenueTrendResponse>(`/analytics/revenue-trend${qs ? `?${qs}` : ""}`);
   },
-  repsDaily: (params: { period: "today" | "week" } | { period: "custom"; from: string; to: string }) => {
+  repsDaily: (params: { period: "today" | "week" | "month" | "year" } | { period: "custom"; from: string; to: string }) => {
     const q = new URLSearchParams();
     q.set("period", params.period);
     if (params.period === "custom") { q.set("from", params.from); q.set("to", params.to); }

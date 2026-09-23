@@ -37,6 +37,12 @@ export function invalidateSmartCache(tenantId: number | null) {
 
 const router: IRouter = Router();
 
+// ── تعريف موحّد لـ "شحنة منجزة" لجداول المندوبين ───────────────────────────────
+// normalize() القديمة كانت بتعتبر received بس منجزة، فكانت شحنات replaced / parcel_picked
+// / partial_received (وهي كلها شحنات المندوب خلّصها فعلًا) بتضيع من العدّاد.
+const REP_DONE_STATUSES = new Set<string>(["received", "partial_received", "replaced", "parcel_picked"]);
+const isRepDone = (normalizedStatus: string): boolean => REP_DONE_STATUSES.has(normalizedStatus);
+
 // ── Tenant-safe helpers ────────────────────────────────────────────────────────
 async function getProductsForTenant(tenantId: number | null) {
   return tenantId !== null
@@ -3704,8 +3710,10 @@ router.get("/analytics/reps-daily", requireAuth, async (req, res): Promise<void>
   try {
     const tenantId = getTenantId(req);
     const periodParam = req.query.period as string;
-    const period: "today" | "week" | "custom" =
-      periodParam === "week" ? "week" : periodParam === "custom" ? "custom" : "today";
+    const period: "today" | "week" | "month" | "year" | "custom" =
+      periodParam === "week" || periodParam === "month" || periodParam === "year" || periodParam === "custom"
+        ? periodParam
+        : "today";
     const fromParam = req.query.from as string | undefined;
     const toParam = req.query.to as string | undefined;
     const cacheKey = period === "custom"
@@ -3724,22 +3732,33 @@ router.get("/analytics/reps-daily", requireAuth, async (req, res): Promise<void>
     let rangeStart: Date;
     let rangeEnd: Date;
     if (period === "custom" && fromParam && toParam) {
-      rangeStart = new Date(fromParam);
-      rangeStart.setHours(0, 0, 0, 0);
-      rangeEnd = new Date(toParam);
-      rangeEnd.setHours(23, 59, 59, 999);
+      // نفس تفسير operations-kpis: تاريخ محلي (T00:00:00) مش UTC، عشان ما يحصلش إزاحة يوم
+      rangeStart = new Date(fromParam + "T00:00:00");
+      rangeEnd = new Date(toParam + "T23:59:59.999");
     } else {
       rangeStart = new Date(now);
-      if (period === "week") {
-        rangeStart.setDate(now.getDate() - 6);
-      }
       rangeStart.setHours(0, 0, 0, 0);
+      if (period === "week") {
+        // بداية الأسبوع التقويمي (الأحد) — نفس تعريف الفلتر الموحّد و operations-kpis
+        rangeStart.setDate(rangeStart.getDate() - rangeStart.getDay());
+      } else if (period === "month") {
+        rangeStart.setDate(1);
+      } else if (period === "year") {
+        rangeStart.setMonth(0, 1);
+      }
       rangeEnd = now;
     }
 
+    // ── الشحنات المحسوبة في الفترة ────────────────────────────────────────
+    // الأصل هو تاريخ إنشاء الشحنة (زي كارت "إجمالي الشحنات" بالظبط)، لكن الشحنة اللي
+    // اتعملت قبل الفترة واتسلّمت فعليًا جواها بتتحسب برضه، وإلا كانت بتضيع من المندوب.
+    const inRange = or(
+      and(gte(shipmentsTable.createdAt, rangeStart), lte(shipmentsTable.createdAt, rangeEnd)),
+      and(isNotNull(shipmentsTable.actualDelivery), gte(shipmentsTable.actualDelivery, rangeStart), lte(shipmentsTable.actualDelivery, rangeEnd)),
+    );
     const cond = tenantId !== null
-      ? and(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.deletedAt), gte(shipmentsTable.createdAt, rangeStart), lte(shipmentsTable.createdAt, rangeEnd))
-      : and(isNull(shipmentsTable.deletedAt), gte(shipmentsTable.createdAt, rangeStart), lte(shipmentsTable.createdAt, rangeEnd));
+      ? and(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.deletedAt), inRange)
+      : and(isNull(shipmentsTable.deletedAt), inRange);
 
     const [rows, companies] = await Promise.all([
       db.select({
@@ -3757,7 +3776,7 @@ router.get("/analytics/reps-daily", requireAuth, async (req, res): Promise<void>
 
     const representatives = companies.map((c) => {
       const repShipments = rows.filter((r) => r.shippingCompanyId === c.id);
-      const delivered = repShipments.filter((r) => normalize(r.status) === "received").length;
+      const delivered = repShipments.filter((r) => isRepDone(normalize(r.status))).length;
       return {
         id: c.id,
         displayName: c.displayName,
@@ -4045,14 +4064,16 @@ router.get("/analytics/top-performers", requireAuth, async (req, res): Promise<v
       rangeFrom = new Date(now); rangeFrom.setHours(0, 0, 0, 0);
       periodLabel = "اليوم";
     } else if (period === "week") {
-      rangeFrom = new Date(now); rangeFrom.setDate(rangeFrom.getDate() - 6); rangeFrom.setHours(0, 0, 0, 0);
-      periodLabel = "آخر 7 أيام";
+      // بداية الأسبوع التقويمي (الأحد) — نفس تعريف الفلتر الموحّد و operations-kpis
+      rangeFrom = new Date(now); rangeFrom.setHours(0, 0, 0, 0);
+      rangeFrom.setDate(rangeFrom.getDate() - rangeFrom.getDay());
+      periodLabel = "هذا الأسبوع";
     } else if (period === "year") {
       rangeFrom = new Date(now.getFullYear(), 0, 1);
       periodLabel = "هذا العام";
     } else if (period === "custom" && customFrom) {
       rangeFrom = new Date(customFrom + "T00:00:00");
-      rangeTo = customTo ? new Date(customTo + "T23:59:59") : now;
+      rangeTo = customTo ? new Date(customTo + "T23:59:59.999") : now;
       periodLabel = "الفترة المحددة";
     } else {
       // "month" (الافتراضي)
@@ -4064,7 +4085,18 @@ router.get("/analytics/top-performers", requireAuth, async (req, res): Promise<v
       ? and(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.deletedAt))
       : isNull(shipmentsTable.deletedAt);
 
+    // أفضل العملاء: بتاريخ الإنشاء فقط (زي ما كان — بيتحسب معاه صافي المستحق للعميل).
     const dateCond = and(cond, gte(shipmentsTable.createdAt, rangeFrom), lte(shipmentsTable.createdAt, rangeTo));
+
+    // أفضل المندوبين: نفس منطق reps-daily — الأصل تاريخ الإنشاء، والشحنة اللي اتعملت قبل
+    // الفترة واتسلّمت فعليًا جواها بتتحسب برضه (وإلا بتضيع من المندوب اللي سلّمها).
+    const repsDateCond = and(
+      cond,
+      or(
+        and(gte(shipmentsTable.createdAt, rangeFrom), lte(shipmentsTable.createdAt, rangeTo)),
+        and(isNotNull(shipmentsTable.actualDelivery), gte(shipmentsTable.actualDelivery, rangeFrom), lte(shipmentsTable.actualDelivery, rangeTo)),
+      ),
+    );
 
     // ═══ 1) أفضل العملاء — تجميع حسب clientId الحقيقي، لكل العملاء (تجاري + عادي) ═══
     // ملحوظة: بنستبعد الشحنات اللي مالهاش clientId (عميل مسجّل) — دي شحنات
@@ -4144,15 +4176,21 @@ router.get("/analytics/top-performers", requireAuth, async (req, res): Promise<v
       : await db.select({ id: shippingCompaniesTable.id, name: shippingCompaniesTable.name, logo: shippingCompaniesTable.logo })
           .from(shippingCompaniesTable);
 
+    // شحنات المندوبين بشرط الفترة الموسّع (إنشاء أو تسليم فعلي) + تعريف "منجزة" الموحّد
+    const repShipmentRows = await db
+      .select({ id: shipmentsTable.id, status: shipmentsTable.status, shippingCompanyId: shipmentsTable.shippingCompanyId })
+      .from(shipmentsTable)
+      .where(repsDateCond);
+
     type RepBucket = { companyId: number; assigned: number; delivered: number };
     const byRep = new Map<number, RepBucket>();
-    for (const r of shipmentRows) {
+    for (const r of repShipmentRows) {
       const companyId = r.shippingCompanyId;
       if (!companyId) continue;
       if (!byRep.has(companyId)) byRep.set(companyId, { companyId, assigned: 0, delivered: 0 });
       const b = byRep.get(companyId)!;
       b.assigned++;
-      if (normalize(r.status) === "received") b.delivered++;
+      if (isRepDone(normalize(r.status))) b.delivered++;
     }
 
     const companyIds = repCompanies.map(c => c.id);

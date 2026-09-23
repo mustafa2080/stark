@@ -544,10 +544,9 @@ const ocRangeOf = (t: "today" | "week" | "month" | "year"): { from: string; to: 
 const ocToRangeFilter = (v: OcPeriodFilter): OcPeriodFilter =>
   v.type === "custom" ? v : { type: "custom", ...ocRangeOf(v.type) };
 
-// endpoint جدول المناديب اليومي بيقبل اليوم/الأسبوع/مدى تواريخ بس، وأي حاجة تانية
-// (شهر/سنة) بيعاملها كـ "اليوم" بصمت → نحوّل الشهر والسنة لمدى تواريخ.
-const ocToRepsDailyFilter = (v: OcPeriodFilter): OcPeriodFilter =>
-  v.type === "month" || v.type === "year" ? { type: "custom", ...ocRangeOf(v.type) } : v;
+// endpoint جدول المناديب اليومي بقى بيدعم اليوم/الأسبوع/الشهر/السنة/مدى تواريخ بنفس
+// تعريفات باقي الـ endpoints، فمبقاش محتاج تحويل — بنسيب الدالة كما هي للتوافق مع الاستدعاءات.
+const ocToRepsDailyFilter = (v: OcPeriodFilter): OcPeriodFilter => v;
 
 // تاريخ أول شحنة في السيستم — لفلتر "أول المدة" (بيتكاش ساعة كاملة)
 function useSystemStart() {
@@ -881,7 +880,9 @@ function RepPeriodFilterBar({
 
   const applyCustomRange = () => {
     if (!draftRange.from || !draftRange.to) return;
-    const toYmd = (d: Date) => d.toISOString().slice(0, 10);
+    // تاريخ محلي (مش toISOString اللي بيحوّل لـ UTC وبيزحزح اليوم في توقيت القاهرة)
+    const toYmd = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     onChange({ type: "custom", from: toYmd(draftRange.from), to: toYmd(draftRange.to) });
     setPopoverOpen(false);
   };
