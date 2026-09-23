@@ -23,6 +23,7 @@ import { getTenantId } from "../middlewares/requireTenant.js";
 import { syncManifestItemToShipment, SHIPMENT_STATUS_TO_DELIVERY, isShipmentVisibleInManifest } from "../lib/manifestSync.js";
 import { syncShipmentInventory } from "./shipments.js";
 import { syncShipmentItemsInventory } from "../lib/inventory.js";
+import { getOriginalProductNamesByShipment } from "../lib/originalProductNames.js";
 import { computeClosedManifestsForClient } from "../lib/clientAccountBalance.js";
 import { computeClientManifestNetDue } from "../lib/manifestFinance.js";
 import { autoAddClientToTripSettlement } from "../lib/tripSettlementSync.js";
@@ -434,6 +435,10 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
     }
     const shipmentMap: Record<number, any> = {};
     shipments.forEach(s => { shipmentMap[s.id] = s; });
+
+    // اسم المنتج القديم في طلبات الاستبدال (لسطر المرتجع الفرعي) — استعلام واحد
+    // بس، ومش بيتنفذ لو مفيش شحنة فيها original_product_id.
+    const originalProductNameMap = await getOriginalProductNamesByShipment(shipments);
 
     // ─── استبعاد الشحنات اللي حالتها الحالية "قيد الانتظار" (waiting/pending) من
     // عرض تفاصيل البيان — ممكن تكون اتضافت للبيان لما كانت "قيد الشحن في المخزن"
@@ -851,6 +856,11 @@ router.get("/client-account-manifests/:id", async (req, res): Promise<void> => {
         // item.returnReceived اللي فوق — ده بتاع بند البيان ومستخدم في الجزئي.
         shipmentKind:           sh?.shipmentKind ?? "new",
         shipmentReturnReceived: sh?.returnReceived ?? null,
+        // اسم المنتج القديم (استبدال فقط) — null لو مش متسجل، والفرونت يقع على النص العام.
+        originalProductName:    originalProductNameMap[item.shipmentId] ?? null,
+        originalQuantity:       sh?.originalQuantity ?? null,
+        originalColor:          sh?.originalColor ?? null,
+        originalSize:           sh?.originalSize ?? null,
         customerName:  sh?.receiverName  ?? "",
         phone:         sh?.receiverPhone ?? "",
         city:          sh?.receiverCity  ?? "",
@@ -1318,7 +1328,8 @@ router.delete("/client-account-manifests/:id/items/:shipmentId", async (req, res
 });
 
 // ─── ترحيل الشحنات المعلقة تلقائيًا عند إغلاق بيان ────────────────────────────
-// لما بيان حساب عميل يتقفل، بيتفتح بيان جديد تلقائيًا لنفس العميل ويتجمع فيه:
+// لما بيان حساب عميل يتقفل، ولو فيه فعلاً حاجة تترحّله (شرط، مش تلقائي مطلق —
+// راجع التعديل 2026-09-23 تحت)، بيتفتح بيان جديد لنفس العميل ويتجمع فيه:
 //   (أ) الشحنات "المعلّقة" بتاعة العميل اللي لسه من غير أي بيان خالص — أي شحنة
 //       بغض النظر عن حالتها (تحديث 2026-08-29: اتشال شرط استبعاد waiting/pending
 //       القديم، عشان أي شحنة orphan تتضاف للبيان الجديد فور القفل بدل ما تفضل
@@ -1331,6 +1342,13 @@ router.delete("/client-account-manifests/:id/items/:shipmentId", async (req, res
 // التقاطها بشرط واحد: مفيهاش أي صف في clientAccountManifestItemsTable خالص
 // (بغض النظر عن حالة أي بيان قديم)، فمفيش خطر تكرار أو التقاط شحنة اتضافت
 // لبيان جديد بالفعل.
+// ⚠️ إصلاح 2026-09-23 (بلاغ المدير): قبل كده كانت الدالة بتفتح بيان جديد
+// فارغ *في كل الحالات* حتى لو (أ) و(ب) طلعوا فاضيين، فكان بيتراكم عدد كبير
+// من البيانات المفتوحة الفاضية (37 عميل)، وأي قفل ليها كان بيظهر بصفر في
+// تسوية الرحلات. دلوقتي البيان الجديد بيتفتح فقط لو فيه عنصر واحد على الأقل
+// يترحّله — غير كده الدالة بترجع newManifestId: null من غير أي insert.
+// فتح بيان فاضٍ عند أول أوردر فعلي بعد الإغلاق هو مسؤولية دالة منفصلة
+// (autoAddShipmentToClientAccountManifest فوق)، مش هنا.
 async function rolloverPendingItemsToNewManifest(
   closedManifestId: number,
   clientId: number,
@@ -1434,7 +1452,23 @@ async function rolloverPendingItemsToNewManifest(
     );
   }
 
-  // كل إغلاق ينتج بياناً مفتوحاً جديداً، حتى لو لا توجد عناصر للترحيل.
+  // ─── وقت الترحيل: pending و delayed فقط، بلا أي استثناء للمرتجع ──────────
+  const delayedOrPendingToRoll = pendingItemsToRoll;
+
+  // ⚠️⚠️⚠️ إصلاح جذري (بلاغ المدير — 37 عميل بيان مفتوح فاضي بيتراكموا):
+  // البيان الجديد بيتفتح فقط لو فعلاً فيه حاجة تترحّله (pending/delayed أو
+  // orphan). لو مفيش أي عنصر، منعملش insert للبيان خالص — عشان "فتح بيان
+  // جديد فارغ" مش سلوك مقصود عند القفل، والآلية الصح لفتح بيان فاضٍ هي
+  // autoAddShipmentToClientAccountManifest، اللي بتتنفذ *وقت إسناد أول
+  // أوردر فعلي* بعد الإغلاق (lazy)، مش وقت القفل نفسه بلا شرط. كل إغلاق
+  // كان بينتج بيان مفتوح فاضٍ فورًا حتى لو مفيش أوردرات خالص، وده اللي كان
+  // بيسبب تراكم عدد كبير من البيانات المفتوحة الفاضية + ظهورها بصفر في
+  // تسوية الرحلات لو حد قفلها.
+  const totalToRoll = delayedOrPendingToRoll.length + orphanShipmentIds.length;
+  if (totalToRoll === 0) {
+    return { rolledOver: 0, newManifestId: null, rolledOverManifest: null };
+  }
+
   const now = new Date();
   const manifestNumber = await generateManifestNumber(clientId);
   const [result] = await db.insert(clientAccountManifestsTable).values({
@@ -1447,9 +1481,6 @@ async function rolloverPendingItemsToNewManifest(
     scheduledCloseAt: computeNextClosingDate(now),
   });
   const newManifestId = (result as any).insertId as number;
-
-  // ─── وقت الترحيل: pending و delayed فقط، بلا أي استثناء للمرتجع ──────────
-  const delayedOrPendingToRoll = pendingItemsToRoll;
 
   const newItems = [
     // ⚠️ deliveryStatus هنا لازم يفضل نفس حالة البند الأصلية (pending أو delayed)
