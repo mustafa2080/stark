@@ -1530,22 +1530,25 @@ function InvoiceGroupDeliveryRow({
                 {displayStatus === "returned" && (rep as any).returnReceived === 1 && (
                   <>
                     <p className="text-[10px] text-emerald-600 mt-0.5 font-semibold">↩ تم الاستلام</p>
-                    <p className="text-[10px] text-red-400 mt-0.5 flex items-center gap-0.5">
-                      ↳ {(rep as any).returnReason ? returnReasonLabel((rep as any).returnReason, rep.deliveryNote) : "لم يحدد السبب"}
+                    <p className="text-[10px] text-red-400 mt-0.5 flex items-start gap-0.5 leading-snug break-words">
+                      <span className="shrink-0">↳</span>
+                      {(rep as any).returnReason ? returnReasonLabel((rep as any).returnReason, rep.deliveryNote) : "لم يحدد السبب"}
                     </p>
                   </>
                 )}
                 {displayStatus === "returned" && (rep as any).returnReceived === 0 && (
                   <>
                     <p className="text-[10px] text-orange-500 mt-0.5 font-semibold">⏳ مع مندوب الشحن</p>
-                    <p className="text-[10px] text-red-400 mt-0.5 flex items-center gap-0.5">
-                      ↳ {(rep as any).returnReason ? returnReasonLabel((rep as any).returnReason, rep.deliveryNote) : "لم يحدد السبب"}
+                    <p className="text-[10px] text-red-400 mt-0.5 flex items-start gap-0.5 leading-snug break-words">
+                      <span className="shrink-0">↳</span>
+                      {(rep as any).returnReason ? returnReasonLabel((rep as any).returnReason, rep.deliveryNote) : "لم يحدد السبب"}
                     </p>
                   </>
                 )}
                 {displayStatus === "returned" && (rep as any).returnReceived == null && (
-                  <p className="text-[10px] text-red-400 mt-0.5 flex items-center gap-0.5">
-                    ↳ {(rep as any).returnReason ? returnReasonLabel((rep as any).returnReason, rep.deliveryNote) : "لم يحدد السبب"}
+                  <p className="text-[10px] text-red-400 mt-0.5 flex items-start gap-0.5 leading-snug break-words">
+                    <span className="shrink-0">↳</span>
+                    {(rep as any).returnReason ? returnReasonLabel((rep as any).returnReason, rep.deliveryNote) : "لم يحدد السبب"}
                   </p>
                 )}
                 {/* sub-status لطلب الاستبدال / إحضار الطرد في الـ group row */}
@@ -1595,7 +1598,7 @@ function InvoiceGroupDeliveryRow({
           {/* ملاحظات */}
           <div className="hidden md:flex min-w-0 px-1.5 items-start overflow-hidden">
             {rep.deliveryNote ? (
-              <p className="text-[10px] leading-relaxed text-foreground/80 truncate">{rep.deliveryNote}</p>
+              <p className="text-[10px] leading-snug text-foreground/80 break-words">{rep.deliveryNote}</p>
             ) : (
               <p className="text-muted-foreground/40 text-[10px]">—</p>
             )}
