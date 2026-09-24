@@ -4236,6 +4236,45 @@ export default function ShippingManifestPage() {
     .mp-excel-title span { margin-right:4mm; } .mp-excel-meta { padding:0.65mm 2mm; color:#d9e6f5; font-size:6.2pt; background:#214a80; }
     .mp-excel-meta b { padding:0 2.5mm; color:#a9bdd6; }
     .mp-table thead tr { background:#214a80; } .mp-table td { height:6.2mm; }
+
+    /* ── Paper-friendly override: black text + black lines, no dark fills ── */
+    body, .mp-title, .mp-company-name, .mp-company-sub, .mp-meta, .mp-num, .mp-sub, .mp-note,
+    .mp-stat-lbl, .mp-stat-val, .mp-total-lbl, .mp-total-val, .mp-sig-title, .mp-sig-name,
+    .mp-watermark, .mp-stark-name, .mp-stark-tagline,
+    .mp-excel-brand, .mp-excel-title, .mp-excel-meta, .mp-excel-meta b,
+    .mp-stat-delivered .mp-stat-val, .mp-stat-returned .mp-stat-val,
+    .mp-stat-postponed .mp-stat-val, .mp-stat-partial .mp-stat-val,
+    .mp-total-orange, .mp-total-green, .mp-total-blue,
+    .st-d, .st-r, .st-p, .st-x, .st-n { color:#000 !important; -webkit-text-fill-color:#000 !important; }
+    .mp-header, .mp-excel-header, .mp-excel-meta, .mp-table thead tr, .mp-table th,
+    .mp-stat, .mp-stat-delivered, .mp-stat-returned, .mp-stat-postponed, .mp-stat-partial,
+    .mp-total-card, .mp-total-highlight, .mp-row-alt td, .mp-table td { background:#fff !important; }
+    .mp-table th { color:#000 !important; font-weight:800; }
+    .mp-header, .mp-excel-header { border:0.35mm solid #000 !important; }
+    .mp-excel-title { border-top:0.25mm solid #000 !important; }
+    .mp-logo { border-color:#000 !important; }
+    .mp-badge, .mp-badge-open, .mp-badge-closed { background:#fff !important; color:#000 !important; border:0.25mm solid #000 !important; }
+    .mp-stats, .mp-table { border:0.35mm solid #000 !important; }
+    .mp-stat { border-left:0.25mm solid #000 !important; }
+    .mp-stat:last-child { border-left:none !important; }
+    .mp-table th, .mp-table td { border:0.25mm solid #000 !important; }
+    .mp-total-card { border:0.3mm solid #000 !important; }
+    .mp-footer { border-top:0.3mm solid #000 !important; }
+    .mp-sig-line { border-top:0.3mm solid #000 !important; }
+
+    /* ── All-borders: every cell gets a full black border on all 4 sides ── */
+    .mp-table { border-collapse:collapse !important; }
+    .mp-table th, .mp-table td { border:0.25mm solid #000 !important; }
+    .mp-stat { border:0.25mm solid #000 !important; }
+    .mp-stat:last-child { border:0.25mm solid #000 !important; }
+    .mp-stats { gap:0; overflow:visible; border:none !important; padding-left:0.25mm; }
+    .mp-stat { margin-left:-0.25mm; }
+
+    /* ── Center all content (horizontal + vertical) ── */
+    .mp-table th, .mp-table td { text-align:center !important; vertical-align:middle !important; }
+    .mp-table td.mp-td-ltr { direction:ltr; text-align:center !important; }
+    .mp-table td, .mp-table td * { color:#000 !important; }
+    .mp-stat, .mp-total-card { text-align:center !important; }
   </style>
 </head>
 <body>
@@ -5565,6 +5604,45 @@ export default function ShippingManifestPage() {
     .mp-excel-title span { margin-right:4mm; } .mp-excel-meta { padding:0.65mm 2mm; color:#d9e6f5; font-size:6.2pt; background:#214a80; }
     .mp-excel-meta b { padding:0 2.5mm; color:#a9bdd6; }
     .mp-table thead tr { background:#214a80; } .mp-table td { height:6.2mm; }
+
+    /* ── Paper-friendly override: black text + black lines, no dark fills ── */
+    body, .mp-title, .mp-company-name, .mp-company-sub, .mp-meta, .mp-num, .mp-sub, .mp-note,
+    .mp-stat-lbl, .mp-stat-val, .mp-total-lbl, .mp-total-val, .mp-sig-title, .mp-sig-name,
+    .mp-watermark, .mp-stark-name, .mp-stark-tagline,
+    .mp-excel-brand, .mp-excel-title, .mp-excel-meta, .mp-excel-meta b,
+    .mp-stat-delivered .mp-stat-val, .mp-stat-returned .mp-stat-val,
+    .mp-stat-postponed .mp-stat-val, .mp-stat-partial .mp-stat-val,
+    .mp-total-orange, .mp-total-green, .mp-total-blue,
+    .st-d, .st-r, .st-p, .st-x, .st-n { color:#000 !important; -webkit-text-fill-color:#000 !important; }
+    .mp-header, .mp-excel-header, .mp-excel-meta, .mp-table thead tr, .mp-table th,
+    .mp-stat, .mp-stat-delivered, .mp-stat-returned, .mp-stat-postponed, .mp-stat-partial,
+    .mp-total-card, .mp-total-highlight, .mp-row-alt td, .mp-table td { background:#fff !important; }
+    .mp-table th { color:#000 !important; font-weight:800; }
+    .mp-header, .mp-excel-header { border:0.35mm solid #000 !important; }
+    .mp-excel-title { border-top:0.25mm solid #000 !important; }
+    .mp-logo { border-color:#000 !important; }
+    .mp-badge, .mp-badge-open, .mp-badge-closed { background:#fff !important; color:#000 !important; border:0.25mm solid #000 !important; }
+    .mp-stats, .mp-table { border:0.35mm solid #000 !important; }
+    .mp-stat { border-left:0.25mm solid #000 !important; }
+    .mp-stat:last-child { border-left:none !important; }
+    .mp-table th, .mp-table td { border:0.25mm solid #000 !important; }
+    .mp-total-card { border:0.3mm solid #000 !important; }
+    .mp-footer { border-top:0.3mm solid #000 !important; }
+    .mp-sig-line { border-top:0.3mm solid #000 !important; }
+
+    /* ── All-borders: every cell gets a full black border on all 4 sides ── */
+    .mp-table { border-collapse:collapse !important; }
+    .mp-table th, .mp-table td { border:0.25mm solid #000 !important; }
+    .mp-stat { border:0.25mm solid #000 !important; }
+    .mp-stat:last-child { border:0.25mm solid #000 !important; }
+    .mp-stats { gap:0; overflow:visible; border:none !important; padding-left:0.25mm; }
+    .mp-stat { margin-left:-0.25mm; }
+
+    /* ── Center all content (horizontal + vertical) ── */
+    .mp-table th, .mp-table td { text-align:center !important; vertical-align:middle !important; }
+    .mp-table td.mp-td-ltr { direction:ltr; text-align:center !important; }
+    .mp-table td, .mp-table td * { color:#000 !important; }
+    .mp-stat, .mp-total-card { text-align:center !important; }
   </style>
 </head>
 <body>${html}</body>

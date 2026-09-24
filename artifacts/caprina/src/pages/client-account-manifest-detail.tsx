@@ -4378,7 +4378,7 @@ export default function ShippingManifestPage() {
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet"/>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    @page { size: A4 portrait; margin: 8mm 10mm; }
+    @page { size: A4 landscape; margin: 5mm 6mm; }
     body {
       font-family: 'Cairo', 'Segoe UI', Arial, sans-serif;
       font-size: 10pt;
@@ -4393,10 +4393,10 @@ export default function ShippingManifestPage() {
     .mp-header { display:flex; justify-content:space-between; align-items:center; border-bottom:3px solid #1e3a5f; padding-bottom:3mm; margin-bottom:3mm; }
     .mp-header-left { flex:1; }
     .mp-header-right { display:flex; align-items:center; gap:3mm; flex-direction:row; flex-shrink:0; }
-    .mp-title { font-size:18pt; font-weight:900; color:#1e3a5f; line-height:1.1; }
     .mp-stark-brand { display:flex; align-items:baseline; gap:2mm; margin-bottom:1.5mm; }
     .mp-stark-name { font-size:15pt; font-weight:900; letter-spacing:3px; color:#0f172a; background:linear-gradient(90deg,#0f172a,#1e3a5f); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
     .mp-stark-tagline { font-size:6.5pt; font-weight:700; letter-spacing:2px; color:#c9a24b; border-left:2px solid #c9a24b; padding-left:2mm; }
+    .mp-title { font-size:18pt; font-weight:900; color:#1e3a5f; line-height:1.1; }
     .mp-meta { font-size:9pt; color:#555; margin-top:1.5mm; line-height:1.7; }
     .mp-badge { display:inline-block; margin-top:2mm; padding:1mm 4mm; border-radius:10mm; font-size:8pt; font-weight:800; }
     .mp-badge-open   { background:#dbeafe; color:#1d4ed8; border:1px solid #93c5fd; }
@@ -4444,28 +4444,78 @@ export default function ShippingManifestPage() {
     .mp-sig-title { font-size:9pt; color:#64748b; margin-bottom:8mm; font-weight:700; }
     .mp-sig-line  { border-top:1.5px solid #333; width:80%; margin:0 auto; }
     .mp-sig-name  { font-size:8pt; color:#555; margin-top:2mm; }
-    /* ── Compact mode (2026-09-06): بيان صغير/متوسط (≤20 شحنة) — ضغط
-       الهوامش/الخطوط عشان يتقل صفحة A4 واحدة قد الإمكان. ── */
-    body.mp-compact { padding: 0 1mm; }
-    .mp-compact .mp-header { padding-bottom:2mm; margin-bottom:2mm; }
-    .mp-compact .mp-title { font-size:15pt; }
-    .mp-compact .mp-meta { font-size:8pt; margin-top:1mm; line-height:1.4; }
-    .mp-compact .mp-stats { margin-bottom:2mm; }
-    .mp-compact .mp-stat { padding:1.5mm 2mm; }
-    .mp-compact .mp-stat-lbl { font-size:7pt; margin-bottom:0.3mm; }
-    .mp-compact .mp-stat-val { font-size:12pt; }
-    .mp-compact .mp-table { font-size:8.5pt; margin-bottom:2mm; }
-    .mp-compact .mp-table th { padding:1.5mm 2mm; font-size:8pt; }
-    .mp-compact .mp-table td { padding:1.3mm 2mm; line-height:1.25; }
-    .mp-compact .mp-sub { font-size:7pt; }
-    .mp-compact .mp-note { font-size:7pt; }
-    .mp-compact .st-d, .mp-compact .st-r, .mp-compact .st-p, .mp-compact .st-x, .mp-compact .st-n { font-size:7.5pt; padding:0.3mm 2mm; }
-    .mp-compact .mp-totals { gap:2mm; margin-bottom:2.5mm; }
-    .mp-compact .mp-total-card { padding:2mm 3mm; }
-    .mp-compact .mp-total-lbl { font-size:7pt; margin-bottom:0.5mm; }
-    .mp-compact .mp-total-val { font-size:11pt; }
-    .mp-compact .mp-footer { padding-top:2.5mm; margin-top:2.5mm; }
-    .mp-compact .mp-sig-title { margin-bottom:5mm; }
+
+    /* Excel-inspired compact layout: more shipment rows per landscape page. */
+    body { font-size:7pt; padding:0; }
+    .mp-header { background:#163a70; color:#fff; border:0; padding:2mm 4mm; margin-bottom:1.5mm; min-height:18mm; }
+    .mp-stark-brand { margin-bottom:0.5mm; }
+    .mp-stark-name { font-size:12pt; color:#f4c86a; background:none; -webkit-text-fill-color:#f4c86a; }
+    .mp-stark-tagline { color:#f4c86a; border-color:#f4c86a; font-size:5.5pt; }
+    .mp-title, .mp-company-name { color:#fff; font-size:12pt; }
+    .mp-meta, .mp-company-sub { color:#d7e3f4; font-size:6.5pt; margin-top:0.5mm; line-height:1.35; }
+    .mp-logo { width:11mm; height:11mm; border-width:1px; }
+    .mp-badge { margin-top:1mm; padding:0.35mm 2mm; border-radius:1mm; font-size:6pt; }
+    .mp-stats { border:0.4mm solid #163a70; border-radius:0; margin-bottom:1.5mm; }
+    .mp-stat { padding:0.8mm 1mm; border-left:0.2mm solid #cbd5e1; }
+    .mp-stat-lbl { font-size:5.8pt; margin-bottom:0; } .mp-stat-val { font-size:9pt; }
+    .mp-table { table-layout:fixed; margin-bottom:1.5mm; font-size:6.6pt; border:0.35mm solid #163a70; }
+    .mp-table thead { display:table-header-group; }
+    .mp-table th { padding:1mm 0.8mm; text-align:center; font-size:6.5pt; line-height:1.15; border:0.2mm solid #b9c8db; }
+    .mp-table td { padding:0.85mm 0.8mm; border:0.2mm solid #cbd5e1; line-height:1.2; overflow-wrap:anywhere; }
+    .mp-table tr { break-inside:avoid; page-break-inside:avoid; }
+    .mp-row-alt td { background:#f5f8fc; }
+    .mp-num, .mp-note, .mp-td-ltr { font-size:5.8pt; } .mp-sub { font-size:5.5pt; margin-top:0; }
+    .st-d, .st-r, .st-p, .st-x, .st-n { background:transparent; padding:0; border-radius:0; font-size:6pt; }
+    .mp-totals { gap:1.5mm; margin-bottom:1.5mm; }
+    .mp-total-card { border-width:0.25mm; border-radius:0; padding:1.25mm 2mm; }
+    .mp-total-lbl { font-size:6pt; margin-bottom:0; } .mp-total-val { font-size:9pt; }
+    .mp-footer { padding-top:1.5mm; margin-top:1.5mm; }
+    .mp-sig-title { font-size:6.5pt; margin-bottom:5mm; } .mp-sig-name, .mp-watermark { font-size:5.5pt; }
+    .mp-excel-header { margin-bottom:1.5mm; text-align:center; color:#fff; background:#173969; border:0.35mm solid #173969; }
+    .mp-excel-brand { padding:1.1mm 2mm 0.7mm; color:#efc26b; font-size:12pt; font-weight:900; letter-spacing:0.8mm; line-height:1; }
+    .mp-excel-title { padding:0.75mm 2mm; color:#efc26b; font-size:8.5pt; font-weight:900; border-top:0.2mm solid rgba(255,255,255,.14); }
+    .mp-excel-title span { margin-right:4mm; } .mp-excel-meta { padding:0.65mm 2mm; color:#d9e6f5; font-size:6.2pt; background:#214a80; }
+    .mp-excel-meta b { padding:0 2.5mm; color:#a9bdd6; }
+    .mp-table thead tr { background:#214a80; } .mp-table td { height:6.2mm; }
+
+    /* ── Paper-friendly override: black text + black lines, no dark fills ── */
+    body, .mp-title, .mp-company-name, .mp-company-sub, .mp-meta, .mp-num, .mp-sub, .mp-note,
+    .mp-stat-lbl, .mp-stat-val, .mp-total-lbl, .mp-total-val, .mp-sig-title, .mp-sig-name,
+    .mp-watermark, .mp-stark-name, .mp-stark-tagline,
+    .mp-excel-brand, .mp-excel-title, .mp-excel-meta, .mp-excel-meta b,
+    .mp-stat-delivered .mp-stat-val, .mp-stat-returned .mp-stat-val,
+    .mp-stat-postponed .mp-stat-val, .mp-stat-partial .mp-stat-val,
+    .mp-total-orange, .mp-total-green, .mp-total-blue,
+    .st-d, .st-r, .st-p, .st-x, .st-n { color:#000 !important; -webkit-text-fill-color:#000 !important; }
+    .mp-header, .mp-excel-header, .mp-excel-meta, .mp-table thead tr, .mp-table th,
+    .mp-stat, .mp-stat-delivered, .mp-stat-returned, .mp-stat-postponed, .mp-stat-partial,
+    .mp-total-card, .mp-total-highlight, .mp-row-alt td, .mp-table td { background:#fff !important; }
+    .mp-table th { color:#000 !important; font-weight:800; }
+    .mp-header, .mp-excel-header { border:0.35mm solid #000 !important; }
+    .mp-excel-title { border-top:0.25mm solid #000 !important; }
+    .mp-logo { border-color:#000 !important; }
+    .mp-badge, .mp-badge-open, .mp-badge-closed { background:#fff !important; color:#000 !important; border:0.25mm solid #000 !important; }
+    .mp-stats, .mp-table { border:0.35mm solid #000 !important; }
+    .mp-stat { border-left:0.25mm solid #000 !important; }
+    .mp-stat:last-child { border-left:none !important; }
+    .mp-table th, .mp-table td { border:0.25mm solid #000 !important; }
+    .mp-total-card { border:0.3mm solid #000 !important; }
+    .mp-footer { border-top:0.3mm solid #000 !important; }
+    .mp-sig-line { border-top:0.3mm solid #000 !important; }
+
+    /* ── All-borders: every cell gets a full black border on all 4 sides ── */
+    .mp-table { border-collapse:collapse !important; }
+    .mp-table th, .mp-table td { border:0.25mm solid #000 !important; }
+    .mp-stat { border:0.25mm solid #000 !important; }
+    .mp-stat:last-child { border:0.25mm solid #000 !important; }
+    .mp-stats { gap:0; overflow:visible; border:none !important; padding-left:0.25mm; }
+    .mp-stat { margin-left:-0.25mm; }
+
+    /* ── Center all content (horizontal + vertical) ── */
+    .mp-table th, .mp-table td { text-align:center !important; vertical-align:middle !important; }
+    .mp-table td.mp-td-ltr { direction:ltr; text-align:center !important; }
+    .mp-table td, .mp-table td * { color:#000 !important; }
+    .mp-stat, .mp-total-card { text-align:center !important; }
   </style>
 </head>
 <body class="${baseManifestGroups.length <= 20 ? 'mp-compact' : ''}">
@@ -4624,43 +4674,11 @@ export default function ShippingManifestPage() {
         ويتوزع على أكتر من صفحة طبيعي — الأولوية للتطابق مش للحشر. */}
     <div className={`manifest-print print:block hidden${baseManifestGroups.length <= 20 ? " mp-compact" : ""}`} dir="rtl">
 
-      {/* ─── Header ─── */}
-      <div className="mp-header">
-        <div className="mp-header-left">
-          <div className="mp-stark-brand">
-            <span className="mp-stark-name">STARK</span>
-            <span className="mp-stark-tagline">SHIPPING &amp; LOGISTICS</span>
-          </div>
-          <div className="mp-title">بيان الشحن — {manifest.manifestNumber}</div>
-          <div className="mp-meta">
-            تاريخ الإنشاء: {format(new Date(manifest.createdAt), "yyyy/MM/dd")}
-            {manifest.closedAt && <>&emsp;أُغلق: {format(new Date(manifest.closedAt), "yyyy/MM/dd")}</>}
-            <br />طُبع: {format(new Date(), "yyyy/MM/dd — HH:mm")}
-          </div>
-          <span className={`mp-badge ${manifest.status === "closed" ? "mp-badge-closed" : "mp-badge-open"}`}>
-            {manifest.status === "closed" ? "✓ مغلق" : "● مفتوح"}
-          </span>
-        </div>
-        <div className="mp-header-right">
-          {manifest.companyLogo
-            ? <img src={manifest.companyLogo} className="mp-logo" alt={manifest.companyName} crossOrigin="anonymous" />
-            : null
-          }
-          <div>
-            <div className="mp-company-name">{manifest.companyName}</div>
-            <div className="mp-company-sub">SHIPPING COMPANY</div>
-          </div>
-        </div>
-      </div>
-
-      {/* ─── Stats strip ─── */}
-      <div className="mp-stats">
-        <div className="mp-stat"><div className="mp-stat-lbl">إجمالي الطلبيات</div><div className="mp-stat-val">{groupedTotalCount}</div></div>
-        <div className="mp-stat mp-stat-delivered"><div className="mp-stat-lbl">مسلَّم</div><div className="mp-stat-val">{groupedDeliveredCount}</div></div>
-        <div className="mp-stat mp-stat-returned"><div className="mp-stat-lbl">مرتجع</div><div className="mp-stat-val">{groupedReturnedCount}</div></div>
-        <div className="mp-stat mp-stat-postponed"><div className="mp-stat-lbl">مؤجل</div><div className="mp-stat-val">{groupedPostponedCount}</div></div>
-        <div className="mp-stat mp-stat-partial"><div className="mp-stat-lbl">جزئي</div><div className="mp-stat-val">{groupedPartialCount}</div></div>
-        <div className="mp-stat"><div className="mp-stat-lbl">نسبة التسليم</div><div className="mp-stat-val">{screenDeliveryRate}%</div></div>
+      {/* ─── Excel-style title area ─── */}
+      <div className="mp-excel-header">
+        <div className="mp-excel-brand">STARK&nbsp;&nbsp;·&nbsp;&nbsp;WIN OR DIE</div>
+        <div className="mp-excel-title">بيان الشحن — {manifest.manifestNumber}<span> | {manifest.companyName} | {format(new Date(manifest.createdAt), "yyyy/MM/dd")}</span></div>
+        <div className="mp-excel-meta">طُبع: {format(new Date(), "yyyy/MM/dd HH:mm")} <b>|</b> إجمالي المسلم: {groupedDeliveredCount} من {groupedTotalCount} <b>|</b> نسبة التسليم: {screenDeliveryRate}%</div>
       </div>
 
       {/* ─── Orders table ─── */}
@@ -6103,10 +6121,10 @@ export default function ShippingManifestPage() {
     .mp-header { display:flex; justify-content:space-between; align-items:center; border-bottom:3px solid #1e3a5f; padding-bottom:3mm; margin-bottom:3mm; }
     .mp-header-left { flex:1; }
     .mp-header-right { display:flex; align-items:center; gap:3mm; flex-direction:row; flex-shrink:0; }
-    .mp-title { font-size:18pt; font-weight:900; color:#1e3a5f; line-height:1.1; }
     .mp-stark-brand { display:flex; align-items:baseline; gap:2mm; margin-bottom:1.5mm; }
     .mp-stark-name { font-size:15pt; font-weight:900; letter-spacing:3px; color:#0f172a; background:linear-gradient(90deg,#0f172a,#1e3a5f); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
     .mp-stark-tagline { font-size:6.5pt; font-weight:700; letter-spacing:2px; color:#c9a24b; border-left:2px solid #c9a24b; padding-left:2mm; }
+    .mp-title { font-size:18pt; font-weight:900; color:#1e3a5f; line-height:1.1; }
     .mp-meta { font-size:9pt; color:#555; margin-top:1.5mm; line-height:1.7; }
     .mp-badge { display:inline-block; margin-top:2mm; padding:1mm 4mm; border-radius:10mm; font-size:8pt; font-weight:800; }
     .mp-badge-open { background:#dbeafe; color:#1d4ed8; border:1px solid #93c5fd; }
@@ -6148,6 +6166,78 @@ export default function ShippingManifestPage() {
     .mp-sig-title { font-size:9pt; color:#64748b; margin-bottom:8mm; font-weight:700; }
     .mp-sig-line { border-top:1.5px solid #333; width:80%; margin:0 auto; }
     .mp-sig-name { font-size:8pt; color:#555; margin-top:2mm; }
+
+    /* Keep the preview identical to the compact landscape printout. */
+    body { font-size:7pt; padding:5mm 6mm; }
+    .mp-header { background:#163a70; color:#fff; border:0; padding:2mm 4mm; margin-bottom:1.5mm; min-height:18mm; }
+    .mp-stark-brand { margin-bottom:0.5mm; }
+    .mp-stark-name { font-size:12pt; color:#f4c86a; background:none; -webkit-text-fill-color:#f4c86a; }
+    .mp-stark-tagline { color:#f4c86a; border-color:#f4c86a; font-size:5.5pt; }
+    .mp-title, .mp-company-name { color:#fff; font-size:12pt; }
+    .mp-meta, .mp-company-sub { color:#d7e3f4; font-size:6.5pt; margin-top:0.5mm; line-height:1.35; }
+    .mp-logo { width:11mm; height:11mm; border-width:1px; }
+    .mp-badge { margin-top:1mm; padding:0.35mm 2mm; border-radius:1mm; font-size:6pt; }
+    .mp-stats { border:0.4mm solid #163a70; border-radius:0; margin-bottom:1.5mm; }
+    .mp-stat { padding:0.8mm 1mm; border-left:0.2mm solid #cbd5e1; }
+    .mp-stat-lbl { font-size:5.8pt; margin-bottom:0; } .mp-stat-val { font-size:9pt; }
+    .mp-table { table-layout:fixed; margin-bottom:1.5mm; font-size:6.6pt; border:0.35mm solid #163a70; }
+    .mp-table thead { display:table-header-group; }
+    .mp-table th { padding:1mm 0.8mm; text-align:center; font-size:6.5pt; line-height:1.15; border:0.2mm solid #b9c8db; }
+    .mp-table td { padding:0.85mm 0.8mm; border:0.2mm solid #cbd5e1; line-height:1.2; overflow-wrap:anywhere; }
+    .mp-table tr { break-inside:avoid; page-break-inside:avoid; }
+    .mp-row-alt td { background:#f5f8fc; }
+    .mp-num, .mp-note, .mp-td-ltr { font-size:5.8pt; } .mp-sub { font-size:5.5pt; margin-top:0; }
+    .st-d, .st-r, .st-p, .st-x, .st-n { background:transparent; padding:0; border-radius:0; font-size:6pt; }
+    .mp-totals { gap:1.5mm; margin-bottom:1.5mm; }
+    .mp-total-card { border-width:0.25mm; border-radius:0; padding:1.25mm 2mm; }
+    .mp-total-lbl { font-size:6pt; margin-bottom:0; } .mp-total-val { font-size:9pt; }
+    .mp-footer { padding-top:1.5mm; margin-top:1.5mm; }
+    .mp-sig-title { font-size:6.5pt; margin-bottom:5mm; } .mp-sig-name, .mp-watermark { font-size:5.5pt; }
+    .mp-excel-header { margin-bottom:1.5mm; text-align:center; color:#fff; background:#173969; border:0.35mm solid #173969; }
+    .mp-excel-brand { padding:1.1mm 2mm 0.7mm; color:#efc26b; font-size:12pt; font-weight:900; letter-spacing:0.8mm; line-height:1; }
+    .mp-excel-title { padding:0.75mm 2mm; color:#efc26b; font-size:8.5pt; font-weight:900; border-top:0.2mm solid rgba(255,255,255,.14); }
+    .mp-excel-title span { margin-right:4mm; } .mp-excel-meta { padding:0.65mm 2mm; color:#d9e6f5; font-size:6.2pt; background:#214a80; }
+    .mp-excel-meta b { padding:0 2.5mm; color:#a9bdd6; }
+    .mp-table thead tr { background:#214a80; } .mp-table td { height:6.2mm; }
+
+    /* ── Paper-friendly override: black text + black lines, no dark fills ── */
+    body, .mp-title, .mp-company-name, .mp-company-sub, .mp-meta, .mp-num, .mp-sub, .mp-note,
+    .mp-stat-lbl, .mp-stat-val, .mp-total-lbl, .mp-total-val, .mp-sig-title, .mp-sig-name,
+    .mp-watermark, .mp-stark-name, .mp-stark-tagline,
+    .mp-excel-brand, .mp-excel-title, .mp-excel-meta, .mp-excel-meta b,
+    .mp-stat-delivered .mp-stat-val, .mp-stat-returned .mp-stat-val,
+    .mp-stat-postponed .mp-stat-val, .mp-stat-partial .mp-stat-val,
+    .mp-total-orange, .mp-total-green, .mp-total-blue,
+    .st-d, .st-r, .st-p, .st-x, .st-n { color:#000 !important; -webkit-text-fill-color:#000 !important; }
+    .mp-header, .mp-excel-header, .mp-excel-meta, .mp-table thead tr, .mp-table th,
+    .mp-stat, .mp-stat-delivered, .mp-stat-returned, .mp-stat-postponed, .mp-stat-partial,
+    .mp-total-card, .mp-total-highlight, .mp-row-alt td, .mp-table td { background:#fff !important; }
+    .mp-table th { color:#000 !important; font-weight:800; }
+    .mp-header, .mp-excel-header { border:0.35mm solid #000 !important; }
+    .mp-excel-title { border-top:0.25mm solid #000 !important; }
+    .mp-logo { border-color:#000 !important; }
+    .mp-badge, .mp-badge-open, .mp-badge-closed { background:#fff !important; color:#000 !important; border:0.25mm solid #000 !important; }
+    .mp-stats, .mp-table { border:0.35mm solid #000 !important; }
+    .mp-stat { border-left:0.25mm solid #000 !important; }
+    .mp-stat:last-child { border-left:none !important; }
+    .mp-table th, .mp-table td { border:0.25mm solid #000 !important; }
+    .mp-total-card { border:0.3mm solid #000 !important; }
+    .mp-footer { border-top:0.3mm solid #000 !important; }
+    .mp-sig-line { border-top:0.3mm solid #000 !important; }
+
+    /* ── All-borders: every cell gets a full black border on all 4 sides ── */
+    .mp-table { border-collapse:collapse !important; }
+    .mp-table th, .mp-table td { border:0.25mm solid #000 !important; }
+    .mp-stat { border:0.25mm solid #000 !important; }
+    .mp-stat:last-child { border:0.25mm solid #000 !important; }
+    .mp-stats { gap:0; overflow:visible; border:none !important; padding-left:0.25mm; }
+    .mp-stat { margin-left:-0.25mm; }
+
+    /* ── Center all content (horizontal + vertical) ── */
+    .mp-table th, .mp-table td { text-align:center !important; vertical-align:middle !important; }
+    .mp-table td.mp-td-ltr { direction:ltr; text-align:center !important; }
+    .mp-table td, .mp-table td * { color:#000 !important; }
+    .mp-stat, .mp-total-card { text-align:center !important; }
   </style>
 </head>
 <body>${html}</body>
