@@ -3752,9 +3752,17 @@ router.get("/analytics/reps-daily", requireAuth, async (req, res): Promise<void>
     // ── الشحنات المحسوبة في الفترة ────────────────────────────────────────
     // الأصل هو تاريخ إنشاء الشحنة (زي كارت "إجمالي الشحنات" بالظبط)، لكن الشحنة اللي
     // اتعملت قبل الفترة واتسلّمت فعليًا جواها بتتحسب برضه، وإلا كانت بتضيع من المندوب.
+    // نفس المنطق للرجوع/الإلغاء: الشحنة القديمة اللي اترجعت أو اتلغت فعليًا جوه الفترة
+    // (حسب آخر تحديث لحالتها) بتتحسب برضه — عشان تقييم المندوب يشمل كل نتيجة نهائية
+    // حصلت فعليًا في الفترة، مش بس التسليم.
     const inRange = or(
       and(gte(shipmentsTable.createdAt, rangeStart), lte(shipmentsTable.createdAt, rangeEnd)),
       and(isNotNull(shipmentsTable.actualDelivery), gte(shipmentsTable.actualDelivery, rangeStart), lte(shipmentsTable.actualDelivery, rangeEnd)),
+      and(
+        inArray(shipmentsTable.status, ["returned", "cancelled"]),
+        gte(shipmentsTable.updatedAt, rangeStart),
+        lte(shipmentsTable.updatedAt, rangeEnd),
+      ),
     );
     const cond = tenantId !== null
       ? and(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.deletedAt), inRange)
@@ -4090,11 +4098,18 @@ router.get("/analytics/top-performers", requireAuth, async (req, res): Promise<v
 
     // أفضل المندوبين: نفس منطق reps-daily — الأصل تاريخ الإنشاء، والشحنة اللي اتعملت قبل
     // الفترة واتسلّمت فعليًا جواها بتتحسب برضه (وإلا بتضيع من المندوب اللي سلّمها).
+    // وكذلك الشحنة القديمة اللي اترجعت/اتلغت فعليًا جوه الفترة (حسب آخر تحديث لحالتها) —
+    // عشان تقييم المندوب يشمل كل نتيجة نهائية حصلت في الفترة، مش بس التسليم.
     const repsDateCond = and(
       cond,
       or(
         and(gte(shipmentsTable.createdAt, rangeFrom), lte(shipmentsTable.createdAt, rangeTo)),
         and(isNotNull(shipmentsTable.actualDelivery), gte(shipmentsTable.actualDelivery, rangeFrom), lte(shipmentsTable.actualDelivery, rangeTo)),
+        and(
+          inArray(shipmentsTable.status, ["returned", "cancelled"]),
+          gte(shipmentsTable.updatedAt, rangeFrom),
+          lte(shipmentsTable.updatedAt, rangeTo),
+        ),
       ),
     );
 
