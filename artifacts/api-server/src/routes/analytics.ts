@@ -43,6 +43,34 @@ const router: IRouter = Router();
 const REP_DONE_STATUSES = new Set<string>(["received", "partial_received", "replaced", "parcel_picked"]);
 const isRepDone = (normalizedStatus: string): boolean => REP_DONE_STATUSES.has(normalizedStatus);
 
+// ── Fallback لربط الشحنة بالمندوب عن طريق المانيفست ────────────────────────────
+// كتير من الشحنات بترتبط بالمندوب فعليًا عن طريق بيان الشحن (shipment_manifests)
+// لكن عمود shipments.shipping_company_id بيفضل null (مش بيتحدّث وقت الترحيل
+// للمانيفست). فبنجيب هنا map لكل shipmentId اللي مالوش shippingCompanyId مباشر،
+// من آخر مانيفست (الأحدث addedAt) مرتبط بيه وله shippingCompanyId فعلي.
+async function getManifestRepFallbackMap(shipmentIds: number[]): Promise<Map<number, number>> {
+  const map = new Map<number, number>();
+  if (shipmentIds.length === 0) return map;
+  const rows = await db
+    .select({
+      shipmentId: shipmentManifestItemsTable.shipmentId,
+      addedAt: shipmentManifestItemsTable.addedAt,
+      shippingCompanyId: shipmentManifestsTable.shippingCompanyId,
+    })
+    .from(shipmentManifestItemsTable)
+    .innerJoin(shipmentManifestsTable, eq(shipmentManifestItemsTable.manifestId, shipmentManifestsTable.id))
+    .where(and(
+      inArray(shipmentManifestItemsTable.shipmentId, shipmentIds),
+      isNotNull(shipmentManifestsTable.shippingCompanyId),
+    ))
+    .orderBy(desc(shipmentManifestItemsTable.addedAt));
+  for (const r of rows) {
+    if (map.has(r.shipmentId)) continue; // خد أحدث مانيفست بس (مرتب desc)
+    if (r.shippingCompanyId) map.set(r.shipmentId, r.shippingCompanyId);
+  }
+  return map;
+}
+
 // ── Tenant-safe helpers ────────────────────────────────────────────────────────
 async function getProductsForTenant(tenantId: number | null) {
   return tenantId !== null
@@ -3778,6 +3806,7 @@ router.get("/analytics/reps-daily", requireAuth, async (req, res): Promise<void>
 
     const [rows, companies] = await Promise.all([
       db.select({
+          id: shipmentsTable.id,
           status: shipmentsTable.status,
           shippingCompanyId: shipmentsTable.shippingCompanyId,
         })
@@ -3790,8 +3819,14 @@ router.get("/analytics/reps-daily", requireAuth, async (req, res): Promise<void>
             .from(shippingCompaniesTable),
     ]);
 
+    // fallback: الشحنات اللي shippingCompanyId فاضي عندها مباشرة، نجيبه من المانيفست
+    const missingRepIds = rows.filter(r => !r.shippingCompanyId).map(r => r.id);
+    const manifestFallbackMap = await getManifestRepFallbackMap(missingRepIds);
+    const effectiveRepId = (r: { id: number; shippingCompanyId: number | null }) =>
+      r.shippingCompanyId ?? manifestFallbackMap.get(r.id) ?? null;
+
     const representatives = companies.map((c) => {
-      const repShipments = rows.filter((r) => r.shippingCompanyId === c.id);
+      const repShipments = rows.filter((r) => effectiveRepId(r) === c.id);
       const delivered = repShipments.filter((r) => isRepDone(normalize(r.status))).length;
       return {
         id: c.id,
@@ -4213,10 +4248,14 @@ router.get("/analytics/top-performers", requireAuth, async (req, res): Promise<v
       .from(shipmentsTable)
       .where(repsDateCond);
 
+    // fallback: الشحنات اللي shippingCompanyId فاضي عندها مباشرة، نجيبه من المانيفست
+    const missingTopRepIds = repShipmentRows.filter(r => !r.shippingCompanyId).map(r => r.id);
+    const topRepFallbackMap = await getManifestRepFallbackMap(missingTopRepIds);
+
     type RepBucket = { companyId: number; assigned: number; delivered: number };
     const byRep = new Map<number, RepBucket>();
     for (const r of repShipmentRows) {
-      const companyId = r.shippingCompanyId;
+      const companyId = r.shippingCompanyId ?? topRepFallbackMap.get(r.id) ?? null;
       if (!companyId) continue;
       if (!byRep.has(companyId)) byRep.set(companyId, { companyId, assigned: 0, delivered: 0 });
       const b = byRep.get(companyId)!;
