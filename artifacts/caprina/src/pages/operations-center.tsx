@@ -2173,15 +2173,9 @@ export default function OperationsCenterPage() {
         <div className={`${row2SideSpan} ${row2SideLayout}`}>
           {can("dashboard.delayed_shipments") && (
           <Card className={`oc-kpi-card ${sideCardFill} flex flex-col ${sideCardSpan("delayed")}`} style={{ ["--tone" as any]: "#ef4444" }}>
-            <CardHeader
-              className="pb-2 cursor-pointer transition-colors hover:bg-muted/40 rounded-t-xl"
-              onClick={() => navigate("/shipping-followup")}
-            >
-              <CardTitle className="text-sm flex items-center justify-between gap-2">
-                <span className="flex items-center gap-2">
-                  <AlertOctagon className="w-4 h-4 text-red-500" /> شحنات متأخرة
-                </span>
-                <ChevronLeft className="w-3.5 h-3.5 text-muted-foreground" />
+            <CardHeader className="pb-2 shrink-0">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <AlertOctagon className="w-4 h-4 text-red-500" /> شحنات متأخرة
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2 overflow-y-auto min-h-0 pr-4 pl-2">
@@ -2201,8 +2195,7 @@ export default function OperationsCenterPage() {
                 delayedShipments.map((s) => (
                   <div
                     key={s.id}
-                    onClick={() => navigate("/shipping-followup")}
-                    className="flex items-center justify-between text-xs border-b last:border-0 pb-2 last:pb-0 cursor-pointer hover:bg-muted/40 rounded-lg px-1.5 -mx-1.5 transition-colors"
+                    className="flex items-center justify-between text-xs border-b last:border-0 pb-2 last:pb-0"
                   >
                     <div>
                       <div className="font-semibold">{s.trackingNumber ?? `#${s.id}`}</div>
