@@ -1720,7 +1720,7 @@ export default function OperationsCenterPage() {
   // لو العمود الجانبي لوحده → الصف بيبقى بارتفاع محتواه من غير فراغ.
   const row2NeedsFixedHeight = showLiveMap || showPerfMetrics;
   const row2SideOnly = showSideColumn && !showLiveMap && !showPerfMetrics;
-  const row2Height = row2NeedsFixedHeight ? "xl:h-[680px]" : "";
+  const row2Height = row2NeedsFixedHeight ? "xl:h-[780px]" : "";
   const row2SideLayout = row2SideOnly
     ? "grid grid-cols-1 md:grid-cols-4 gap-3 items-start"
     : "flex flex-col gap-3 xl:h-full xl:overflow-y-auto pr-1 min-h-0";
@@ -2127,7 +2127,7 @@ export default function OperationsCenterPage() {
         );
       })()}
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-start">
         {showStatusDistribution && (
         <div className={row1StatusSpan}>
           {statusDistLoading && statusDonutData.length === 0 ? (
