@@ -3613,9 +3613,13 @@ router.get("/analytics/operations-center", requireAuth, async (req, res): Promis
     type OpsRow = typeof rows[number];
 
     // ─── شحنات متأخرة (تفصيلي) ──────────────────────────────────────────────
+    // نفس منطق /shipping-followup: أي شحنة عالقة في حالة شحن (مش لسه اتسلمت/اترجعت)
+    // من 3 أيام فاكثر، مش بس اللي اتحطلها status = "delayed" يدويًا.
     const hoursSince = (d: Date) => Math.round((now.getTime() - new Date(d).getTime()) / (1000 * 60 * 60));
+    const PENDING_STATUSES = ["warehouse_ready", "in_shipping", "delayed", "picked_up", "in_transit", "out_for_delivery"];
+    const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
     const delayedShipments = rows
-      .filter((r: OpsRow) => normalize(r.status) === "delayed")
+      .filter((r: OpsRow) => PENDING_STATUSES.includes(r.status ?? "") && new Date(r.updatedAt ?? r.createdAt) <= threeDaysAgo)
       .sort((a: OpsRow, b: OpsRow) => new Date(a.updatedAt ?? a.createdAt).getTime() - new Date(b.updatedAt ?? b.createdAt).getTime())
       .slice(0, 30)
       .map((r: OpsRow) => ({
