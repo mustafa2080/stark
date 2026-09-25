@@ -123,6 +123,12 @@ const shipmentAmount = (shipment: Record<string, unknown>) => {
 const formatCurrency = (amount: unknown) =>
   new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(toSafeNumber(amount));
 
+// بند مُرحَّل من بيان مقفول بيتحفظله بادئة "[ROLLED_OVER]" جوه الملاحظة (delayNote) عشان
+// تفضل الحالة المالية no-op في الباك إند — نشيلها هنا بس وقت العرض عشان نعرض نص الملاحظة
+// الحقيقي بدون أي تفاصيل تقنية داخلية.
+const stripRolledOverPrefix = (note: string | null | undefined) =>
+  note ? note.replace(/^\[ROLLED_OVER\]\s*/, "") : note;
+
 // ── Types للشحنات ────────────────────────────────────────────────────────────
 type PaymentMethod = "cod" | "prepaid" | "deferred";
 type ParcelType    = "document" | "normal" | "fragile" | "heavy" | "electronics" | "clothing" | "food" | "other";
@@ -2237,6 +2243,7 @@ export default function Orders() {
                     <TableHead className="text-center text-xs w-36">
                       <div className="flex items-center justify-center gap-1">الحالة{showColFilters && <ColFilterBtn col="status" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
                     </TableHead>
+                    <TableHead className="text-right text-xs">الملاحظات</TableHead>
                     <TableHead className="text-center text-xs w-10"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -2310,6 +2317,10 @@ export default function Orders() {
                           {(() => {
                             // نفس منطق صفحة المندوب/بيان العميل: partial → partialQuantity كقيمة مالية فعلية،
                             // delivered بقيمة أقل من الإجمالي → deliveredValueReceived، غير كده الإجمالي العادي
+                            // مرتجع (كامل أو جزئي أو استبدال) — لو المندوب سجّل قيمة مستلمة فعليًا وقت قفل البيان نعرضها
+                            if (["returned", "partial_received", "replaced"].includes(o.status) && o.returnValueReceived != null) {
+                              return formatCurrency(Number(o.returnValueReceived));
+                            }
                             if (o.status === "partial_received" && o.partialQuantity != null) {
                               return formatCurrency(Number(o.partialQuantity));
                             }
@@ -2443,6 +2454,9 @@ export default function Orders() {
                             );
                           })()}
                           </div>
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground max-w-[220px] truncate" title={stripRolledOverPrefix(o.delayNote) || undefined}>
+                          {stripRolledOverPrefix(o.delayNote) || "—"}
                         </TableCell>
                         <TableCell className="text-center p-1">
                           {canWhatsApp && (

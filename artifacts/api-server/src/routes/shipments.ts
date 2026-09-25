@@ -57,6 +57,21 @@ const latestClientAccountManifestItemIdSql = sql`(
   WHERE cami2.shipment_id = ${shipmentsTable.id}
 )`;
 
+// قيمة المرتجع المستلمة فعليًا — من أحدث بند بيان *مش null* (مش بالضرورة آخر بند
+// على الإطلاق). السبب: لما بند مرتجع يترحّل (rollover) لبيان جديد، البند الجديد
+// بيتسجل بـ return_value_received = null عمدًا (تصميم "no-op مالي" — راجع
+// isRolledOverItem/ROLLED_OVER فوق) عشان القيمة متتحسبش مرتين في التحليلات
+// المالية. لكن ده كان بيخلي عمود "القيمة المستلمة" في جدول الشحنات يفضل فاضي
+// رغم إن المندوب استلمها فعلاً وسجّلها في البند الأصلي القديم. الاستعلام ده
+// بيدوّر على القيمة الحقيقية في أقرب بند سابق ليها بدل ما يقف عند آخر بند فاضي.
+const latestReturnValueReceivedSql = sql<string | null>`(
+  SELECT smi3.return_value_received FROM shipment_manifest_items smi3
+  WHERE smi3.shipment_id = ${shipmentsTable.id}
+    AND smi3.return_value_received IS NOT NULL
+  ORDER BY smi3.id DESC
+  LIMIT 1
+)`;
+
 // ─── قفل الشحنات المرتبطة ببيان مندوب مغلق ────────────────────────────────────
 // بطلب صريح من مصطفى (2026-09-06): لو الشحنة مرتبطة بأحدث بند بيان ليها وده
 // البيان مغلق (status = "closed")، تبقى "أصل ثابت مجمّد" — يُمنع تعديلها أو
@@ -392,6 +407,14 @@ const CreateShipmentSchema = z.object({
   partialQuantity: z.coerce.number().int().nullish(),
   productId:       z.number().int().positive().nullish(),
   variantId:       z.number().int().positive().nullish(),
+  // ── المنتج القديم (لطلبات الاستبدال) — المنتج اللي المندوب هياخده من العميل.
+  // منفصل عن productId/variantId فوق (البديل الجديد). راجع syncShipmentInventory
+  // للتفصيل الكامل لإزاي بيرجع للمخزون.
+  originalProductId: z.number().int().positive().nullish(),
+  originalVariantId: z.number().int().positive().nullish(),
+  originalQuantity:  z.coerce.number().int().positive().nullish(),
+  originalColor:     z.string().nullish(),
+  originalSize:      z.string().nullish(),
   warehouseId:     z.number().int().positive().nullish(),
   status:          z.string().default("waiting"),
   items: z.array(z.object({
@@ -455,7 +478,12 @@ export async function syncShipmentInventory(
   // الشحنة الناتجة بعد التحديث (لمعرفة الحالة/الكمية النهائية)
   const after: ShipmentRow = { ...before, ...afterPatch };
 
-  const hasInventoryLink = !!(after.productId || after.variantId);
+  // في الاستبدال ممكن يبقى المنتج القديم (original*) هو الوحيد المربوط، فلازم
+  // نعتبره رابط مخزون برضه وإلا الدالة هتخرج قبل ما توصل لخطوة (4).
+  const hasInventoryLink = !!(
+    after.productId || after.variantId ||
+    after.originalProductId || after.originalVariantId
+  );
   if (!hasInventoryLink) return; // الشحنة غير مرتبطة بمنتج → لا شيء يخص المخزون
 
   const totalPieces = Number(after.pieces ?? 1);
@@ -480,7 +508,8 @@ export async function syncShipmentInventory(
   // 1) اخصم المخزون أول مرة عند تحول الحالة لـ in_shipping (خرجت من المخزن مع المندوب)
   //    أو لو اتربط منتج بالشحنة لأول مرة بغض النظر عن الحالة
   const isMovingToShipping = newStatus === "in_shipping" && before.status !== "in_shipping";
-  if (!isPickupKind && !wasDeducted && (isMovingToShipping || !newStatus)) {
+  const hasReplacementLink = !!(after.productId || after.variantId);
+  if (!isPickupKind && hasReplacementLink && !wasDeducted && (isMovingToShipping || !newStatus)) {
     await processToShipping(orderShape, totalPieces, null, before.id);
     afterPatch.inventoryDeducted = 1;
   }
@@ -520,14 +549,35 @@ export async function syncShipmentInventory(
   //    (يعني اتأكد وصولها فعلًا)، مش بمجرد ما الحالة تبقى replaced/parcel_picked
   //    والبضاعة لسه مع المندوب.
   //      • replacement → المنتج القديم اللي المندوب أخده من العميل راجع المخزن
-  //        (البديل الجديد اتخصم عادي في الخطوة 1 وقت in_shipping)
+  //        (البديل الجديد اتخصم عادي في الخطوة 1 وقت in_shipping).
+  //        بنرجّع original* مش productId/variantId — دول هما البديل، ورجوعهم
+  //        كان هيزوّد المخزون بنسخة تانية من البديل بدل القديم الفعلي.
+  //        لو المنتج القديم مش متسجل على الشحنة → مفيش حاجة نرجّعها (ومنعلّمش
+  //        inventoryReturned) بدل ما نخمّن منتج غلط.
   //      • pickup      → الطرد اللي المندوب راح جابه بيتسجل دخول (مفيش خصم قبله)
   if (newStatus === "replaced" || newStatus === "parcel_picked") {
     const wasReturnReceived = before.returnReceived === 1;
     const isReturnReceivedNow = afterPatch.returnReceived === 1;
     if (isReturnReceivedNow && !wasReturnReceived && !wasReturned) {
-      await reverseShipping(orderShape, totalPieces, null, before.id);
-      afterPatch.inventoryReturned = 1;
+      if (kind === "replacement") {
+        const hasOriginalLink = !!(after.originalProductId || after.originalVariantId);
+        if (hasOriginalLink) {
+          const originalShape = {
+            productId:   after.originalProductId ?? null,
+            variantId:   after.originalVariantId ?? null,
+            product:     after.description ?? null,
+            color:       after.originalColor ?? null,
+            size:        after.originalSize ?? null,
+            warehouseId: after.warehouseId ?? null,
+          };
+          const originalQty = Number(after.originalQuantity ?? totalPieces);
+          await reverseShipping(originalShape, originalQty, null, before.id);
+          afterPatch.inventoryReturned = 1;
+        }
+      } else {
+        await reverseShipping(orderShape, totalPieces, null, before.id);
+        afterPatch.inventoryReturned = 1;
+      }
     }
   }
 }
@@ -721,6 +771,10 @@ router.get("/shipments", async (req, res): Promise<void> => {
           like(shipmentsTable.senderPhone,   phonePattern),
           receiverNameMatch,
           senderNameMatch,
+          // رقم الشحنة (SHP...) — مطلوب لبحث "اختيار الشحنة الأصلية" في طلب
+          // الاستبدال (new-shipment.tsx)، حيث المستخدم غالبًا يكتب رقم الشحنة
+          // مش اسم المستلم.
+          like(shipmentsTable.shipmentNumber, `%${search.trim()}%`),
         )
       );
     }
@@ -809,6 +863,10 @@ router.get("/shipments", async (req, res): Promise<void> => {
           deliveredValueReceived: shipmentManifestItemsTable.deliveredValueReceived,
           // ── JOIN: نفس القيمة لكن من آخر بيان حساب عميل تجاري (لو اتقفلت الشحنة من هناك بدل بيان شركة الشحن) ──
           clientAccountDeliveredValueReceived: clientAccountManifestItemsTable.deliveredValueReceived,
+          // ── القيمة المستلمة فعليًا من المرتجع (returned/partial_received/replaced) — من أحدث
+          // بند بيان *مش null* (راجع تعريف latestReturnValueReceivedSql فوق لسبب استخدام
+          // subquery منفصل بدل شرط الـ JOIN العادي) ──
+          returnValueReceived: latestReturnValueReceivedSql,
           // ── JOIN: حالة/رقم أحدث بيان مندوب مرتبط بالشحنة — تُستخدم فى الفرونت
           // لقفل زر "تغيير الحالة" لو البيان "closed" (بطلب مصطفى 2026-09-06:
           // شحنة مرتبطة ببيان مغلق = أصل ثابت مجمّد، ما ينفعش تتغير حالتها) ──
@@ -1188,6 +1246,13 @@ router.post("/shipments", async (req, res): Promise<void> => {
       productId:       d.productId   ?? undefined,
       variantId:       d.variantId   ?? undefined,
       warehouseId:     d.warehouseId ?? undefined,
+      // المنتج القديم (لطلب الاستبدال فقط) — لو الطلب مش استبدال، بيفضل فاضي
+      // حتى لو الفرونت بعت قيمة بالغلط، عشان مفيش أي معنى له في new/pickup.
+      originalProductId: d.shipmentKind === "replacement" ? (d.originalProductId ?? undefined) : undefined,
+      originalVariantId: d.shipmentKind === "replacement" ? (d.originalVariantId ?? undefined) : undefined,
+      originalQuantity:  d.shipmentKind === "replacement" ? (d.originalQuantity  ?? undefined) : undefined,
+      originalColor:     d.shipmentKind === "replacement" ? (d.originalColor     ?? undefined) : undefined,
+      originalSize:      d.shipmentKind === "replacement" ? (d.originalSize      ?? undefined) : undefined,
       declaredValue:   String(d.declaredValue),
       canOpen:         d.canOpen === undefined || d.canOpen === null ? null : Number(d.canOpen),
       isDivisible:     d.isDivisible === undefined || d.isDivisible === null ? null : Number(d.isDivisible),
@@ -1493,6 +1558,13 @@ router.put("/shipments/:id", async (req, res): Promise<void> => {
     if (d.description      !== undefined) updateData.description      = d.description;
     if (d.productId        !== undefined) updateData.productId        = d.productId;
     if (d.variantId        !== undefined) updateData.variantId        = d.variantId;
+    // المنتج القديم (لطلب الاستبدال) — قابل للتعديل بعد الإنشاء من صفحة تفاصيل
+    // الشحنة، زي أي حقل تاني. راجع syncShipmentInventory للتفصيل الكامل.
+    if (d.originalProductId !== undefined) updateData.originalProductId = d.originalProductId;
+    if (d.originalVariantId !== undefined) updateData.originalVariantId = d.originalVariantId;
+    if (d.originalQuantity  !== undefined) updateData.originalQuantity  = d.originalQuantity;
+    if (d.originalColor     !== undefined) updateData.originalColor     = d.originalColor;
+    if (d.originalSize      !== undefined) updateData.originalSize      = d.originalSize;
     if (d.warehouseId      !== undefined) updateData.warehouseId      = d.warehouseId;
     if (d.paymentMethod    !== undefined) updateData.paymentMethod    = d.paymentMethod;
     if (d.codAmount        !== undefined) updateData.codAmount        = String(d.codAmount);
@@ -1855,6 +1927,12 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
     if (d.description       !== undefined) updateData.description       = d.description;
     if (d.productId         !== undefined) updateData.productId         = d.productId;
     if (d.variantId         !== undefined) updateData.variantId         = d.variantId;
+    // المنتج القديم (لطلب الاستبدال) — نفس منطق PUT /shipments/:id فوق بالظبط.
+    if (d.originalProductId !== undefined) updateData.originalProductId = d.originalProductId;
+    if (d.originalVariantId !== undefined) updateData.originalVariantId = d.originalVariantId;
+    if (d.originalQuantity  !== undefined) updateData.originalQuantity  = d.originalQuantity;
+    if (d.originalColor     !== undefined) updateData.originalColor     = d.originalColor;
+    if (d.originalSize      !== undefined) updateData.originalSize      = d.originalSize;
     if (d.warehouseId       !== undefined) updateData.warehouseId       = d.warehouseId;
     if (d.paymentMethod     !== undefined) updateData.paymentMethod     = d.paymentMethod;
     if (d.codAmount         !== undefined) updateData.codAmount         = String(d.codAmount);

@@ -903,7 +903,7 @@ router.get("/client-portal/shipments", async (req, res): Promise<void> => {
 
     // أحدث بند بيان شحن (لسبب التأجيل + القيمة المستلمة) لكل شحنة في الصفحة الحالية —
     // بنستخدم MAX(id) لكل shipmentId عشان ناخد أحدث سجل بس (نفس فكرة latestManifestItemIdSql في /shipments)
-    let manifestItemMap: Record<number, { deliveryNote: string | null; deliveredValueReceived: string | null }> = {};
+    let manifestItemMap: Record<number, { deliveryNote: string | null; deliveredValueReceived: string | null; returnValueReceived: string | null }> = {};
     let clientAccountItemMap: Record<number, { deliveredValueReceived: string | null }> = {};
     if (pageIds.length) {
       const latestManifestRows = await db
@@ -911,15 +911,26 @@ router.get("/client-portal/shipments", async (req, res): Promise<void> => {
           shipmentId: shipmentManifestItemsTable.shipmentId,
           deliveryNote: shipmentManifestItemsTable.deliveryNote,
           deliveredValueReceived: shipmentManifestItemsTable.deliveredValueReceived,
+          returnValueReceived: shipmentManifestItemsTable.returnValueReceived,
           id: shipmentManifestItemsTable.id,
         })
         .from(shipmentManifestItemsTable)
         .where(inArray(shipmentManifestItemsTable.shipmentId, pageIds))
         .orderBy(shipmentManifestItemsTable.id);
-      // بما إن الصفوف مرتبة تصاعديًا بالـ id، آخر مرة نكتب فيها لكل shipmentId هي الأحدث فعليًا
+      // بما إن الصفوف مرتبة تصاعديًا بالـ id، آخر مرة نكتب فيها لكل shipmentId هي الأحدث فعليًا.
+      // استثناء: returnValueReceived — لما بند مرتجع يترحّل (rollover) لبيان جديد، البند
+      // الجديد بيتسجل بالقيمة دي = null عمدًا (تصميم "no-op مالي" في shipment-manifests.ts
+      // عشان القيمة متتحسبش مرتين في التحليلات المالية)، فلو كتبنا فوقها زي باقي الحقول
+      // هتتمسح القيمة الحقيقية المستلمة فعليًا والمسجّلة في البند القديم. فبنحافظ على آخر
+      // قيمة مش null بدل ما نكتب فوقها بأي قيمة جديدة حتى لو فاضية.
       for (const row of latestManifestRows) {
         if (row.shipmentId == null) continue;
-        manifestItemMap[row.shipmentId] = { deliveryNote: row.deliveryNote, deliveredValueReceived: row.deliveredValueReceived };
+        const prev = manifestItemMap[row.shipmentId];
+        manifestItemMap[row.shipmentId] = {
+          deliveryNote: row.deliveryNote,
+          deliveredValueReceived: row.deliveredValueReceived,
+          returnValueReceived: row.returnValueReceived ?? prev?.returnValueReceived ?? null,
+        };
       }
       const latestClientAccountRows = await db
         .select({
@@ -944,6 +955,7 @@ router.get("/client-portal/shipments", async (req, res): Promise<void> => {
       delayNote: manifestItemMap[s.id]?.deliveryNote ?? null,
       deliveredValueReceived: manifestItemMap[s.id]?.deliveredValueReceived ?? null,
       clientAccountDeliveredValueReceived: clientAccountItemMap[s.id]?.deliveredValueReceived ?? null,
+      returnValueReceived: manifestItemMap[s.id]?.returnValueReceived ?? null,
     }));
 
     res.json({ data: pagedWithRep, total, page, pageSize });

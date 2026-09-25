@@ -46,6 +46,7 @@ interface ShipmentRow {
   delayNote: string | null;
   deliveredValueReceived: string | null;
   clientAccountDeliveredValueReceived: string | null;
+  returnValueReceived: string | null;
   returnReason: string | null;
   returnNote: string | null;
   returnReceived: 0 | 1 | boolean | null;
@@ -53,6 +54,12 @@ interface ShipmentRow {
   partialQuantity: number | null;
   createdAt: string;
 }
+
+// بند مُرحَّل من بيان مقفول بيتحفظله بادئة "[ROLLED_OVER]" جوه الملاحظة (delayNote) عشان
+// تفضل الحالة المالية no-op في الباك إند — نشيلها هنا بس وقت العرض عشان العميل يشوف
+// نص الملاحظة الحقيقي بدون أي تفاصيل تقنية داخلية.
+const stripInternalNotePrefix = (note: string | null | undefined) =>
+  (note ?? "").replace(/^\[ROLLED_OVER\]\s*/, "").trim();
 
 const STATUS_LABELS: Record<string, { label: string; color: string; bg: string }> = {
   delivered:         { label: "استلم",               color: "#22c55e", bg: "rgba(34,197,94,0.12)" },
@@ -644,16 +651,17 @@ export default function ClientShipmentsPage() {
                   <th className="text-center font-bold text-muted-foreground px-4 py-3 w-36">
                     <div className="flex items-center justify-center gap-1">الحالة{showColFilters && <ColFilterBtn col="status" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
                   </th>
+                  <th className="text-right font-bold text-muted-foreground px-4 py-3 max-w-[160px]">الملاحظات</th>
                   <th className="text-center font-bold text-muted-foreground px-4 py-3 w-10"></th>
                   <th className="text-right font-bold text-muted-foreground px-4 py-3 w-8"></th>
                 </tr>
               </thead>
               <tbody>
                 {isLoading ? (
-                  <tr><td colSpan={12} className="text-center py-10 text-muted-foreground">جارٍ التحميل...</td></tr>
+                  <tr><td colSpan={13} className="text-center py-10 text-muted-foreground">جارٍ التحميل...</td></tr>
                 ) : shipments.length === 0 ? (
                   <tr>
-                    <td colSpan={12} className="text-center py-14 text-muted-foreground">
+                    <td colSpan={13} className="text-center py-14 text-muted-foreground">
                       <div className="flex flex-col items-center gap-2">
                         <Package size={40} className="opacity-30" />
                         <p className="text-sm">لا توجد شحنات مطابقة</p>
@@ -678,6 +686,9 @@ export default function ClientShipmentsPage() {
                       </td>
                       <td className="px-4 py-3 text-emerald-500 font-bold">
                         {(() => {
+                          if (["returned", "partial_received", "replaced"].includes(s.status) && s.returnValueReceived != null) {
+                            return formatCurrency(Number(s.returnValueReceived));
+                          }
                           if (s.status === "partial_received" && s.partialQuantity != null) {
                             return formatCurrency(Number(s.partialQuantity));
                           }
@@ -769,6 +780,9 @@ export default function ClientShipmentsPage() {
                             </div>
                           )}
                         </div>
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground max-w-[160px] truncate" title={stripInternalNotePrefix(s.delayNote) || ""}>
+                        {stripInternalNotePrefix(s.delayNote) || "—"}
                       </td>
                       <td className="px-4 py-3 text-center" onClick={e => e.stopPropagation()}>
                         {s.receiverPhone && (
