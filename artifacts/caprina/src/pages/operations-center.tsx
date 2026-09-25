@@ -2333,8 +2333,8 @@ export default function OperationsCenterPage() {
         {/* مؤشرات الأداء الرئيسية */}
         {showPerfMetrics && (
         <div className={row2PerfSpan}>
-          <Card className="oc-kpi-card h-full" style={{ ["--tone" as any]: "#6366f1" }}>
-            <CardHeader className="pb-2 space-y-3">
+          <Card className="oc-kpi-card h-full flex flex-col" style={{ ["--tone" as any]: "#6366f1" }}>
+            <CardHeader className="pb-2 space-y-3 shrink-0">
               <div className="flex items-center justify-between gap-2">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <Activity className="w-4 h-4 text-indigo-500" /> مؤشرات الأداء
@@ -2350,7 +2350,7 @@ export default function OperationsCenterPage() {
                 </p>
               </div>
             </CardHeader>
-            <CardContent className="grid grid-cols-2 gap-1 pt-1">
+            <CardContent className="grid grid-cols-2 gap-1 pt-1 overflow-y-auto min-h-0 flex-1">
               {perfMetricsLoading && performanceMetrics.length === 0 ? (
                 Array.from({ length: 6 }).map((_, i) => (
                   <div key={i} className="h-20 rounded bg-muted animate-pulse" />
