@@ -28,6 +28,8 @@ import { shippingApi, ordersApi, productsApi, variantsApi, manifestsApi, warehou
 import { type WhatsAppOrderData, applySenderIssueTemplate, buildWhatsAppLink } from "@/lib/whatsapp";
 import { WhatsAppDialog, WhatsAppShipmentDialog } from "@/components/whatsapp-dialog";
 import { ShareShipmentImageDialog } from "@/components/share-shipment-image-dialog";
+import { ShareInvoiceDialog } from "@/components/share-invoice-dialog";
+import { ShareChoiceDialog } from "@/components/share-choice-dialog";
 import { formatCurrency } from "@/lib/utils";
 import { ProductSearchCombobox } from "@/components/product-search-combobox";
 import { RETURN_REASONS, returnReasonLabel, STATUS_LABELS as statusLabels, STATUS_CLASSES as statusClasses } from "@/lib/order-constants";
@@ -1822,6 +1824,14 @@ const STATUS_OPTIONS = [
   { value: "delayed",          label: "مؤجل",                 icon: "⚠️", color: "text-blue-400",    bg: "bg-blue-500/10",    border: "border-blue-600/40",    dot: "bg-blue-400" },
   { value: "returned",         label: "مرتجع",                icon: "↩️", color: "text-red-400",     bg: "bg-red-500/10",     border: "border-red-600/40",     dot: "bg-red-400" },
   { value: "partial_received", label: "استلام جزئي",          icon: "◑",  color: "text-purple-400",  bg: "bg-purple-500/10",  border: "border-purple-600/40",  dot: "bg-purple-400" },
+  // "تم الاستبدال"/"تم إحضار الطرد" — بتتحدد حصريًا من تقفيل بيان المندوب
+  // (shipping-manifest.tsx)، مش من هنا. بنضيفهم هنا بس عشان الزرار يعرض
+  // الحالة الفعلية صح لو الشحنة وصلت للحالة دي، مش عشان يتم اختيارهم يدويًا —
+  // اختيارهم من هنا كان هيفتح مسار تاني يقدر يغيّر نفس الحالة من غير ما يمر
+  // على منطق المخزون/الفاتورة المرتبط بيها في مسار البيان. selectable: false
+  // بيمنعهم من الظهور كخيار قابل للاختيار في الدروبداون (شوف الفلترة تحت).
+  { value: "replaced",         label: "تم الاستبدال",         icon: "🔄", color: "text-orange-400",  bg: "bg-orange-500/10",  border: "border-orange-600/40",  dot: "bg-orange-400", selectable: false },
+  { value: "parcel_picked",    label: "تم إحضار الطرد",       icon: "📦", color: "text-cyan-400",    bg: "bg-cyan-500/10",    border: "border-cyan-600/40",    dot: "bg-cyan-400",   selectable: false },
 ] as const;
 
 function StatusSelect({
@@ -1915,7 +1925,7 @@ function StatusSelect({
           className="rounded-xl border border-border bg-popover shadow-2xl overflow-hidden"
         >
           <div className="p-1.5 flex flex-col gap-0.5">
-            {STATUS_OPTIONS.map((opt) => {
+            {STATUS_OPTIONS.filter((opt) => (opt as any).selectable !== false).map((opt) => {
               const isActive = opt.value === normalizedValue;
               return (
                 <button
@@ -2104,18 +2114,18 @@ export default function OrderDetail() {
   const [, navigate] = useLocation();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { isAdmin, canViewFinancials, canViewProfitability, user, can } = useAuth();
-  const canEditStatus  = isAdmin || can("shipments.edit_status");
-  const canEditData    = isAdmin || can("shipments.edit_data");
+  const { isAdmin, isSuperAdmin, canViewFinancials, canViewProfitability, user, can } = useAuth();
+  const canEditStatus  = isSuperAdmin || can("shipments.edit_status");
+  const canEditData    = isSuperAdmin || can("shipments.edit_data");
   const canEdit         = canEditStatus || canEditData;
-  const canDelete      = isAdmin || can("shipments.delete");
-  const canCreate      = isAdmin || can("shipments.create");
-  const canClose       = isAdmin || can("shipments.close");
-  const canUrgent      = isAdmin || can("shipments.urgent");
-  const canFinancials  = isAdmin || can("shipments.profitability");
-  const canWriteOrders = isAdmin || canEdit || canCreate;
+  const canDelete      = isSuperAdmin || can("shipments.delete");
+  const canCreate      = isSuperAdmin || can("shipments.create");
+  const canClose       = isSuperAdmin || can("shipments.close");
+  const canUrgent      = isSuperAdmin || can("shipments.urgent");
+  const canFinancials  = isSuperAdmin || can("shipments.profitability");
+  const canWriteOrders = isSuperAdmin || canEdit || canCreate;
   // لو مفيش أي صلاحية إجرائية على الإطلاق → واجهة محدودة (طباعة + عرض + ملخص مالي فقط)
-  const hasAnyActionPerm = isAdmin || canEditStatus || canEditData || canDelete || canClose || canUrgent;
+  const hasAnyActionPerm = isSuperAdmin || canEditStatus || canEditData || canDelete || canClose || canUrgent;
   const readOnlyView = !hasAnyActionPerm;
   const [isEditing, setIsEditing] = useState(false);
   const [showPartialInput, setShowPartialInput] = useState(false);
@@ -2124,6 +2134,8 @@ export default function OrderDetail() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [showWaDialog, setShowWaDialog] = useState(false);
   const [showShareDialog, setShowShareDialog] = useState(false);
+  const [showInvoiceDialog, setShowInvoiceDialog] = useState(false);
+  const [showShareChoiceDialog, setShowShareChoiceDialog] = useState(false);
   const [showCloseDialog, setShowCloseDialog] = useState(false);
   const [selectedRegisterId, setSelectedRegisterId] = useState<string>("");
   const [isClosing, setIsClosing] = useState(false);
@@ -3027,7 +3039,7 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
   const { data: cashData } = useQuery({
     queryKey: ["cash-registers-list"],
     queryFn: cashRegistersApi.list,
-    enabled: isAdmin,
+    enabled: canClose,
   });
 
   // ── لو الطلب في فاتورة متعددة، نجيب كل الأوردرات عشان نحسب الإجمالي الصح ──
@@ -3366,13 +3378,13 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
 
               {/* مشاركة صورة الشحنة — للكل */}
               <Button variant="outline" size="sm"
-                onClick={() => setShowShareDialog(true)}
+                onClick={() => setShowShareChoiceDialog(true)}
                 className="h-8 text-xs gap-1.5 border-border bg-card hover:bg-muted">
                 <Share2 className="w-3.5 h-3.5" />مشاركة
               </Button>
 
               {/* تغيير الحالة */}
-              {(isAdmin || canEditStatus) && (
+              {canEditStatus && (
                 <div className="mr-auto">
                   <StatusSelect
                     value={selectDisplayStatus ?? order.status}
@@ -3458,7 +3470,7 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                     )}
                   </span>
                 )}
-                {(order as any).shipmentKind === "parcel_pickup" && (
+                {(order as any).shipmentKind === "pickup" && (
                   <span className="inline-flex items-center gap-1 text-[10px] font-bold text-cyan-500 dark:text-cyan-300 bg-cyan-500/10 border border-cyan-500/30 rounded-full px-2 py-0.5">
                     📦 إحضار طرد
                   </span>
@@ -3505,18 +3517,20 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
           )}
 
           {/* مشاركة صورة الشحنة — للكل */}
-          <Button variant="outline" size="sm" onClick={() => setShowShareDialog(true)}
+          <Button variant="outline" size="sm" onClick={() => setShowShareChoiceDialog(true)}
             className="h-8 text-xs gap-1.5 border-border bg-card hover:bg-muted">
             <Share2 className="w-3.5 h-3.5" />مشاركة
           </Button>
 
-          {/* الأزرار للأدمن فقط */}
-          {isAdmin && !isEditing && (<>
-            <StatusSelect
-              value={selectDisplayStatus ?? order.status}
-              onChange={handleStatusChange}
-              disabled={updateOrder.isPending}
-            />
+          {/* الأزرار — كل زرار بيتحكم فيه الـ checkbox بتاعه (super_admin بس بيتجاوز) */}
+          {!isEditing && (<>
+            {canEditStatus && (
+              <StatusSelect
+                value={selectDisplayStatus ?? order.status}
+                onChange={handleStatusChange}
+                disabled={updateOrder.isPending}
+              />
+            )}
             {canEdit && (
               <Button variant="outline" size="sm"
                 onClick={() => {
@@ -5145,6 +5159,15 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
       )}
 
       {order && (
+        <ShareChoiceDialog
+          open={showShareChoiceDialog}
+          onOpenChange={setShowShareChoiceDialog}
+          onChooseReceipt={() => setShowShareDialog(true)}
+          onChooseInvoice={() => setShowInvoiceDialog(true)}
+        />
+      )}
+
+      {order && (
         <ShareShipmentImageDialog
           open={showShareDialog}
           onOpenChange={setShowShareDialog}
@@ -5191,6 +5214,74 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
               size: it.size ?? null,
               quantity: it.quantity ?? null,
             })),
+          }}
+        />
+      )}
+
+      {order && (
+        <ShareInvoiceDialog
+          open={showInvoiceDialog}
+          onOpenChange={setShowInvoiceDialog}
+          shipment={{
+            id: order.id,
+            shipmentNumber: (order as any).shipmentNumber ?? `#${order.id.toString().padStart(4,"0")}`,
+            trackingNumber: (order as any).trackingNumber ?? null,
+            status: order.status,
+            createdAt: order.createdAt ? format(new Date(order.createdAt), "yyyy/MM/dd HH:mm") : null,
+
+            receiverName: (order as any).receiverName || order.customerName,
+            receiverPhone: (order as any).receiverPhone || order.phone || null,
+            receiverPhone2: (order as any).receiverPhone2 ?? null,
+            receiverCity: (order as any).receiverCity ?? (order as any).city ?? null,
+            receiverAddress: (order as any).receiverAddress ?? (order as any).address ?? null,
+
+            senderName: senderInfo.name,
+            senderPhone: senderInfo.phone,
+            senderCity: senderInfo.city,
+
+            parcelType: (order as any).parcelType ?? null,
+            weight: (order as any).weight ?? null,
+
+            zoneLabel: (order as any).zoneLabel ?? null,
+            shippingCompanyName: (order as any).shippingCompanyName ?? null,
+            assignedUserName: (order as any).assignedUserName ?? null,
+
+            shippingFee: (order as any).shippingFee ?? (order as any).shippingCost ?? 0,
+            codAmount: (order as any).codAmount ?? 0,
+            totalAmount: (order as any).totalAmount ?? null,
+
+            note: orderReturnReason
+              ? (returnReasonLabel ? returnReasonLabel(orderReturnReason, orderReturnNote) : orderReturnReason) + (orderReturnNote && orderReturnReason !== "other" ? ` — ${orderReturnNote}` : "")
+              : (orderReturnNote || null),
+
+            products: (shipmentItems || []).map((it: any) => ({
+              name: it.productName ?? it.name ?? null,
+              color: it.color ?? null,
+              size: it.size ?? null,
+              quantity: it.quantity ?? null,
+            })),
+
+            // ── بيانات الفاتورة الإضافية — نفس منطق الطباعة (handlePrint): منتجات الشحنة
+            // الفعلية من shipmentItems (/shipments/:id/items)، أو صف واحد افتراضي من order لو مفيش ──
+            invoiceNumber: (order as any).invoiceNumber ?? (order as any).shipmentNumber ?? `#${order.id.toString().padStart(4,"0")}`,
+            shippingCostTotal: (order as any).shippingCost ?? (order as any).shippingFee ?? 0,
+            invoiceItems: (shipmentItems && shipmentItems.length > 0)
+              ? shipmentItems.map((it: any) => ({
+                  product: it.product ?? it.productName ?? it.name ?? null,
+                  color: it.color ?? null,
+                  size: it.size ?? null,
+                  quantity: it.quantity ?? 1,
+                  unitPrice: it.unitPrice ?? 0,
+                  totalPrice: it.totalPrice ?? (Number(it.quantity ?? 1) * Number(it.unitPrice ?? 0)),
+                }))
+              : [{
+                  product: (order as any).product ?? (order as any).productName ?? null,
+                  color: (order as any).color ?? null,
+                  size: (order as any).size ?? null,
+                  quantity: (order as any).quantity ?? 1,
+                  unitPrice: (order as any).unitPrice ?? 0,
+                  totalPrice: (order as any).totalPrice ?? 0,
+                }],
           }}
         />
       )}

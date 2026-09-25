@@ -46,6 +46,18 @@ export interface ShipmentShareData {
   note?: string | null; // الملاحظة المخصصة (سبب الرفض / ملاحظة الإرسال)
 
   products?: { name?: string | null; color?: string | null; size?: string | null; quantity?: number | string | null }[];
+
+  // ── بيانات إضافية خاصة بصورة الفاتورة (مشاركة فاتورة) — نفس شكل "فاتورة بيع" في الطباعة ──
+  invoiceNumber?: string | null;
+  shippingCostTotal?: number | string | null; // تكلفة الشحن (شركة الشحن) — تُضاف لإجمالي المنتجات في صندوق الإجمالي
+  invoiceItems?: {
+    product?: string | null;
+    color?: string | null;
+    size?: string | null;
+    quantity?: number | string | null;
+    unitPrice?: number | string | null;
+    totalPrice?: number | string | null;
+  }[];
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -54,6 +66,8 @@ const STATUS_LABELS: Record<string, string> = {
   warehouse_ready:  "قيد الشحن في المخزن",
   in_shipping:      "قيد الشحن",
   received:         "تم التسليم",
+  replaced:         "تم الاستبدال",
+  parcel_picked:    "تم إحضار الطرد",
   partial_received: "استلام جزئي",
   delayed:          "مؤجلة",
   returned:         "مرتجع",
@@ -66,6 +80,8 @@ const STATUS_LABELS: Record<string, string> = {
 const STATUS_THEME: Record<string, { base: string; badgeBg: string; badgeText: string }> = {
   // ─── القيم الحقيقية الحالية ─────────────────────────────────────────
   received:         { base: "#0fb88a", badgeBg: "#dcfce7", badgeText: "#15803d" },
+  replaced:         { base: "#8b5cf6", badgeBg: "#ede9fe", badgeText: "#5b21b6" },
+  parcel_picked:    { base: "#06b6d4", badgeBg: "#cffafe", badgeText: "#155e75" },
   partial_received: { base: "#0891b2", badgeBg: "#cffafe", badgeText: "#155e75" },
   returned:         { base: "#f04452", badgeBg: "#fee2e2", badgeText: "#b91c1c" },
   delayed:          { base: "#f5a623", badgeBg: "#fef3c7", badgeText: "#92400e" },
@@ -747,7 +763,7 @@ export async function generateShipmentShareImage(shipment: ShipmentShareData): P
 
   const statusLabel = shipment.statusLabel || STATUS_LABELS[shipment.status] || shipment.status || "قيد التنفيذ";
   const theme = STATUS_THEME[shipment.status] || DEFAULT_THEME;
-  const isDelivered = shipment.status === "received" || shipment.status === "delivered";
+  const isDelivered = shipment.status === "received" || shipment.status === "delivered" || shipment.status === "replaced" || shipment.status === "parcel_picked";
   const isProblemLike = ["returned", "cancelled", "problem", "postponed", "delayed"].includes(shipment.status);
   const glyph: "warning" | "check" = isDelivered ? "check" : isProblemLike ? "warning" : "warning";
   const badgeType: "check" | "warning" | "cross" = isDelivered ? "check" : shipment.status === "cancelled" ? "cross" : "warning";
@@ -758,6 +774,8 @@ export async function generateShipmentShareImage(shipment: ShipmentShareData): P
     warehouse_ready: "الشحنة جاهزة وقيد الشحن من المخزن",
     in_shipping: "الشحنة حاليًا في الطريق إلى المستلم",
     received: "تم تسليم الشحنة بنجاح لصاحبها",
+    replaced: "تم تسليم البديل واستلام المنتج القديم بنجاح",
+    parcel_picked: "تم استلام الطرد بنجاح",
     partial_received: "تم استلام جزء من الشحنة",
     delayed: "تم تأجيل تسليم الشحنة لموعد لاحق",
     returned: "تم إرجاع الشحنة إلى مستودعنا",
@@ -1177,6 +1195,212 @@ export async function generateShipmentShareImage(shipment: ShipmentShareData): P
   ctx.textAlign = "right";
   ctx.fillStyle = "#e4e6ec";
   ctx.fillText("FAST  •  SAFE  •  RELIABLE", W - M, footerY + footerH / 2 + 5);
+
+  return canvas.toDataURL("image/png", 1);
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// صورة "فاتورة بيع" — نفس تصميم فاتورة الطباعة (handlePrint) بالظبط:
+// هيدر (عنوان + رقم فاتورة/تاريخ/عدد منتجات يمين، لوجو الشركة شمال) +
+// صندوق بيانات العميل (اسم/محافظة يمين، هاتف/عنوان شمال) + جدول منتجات
+// كامل (# / المنتج / اللون-المقاس / الكمية / سعر الوحدة / الإجمالي) +
+// صندوق إجمالي (إجمالي المنتجات + تكلفة الشحن + الإجمالي الكلي) + فوتر.
+// تُستخدم عند اختيار "مشاركة فاتورة" (بدل صورة الإيصال العادية).
+// ══════════════════════════════════════════════════════════════════════════
+export async function generateInvoiceShareImage(shipment: ShipmentShareData): Promise<string> {
+  await ensureFontsReady();
+  const logoImg = await loadLogoImage();
+
+  const W = 700;
+  const SCALE = 2;
+  const M = 40;
+  const contentW = W - M * 2;
+
+  const invNum = text(shipment.invoiceNumber || shipment.shipmentNumber, `#${shipment.id}`);
+  const dateLabel = text(shipment.createdAt, "—");
+  const customerName = text(shipment.receiverName);
+  const customerCity = text(shipment.receiverCity, "—");
+  const customerPhone = text(shipment.receiverPhone, "—");
+  const customerAddress = text(shipment.receiverAddress, "—");
+
+  // بنود الفاتورة — نفس منطق الطباعة: منتجات الشحنة الفعلية (shipmentItems)، أو صف واحد افتراضي لو مفيش
+  const rawItems = shipment.invoiceItems && shipment.invoiceItems.length > 0
+    ? shipment.invoiceItems
+    : [{ product: null, color: null, size: null, quantity: 1, unitPrice: 0, totalPrice: 0 }];
+  const items = rawItems.map((it) => {
+    const qty = Number(it.quantity) || 1;
+    const unitPrice = Number(it.unitPrice) || 0;
+    const totalPrice = it.totalPrice != null ? Number(it.totalPrice) : unitPrice * qty;
+    return {
+      product: text(it.product, "—"),
+      variant: [text(it.color, ""), text(it.size, "")].filter(Boolean).join(" / "),
+      qty, unitPrice, totalPrice,
+    };
+  });
+  const totalQty = items.reduce((s, it) => s + it.qty, 0);
+  const invoiceTotal = items.reduce((s, it) => s + it.totalPrice, 0);
+  const shippingCostTotal = Number(shipment.shippingCostTotal) || 0;
+  const grandTotal = invoiceTotal + shippingCostTotal;
+
+  // ── حساب الارتفاع الكلي ──────────────────────────────────────────────
+  const headerH = 130;
+  const pagePad = 36;
+  let cy = pagePad;
+
+  // صندوق بيانات العميل
+  const clientBoxH = 84;
+  cy += clientBoxH + 22;
+
+  // جدول المنتجات (هيدر + صف لكل منتج)
+  const tableHeadH = 42;
+  const tableRowH = 50;
+  cy += tableHeadH + tableRowH * items.length + 22;
+
+  // صندوق الإجمالي (إجمالي المنتجات + تكلفة الشحن + الإجمالي الكلي)
+  const totalsRowH = 42;
+  const totalsBoxH = totalsRowH * 3;
+  cy += totalsBoxH + 26;
+
+  const footerH = 46;
+  const contentBottom = cy;
+  const H = headerH + contentBottom + footerH;
+
+  // ── إنشاء الكانفاس ────────────────────────────────────────────────────
+  const canvas = document.createElement("canvas");
+  canvas.width = W * SCALE;
+  canvas.height = Math.ceil(H) * SCALE;
+  const ctx2d = canvas.getContext("2d");
+  if (!ctx2d) throw new Error("Canvas not supported");
+  const ctx: CanvasRenderingContext2D = ctx2d;
+  ctx.scale(SCALE, SCALE);
+
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, W, H);
+
+  // ══ الهيدر: عنوان الفاتورة + بياناتها (يمين) — لوجو الشركة (شمال) ═══════
+  const logoDiameter = 88;
+  const logoY = (headerH - logoDiameter) / 2 + 10;
+  if (logoImg) {
+    drawStarkLogoImage(ctx, logoImg, M, logoY, logoDiameter);
+  } else {
+    drawStarkLogo(ctx, M, logoY + logoDiameter / 2 - 24, 48);
+  }
+  drawText(ctx, "فاتورة بيع", W - M, 46, { size: 26, weight: 900, color: "#111111", align: "right" });
+  drawText(ctx, `رقم الفاتورة: ${invNum}`, W - M, 74, { size: 14, weight: 700, color: "#555555", align: "right" });
+  drawText(ctx, `التاريخ: ${dateLabel}`, W - M, 94, { size: 14, weight: 700, color: "#555555", align: "right" });
+  drawText(ctx, `${items.length} منتج / ${totalQty} قطعة`, W - M, 114, { size: 14, weight: 700, color: "#555555", align: "right" });
+
+  ctx.strokeStyle = "#dddddd";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(M, headerH);
+  ctx.lineTo(W - M, headerH);
+  ctx.stroke();
+
+  cy = headerH + pagePad;
+
+  // ── صندوق بيانات العميل ──────────────────────────────────────────────
+  ctx.save();
+  ctx.strokeStyle = "#cccccc";
+  ctx.lineWidth = 1;
+  roundRect(ctx, M, cy, contentW, clientBoxH, 6);
+  ctx.stroke();
+  ctx.restore();
+  drawText(ctx, `العميل: ${customerName}`, W - M - 20, cy + 30, { size: 15, weight: 700, color: "#222222", align: "right" });
+  drawText(ctx, `المحافظة: ${customerCity}`, W - M - 20, cy + 58, { size: 15, weight: 700, color: "#222222", align: "right" });
+  drawText(ctx, `الهاتف: ${customerPhone}`, M + 20, cy + 30, { size: 15, weight: 700, color: "#222222", align: "left", dir: "ltr" });
+  drawText(ctx, `العنوان: ${customerAddress}`, M + 20, cy + 58, { size: 15, weight: 700, color: "#222222", align: "left" });
+  cy += clientBoxH + 22;
+
+  // ── جدول المنتجات ─────────────────────────────────────────────────────
+  const colRightEdge = W - M - 12; // #
+  const colProductEdge = W - M - 48; // المنتج
+  const colVariantCx = W - M - contentW * 0.44; // اللون/المقاس
+  const colQtyCx = W - M - contentW * 0.62; // الكمية
+  const colUnitCx = W - M - contentW * 0.79; // سعر الوحدة
+  const colTotalEdge = M + 12; // الإجمالي
+
+  ctx.save();
+  ctx.fillStyle = "#333333";
+  ctx.fillRect(M, cy, contentW, tableHeadH);
+  ctx.restore();
+  drawText(ctx, "#", colRightEdge, cy + tableHeadH / 2 + 5, { size: 13, weight: 800, color: "#ffffff", align: "right" });
+  drawText(ctx, "المنتج", colProductEdge, cy + tableHeadH / 2 + 5, { size: 13, weight: 800, color: "#ffffff", align: "right" });
+  drawText(ctx, "اللون/المقاس", colVariantCx, cy + tableHeadH / 2 + 5, { size: 12, weight: 800, color: "#ffffff", align: "center" });
+  drawText(ctx, "الكمية", colQtyCx, cy + tableHeadH / 2 + 5, { size: 13, weight: 800, color: "#ffffff", align: "center" });
+  drawText(ctx, "سعر الوحدة", colUnitCx, cy + tableHeadH / 2 + 5, { size: 12, weight: 800, color: "#ffffff", align: "center" });
+  drawText(ctx, "الإجمالي", colTotalEdge, cy + tableHeadH / 2 + 5, { size: 13, weight: 800, color: "#ffffff", align: "left", dir: "ltr" });
+  cy += tableHeadH;
+
+  items.forEach((it, idx) => {
+    ctx.save();
+    ctx.fillStyle = idx % 2 === 0 ? "#ffffff" : "#fafafb";
+    ctx.fillRect(M, cy, contentW, tableRowH);
+    ctx.strokeStyle = "#e4e4e4";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(M, cy + tableRowH);
+    ctx.lineTo(W - M, cy + tableRowH);
+    ctx.stroke();
+    ctx.restore();
+    drawText(ctx, String(idx + 1), colRightEdge, cy + tableRowH / 2 + 5, { size: 14, weight: 800, color: "#222222", align: "right" });
+    drawText(ctx, it.product, colProductEdge, cy + tableRowH / 2 + (it.variant ? -3 : 5), { size: 14, weight: 800, color: "#171a22", align: "right" });
+    if (it.variant) drawText(ctx, it.variant, colProductEdge, cy + tableRowH / 2 + 16, { size: 11, weight: 600, color: "#8b8fa3", align: "right" });
+    drawText(ctx, String(it.qty), colQtyCx, cy + tableRowH / 2 + 5, { size: 14, weight: 800, color: "#171a22", align: "center" });
+    drawText(ctx, money(it.unitPrice), colUnitCx, cy + tableRowH / 2 + 5, { size: 13, weight: 700, color: "#5b5f6d", align: "center" });
+    drawText(ctx, money(it.totalPrice), colTotalEdge, cy + tableRowH / 2 + 5, { size: 14, weight: 900, color: "#171a22", align: "left", dir: "ltr" });
+    cy += tableRowH;
+  });
+  ctx.strokeStyle = "#cccccc";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(M, cy);
+  ctx.lineTo(W - M, cy);
+  ctx.stroke();
+  cy += 22;
+
+  // ── صندوق الإجمالي ────────────────────────────────────────────────────
+  const summaryW = 320;
+  const summaryX = M;
+  ctx.save();
+  ctx.strokeStyle = "#cccccc";
+  ctx.lineWidth = 1;
+  roundRect(ctx, summaryX, cy, summaryW, totalsBoxH, 6);
+  ctx.stroke();
+  ctx.restore();
+  const totalsRows = [
+    { label: "إجمالي المنتجات", value: `${money(invoiceTotal)} ج.م` },
+    { label: "تكلفة الشحن", value: `${money(shippingCostTotal)} ج.م` },
+  ];
+  let ty = cy;
+  totalsRows.forEach((row) => {
+    drawText(ctx, row.label, summaryX + summaryW - 16, ty + totalsRowH / 2 + 5, { size: 14, weight: 600, color: "#444444", align: "right" });
+    drawText(ctx, row.value, summaryX + 16, ty + totalsRowH / 2 + 5, { size: 15, weight: 800, color: "#111111", align: "left", dir: "ltr" });
+    ty += totalsRowH;
+    ctx.strokeStyle = "#e4e4e4";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(summaryX, ty);
+    ctx.lineTo(summaryX + summaryW, ty);
+    ctx.stroke();
+  });
+  ctx.strokeStyle = "#111111";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(summaryX, ty);
+  ctx.lineTo(summaryX + summaryW, ty);
+  ctx.stroke();
+  drawText(ctx, "الإجمالي الكلي", summaryX + summaryW - 16, ty + totalsRowH / 2 + 6, { size: 16, weight: 900, color: "#111111", align: "right" });
+  drawText(ctx, `${money(grandTotal)} ج.م`, summaryX + 16, ty + totalsRowH / 2 + 6, { size: 18, weight: 900, color: "#111111", align: "left", dir: "ltr" });
+
+  // ══ الفوتر ═══════════════════════════════════════════════════════════
+  drawText(ctx, "STARK — شكراً لتعاملكم معنا", W / 2, H - footerH / 2 + 5, { size: 14, weight: 700, color: "#666666", align: "center" });
+  ctx.strokeStyle = "#dddddd";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(M, H - footerH);
+  ctx.lineTo(W - M, H - footerH);
+  ctx.stroke();
 
   return canvas.toDataURL("image/png", 1);
 }
