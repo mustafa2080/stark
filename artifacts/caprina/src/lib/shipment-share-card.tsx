@@ -245,6 +245,30 @@ function drawText(
   ctx.fillText(str, x, y);
 }
 
+// نص بيتقص بـ "…" لو أعرض من maxWidth — بيمنع تداخل نصين متقابلين في نفس الصف (مثلاً عمودين في صندوق بيانات العميل)
+function drawTruncatedText(
+  ctx: CanvasRenderingContext2D,
+  str: string,
+  x: number,
+  y: number,
+  maxWidth: number,
+  opts: { size: number; weight?: number; color: string; align?: CanvasTextAlign }
+) {
+  ctx.direction = "rtl";
+  ctx.textAlign = opts.align ?? "right";
+  ctx.textBaseline = "alphabetic";
+  ctx.font = `${opts.weight ?? 500} ${opts.size}px ${FONT}`;
+  ctx.fillStyle = opts.color;
+  let out = str;
+  if (ctx.measureText(out).width > maxWidth) {
+    while (out.length > 1 && ctx.measureText(out + "…").width > maxWidth) {
+      out = out.slice(0, -1);
+    }
+    out = out + "…";
+  }
+  ctx.fillText(out, x, y);
+}
+
 function countWrapLines(ctx: CanvasRenderingContext2D, str: string, maxW: number, size: number, weight: number) {
   ctx.font = `${weight} ${size}px ${FONT}`;
   const words = str.split(" ");
@@ -1306,10 +1330,11 @@ export async function generateInvoiceShareImage(shipment: ShipmentShareData): Pr
   roundRect(ctx, M, cy, contentW, clientBoxH, 6);
   ctx.stroke();
   ctx.restore();
-  drawText(ctx, `العميل: ${customerName}`, W - M - 20, cy + 30, { size: 15, weight: 700, color: "#222222", align: "right" });
-  drawText(ctx, `المحافظة: ${customerCity}`, W - M - 20, cy + 58, { size: 15, weight: 700, color: "#222222", align: "right" });
-  drawText(ctx, `الهاتف: ${customerPhone}`, M + 20, cy + 30, { size: 15, weight: 700, color: "#222222", align: "left", dir: "ltr" });
-  drawText(ctx, `العنوان: ${customerAddress}`, M + 20, cy + 58, { size: 15, weight: 700, color: "#222222", align: "left" });
+  const clientColW = contentW / 2 - 32;
+  drawTruncatedText(ctx, `العميل: ${customerName}`, W - M - 20, cy + 30, clientColW, { size: 15, weight: 700, color: "#222222", align: "right" });
+  drawTruncatedText(ctx, `المحافظة: ${customerCity}`, W - M - 20, cy + 58, clientColW, { size: 15, weight: 700, color: "#222222", align: "right" });
+  drawTruncatedText(ctx, `الهاتف: ${customerPhone}`, M + 20, cy + 30, clientColW, { size: 15, weight: 700, color: "#222222", align: "left" });
+  drawTruncatedText(ctx, `العنوان: ${customerAddress}`, M + 20, cy + 58, clientColW, { size: 15, weight: 700, color: "#222222", align: "left" });
   cy += clientBoxH + 22;
 
   // ── جدول المنتجات ─────────────────────────────────────────────────────

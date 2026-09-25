@@ -5264,7 +5264,7 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
             // ── بيانات الفاتورة الإضافية — نفس منطق الطباعة (handlePrint): منتجات الشحنة
             // الفعلية من shipmentItems (/shipments/:id/items)، أو صف واحد افتراضي من order لو مفيش ──
             invoiceNumber: (order as any).invoiceNumber ?? (order as any).shipmentNumber ?? `#${order.id.toString().padStart(4,"0")}`,
-            shippingCostTotal: (order as any).shippingCost ?? (order as any).shippingFee ?? 0,
+            shippingCostTotal: (order as any).shippingFee ?? (order as any).shippingCost ?? 0,
             invoiceItems: (shipmentItems && shipmentItems.length > 0)
               ? shipmentItems.map((it: any) => ({
                   product: it.product ?? it.productName ?? it.name ?? null,
@@ -5275,12 +5275,14 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                   totalPrice: it.totalPrice ?? (Number(it.quantity ?? 1) * Number(it.unitPrice ?? 0)),
                 }))
               : [{
-                  product: (order as any).product ?? (order as any).productName ?? null,
+                  // الشحنة دي مفيهاش بنود منتجات منفصلة (shipmentItems) ولا product_id على الشحنة نفسها —
+                  // نعرض وصف الشحنة (لو موجود) وكمية القطع الفعلية، وناخد القيمة من cod_amount بدل ما نسيب صف فاضي بالأصفار
+                  product: (order as any).product ?? (order as any).productName ?? (order as any).description ?? "شحنة",
                   color: (order as any).color ?? null,
                   size: (order as any).size ?? null,
-                  quantity: (order as any).quantity ?? 1,
-                  unitPrice: (order as any).unitPrice ?? 0,
-                  totalPrice: (order as any).totalPrice ?? 0,
+                  quantity: (order as any).quantity ?? (order as any).pieces ?? 1,
+                  unitPrice: (order as any).unitPrice ?? (order as any).codAmount ?? 0,
+                  totalPrice: (order as any).totalPrice ?? (order as any).codAmount ?? 0,
                 }],
           }}
         />
