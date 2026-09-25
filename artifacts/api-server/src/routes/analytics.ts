@@ -4297,7 +4297,7 @@ router.get("/analytics/top-performers", requireAuth, async (req, res): Promise<v
           ratingsCount: ratingAcc?.count ?? 0,
         };
       })
-      .sort((a, b) => b.successRate - a.successRate || b.assigned - a.assigned)
+      .sort((a, b) => b.assigned - a.assigned || b.successRate - a.successRate)
       .slice(0, 10);
 
     const result = {
