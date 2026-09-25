@@ -3763,6 +3763,14 @@ router.get("/analytics/reps-daily", requireAuth, async (req, res): Promise<void>
         gte(shipmentsTable.updatedAt, rangeStart),
         lte(shipmentsTable.updatedAt, rangeEnd),
       ),
+      // actualDelivery مش بيتملى فعليًا عند كتير من الشحنات المُسلَّمة، فبنعتمد كمان
+      // على updatedAt لأي حالة "منجزة" (received/delivered/partial_received/...)
+      // عشان الشحنة القديمة اللي اتسلمت فعليًا جوه الفترة متضيعش من عداد المندوب.
+      and(
+        inArray(shipmentsTable.status, ["received", "delivered", "partial_received", "replaced", "parcel_picked"]),
+        gte(shipmentsTable.updatedAt, rangeStart),
+        lte(shipmentsTable.updatedAt, rangeEnd),
+      ),
     );
     const cond = tenantId !== null
       ? and(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.deletedAt), inRange)
@@ -4107,6 +4115,14 @@ router.get("/analytics/top-performers", requireAuth, async (req, res): Promise<v
         and(isNotNull(shipmentsTable.actualDelivery), gte(shipmentsTable.actualDelivery, rangeFrom), lte(shipmentsTable.actualDelivery, rangeTo)),
         and(
           inArray(shipmentsTable.status, ["returned", "cancelled"]),
+          gte(shipmentsTable.updatedAt, rangeFrom),
+          lte(shipmentsTable.updatedAt, rangeTo),
+        ),
+        // actualDelivery مش بيتملى فعليًا عند كتير من الشحنات المُسلَّمة، فبنعتمد كمان
+        // على updatedAt لأي حالة "منجزة" عشان الشحنة القديمة اللي اتسلمت فعليًا جوه
+        // الفترة متضيعش من عداد المندوب.
+        and(
+          inArray(shipmentsTable.status, ["received", "delivered", "partial_received", "replaced", "parcel_picked"]),
           gte(shipmentsTable.updatedAt, rangeFrom),
           lte(shipmentsTable.updatedAt, rangeTo),
         ),
