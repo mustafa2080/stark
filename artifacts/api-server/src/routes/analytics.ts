@@ -3735,9 +3735,16 @@ router.get("/analytics/operations-center", requireAuth, async (req, res): Promis
         shipmentIds: v.shipmentIds.slice(0, 5),
       }));
 
+    const delayedLateCount = delayedShipmentsAll.filter((s) => s.delayedHours >= 72 && s.delayedHours < 168).length;
+    const delayedUrgentCount = delayedShipmentsAll.filter((s) => s.delayedHours >= 168 && s.delayedHours < 240).length;
+    const delayedCriticalCount = delayedShipmentsAll.filter((s) => s.delayedHours >= 240).length;
+
     const result = {
       summary: {
         delayedCount: delayedShipmentsAll.length,
+        delayedLateCount,
+        delayedUrgentCount,
+        delayedCriticalCount,
         problemCount: problemShipments.length,
         outTodayCount: outToday.length,
         onlineRepsCount: representatives.filter(r => r.isOnline).length,

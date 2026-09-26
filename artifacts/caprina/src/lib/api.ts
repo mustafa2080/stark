@@ -858,6 +858,9 @@ export interface OpsClientFollowup {
 export interface OperationsCenterResponse {
   summary: {
     delayedCount: number;
+    delayedLateCount: number;
+    delayedUrgentCount: number;
+    delayedCriticalCount: number;
     problemCount: number;
     outTodayCount: number;
     onlineRepsCount: number;

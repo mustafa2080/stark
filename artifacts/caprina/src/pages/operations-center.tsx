@@ -2189,9 +2189,9 @@ export default function OperationsCenterPage() {
                 <AlertOctagon className="w-5 h-5 text-red-500" /> شحنات متأخرة
               </CardTitle>
               {delayedShipments.length > 0 && (() => {
-                const late = delayedShipments.filter((s) => s.delayedHours >= 72 && s.delayedHours < 168).length;
-                const urgent = delayedShipments.filter((s) => s.delayedHours >= 168 && s.delayedHours < 240).length;
-                const critical = delayedShipments.filter((s) => s.delayedHours >= 240).length;
+                const late = opsCenter?.summary.delayedLateCount ?? 0;
+                const urgent = opsCenter?.summary.delayedUrgentCount ?? 0;
+                const critical = opsCenter?.summary.delayedCriticalCount ?? 0;
                 return (
                   <div className="grid grid-cols-3 gap-1.5 mt-2">
                     <div className="rounded-lg border border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-950/20 py-1.5 text-center">
