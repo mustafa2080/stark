@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import rateLimit from "express-rate-limit";
 import { eq, desc, and, like, or, inArray, sql, isNull, isNotNull, gte, getTableColumns } from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
-import { db, shipmentsTable, shipmentItemsTable, shipmentZonesTable, zoneCostsTable, parcelTypePricingTable, clientsTable, shippingCompaniesTable, usersTable, warehousesTable, shipmentManifestsTable, shipmentManifestItemsTable, shipmentRatingsTable, clientAccountManifestItemsTable, SHIPMENT_STATUS_LABELS, getShipmentLocationNote, getCompletionStatusForKind, hasReturnLeg } from "@workspace/db";
+import { db, shipmentsTable, shipmentItemsTable, shipmentZonesTable, zoneCostsTable, parcelTypePricingTable, clientsTable, shippingCompaniesTable, usersTable, warehousesTable, shipmentManifestsTable, shipmentManifestItemsTable, shipmentRatingsTable, clientAccountManifestItemsTable, SHIPMENT_STATUS_LABELS, getShipmentLocationNote, getCompletionStatusForKind, hasReturnLeg, COMPLETION_STATUSES } from "@workspace/db";
 import { z } from "zod";
 import { getTenantId } from "../middlewares/requireTenant.js";
 import { processToShipping, reverseShipping, processReturn, syncShipmentItemsInventory } from "../lib/inventory.js";
@@ -1616,6 +1616,16 @@ router.put("/shipments/:id", async (req, res): Promise<void> => {
       }
     }
 
+    // ─── تسجيل actualDelivery فعليًا وقت "الإنجاز" الحقيقي ────────────────────
+    // نفس منطق PATCH /shipments/:id بالظبط — راجع الشرح المفصّل هناك.
+    if (
+      COMPLETION_STATUSES.has(putEffectiveStatus) &&
+      existingShipment.status !== putEffectiveStatus &&
+      !existingShipment.actualDelivery
+    ) {
+      updateData.actualDelivery = new Date();
+    }
+
     // totalAmount: بيتحسب دايمًا في السيرفر لو أي حقل داخل في معادلته اتغيّر
     // (paymentMethod/codAmount/shippingFee/insuranceFee) — بنفس منطق POST /shipments،
     // عشان يفضل متسق مهما كانت الشاشة اللي بعتت التعديل. لو مفيش تغيير في أي حقل من
@@ -1802,6 +1812,25 @@ router.patch("/shipments/bulk-status", async (req, res): Promise<void> => {
       ? and(inArray(shipmentsTable.id, numericIds), eq(shipmentsTable.tenantId, tenantId))
       : inArray(shipmentsTable.id, numericIds);
 
+    // ─── تسجيل actualDelivery فعليًا وقت "الإنجاز" الحقيقي ────────────────────
+    // نفس منطق PUT/PATCH /shipments/:id — لو الحالة الجديدة حالة "إنجاز" فعلية
+    // (delivered/replaced/parcel_picked)، بس للشحنات اللي مكنتش أصلاً في حالة
+    // إنجاز ومالهاش actualDelivery متسجل قبل كده (منعًا لإعادة الكتابة).
+    if (COMPLETION_STATUSES.has(status)) {
+      const beforeCompletionRows = await db
+        .select({ id: shipmentsTable.id, status: shipmentsTable.status, actualDelivery: shipmentsTable.actualDelivery })
+        .from(shipmentsTable)
+        .where(cond);
+      const idsNeedingStamp = beforeCompletionRows
+        .filter(r => !COMPLETION_STATUSES.has(r.status) && !r.actualDelivery)
+        .map(r => r.id);
+      if (idsNeedingStamp.length > 0) {
+        await db.update(shipmentsTable)
+          .set({ actualDelivery: now })
+          .where(inArray(shipmentsTable.id, idsNeedingStamp));
+      }
+    }
+
     // نجيب بيانات الشحنات قبل التحديث عشان نتأكد من إضافتهم تلقائيًا لبيان العميل
     // ملحوظة: بناخد كل الشحنات المستهدفة (مش بس اللي بتتغير حالتها فعليًا) لأن
     // الدالة idempotent وبتتجاهل لو فيه بيان مضاف بالفعل — ده بيمنع فوات الحالات
@@ -1978,6 +2007,22 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
     const effectiveStatus = updateData.status ?? existingShipment.status;
     if (d.returnReceived === undefined && !hasReturnLeg(effectiveStatus)) {
       updateData.returnReceived = null;
+    }
+
+    // ─── تسجيل actualDelivery فعليًا وقت "الإنجاز" الحقيقي ────────────────────
+    // (فيكس 2026-09-26): حاوية "تحليل زمن التسليم الذكي" كانت بتحسب زمن التسليم
+    // بالـ fallback على updatedAt لأن actualDelivery مكنش بيتسجل في أي مكان أبدًا
+    // — فالأرقام كانت بتعكس "آخر تعديل على الصف" مش "وقت التسليم الفعلي". دلوقتي
+    // أول ما الحالة تدخل لأي حالة "إنجاز" فعلية (delivered / replaced / parcel_picked)
+    // ولم تكن كذلك قبل كده، نسجل actualDelivery = اللحظة دي بالظبط. من غير أي
+    // إعادة كتابة لو الشحنة أصلاً كانت في نفس الحالة (مايتغيرش تاريخ التسليم بسبب
+    // تعديل تاني زي إضافة ملاحظة).
+    if (
+      COMPLETION_STATUSES.has(effectiveStatus) &&
+      existingShipment.status !== effectiveStatus &&
+      !existingShipment.actualDelivery
+    ) {
+      updateData.actualDelivery = new Date();
     }
 
     // ─── ربط مرتجع الاستبدال / الطرد المُحضَر بالسيستم ────────────────────────

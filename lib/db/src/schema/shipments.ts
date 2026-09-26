@@ -60,6 +60,14 @@ export function getCompletionStatusForKind(kind: string | null | undefined): Shi
   return KIND_COMPLETION_STATUS[k] ?? "delivered";
 }
 
+// ─── حالات "الإنجاز الفعلي" (تم التسليم بمختلف أنواع الطلب) ──────────────────
+// = كل قيم KIND_COMPLETION_STATUS. أي مكان في السيستم عايز يعرف "الشحنة دي
+// اتسلّمت فعليًا (بأي نوع طلب)؟" لازم يستخدم الـ Set ده بدل ما يقارن على
+// "delivered" لوحدها، وإلا هيفوّت شحنات الاستبدال/إحضار الطرد (replaced/parcel_picked).
+// استُخدم أول مرة لتسجيل actualDelivery وقت التحويل الفعلي لحالة الإنجاز
+// (فيكس 2026-09-26 — راجع routes/shipments.ts).
+export const COMPLETION_STATUSES = new Set<string>(Object.values(KIND_COMPLETION_STATUS));
+
 // ─── حالات بتترتب عليها "رجلة مرتجع" لازم تتسجل في السيستم ──────────────────
 // الاستبدال وإحضار الطرد زيهم زي المرتجع بالظبط: فيه بضاعة فعليًا في إيد
 // المندوب لازم تتسلّم للمخزن أو للراسل، وإلا هتضيع. أي كويري بتدوّر على

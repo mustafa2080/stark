@@ -335,22 +335,36 @@ export async function syncManifestItemToShipment(
   if (!mappedStatus) return;
 
   try {
-    const { shipmentsTable, getCompletionStatusForKind } = await import("@workspace/db");
+    const { shipmentsTable, getCompletionStatusForKind, COMPLETION_STATUSES } = await import("@workspace/db");
     // ⚠️ "delivered" الجاية من البيان حالة عامة — لو الشحنة دي أصلاً طلب
     // استبدال أو إحضار طرد، لازم نحافظ على الحالة النوعية بتاعتها
     // (replaced / parcel_picked) بدل ما ندوس عليها بـ "delivered" ونضيّع
     // التفرقة في التتبع والإيصال والفاتورة. باقي الحالات (مرتجع/مؤجل/جزئي)
     // مالهاش نسخة نوعية فبتتطبق زي ما هي.
+    const [existingRow] = await db.select({ kind: shipmentsTable.shipmentKind, status: shipmentsTable.status, actualDelivery: shipmentsTable.actualDelivery })
+      .from(shipmentsTable)
+      .where(eq(shipmentsTable.id, shipmentId))
+      .limit(1);
     let finalStatus = mappedStatus;
     if (mappedStatus === "delivered") {
-      const [row] = await db.select({ kind: shipmentsTable.shipmentKind })
-        .from(shipmentsTable)
-        .where(eq(shipmentsTable.id, shipmentId))
-        .limit(1);
-      finalStatus = getCompletionStatusForKind(row?.kind);
+      finalStatus = getCompletionStatusForKind(existingRow?.kind);
+    }
+    const updatePayload: any = { status: finalStatus, updatedAt: new Date() };
+    // ─── تسجيل actualDelivery فعليًا وقت "الإنجاز" الحقيقي ────────────────────
+    // (فيكس 2026-09-26): هذا المسار (تقفيل بند بيان) بيغيّر shipmentsTable.status
+    // مباشرة برّه شاشات PUT/PATCH /shipments/:id، فكان محتاج نفس منطق تسجيل
+    // actualDelivery هناك عشان حاوية "تحليل زمن التسليم الذكي" متعتمدش على
+    // updatedAt المضلل. راجع الشرح المفصّل في routes/shipments.ts.
+    if (
+      existingRow &&
+      COMPLETION_STATUSES.has(finalStatus) &&
+      existingRow.status !== finalStatus &&
+      !existingRow.actualDelivery
+    ) {
+      updatePayload.actualDelivery = updatePayload.updatedAt;
     }
     await db.update(shipmentsTable)
-      .set({ status: finalStatus, updatedAt: new Date() })
+      .set(updatePayload)
       .where(eq(shipmentsTable.id, shipmentId));
   } catch (e) {
     console.error("[syncManifestItemToShipment] error:", e);
