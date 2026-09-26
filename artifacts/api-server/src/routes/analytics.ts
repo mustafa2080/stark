@@ -4877,7 +4877,7 @@ router.put("/analytics/shipments-monthly-goal", requireAuth, requireAdmin, async
 router.get("/analytics/shipments-intelligence", requireAuth, async (req, res): Promise<void> => {
   try {
     const tenantId = getTenantId(req);
-    const period = (req.query.period as string | undefined) ?? "month"; // today | week | month | year | custom
+    const period = (req.query.period as string | undefined) ?? "month"; // today | week | month | year | all | custom
     const customFrom = req.query.from as string | undefined;
     const customTo = req.query.to as string | undefined;
     const cacheKey = `shipments-intelligence:${tenantId ?? "global"}:${period}:${customFrom ?? ""}:${customTo ?? ""}`;
@@ -4895,6 +4895,9 @@ router.get("/analytics/shipments-intelligence", requireAuth, async (req, res): P
       rangeFrom = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
     } else if (period === "year") {
       rangeFrom = new Date(now.getFullYear(), 0, 1);
+    } else if (period === "all") {
+      // كل الفترات: من بداية الزمن فعليًا (بدون أي فلتر تاريخ) — بيغطي كل الشحنات المسجلة
+      rangeFrom = new Date(2000, 0, 1);
     } else if (period === "custom" && customFrom) {
       rangeFrom = new Date(customFrom + "T00:00:00");
       rangeTo = customTo ? new Date(customTo + "T23:59:59") : now;

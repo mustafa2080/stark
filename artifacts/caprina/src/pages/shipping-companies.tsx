@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, type CSSProperties } from "react";
 import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import { shippingApi, manifestsApi, shipmentManifestsApi, shipmentsApi, apiFetch, type ShippingCompany, type ShippingManifestListItem, type ShipmentManifestListItem, type ManifestCompanyStats, type Shipment } from "@/lib/api";
@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Plus, Truck, Edit2, Trash2, Phone, Globe, MapPin, ToggleLeft, ToggleRight, FileText, TrendingUp, TrendingDown, PackagePlus, ChevronDown, ChevronUp, Clock, CheckCircle2, RotateCcw, Search, ImagePlus, X as XIcon, Check, ChevronsUpDown, KeyRound, UserPlus, DollarSign, LayoutGrid, List, Lock } from "lucide-react";
+import { Plus, Truck, Edit2, Trash2, Phone, Globe, MapPin, ToggleLeft, ToggleRight, FileText, TrendingUp, TrendingDown, PackagePlus, ChevronDown, ChevronUp, Clock, CheckCircle2, RotateCcw, Search, ImagePlus, X as XIcon, Check, ChevronsUpDown, KeyRound, UserPlus, DollarSign, LayoutGrid, List, Lock, CircleUserRound } from "lucide-react";
 import { format } from "date-fns";
 
 // الحالات اللي تعتبر "متاحة" للإضافة لبيان شحن شحنات جديد — قيد الشحن في المخزن فقط
@@ -331,6 +331,37 @@ function CompanyAvatar({ logo, name, size = "md" }: { logo?: string | null; name
   return (
     <div className={`${dims} rounded-full bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20 flex items-center justify-center shrink-0`}>
       <Truck className={`${iconSize} text-primary/60`} />
+    </div>
+  );
+}
+
+// ── دايرة بروفايل بألوان مميزة + حروف أولى (زي بروفايل العملاء التجاريين) ────
+// مستخدمة بس في عرض "بروفايل" — CompanyAvatar الأصلية (فوق) بتفضل زي ما هي
+// في عرض الكروت/القائمة (أيقونة شاحنة كـ fallback).
+const REP_AVATAR_COLORS = [
+  ["#f59e0b", "#78350f"], ["#10b981", "#064e3b"], ["#3b82f6", "#1e3a8a"],
+  ["#8b5cf6", "#4c1d95"], ["#ef4444", "#7f1d1d"], ["#ec4899", "#831843"],
+  ["#06b6d4", "#164e63"], ["#f97316", "#7c2d12"],
+];
+function getRepAvatarColor(name: string) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
+  return REP_AVATAR_COLORS[Math.abs(h) % REP_AVATAR_COLORS.length];
+}
+function getRepInitials(name: string) {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return name.slice(0, 2).toUpperCase();
+}
+function RepProfileAvatar({ logo, name, size = "lg" }: { logo?: string | null; name: string; size?: "sm" | "md" | "lg" }) {
+  const dims = size === "lg" ? "w-14 h-14 text-2xl" : size === "sm" ? "w-7 h-7 text-xs" : "w-10 h-10 text-sm";
+  if (logo && logo.startsWith("data:"))
+    return <img src={logo} className={`${dims} client-avatar-fallback rounded-full object-cover border-2 border-border/50 shrink-0`} alt={name} />;
+  const [bg, fg] = getRepAvatarColor(name || "؟");
+  return (
+    <div className={`${dims} client-avatar-fallback rounded-full flex items-center justify-center font-bold shrink-0 border border-border/20`}
+      style={{ background: bg, color: fg }}>
+      {name ? getRepInitials(name) : "؟"}
     </div>
   );
 }
@@ -1282,6 +1313,7 @@ function RepresentativeDialog({
 }
 
 export default function ShippingCompanies() {
+  const [, navigate] = useLocation();
   const { toast } = useToast();
   const { can, isAdmin, canViewFinancials } = useAuth();
   // ── Shipping permission shortcuts ──────────────────────────────────────────
@@ -1299,18 +1331,41 @@ export default function ShippingCompanies() {
   const [repDialogMode, setRepDialogMode] = useState<"account" | "password">("account");
   const [form, setForm] = useState(emptyForm);
   const [searchQuery, setSearchQuery] = useState("");
+  // ── فلاتر إضافية زي بروفايل العملاء التجاريين: حالة التفعيل + الترتيب ──────
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [sortBy, setSortBy] = useState<"recent" | "name" | "open_stale">("recent");
   // ── توسيع/طي قائمة "تكلفة الشحنة حسب المنطقة" لكل مندوب (لما تكون كتير) ────
   const [expandedZoneCosts, setExpandedZoneCosts] = useState<Record<number, boolean>>({});
-  const [viewMode, setViewMode] = useState<"grid" | "list">(() => {
+  const [viewMode, setViewMode] = useState<"grid" | "list" | "profile">(() => {
     if (typeof window === "undefined") return "grid";
-    return (localStorage.getItem("shipping-companies-view") as "grid" | "list") || "grid";
+    return (localStorage.getItem("shipping-companies-view") as "grid" | "list" | "profile") || "grid";
   });
-  const changeViewMode = (mode: "grid" | "list") => {
+  const changeViewMode = (mode: "grid" | "list" | "profile") => {
     setViewMode(mode);
     if (typeof window !== "undefined") localStorage.setItem("shipping-companies-view", mode);
   };
 
   const { data: companies, isLoading } = useQuery({ queryKey: ["shipping"], queryFn: shippingApi.list });
+  // ── كل بيانات الشحنات (كل المناديب) — عشان فلتر "بيانات مفتوحة +48 ساعة" ────
+  // نفس المنطق اللي بيستخدمه CompanyStats لكل مندوب لوحده، هنا بنجيبه مرة واحدة
+  // لكل المناديب عشان الفلتر يشتغل على مستوى القائمة كلها بدون N+1 ريكوستس.
+  const { data: allShipmentManifests } = useQuery({
+    queryKey: ["shipment-manifests", "all"],
+    queryFn: () => shipmentManifestsApi.list(),
+    staleTime: 30000,
+  });
+  const OPEN_MANIFEST_STALE_HOURS = 48;
+  const staleOpenCompanyIds = useMemo(() => {
+    if (!allShipmentManifests) return new Set<number>();
+    const ids = new Set<number>();
+    for (const m of allShipmentManifests) {
+      if (m.status !== "open") continue;
+      if ((m as any).closedByRole) continue; // المندوب قفله بالفعل من عنده، مستني تأكيد بس
+      const hours = (Date.now() - new Date(m.createdAt).getTime()) / (1000 * 60 * 60);
+      if (hours >= OPEN_MANIFEST_STALE_HOURS) ids.add(m.shippingCompanyId);
+    }
+    return ids;
+  }, [allShipmentManifests]);
   const { data: zones = [] } = useQuery<{ id: number; name: string; fromGovernorate?: string; toGovernorate?: string; price: number }[]>({
     queryKey: ["shipment-zones"],
     queryFn: () => apiFetch("/shipments/zones"),
@@ -1321,11 +1376,11 @@ export default function ShippingCompanies() {
   });
 
   // ── بحث احترافي Realtime على المناديب: بالاسم / الهاتف / الملاحظات / مناطق التغطية ──
+  // + فلتر حالة التفعيل + ترتيب (زي بروفايل العملاء التجاريين) ────────────────
   const filteredCompanies = useMemo(() => {
     if (!companies) return companies;
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return companies;
-    return companies.filter((c) => {
+    let result = !q ? companies : companies.filter((c) => {
       if (c.name?.toLowerCase().includes(q)) return true;
       if (c.phone && c.phone.replace(/[^0-9]/g, "").includes(q.replace(/[^0-9]/g, "")) && q.replace(/[^0-9]/g, "")) return true;
       if (c.phone && c.phone.toLowerCase().includes(q)) return true;
@@ -1341,7 +1396,19 @@ export default function ShippingCompanies() {
       if (zcIds.some((id) => zoneCosts.find((z) => z.id === id)?.name?.toLowerCase().includes(q))) return true;
       return false;
     });
-  }, [companies, searchQuery, zoneCosts]);
+    if (statusFilter === "active") result = result.filter((c) => c.isActive);
+    if (statusFilter === "inactive") result = result.filter((c) => !c.isActive);
+    // "بيانات مفتوحة +48 ساعة" — المناديب اللي عندها بيان مفتوح من غير تقفيل من فترة طويلة
+    if (sortBy === "open_stale") {
+      result = result.filter((c) => staleOpenCompanyIds.has(c.id));
+    }
+    result = [...result].sort((a, b) => {
+      if (sortBy === "name") return a.name.localeCompare(b.name, "ar");
+      // "الأحدث" (أو "بيانات مفتوحة +48 ساعة") — الأحدث إنشاءً أولاً
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+    return result;
+  }, [companies, searchQuery, zoneCosts, statusFilter, sortBy, staleOpenCompanyIds]);
 
   const createMutation = useMutation({
     mutationFn: (data: typeof emptyForm) => shippingApi.create(data),
@@ -1481,6 +1548,16 @@ export default function ShippingCompanies() {
             >
               <List className="w-4 h-4" />
             </button>
+            <button
+              type="button"
+              onClick={() => changeViewMode("profile")}
+              aria-label="عرض بروفايل"
+              className={`flex items-center justify-center w-8 h-8 rounded-full transition-all duration-200 ${
+                viewMode === "profile" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <CircleUserRound className="w-4 h-4" />
+            </button>
           </div>
           {canCreate && (
             <Button onClick={openAdd} className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90 font-bold text-sm">
@@ -1514,25 +1591,45 @@ export default function ShippingCompanies() {
         </div>
       </div>
 
-      {/* ── شريط بحث احترافي Realtime ── */}
-      <div className="relative">
-        <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-        <Input
-          placeholder="ابحث بالاسم، الهاتف، المنطقة، أو الملاحظات..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="h-11 pr-10 pl-9 text-sm bg-muted/20 border-border/60 focus-visible:ring-2 focus-visible:ring-primary/40 rounded-xl transition-all"
-        />
-        {searchQuery && (
-          <button
-            type="button"
-            onClick={() => setSearchQuery("")}
-            aria-label="مسح البحث"
-            className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-muted/60 hover:bg-muted flex items-center justify-center transition-colors"
-          >
-            <XIcon className="w-3 h-3 text-muted-foreground" />
-          </button>
-        )}
+      {/* ── شريط بحث احترافي Realtime + فلاتر (حالة التفعيل + الترتيب) ── */}
+      <div className="flex flex-col sm:flex-row gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+          <Input
+            placeholder="ابحث بالاسم، الهاتف، المنطقة، أو الملاحظات..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="h-11 pr-10 pl-9 text-sm bg-muted/20 border-border/60 focus-visible:ring-2 focus-visible:ring-primary/40 rounded-xl transition-all"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery("")}
+              aria-label="مسح البحث"
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-muted/60 hover:bg-muted flex items-center justify-center transition-colors"
+            >
+              <XIcon className="w-3 h-3 text-muted-foreground" />
+            </button>
+          )}
+        </div>
+        <Select value={statusFilter} onValueChange={(v: any) => setStatusFilter(v)}>
+          <SelectTrigger className="w-full sm:w-[130px] h-11 text-sm rounded-xl bg-muted/20 border-border/60"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">كل المناديب</SelectItem>
+            <SelectItem value="active">نشط</SelectItem>
+            <SelectItem value="inactive">موقف</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
+          <SelectTrigger className="w-full sm:w-[160px] h-11 text-sm rounded-xl bg-muted/20 border-border/60"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="recent">الأحدث</SelectItem>
+            <SelectItem value="name">الاسم</SelectItem>
+            <SelectItem value="open_stale">
+              بيانات مفتوحة +48 ساعة{staleOpenCompanyIds.size > 0 ? ` (${staleOpenCompanyIds.size})` : ""}
+            </SelectItem>
+          </SelectContent>
+        </Select>
       </div>
       {searchQuery && (
         <p className="text-xs text-muted-foreground -mt-2 px-1">
@@ -1542,7 +1639,56 @@ export default function ShippingCompanies() {
 
       {isLoading ? (
         <div className="p-8 text-center text-muted-foreground text-sm">جاري التحميل...</div>
-      ) : filteredCompanies?.length ? (
+      ) : filteredCompanies?.length ? viewMode === "profile" ? (
+        // ─── عرض بروفايل — دايرة بصورة/لوجو المندوب + الاسم + مؤشر حالة
+        // التفعيل (نشط/موقف). الضغط على البروفايل يودّي مباشرة لصفحة تفاصيل
+        // المندوب، بنفس شكل بروفايل العملاء التجاريين (طلب مصطفى).
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-4">
+          {filteredCompanies.map((company, idx) => {
+            const isActive = !!company.isActive;
+            return (
+              <button
+                key={company.id}
+                type="button"
+                onClick={() => navigate(`/shipping/representative/${company.id}`)}
+                className="profile-card-enter profile-card-hover flex flex-col items-center gap-2 p-3 rounded-2xl hover:bg-white/5 transition-colors text-center"
+                style={{ animationDelay: `${Math.min(idx, 24) * 30}ms` }}
+              >
+                <div className="relative" style={{ "--float-delay": `${(idx % 5) * 0.35}s` } as CSSProperties}>
+                  <span
+                    className={`profile-avatar-glow absolute inset-0 rounded-full blur-md pointer-events-none ${
+                      isActive ? "bg-emerald-500/40" : "bg-muted-foreground/30"
+                    }`}
+                  />
+                  <div className="profile-avatar-wrap relative">
+                    <RepProfileAvatar logo={company.logo} name={company.name} size="lg" />
+                  </div>
+                  {/* نقطة نشط/موقف على حافة الدايرة نفسها (زي واتساب) */}
+                  <span
+                    title={isActive ? "مندوب نشط" : "مندوب موقف"}
+                    className={`absolute bottom-0 right-0 block w-3.5 h-3.5 rounded-full border-2 border-[#0a0a0a] ${
+                      isActive ? "status-dot-online" : "bg-zinc-500"
+                    }`}
+                  />
+                </div>
+                <p className="text-xs font-bold truncate max-w-full">{company.name}</p>
+                <span
+                  title={isActive ? "مندوب نشط" : "مندوب موقف"}
+                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold tracking-wide leading-none border ${
+                    isActive
+                      ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/40"
+                      : "bg-muted-foreground/10 text-muted-foreground border-muted-foreground/30"
+                  }`}
+                >
+                  <span className={isActive ? "status-text-online" : "status-text-offline"}>
+                    {isActive ? "نشط" : "موقف"}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      ) : (
         <div className={viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 gap-4" : "flex flex-col gap-4"}>
           {filteredCompanies.map((company, idx) => {
             // ألوان متنوعة لكل شركة

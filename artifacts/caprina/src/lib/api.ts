@@ -1063,6 +1063,7 @@ export interface ShipmentsIntelligenceResponse {
   healthScoreBreakdown: { key: string; label: string; value: number; weight: number; points: number; unit: string; invert?: boolean }[];
   kpis: {
     total: number;
+    achieved: number;
     delivered: number;
     returned: number;
     deliveryRate: number;

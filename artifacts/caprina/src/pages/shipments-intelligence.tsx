@@ -913,6 +913,7 @@ const PERIODS: { key: string; label: string }[] = [
   { key: "week", label: "أسبوع" },
   { key: "month", label: "شهر" },
   { key: "year", label: "سنة" },
+  { key: "all", label: "كل الفترات" },
 ];
 
 function PeriodSwitcher({ value, onChange }: { value: string; onChange: (v: string) => void }) {
