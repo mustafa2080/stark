@@ -2138,9 +2138,9 @@ export default function OperationsCenterPage() {
         );
       })()}
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-start">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-stretch">
         {showStatusDistribution && (
-        <div className={row1StatusSpan}>
+        <div className={`${row1StatusSpan} flex flex-col`}>
           {statusDistLoading && statusDonutData.length === 0 ? (
             <div className="h-56 rounded-2xl bg-muted animate-pulse" />
           ) : statusDonutData.length === 0 ? (
@@ -2149,7 +2149,7 @@ export default function OperationsCenterPage() {
               <span className="text-xs text-muted-foreground">لا توجد شحنات بعد</span>
             </div>
           ) : (
-            <ShipmentStatusDonut data={statusDonutData} total={statusDistTotal} />
+            <ShipmentStatusDonut data={statusDonutData} total={statusDistTotal} className="flex-1" />
           )}
         </div>
         )}
@@ -2188,6 +2188,27 @@ export default function OperationsCenterPage() {
               <CardTitle className="text-base flex items-center gap-2">
                 <AlertOctagon className="w-5 h-5 text-red-500" /> شحنات متأخرة
               </CardTitle>
+              {delayedShipments.length > 0 && (() => {
+                const late = delayedShipments.filter((s) => s.delayedHours >= 72 && s.delayedHours < 168).length;
+                const urgent = delayedShipments.filter((s) => s.delayedHours >= 168 && s.delayedHours < 240).length;
+                const critical = delayedShipments.filter((s) => s.delayedHours >= 240).length;
+                return (
+                  <div className="grid grid-cols-3 gap-1.5 mt-2">
+                    <div className="rounded-lg border border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-950/20 py-1.5 text-center">
+                      <div className="text-sm font-black text-yellow-600 dark:text-yellow-400">{late}</div>
+                      <div className="text-[9px] text-yellow-700 dark:text-yellow-300 leading-tight">متأخر (3-7)</div>
+                    </div>
+                    <div className="rounded-lg border border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-950/20 py-1.5 text-center">
+                      <div className="text-sm font-black text-orange-600 dark:text-orange-400">{urgent}</div>
+                      <div className="text-[9px] text-orange-700 dark:text-orange-300 leading-tight">عاجل (7-10)</div>
+                    </div>
+                    <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/20 py-1.5 text-center">
+                      <div className="text-sm font-black text-red-600 dark:text-red-400">{critical}</div>
+                      <div className="text-[9px] text-red-700 dark:text-red-300 leading-tight">عاجل جداً (+10)</div>
+                    </div>
+                  </div>
+                );
+              })()}
             </CardHeader>
             <CardContent className="space-y-2.5 overflow-y-auto min-h-0 pr-4 pl-2">
               {opsCenterLoading && delayedShipments.length === 0 ? (
@@ -2204,7 +2225,7 @@ export default function OperationsCenterPage() {
                 <div className="text-sm text-muted-foreground text-center py-6">لا توجد شحنات متأخرة حالياً 🎉</div>
               ) : (
                 delayedShipments.map((s) => (
-                  <Link key={s.id} href={`/shipments/${s.id}`}>
+                  <Link key={s.id} href={`/shipping-followup?highlight=${s.id}`}>
                     <div className="flex items-center justify-between gap-3 text-sm border rounded-lg px-3 py-2.5 cursor-pointer transition-colors bg-red-500/[0.03] border-red-500/10 hover:bg-red-500/10 hover:border-red-500/30">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">

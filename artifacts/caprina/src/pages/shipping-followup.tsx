@@ -5,8 +5,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Link } from "wouter";
-import { useState } from "react";
+import { Link, useSearch } from "wouter";
+import { useState, useEffect, useRef } from "react";
 import { buildWhatsAppLink, formatEgyptianPhone, applyShippingTemplate, type WaSettings } from "@/lib/whatsapp";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -102,6 +102,12 @@ export default function ShippingFollowupPage() {
   const canSee = (key: string) => isSuperAdmin || can(key);
   const [refreshing, setRefreshing] = useState(false);
 
+  // الشحنة المطلوب تمييزها والانتقال إليها تلقائيًا (جاية من حاوية "شحنات متأخرة" في مركز العمليات)
+  const search = useSearch();
+  const highlightId = Number(new URLSearchParams(search).get("highlight")) || null;
+  const highlightedRef = useRef<HTMLDivElement | null>(null);
+  const [justHighlighted, setJustHighlighted] = useState<number | null>(highlightId);
+
   // تحميل الـ IDs اللي اتعملتلهم متابعة من localStorage
   const [followedIds, setFollowedIds] = useState<Set<number>>(() => {
     try {
@@ -142,6 +148,18 @@ export default function ShippingFollowupPage() {
     await refetch();
     setRefreshing(false);
   };
+
+  // لما تفتح الصفحة بشحنة محددة (?highlight=ID)، انتقل لها تلقائيًا ومَيّزها لفترة
+  useEffect(() => {
+    if (!highlightId || isLoading || orders.length === 0) return;
+    const el = highlightedRef.current;
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+    const t = setTimeout(() => setJustHighlighted(null), 3500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [highlightId, isLoading, orders.length]);
 
   const critical = orders.filter(o => o.daysPending >= 10);
   const urgent   = orders.filter(o => o.daysPending >= 7 && o.daysPending < 10);
@@ -217,10 +235,17 @@ export default function ShippingFollowupPage() {
         <div className="space-y-3">
           {orders.map((o: any) => {
             const isFollowed = followedIds.has(o.id);
+            const isHighlighted = o.id === highlightId;
             return (
             <div
               key={o.id}
-              className={`rounded-xl border p-4 space-y-3 ${urgencyColor(o.daysPending)}`}
+              id={`shipping-followup-order-${o.id}`}
+              ref={isHighlighted ? highlightedRef : undefined}
+              className={`rounded-xl border p-4 space-y-3 transition-shadow duration-700 ${urgencyColor(o.daysPending)} ${
+                isHighlighted && justHighlighted === o.id
+                  ? "ring-2 ring-blue-500 ring-offset-2 ring-offset-background shadow-lg shadow-blue-500/20"
+                  : ""
+              }`}
             >
               {/* هيدر: رقم الشحنة + شارة "متأخر قد إيه" بارزة + الإجراءات */}
               <div className="flex items-start justify-between gap-2 flex-wrap">
