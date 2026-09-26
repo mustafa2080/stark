@@ -1731,7 +1731,7 @@ export default function OperationsCenterPage() {
   // لو العمود الجانبي لوحده → الصف بيبقى بارتفاع محتواه من غير فراغ.
   const row2NeedsFixedHeight = showLiveMap || showPerfMetrics;
   const row2SideOnly = showSideColumn && !showLiveMap && !showPerfMetrics;
-  const row2Height = row2NeedsFixedHeight ? "xl:h-[780px]" : "";
+  const row2Height = row2NeedsFixedHeight ? "xl:h-[900px]" : "";
   const row2SideLayout = row2SideOnly
     ? "grid grid-cols-1 md:grid-cols-4 gap-3 items-start"
     : "flex flex-col gap-3 xl:h-full xl:overflow-y-auto pr-1 min-h-0";
@@ -1742,7 +1742,7 @@ export default function OperationsCenterPage() {
   const sideReps = can("dashboard.online_reps");
   const sideFollowup = can("dashboard.clients_followup");
   const sideSlots = ocSpans([
-    { key: "delayed", show: sideDelayed, weight: 1 },
+    { key: "delayed", show: sideDelayed, weight: 2 },
     { key: "problem", show: sideProblem, weight: 1 },
     { key: "reps", show: sideReps, weight: 1 },
     { key: "followup", show: sideFollowup, weight: 1 },
@@ -2183,49 +2183,49 @@ export default function OperationsCenterPage() {
         {showSideColumn && (
         <div className={`${row2SideSpan} ${row2SideLayout}`}>
           {can("dashboard.delayed_shipments") && (
-          <Card className={`oc-kpi-card ${sideCardFill} flex flex-col ${sideCardSpan("delayed")}`} style={{ ["--tone" as any]: "#ef4444" }}>
+          <Card className={`oc-kpi-card ${row2SideOnly ? sideCardFill : "flex-[2] min-h-0 overflow-hidden"} flex flex-col ${sideCardSpan("delayed")}`} style={{ ["--tone" as any]: "#ef4444" }}>
             <CardHeader className="pb-2 shrink-0">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <AlertOctagon className="w-4 h-4 text-red-500" /> شحنات متأخرة
+              <CardTitle className="text-base flex items-center gap-2">
+                <AlertOctagon className="w-5 h-5 text-red-500" /> شحنات متأخرة
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2 overflow-y-auto min-h-0 pr-4 pl-2">
+            <CardContent className="space-y-2.5 overflow-y-auto min-h-0 pr-4 pl-2">
               {opsCenterLoading && delayedShipments.length === 0 ? (
                 Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="flex items-center justify-between text-xs border-b last:border-0 pb-2 last:pb-0 animate-pulse">
-                    <div className="space-y-1">
-                      <div className="h-3 w-20 bg-muted rounded" />
-                      <div className="h-2.5 w-28 bg-muted rounded" />
+                  <div key={i} className="flex items-center justify-between text-sm border-b last:border-0 pb-3 last:pb-0 animate-pulse">
+                    <div className="space-y-1.5">
+                      <div className="h-3.5 w-24 bg-muted rounded" />
+                      <div className="h-3 w-32 bg-muted rounded" />
                     </div>
-                    <div className="h-4 w-12 bg-muted rounded" />
+                    <div className="h-5 w-14 bg-muted rounded" />
                   </div>
                 ))
               ) : delayedShipments.length === 0 ? (
-                <div className="text-xs text-muted-foreground text-center py-4">لا توجد شحنات متأخرة حالياً 🎉</div>
+                <div className="text-sm text-muted-foreground text-center py-6">لا توجد شحنات متأخرة حالياً 🎉</div>
               ) : (
                 delayedShipments.map((s) => (
                   <Link key={s.id} href={`/shipments/${s.id}`}>
-                    <div className="flex items-center justify-between gap-2 text-xs border-b last:border-0 pb-2 last:pb-0 cursor-pointer rounded-md px-1.5 py-1 -mx-1.5 transition-colors hover:bg-red-500/5">
+                    <div className="flex items-center justify-between gap-3 text-sm border rounded-lg px-3 py-2.5 cursor-pointer transition-colors bg-red-500/[0.03] border-red-500/10 hover:bg-red-500/10 hover:border-red-500/30">
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="font-semibold">{s.trackingNumber ?? `#${s.id}`}</span>
-                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-base">{s.trackingNumber ?? `#${s.id}`}</span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
                             {OC_STATUS_LABELS[s.status] ?? s.status}
                           </span>
                         </div>
-                        <div className="text-muted-foreground truncate">{s.receiverName} — {s.receiverCity ?? "—"}</div>
+                        <div className="text-muted-foreground truncate mt-0.5">{s.receiverName} — {s.receiverCity ?? "—"}</div>
                         {(s.senderName || s.receiverPhone) && (
-                          <div className="text-muted-foreground/80 text-[10px] truncate">
+                          <div className="text-muted-foreground/80 text-xs truncate mt-0.5">
                             {s.senderName && <>الراسل: {s.senderName}</>}
                             {s.senderName && s.receiverPhone && " • "}
                             {s.receiverPhone}
                           </div>
                         )}
                       </div>
-                      <div className="flex flex-col items-end gap-1 shrink-0">
-                        <Badge variant="destructive" className="text-[10px]">{s.delayedHours} ساعة</Badge>
+                      <div className="flex flex-col items-end gap-1.5 shrink-0">
+                        <Badge variant="destructive" className="text-sm px-2.5 py-1">{s.delayedHours} ساعة</Badge>
                         {s.totalAmount != null && (
-                          <span className="text-[10px] font-bold text-muted-foreground">{fc(Number(s.totalAmount))}</span>
+                          <span className="text-sm font-bold text-muted-foreground">{fc(Number(s.totalAmount))}</span>
                         )}
                       </div>
                     </div>
