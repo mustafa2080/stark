@@ -3625,6 +3625,7 @@ router.get("/analytics/operations-center", requireAuth, async (req, res): Promis
       .map((r: OpsRow) => ({
         id: r.id,
         trackingNumber: r.trackingNumber,
+        status: normalize(r.status),
         receiverName: r.receiverName,
         receiverPhone: r.receiverPhone,
         receiverCity: r.receiverCity,

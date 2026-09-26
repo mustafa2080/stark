@@ -9,7 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { analyticsApi, shipmentsApi, financeClientsApi, shippingApi, cashRegistersApi, type Shipment, type FinanceClientSearchResult, type ShippingCompany, type TopPerformersResponse, type OperationsKpisResponse, type OperationsCenterResponse, type StatusDistributionResponse, type RecentEventsResponse, type RecentShipmentsResponse, type FinancialDashboardResponse, type FinancialDashboardPeriod, type ExecutiveSummaryResponse, type OpsAlertsResponse, type StaleManifestsResponse, type PerformanceMetricsResponse, type RevenueTrendResponse, type RepsDailyResponse, type LiveMapResponse, type FinancialSummary, type ManifestsPnlSummary, type ShipmentChartsData, type ShipmentChartsRangeResponse, type AlertsResponse, type ProfitAnalytics } from "@/lib/api";
 import { LiveMap } from "@/components/live-map";
@@ -98,6 +98,17 @@ const timeAgo = (iso: string): string => {
   const diffH = Math.round(diffMin / 60);
   if (diffH < 24) return `منذ ${diffH} ساعة`;
   return `منذ ${Math.round(diffH / 24)} يوم`;
+};
+
+// خريطة ثابتة لتسميات حالة الشحنة بالعربي (نفس تسميات صفحة متابعة الشحن)
+const OC_STATUS_LABELS: Record<string, string> = {
+  pending: "قيد الانتظار",
+  warehouse_ready: "في المخزن",
+  in_shipping: "قيد الشحن",
+  delayed: "مؤجلة",
+  out_for_delivery: "خارجة للتسليم",
+  received: "تم التسليم",
+  returned: "مرتجعة",
 };
 
 // خريطة ثابتة لألوان حالات "آخر الشحنات" (تفادي Tailwind dynamic classes)
@@ -2193,16 +2204,32 @@ export default function OperationsCenterPage() {
                 <div className="text-xs text-muted-foreground text-center py-4">لا توجد شحنات متأخرة حالياً 🎉</div>
               ) : (
                 delayedShipments.map((s) => (
-                  <div
-                    key={s.id}
-                    className="flex items-center justify-between text-xs border-b last:border-0 pb-2 last:pb-0"
-                  >
-                    <div>
-                      <div className="font-semibold">{s.trackingNumber ?? `#${s.id}`}</div>
-                      <div className="text-muted-foreground">{s.receiverName} — {s.receiverCity ?? "—"}</div>
+                  <Link key={s.id} href={`/shipments/${s.id}`}>
+                    <div className="flex items-center justify-between gap-2 text-xs border-b last:border-0 pb-2 last:pb-0 cursor-pointer rounded-md px-1.5 py-1 -mx-1.5 transition-colors hover:bg-red-500/5">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-semibold">{s.trackingNumber ?? `#${s.id}`}</span>
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">
+                            {OC_STATUS_LABELS[s.status] ?? s.status}
+                          </span>
+                        </div>
+                        <div className="text-muted-foreground truncate">{s.receiverName} — {s.receiverCity ?? "—"}</div>
+                        {(s.senderName || s.receiverPhone) && (
+                          <div className="text-muted-foreground/80 text-[10px] truncate">
+                            {s.senderName && <>الراسل: {s.senderName}</>}
+                            {s.senderName && s.receiverPhone && " • "}
+                            {s.receiverPhone}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex flex-col items-end gap-1 shrink-0">
+                        <Badge variant="destructive" className="text-[10px]">{s.delayedHours} ساعة</Badge>
+                        {s.totalAmount != null && (
+                          <span className="text-[10px] font-bold text-muted-foreground">{fc(Number(s.totalAmount))}</span>
+                        )}
+                      </div>
                     </div>
-                    <Badge variant="destructive" className="text-[10px]">{s.delayedHours} ساعة</Badge>
-                  </div>
+                  </Link>
                 ))
               )}
             </CardContent>

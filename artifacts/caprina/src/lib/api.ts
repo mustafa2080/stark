@@ -813,6 +813,7 @@ export interface StaleManifestsResponse {
 export interface OpsDelayedShipment {
   id: number;
   trackingNumber: string | null;
+  status: string;
   receiverName: string;
   receiverPhone: string | null;
   receiverCity: string | null;
@@ -1538,7 +1539,7 @@ export interface MovementTotals {
 }
 
 // ─── Shipping Manifests API ─────────────────────────────────────────────────
-export type DeliveryStatus = "pending" | "delivered" | "postponed" | "partial_received" | "returned" | "delayed" | "partial_delivered";
+export type DeliveryStatus = "pending" | "delivered" | "postponed" | "partial_received" | "returned" | "delayed" | "partial_delivered" | "replaced" | "parcel_picked";
 
 export interface ShippingManifestListItem {
   id: number;
