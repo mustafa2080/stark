@@ -1259,9 +1259,12 @@ export async function generateInvoiceShareImage(shipment: ShipmentShareData): Pr
   const noteText = text(shipment.note, "");
   const hasNote = !!noteText;
 
-  const hasCanOpen = shipment.canOpen !== null && shipment.canOpen !== undefined;
-  const hasDivisible = shipment.isDivisible !== null && shipment.isDivisible !== undefined;
-  const showFlags = hasCanOpen || hasDivisible;
+  const canOpenLabel = shipment.canOpen === 1 || shipment.canOpen === "1" ? "مسموح بفتح الشحنة"
+    : shipment.canOpen === 0 || shipment.canOpen === "0" ? "غير مسموح بفتح الشحنة" : "—";
+  const isDivisibleLabel = shipment.isDivisible === 1 || shipment.isDivisible === "1" ? "قابلة للتجزئة"
+    : shipment.isDivisible === 0 || shipment.isDivisible === "0" ? "غير قابلة" : "—";
+  const rejectionPolicyLabel = shipment.rejectionPolicy === "full_fee" ? "دفع الشحن كاملا"
+    : shipment.rejectionPolicy === "free" ? "الشحن مجانا" : "—";
 
   const measureCanvas = document.createElement("canvas");
   const mctx = measureCanvas.getContext("2d")!;
@@ -1289,11 +1292,11 @@ export async function generateInvoiceShareImage(shipment: ShipmentShareData): Pr
   const receiverBoxH = partyPadY * 2 + partyTitleH + partyNameH + receiverRows.length * partyRowH;
   const partiesH = Math.max(senderBoxH, receiverBoxH, 100);
 
-  // ── صف التفاصيل (3 صناديق) ──────────────────────────────────────────
+  // ── صف التفاصيل (الإجمالي + نوع الشحنة) ──────────────────────────────
   const detailsRowH = 66;
 
-  // ── صف الحالات (فتح الشحنة + التجزئة) ────────────────────────────────
-  const flagsRowH = showFlags ? 66 : 0;
+  // ── صف الحالات (حالة الرفض / تجزئة الشحنة / حالة الشحنة) — ثابت دايمًا ──
+  const flagsRowH = 66;
 
   // ── صندوق الملاحظات ───────────────────────────────────────────────────
   const noteLines = hasNote ? countWrapLines(mctx, noteText, contentW - 32, 14, 700) : 0;
@@ -1309,7 +1312,7 @@ export async function generateInvoiceShareImage(shipment: ShipmentShareData): Pr
   cy += trackingBarH + gap;
   cy += partiesH + gap;
   cy += detailsRowH + gap;
-  if (showFlags) cy += flagsRowH + gap;
+  cy += flagsRowH + gap;
   if (hasNote) cy += noteBoxH + gap;
 
   const footerH = 50;
@@ -1394,12 +1397,11 @@ export async function generateInvoiceShareImage(shipment: ShipmentShareData): Pr
   drawPartyBox(receiverBoxX, partiesH, "📦 المستلم", text(shipment.receiverName), receiverRows, true);
   cy += partiesH + gap;
 
-  // ══ صف التفاصيل (3 صناديق: نوع الشحنة / عدد القطع أو الوزن / الإجمالي) ═══
+  // ══ صف التفاصيل (صندوقين: الإجمالي / نوع الشحنة) ═══════════════════════
   const detailBoxGap = 10;
-  const detailBoxW = (contentW - detailBoxGap * 2) / 3;
+  const detailBoxW = (contentW - detailBoxGap) / 2;
   const detailBoxes: { label: string; value: string; highlight?: boolean }[] = [
     { label: "نوع الشحنة", value: parcelTypeLabel },
-    { label: shipment.weight ? "الوزن" : "عدد القطع", value: shipment.weight ? `${shipment.weight} كجم` : text((shipment as any).pieces, "1") },
     { label: "الإجمالي", value: `${money(totalAmount)} ج.م`, highlight: true },
   ];
   let dx = W - M; // نبدأ من أقصى اليمين (RTL)
@@ -1420,43 +1422,31 @@ export async function generateInvoiceShareImage(shipment: ShipmentShareData): Pr
   });
   cy += detailsRowH + gap;
 
-  // ══ صف الحالات: فتح الشحنة + التجزئة ═════════════════════════════════
-  if (showFlags) {
+  // ══ صف الحالات: حالة الرفض / تجزئة الشحنة / حالة الشحنة (الفتح) ═══════
+  {
     const flagBoxGap = 10;
-    const flagCount = (hasCanOpen ? 1 : 0) + (hasDivisible ? 1 : 0);
-    const flagBoxW = (contentW - flagBoxGap * (flagCount - 1)) / flagCount;
-    let fx = W - M;
-    if (hasCanOpen) {
+    const flagBoxW = (contentW - flagBoxGap * 2) / 3;
+    const flagBoxes: { label: string; value: string; bg: string; border: string; text: string }[] = [
+      { label: "حالة الرفض", value: rejectionPolicyLabel, bg: "#fdf6e3", border: "#e6c667", text: "#8a6d1a" },
+      { label: "تجزئة الشحنة", value: isDivisibleLabel, bg: "#e9f9ef", border: "#7fd8a0", text: "#1f7a44" },
+      { label: "حالة الشحنة (الفتح)", value: canOpenLabel, bg: "#eefaf1", border: "#9fe0b8", text: "#1f7a44" },
+    ];
+    let fx = W - M; // يمين لشمال: حالة الرفض / تجزئة الشحنة / حالة الشحنة
+    flagBoxes.forEach((box) => {
       fx -= flagBoxW;
-      const allowed = !(shipment.canOpen === 0 || shipment.canOpen === "0");
       ctx.save();
-      ctx.fillStyle = "#fafafa";
+      ctx.fillStyle = box.bg;
       roundRect(ctx, fx, cy, flagBoxW, flagsRowH, 6);
       ctx.fill();
-      ctx.strokeStyle = "#dddddd";
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = box.border;
+      ctx.lineWidth = 1.5;
       roundRect(ctx, fx, cy, flagBoxW, flagsRowH, 6);
       ctx.stroke();
       ctx.restore();
-      drawText(ctx, "حالة الشحنة", fx + flagBoxW / 2, cy + 26, { size: 11, weight: 700, color: "#666666", align: "center" });
-      drawTruncatedText(ctx, allowed ? "مسموح بفتح الشحنة" : "غير مسموح بفتح الشحنة", fx + flagBoxW / 2, cy + 48, flagBoxW - 20, { size: 15, weight: 900, color: "#111111", align: "center" });
+      drawText(ctx, box.label, fx + flagBoxW / 2, cy + 26, { size: 11, weight: 700, color: box.text, align: "center" });
+      drawTruncatedText(ctx, box.value, fx + flagBoxW / 2, cy + 48, flagBoxW - 16, { size: 14, weight: 900, color: box.text, align: "center" });
       fx -= flagBoxGap;
-    }
-    if (hasDivisible) {
-      fx -= flagBoxW;
-      const divisible = shipment.isDivisible === 1 || shipment.isDivisible === "1";
-      ctx.save();
-      ctx.fillStyle = "#fafafa";
-      roundRect(ctx, fx, cy, flagBoxW, flagsRowH, 6);
-      ctx.fill();
-      ctx.strokeStyle = "#dddddd";
-      ctx.lineWidth = 1;
-      roundRect(ctx, fx, cy, flagBoxW, flagsRowH, 6);
-      ctx.stroke();
-      ctx.restore();
-      drawText(ctx, "تجزئة الشحنة", fx + flagBoxW / 2, cy + 26, { size: 11, weight: 700, color: "#666666", align: "center" });
-      drawTruncatedText(ctx, divisible ? "الشحنة قابلة للتجزئة" : "الشحنة غير قابلة للتجزئة", fx + flagBoxW / 2, cy + 48, flagBoxW - 20, { size: 15, weight: 900, color: "#111111", align: "center" });
-    }
+    });
     cy += flagsRowH + gap;
   }
 
