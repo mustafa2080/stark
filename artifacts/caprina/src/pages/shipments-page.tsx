@@ -952,7 +952,7 @@ export default function Orders() {
     const statusParam = params.get("status");
     if (statusParam) {
       setStatus(statusParam);
-      window.history.replaceState(null, "", "/shipments");
+      window.history.replaceState(null, "", "/shipments-list");
     }
   }, [location]);
   const [search, setSearch] = useState("");

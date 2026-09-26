@@ -1618,7 +1618,7 @@ function ShipmentFilteredList({ status, cfg }: { status: string; cfg: { label: s
             <span className="text-[10px] text-muted-foreground">({shipments.length})</span>
           )}
         </div>
-        <Link href={`/shipments?status=${status}`} className="text-[10px] font-bold hover:underline" style={{ color: cfg.color }}>
+        <Link href={`/shipments-list?status=${status}`} className="text-[10px] font-bold hover:underline" style={{ color: cfg.color }}>
           عرض الكل ←
         </Link>
       </div>

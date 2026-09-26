@@ -1351,7 +1351,7 @@ function StatusShipmentsDropdown({
         {shipments.length > 0 && (
           <div className="border-t px-3 py-2 bg-muted/20">
             <a
-              href={status ? `/shipments?status=${encodeURIComponent(status)}` : "/shipments"}
+              href={status ? `/shipments-list?status=${encodeURIComponent(status)}` : "/shipments-list"}
               className="text-[11px] font-semibold text-primary hover:underline flex items-center justify-center gap-1"
             >
               عرض كل الشحنات في صفحة الشحنات ←
