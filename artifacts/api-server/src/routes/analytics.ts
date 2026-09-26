@@ -3613,16 +3613,36 @@ router.get("/analytics/operations-center", requireAuth, async (req, res): Promis
     type OpsRow = typeof rows[number];
 
     // ─── شحنات متأخرة (تفصيلي) ──────────────────────────────────────────────
-    // نفس منطق /shipping-followup: أي شحنة عالقة في حالة شحن (مش لسه اتسلمت/اترجعت)
-    // من 3 أيام فاكثر، مش بس اللي اتحطلها status = "delayed" يدويًا.
+    // نفس منطق /shipping-followup بالظبط (استعلام منفصل، مش من rows المحدودة بـ30 يوم):
+    // العداد من createdAt (مش updatedAt) عشان ما يترسّتش عند تعديل الشحنة وهي لسه متأخرة،
+    // وبدون قيد آخر 30 يوم عشان الشحنات الأقدم (الأكتر تأخرًا) متتقصّش برا الإحصائية.
     const hoursSince = (d: Date) => Math.round((now.getTime() - new Date(d).getTime()) / (1000 * 60 * 60));
     const PENDING_STATUSES = ["warehouse_ready", "in_shipping", "delayed", "picked_up", "in_transit", "out_for_delivery"];
     const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
-    const delayedShipments = rows
-      .filter((r: OpsRow) => PENDING_STATUSES.includes(r.status ?? "") && new Date(r.updatedAt ?? r.createdAt) <= threeDaysAgo)
-      .sort((a: OpsRow, b: OpsRow) => new Date(a.updatedAt ?? a.createdAt).getTime() - new Date(b.updatedAt ?? b.createdAt).getTime())
-      .slice(0, 30)
-      .map((r: OpsRow) => ({
+    const delayedCond = tenantId !== null
+      ? and(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.deletedAt))
+      : isNull(shipmentsTable.deletedAt);
+    const delayedRowsAll = await db
+      .select({
+        id: shipmentsTable.id,
+        trackingNumber: shipmentsTable.trackingNumber,
+        status: shipmentsTable.status,
+        createdAt: shipmentsTable.createdAt,
+        receiverName: shipmentsTable.receiverName,
+        receiverPhone: shipmentsTable.receiverPhone,
+        receiverCity: shipmentsTable.receiverCity,
+        senderName: shipmentsTable.senderName,
+        totalAmount: shipmentsTable.totalAmount,
+      })
+      .from(shipmentsTable)
+      .where(and(
+        delayedCond,
+        inArray(shipmentsTable.status, PENDING_STATUSES),
+        lte(shipmentsTable.createdAt, threeDaysAgo),
+      ));
+
+    const delayedShipmentsAll = delayedRowsAll
+      .map((r) => ({
         id: r.id,
         trackingNumber: r.trackingNumber,
         status: normalize(r.status),
@@ -3630,9 +3650,12 @@ router.get("/analytics/operations-center", requireAuth, async (req, res): Promis
         receiverPhone: r.receiverPhone,
         receiverCity: r.receiverCity,
         senderName: r.senderName,
-        delayedHours: hoursSince(r.updatedAt ?? r.createdAt),
+        delayedHours: hoursSince(r.createdAt),
         totalAmount: r.totalAmount,
-      }));
+      }))
+      .sort((a, b) => b.delayedHours - a.delayedHours);
+
+    const delayedShipments = delayedShipmentsAll.slice(0, 30);
 
     // ─── شحنات بها مشكلة (مرتجعة) ────────────────────────────────────────────
     const problemShipments = rows
@@ -3714,7 +3737,7 @@ router.get("/analytics/operations-center", requireAuth, async (req, res): Promis
 
     const result = {
       summary: {
-        delayedCount: delayedShipments.length,
+        delayedCount: delayedShipmentsAll.length,
         problemCount: problemShipments.length,
         outTodayCount: outToday.length,
         onlineRepsCount: representatives.filter(r => r.isOnline).length,
