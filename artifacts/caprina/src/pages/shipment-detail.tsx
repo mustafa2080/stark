@@ -5249,6 +5249,9 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
             shippingFee: (order as any).shippingFee ?? (order as any).shippingCost ?? 0,
             codAmount: (order as any).codAmount ?? 0,
             totalAmount: (order as any).totalAmount ?? null,
+            paymentMethod: (order as any).paymentMethod ?? null,
+            canOpen: (order as any).canOpen ?? null,
+            isDivisible: (order as any).isDivisible ?? null,
 
             note: orderReturnReason
               ? (returnReasonLabel ? returnReasonLabel(orderReturnReason, orderReturnNote) : orderReturnReason) + (orderReturnNote && orderReturnReason !== "other" ? ` — ${orderReturnNote}` : "")

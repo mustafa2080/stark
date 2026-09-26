@@ -1240,6 +1240,7 @@ export async function generateInvoiceShareImage(shipment: ShipmentShareData): Pr
   const contentW = W - M * 2;
 
   const shipNum = text(shipment.invoiceNumber || shipment.shipmentNumber, `#${shipment.id}`);
+  const trackingLabel = text(shipment.trackingNumber, shipNum);
   const dateLabel = text(shipment.createdAt, "—");
 
   const PARCEL_LABELS_AR: Record<string, string> = {
@@ -1259,12 +1260,14 @@ export async function generateInvoiceShareImage(shipment: ShipmentShareData): Pr
   const noteText = text(shipment.note, "");
   const hasNote = !!noteText;
 
-  const canOpenLabel = shipment.canOpen === 1 || shipment.canOpen === "1" ? "مسموح بفتح الشحنة"
-    : shipment.canOpen === 0 || shipment.canOpen === "0" ? "غير مسموح بفتح الشحنة" : "—";
-  const isDivisibleLabel = shipment.isDivisible === 1 || shipment.isDivisible === "1" ? "قابلة للتجزئة"
-    : shipment.isDivisible === 0 || shipment.isDivisible === "0" ? "غير قابلة" : "—";
-  const rejectionPolicyLabel = shipment.rejectionPolicy === "full_fee" ? "دفع الشحن كاملا"
-    : shipment.rejectionPolicy === "free" ? "الشحن مجانا" : "—";
+  const hasCanOpen = shipment.canOpen !== null && shipment.canOpen !== undefined;
+  const hasDivisible = shipment.isDivisible !== null && shipment.isDivisible !== undefined;
+  const hasRejectionPolicy = !!shipment.rejectionPolicy;
+  const showFlags = hasCanOpen || hasDivisible || hasRejectionPolicy;
+
+  const canOpenLabel = shipment.canOpen === 0 || shipment.canOpen === "0" ? "غير مسموح بفتح الشحنة" : "مسموح بفتح الشحنة";
+  const isDivisibleLabel = shipment.isDivisible === 1 || shipment.isDivisible === "1" ? "الشحنة قابلة للتجزئة" : "الشحنة غير قابلة للتجزئة";
+  const rejectionPolicyLabel = shipment.rejectionPolicy === "free" ? "الشحن مجانا" : "يتم دفع مبلغ الشحن كاملا";
 
   const measureCanvas = document.createElement("canvas");
   const mctx = measureCanvas.getContext("2d")!;
@@ -1295,8 +1298,8 @@ export async function generateInvoiceShareImage(shipment: ShipmentShareData): Pr
   // ── صف التفاصيل (الإجمالي + نوع الشحنة) ──────────────────────────────
   const detailsRowH = 66;
 
-  // ── صف الحالات (حالة الرفض / تجزئة الشحنة / حالة الشحنة) — ثابت دايمًا ──
-  const flagsRowH = 66;
+  // ── صف الحالات (حالة الشحنة / تجزئة الشحنة / حالة الرفض) — لو فيه بيانات ──
+  const flagsRowH = showFlags ? 66 : 0;
 
   // ── صندوق الملاحظات ───────────────────────────────────────────────────
   const noteLines = hasNote ? countWrapLines(mctx, noteText, contentW - 32, 14, 700) : 0;
@@ -1312,7 +1315,7 @@ export async function generateInvoiceShareImage(shipment: ShipmentShareData): Pr
   cy += trackingBarH + gap;
   cy += partiesH + gap;
   cy += detailsRowH + gap;
-  cy += flagsRowH + gap;
+  if (showFlags) cy += flagsRowH + gap;
   if (hasNote) cy += noteBoxH + gap;
 
   const footerH = 50;
@@ -1350,14 +1353,21 @@ export async function generateInvoiceShareImage(shipment: ShipmentShareData): Pr
 
   cy = headerH + pagePad;
 
-  // ══ شريط طريقة الدفع (خلفية سوداء) ═══════════════════════════════════
+  // ══ شريط علوي (خلفية سوداء): رقم التتبع (بارز) | طريقة الدفع | STARK ═══
   ctx.save();
   ctx.fillStyle = "#111111";
   roundRect(ctx, M, cy, contentW, trackingBarH, 8);
   ctx.fill();
   ctx.restore();
-  drawText(ctx, "طريقة الدفع", W / 2, cy + 24, { size: 11, weight: 700, color: "#aaaaaa", align: "center" });
-  drawText(ctx, paymentLabel, W / 2, cy + 45, { size: 17, weight: 900, color: "#ffffff", align: "center" });
+  const trackW = contentW / 3;
+  const tx1 = M + trackW / 2;
+  const tx2 = M + trackW + trackW / 2;
+  const tx3 = M + trackW * 2 + trackW / 2;
+  drawText(ctx, "رقم التتبع", tx1, cy + 24, { size: 11, weight: 700, color: "#aaaaaa", align: "center" });
+  drawTruncatedText(ctx, trackingLabel, tx1, cy + 46, trackW - 12, { size: 18, weight: 900, color: "#f0c040", align: "center" });
+  drawText(ctx, "طريقة الدفع", tx2, cy + 24, { size: 11, weight: 700, color: "#aaaaaa", align: "center" });
+  drawText(ctx, paymentLabel, tx2, cy + 45, { size: 15, weight: 900, color: "#ffffff", align: "center" });
+  drawText(ctx, "STARK", tx3, cy + 39, { size: 20, weight: 900, color: "#ffffff", align: "center" });
   cy += trackingBarH + gap;
 
   // ══ صندوقا الراسل والمستلم (جنب بعض) — الراسل شمال / المستلم يمين، زي الطباعة ═══
@@ -1422,29 +1432,35 @@ export async function generateInvoiceShareImage(shipment: ShipmentShareData): Pr
   });
   cy += detailsRowH + gap;
 
-  // ══ صف الحالات: حالة الرفض / تجزئة الشحنة / حالة الشحنة (الفتح) ═══════
-  {
+  // ══ صف الحالات: حالة الشحنة (الفتح) / تجزئة الشحنة / حالة الرفض — مطابق لفاتورة العميل ═══
+  if (showFlags) {
     const flagBoxGap = 10;
     const flagBoxW = (contentW - flagBoxGap * 2) / 3;
-    const flagBoxes: { label: string; value: string; bg: string; border: string; text: string }[] = [
-      { label: "حالة الرفض", value: rejectionPolicyLabel, bg: "#fdf6e3", border: "#e6c667", text: "#8a6d1a" },
-      { label: "تجزئة الشحنة", value: isDivisibleLabel, bg: "#e9f9ef", border: "#7fd8a0", text: "#1f7a44" },
-      { label: "حالة الشحنة (الفتح)", value: canOpenLabel, bg: "#eefaf1", border: "#9fe0b8", text: "#1f7a44" },
+    const hasRejection = !!shipment.rejectionPolicy;
+    const canOpenOk = !(shipment.canOpen === 0 || shipment.canOpen === "0");
+    const divisibleOk = shipment.isDivisible === 1 || shipment.isDivisible === "1";
+    const rejectionOk = shipment.rejectionPolicy === "free";
+    const flagBoxes: { show: boolean; label: string; value: string; border: string; text: string; bg: string }[] = [
+      { show: hasCanOpen, label: "حالة الشحنة (الفتح)", value: canOpenLabel, border: canOpenOk ? "#22c55e" : "#ef4444", text: canOpenOk ? "#16a34a" : "#dc2626", bg: canOpenOk ? "#f0fdf4" : "#fef2f2" },
+      { show: hasDivisible, label: "تجزئة الشحنة", value: isDivisibleLabel, border: divisibleOk ? "#22c55e" : "#ef4444", text: divisibleOk ? "#16a34a" : "#dc2626", bg: divisibleOk ? "#f0fdf4" : "#fef2f2" },
+      { show: hasRejection, label: "حالة الرفض", value: rejectionPolicyLabel, border: rejectionOk ? "#22c55e" : "#f59e0b", text: rejectionOk ? "#16a34a" : "#b45309", bg: rejectionOk ? "#f0fdf4" : "#fffbeb" },
     ];
-    let fx = W - M; // يمين لشمال: حالة الرفض / تجزئة الشحنة / حالة الشحنة
+    let fx = W - M; // يمين لشمال: حالة الشحنة (الفتح) / تجزئة الشحنة / حالة الرفض
     flagBoxes.forEach((box) => {
       fx -= flagBoxW;
-      ctx.save();
-      ctx.fillStyle = box.bg;
-      roundRect(ctx, fx, cy, flagBoxW, flagsRowH, 6);
-      ctx.fill();
-      ctx.strokeStyle = box.border;
-      ctx.lineWidth = 1.5;
-      roundRect(ctx, fx, cy, flagBoxW, flagsRowH, 6);
-      ctx.stroke();
-      ctx.restore();
-      drawText(ctx, box.label, fx + flagBoxW / 2, cy + 26, { size: 11, weight: 700, color: box.text, align: "center" });
-      drawTruncatedText(ctx, box.value, fx + flagBoxW / 2, cy + 48, flagBoxW - 16, { size: 14, weight: 900, color: box.text, align: "center" });
+      if (box.show) {
+        ctx.save();
+        ctx.fillStyle = box.bg;
+        roundRect(ctx, fx, cy, flagBoxW, flagsRowH, 6);
+        ctx.fill();
+        ctx.strokeStyle = box.border;
+        ctx.lineWidth = 1.5;
+        roundRect(ctx, fx, cy, flagBoxW, flagsRowH, 6);
+        ctx.stroke();
+        ctx.restore();
+        drawText(ctx, box.label, fx + flagBoxW / 2, cy + 26, { size: 11, weight: 700, color: box.text, align: "center" });
+        drawTruncatedText(ctx, box.value, fx + flagBoxW / 2, cy + 48, flagBoxW - 16, { size: 14, weight: 900, color: box.text, align: "center" });
+      }
       fx -= flagBoxGap;
     });
     cy += flagsRowH + gap;
