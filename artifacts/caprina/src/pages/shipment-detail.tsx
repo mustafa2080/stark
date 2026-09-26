@@ -5252,6 +5252,7 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
             paymentMethod: (order as any).paymentMethod ?? null,
             canOpen: (order as any).canOpen ?? null,
             isDivisible: (order as any).isDivisible ?? null,
+            rejectionPolicy: (order as any).rejectionPolicy ?? null,
 
             note: orderReturnReason
               ? (returnReasonLabel ? returnReasonLabel(orderReturnReason, orderReturnNote) : orderReturnReason) + (orderReturnNote && orderReturnReason !== "other" ? ` — ${orderReturnNote}` : "")
