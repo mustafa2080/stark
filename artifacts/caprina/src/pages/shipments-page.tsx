@@ -2455,7 +2455,7 @@ export default function Orders() {
                           })()}
                           </div>
                         </TableCell>
-                        <TableCell className="text-xs text-muted-foreground max-w-[220px] truncate" title={stripRolledOverPrefix(o.delayNote) || undefined}>
+                        <TableCell className="text-xs text-muted-foreground max-w-[220px] whitespace-normal break-words text-center" title={stripRolledOverPrefix(o.delayNote) || undefined}>
                           {stripRolledOverPrefix(o.delayNote) || "—"}
                         </TableCell>
                         <TableCell className="text-center p-1">
