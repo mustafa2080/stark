@@ -2243,7 +2243,7 @@ export default function Orders() {
                     <TableHead className="text-center text-xs w-36">
                       <div className="flex items-center justify-center gap-1">الحالة{showColFilters && <ColFilterBtn col="status" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</div>
                     </TableHead>
-                    <TableHead className="text-right text-xs">الملاحظات</TableHead>
+                    <TableHead className="text-center text-xs">الملاحظات</TableHead>
                     <TableHead className="text-center text-xs w-10"></TableHead>
                   </TableRow>
                 </TableHeader>
