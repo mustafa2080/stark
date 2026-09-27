@@ -1242,7 +1242,7 @@ export default function ShipmentsIntelligencePage() {
           <ReturnReasonsBreakdown data={data.returnReasons} />
         </SectionCard>
         <SectionCard>
-          <SectionHeader icon={Gauge} title="تحليل زمن التسليم الذكي" subtitle="الالتزام بالمواعيد وسرعة كل شركة شحن" />
+          <SectionHeader icon={Gauge} title="تحليل زمن التسليم الذكي" subtitle="الالتزام بالمواعيد وسرعة كل مندوب شحن" />
           <DeliveryIntelligencePanel data={data} />
         </SectionCard>
       </div>
