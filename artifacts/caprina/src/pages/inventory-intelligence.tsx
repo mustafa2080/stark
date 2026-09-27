@@ -1,29 +1,17 @@
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import {
-  Brain, TrendingUp, TrendingDown, Minus, Sparkles, Package, Boxes,
-  AlertTriangle, AlertCircle, Info, ChevronDown, ChevronUp, Warehouse,
-  Wallet, PackageX, PackageCheck, Recycle, ShieldAlert, CalendarDays, Check, RotateCcw,
+  Brain, TrendingUp, Activity, Sparkles, Package, Boxes, Truck, MapPin,
+  AlertTriangle, AlertCircle, Info, ChevronDown, ChevronUp, ChevronRight, Warehouse as WarehouseIcon,
+  CircleDollarSign, Clock3, PackageCheck, ShieldAlert, Target, PieChart, DollarSign, RotateCcw,
 } from "lucide-react";
-import { analyticsApi, InventoryIntelligenceResponse } from "@/lib/api";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import type { DateRange } from "react-day-picker";
+import { shipmentsApi } from "@/lib/api";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Helpers (نفس منطق zones-intelligence.tsx / shipments-intelligence.tsx لثبات الهوية البصرية)
 // ═══════════════════════════════════════════════════════════════════════════
-const fmt = (n: number) => new Intl.NumberFormat("ar-EG").format(Math.round(n || 0));
-const fmtMoney = (n: number) => new Intl.NumberFormat("ar-EG").format(Math.round(n || 0));
-
-const CATEGORY_META: Record<string, { label: string; color: string }> = {
-  fast:   { label: "حركة سريعة", color: "#22c55e" },
-  medium: { label: "حركة متوسطة", color: "#06b6d4" },
-  slow:   { label: "حركة بطيئة", color: "#eab308" },
-  stale:  { label: "راكد", color: "#f97316" },
-  out:    { label: "نفد المخزون", color: "#ef4444" },
-};
+const pct = (a: number, b: number) => (b === 0 ? 0 : Math.round((a / b) * 100));
 
 const ALERT_META: Record<string, { icon: typeof AlertTriangle; color: string; bg: string }> = {
   critical: { icon: AlertTriangle, color: "#ef4444", bg: "bg-red-500/10 border-red-500/30" },
@@ -31,10 +19,22 @@ const ALERT_META: Record<string, { icon: typeof AlertTriangle; color: string; bg
   info:     { icon: Info,          color: "#06b6d4", bg: "bg-cyan-500/10 border-cyan-500/30" },
 };
 
-const WAREHOUSE_STATUS_META: Record<string, { label: string; color: string }> = {
-  balanced:     { label: "توزيع متوازن بين المخازن", color: "#22c55e" },
-  concentrated: { label: "تركّز في مخزن واحد",         color: "#eab308" },
-  critical:     { label: "اعتماد خطر على مخزن واحد",   color: "#ef4444" },
+const PARCEL_LABELS: Record<string, string> = {
+  document: "مستندات", normal: "طرد عادي", fragile: "قابل للكسر",
+  heavy: "ثقيل", electronics: "إلكترونيات", clothing: "ملابس",
+  food: "طعام", other: "أخرى",
+};
+const PARCEL_ICONS_MAP: Record<string, string> = {
+  document: "📄", normal: "📦", fragile: "🔮", heavy: "⚖️",
+  electronics: "💻", clothing: "👕", food: "🍱", other: "📫",
+};
+
+const formatAge = (hours: number): string => {
+  if (hours < 1) return "أقل من ساعة";
+  if (hours < 24) return `${Math.floor(hours)} س`;
+  const days = Math.floor(hours / 24);
+  const remHours = Math.floor(hours % 24);
+  return remHours > 0 ? `${days} ي ${remHours} س` : `${days} ي`;
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -113,211 +113,9 @@ function Pill({ children, color }: { children: React.ReactNode; color: string })
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Trend Badge — سهم اتجاه سرعة البيع مقابل الفترة السابقة
+// Alerts Banner — تنبيهات ذكية خاصة بالشحنات
 // ═══════════════════════════════════════════════════════════════════════════
-function TrendBadge({ trendPct }: { trendPct: number | null }) {
-  if (trendPct === null) {
-    return <span className="text-[11px] text-white/35 font-bold">بدون مقارنة</span>;
-  }
-  if (Math.abs(trendPct) < 5) {
-    return (
-      <span className="flex items-center gap-1 text-[11px] font-bold text-white/45">
-        <Minus className="w-3 h-3" /> ثابت
-      </span>
-    );
-  }
-  const up = trendPct > 0;
-  return (
-    <span className="flex items-center gap-1 text-[11px] font-bold" style={{ color: up ? "#22c55e" : "#ef4444" }}>
-      {up ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-      {Math.abs(trendPct)}%
-    </span>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Ranking Card — كارت منتج واحد (فئة الحركة + سرعة + اتجاه)
-// ═══════════════════════════════════════════════════════════════════════════
-function RankingCard({ row, index }: { row: InventoryIntelligenceResponse["ranking"][number]; index: number }) {
-  const meta = CATEGORY_META[row.category] ?? CATEGORY_META.stale;
-  const stockoutPct = row.daysUntilStockout !== null ? Math.max(0, Math.min(100, 100 - (row.daysUntilStockout / 30) * 100)) : 0;
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, delay: Math.min(index * 0.04, 0.4) }}
-      whileHover={{ y: -2 }}
-      className="relative rounded-2xl border border-white/10 bg-white/[0.03] p-4 overflow-hidden transition-colors duration-300 hover:border-white/20"
-    >
-      <div
-        className="absolute -top-8 -left-8 w-24 h-24 rounded-full blur-2xl opacity-15 transition-opacity duration-300 hover:opacity-30"
-        style={{ background: meta.color }}
-      />
-      <div className="relative flex items-start gap-3">
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold text-white truncate">{row.name}</p>
-          <p className="text-[11px] text-white/40 mt-0.5">
-            {row.sku ? `${row.sku} · ` : ""}{fmt(row.availableQty)} قطعة متاحة
-          </p>
-        </div>
-        {row.category !== "out" ? (
-          <MiniRing pct={row.daysUntilStockout !== null ? (100 - stockoutPct) : 100} color={meta.color} size={46} />
-        ) : (
-          <div className="w-[46px] h-[46px] rounded-full flex items-center justify-center shrink-0" style={{ background: `${meta.color}18` }}>
-            <PackageX className="w-5 h-5" style={{ color: meta.color }} />
-          </div>
-        )}
-      </div>
-      <div className="relative mt-3 grid grid-cols-3 gap-2 text-center">
-        <div>
-          <p className="text-[10px] text-white/35">مبيعات الفترة</p>
-          <p className="text-xs font-bold tabular-nums text-white/70">{fmt(row.soldInRange)}</p>
-        </div>
-        <div>
-          <p className="text-[10px] text-white/35">سرعة/يوم</p>
-          <p className="text-xs font-bold tabular-nums text-white/70">{row.velocityPerDay}</p>
-        </div>
-        <div>
-          <p className="text-[10px] text-white/35">ينفد خلال</p>
-          <p className="text-xs font-bold tabular-nums text-white/70">{row.daysUntilStockout !== null ? `${row.daysUntilStockout} يوم` : "—"}</p>
-        </div>
-      </div>
-      <div className="relative mt-3 pt-3 border-t border-white/5 flex items-center justify-between">
-        <Pill color={meta.color}>{meta.label}</Pill>
-        <TrendBadge trendPct={row.trendPct} />
-      </div>
-    </motion.div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Frozen Capital Table — أعلى المنتجات تجميدًا لرأس المال (بطيئة/راكدة)
-// ═══════════════════════════════════════════════════════════════════════════
-function FrozenCapitalTable({ data }: { data: InventoryIntelligenceResponse["frozenCapitalRanking"] }) {
-  if (!data.length) {
-    return <p className="text-center text-sm text-white/40 py-8">لا يوجد رأس مال مجمّد في منتجات بطيئة أو راكدة حاليًا</p>;
-  }
-  return (
-    <div className="overflow-x-auto -mx-1">
-      <table className="w-full text-sm min-w-[600px]">
-        <thead>
-          <tr className="border-b border-white/10">
-            <th className="py-2 px-2 text-xs font-bold text-white/40 whitespace-nowrap text-right">المنتج</th>
-            <th className="py-2 px-2 text-xs font-bold text-white/40 whitespace-nowrap text-left">الكمية</th>
-            <th className="py-2 px-2 text-xs font-bold text-white/40 whitespace-nowrap text-left">رأس المال المجمّد</th>
-            <th className="py-2 px-2 text-xs font-bold text-white/40 whitespace-nowrap text-left">التصنيف</th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.map((r, i) => {
-            const meta = CATEGORY_META[r.category] ?? CATEGORY_META.stale;
-            return (
-              <motion.tr
-                key={r.productId}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.3, delay: Math.min(i * 0.02, 0.3) }}
-                className="border-b border-white/5 last:border-0 transition-colors duration-200 hover:bg-white/[0.02]"
-              >
-                <td className="py-2.5 px-2 whitespace-nowrap text-right font-medium text-white">{r.name}</td>
-                <td className="py-2.5 px-2 whitespace-nowrap text-left tabular-nums text-white/70">{fmt(r.availableQty)}</td>
-                <td className="py-2.5 px-2 whitespace-nowrap text-left tabular-nums text-white/70">{fmtMoney(r.frozenCapital)} ج.م</td>
-                <td className="py-2.5 px-2 whitespace-nowrap text-left"><Pill color={meta.color}>{meta.label}</Pill></td>
-              </motion.tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Warehouse Distribution — توزيع المخزون بين المخازن (Bar chart بسيط بنفس هوية الصفحة)
-// ═══════════════════════════════════════════════════════════════════════════
-function WarehouseDistributionPanel({ data }: { data: InventoryIntelligenceResponse["warehouseDistribution"] }) {
-  const statusMeta = WAREHOUSE_STATUS_META[data.status] ?? WAREHOUSE_STATUS_META.balanced;
-  if (!data.warehouses.length) {
-    return <p className="text-center text-sm text-white/40 py-8">لا يوجد مخزون مسجّل في أي مخزن حاليًا</p>;
-  }
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3.5 py-2.5">
-        <div className="flex items-center gap-2">
-          <Warehouse className="w-4 h-4" style={{ color: statusMeta.color }} />
-          <span className="text-sm font-bold" style={{ color: statusMeta.color }}>{statusMeta.label}</span>
-        </div>
-        <span className="text-xs text-white/45">أعلى مخزن يشيل {data.topWarehouseSharePct}% من المخزون</span>
-      </div>
-      <div className="space-y-2.5">
-        {data.warehouses.slice(0, 8).map((w, i) => (
-          <div key={w.id}>
-            <div className="flex items-center justify-between text-xs mb-1">
-              <span className="text-white/75 font-medium truncate">{w.name}{w.city ? ` · ${w.city}` : ""}</span>
-              <span className="text-white/45 tabular-nums shrink-0">{fmt(w.totalQty)} · {w.sharePct}%</span>
-            </div>
-            <div className="h-2 rounded-full bg-white/5 overflow-hidden">
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: `${Math.min(100, w.sharePct)}%` }}
-                transition={{ duration: 0.6, delay: Math.min(i * 0.04, 0.4), ease: "easeOut" }}
-                className="h-full rounded-full"
-                style={{ background: w.sharePct >= 50 ? "#ef4444" : w.sharePct >= 30 ? "#eab308" : "#22c55e" }}
-              />
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Movements Breakdown — توزيع حركات المخزون حسب السبب (IN/OUT) في الفترة
-// ═══════════════════════════════════════════════════════════════════════════
-function MovementsBreakdownPanel({ data }: { data: InventoryIntelligenceResponse["movementsBreakdown"] }) {
-  if (!data.length) {
-    return <p className="text-center text-sm text-white/40 py-8">لا توجد حركات مخزون مسجّلة في هذه الفترة</p>;
-  }
-  const maxTotal = Math.max(...data.map(d => d.total), 1);
-  return (
-    <div className="space-y-1">
-      {data.slice(0, 10).map((r, i) => (
-        <motion.div
-          key={r.reason}
-          initial={{ opacity: 0, x: -6 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.3, delay: Math.min(i * 0.03, 0.3) }}
-          className="flex items-center gap-3 py-2.5 border-b border-white/5 last:border-0 transition-colors duration-200 hover:bg-white/[0.02] rounded-lg px-1"
-        >
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-sm font-medium text-white truncate">{r.label}</span>
-              <span className="text-xs text-white/45 tabular-nums shrink-0">
-                {r.in > 0 && <span className="text-emerald-400">+{fmt(r.in)}</span>}
-                {r.in > 0 && r.out > 0 && "  ·  "}
-                {r.out > 0 && <span className="text-rose-400">-{fmt(r.out)}</span>}
-              </span>
-            </div>
-            <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: `${(r.total / maxTotal) * 100}%` }}
-                transition={{ duration: 0.6, delay: Math.min(i * 0.04, 0.4), ease: "easeOut" }}
-                className="h-full rounded-full bg-[#e8b93f]"
-              />
-            </div>
-          </div>
-        </motion.div>
-      ))}
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Alerts Banner — تنبيهات ذكية خاصة بالمخزون
-// ═══════════════════════════════════════════════════════════════════════════
-function AlertsBanner({ alerts }: { alerts: InventoryIntelligenceResponse["alerts"] }) {
+function AlertsBanner({ alerts }: { alerts: { severity: string; message: string }[] }) {
   if (!alerts.length) return null;
   return (
     <div className="space-y-2">
@@ -342,178 +140,345 @@ function AlertsBanner({ alerts }: { alerts: InventoryIntelligenceResponse["alert
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Period Switcher — نفس ستايل zones-intelligence.tsx
+// Ranked Bar List — قائمة مرتبة بشرائط تقدّم (مناطق الإرجاع / الفروع / أنواع الطرود)
 // ═══════════════════════════════════════════════════════════════════════════
-const PERIODS: { key: string; label: string }[] = [
-  { key: "today", label: "اليوم" },
-  { key: "week", label: "أسبوع" },
-  { key: "month", label: "شهر" },
-  { key: "year", label: "سنة" },
-];
-
-function PeriodSwitcher({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function RankedBarList({
+  items, color, accentColor, emptyIcon: EmptyIcon, emptyLabel, expandable,
+}: {
+  items: { key: string; label: string; count: number; icon?: string; detail?: any[] }[];
+  color: string;
+  accentColor?: string;
+  emptyIcon: typeof Package;
+  emptyLabel: string;
+  expandable?: boolean;
+}) {
+  const [openKey, setOpenKey] = useState<string | null>(null);
+  if (!items.length) {
+    return (
+      <div className="flex flex-col items-center justify-center py-10 gap-2">
+        <EmptyIcon className="w-8 h-8 text-white/15" />
+        <p className="text-xs text-white/35">{emptyLabel}</p>
+      </div>
+    );
+  }
+  const maxCount = items[0].count;
   return (
-    <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-white/[0.03] p-1">
-      {PERIODS.map(p => (
-        <button
-          key={p.key}
-          onClick={() => onChange(p.key)}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors duration-200 ${
-            value === p.key ? "bg-[#e8b93f] text-black" : "text-white/60 hover:text-white"
-          }`}
-        >
-          {p.label}
-        </button>
-      ))}
+    <div className="space-y-1.5">
+      {items.map((it, i) => {
+        const barW = pct(it.count, maxCount);
+        const isOpen = openKey === it.key;
+        const barColor = i === 0 ? color : (accentColor ?? "#ffffff45");
+        return (
+          <div key={it.key} className="rounded-lg overflow-hidden">
+            <button
+              type="button"
+              disabled={!expandable || !it.detail?.length}
+              className={`w-full flex items-center gap-3 py-1.5 rounded-lg transition-colors px-1 -mx-1 ${expandable ? "hover:bg-white/[0.03]" : ""}`}
+              onClick={() => expandable && setOpenKey(isOpen ? null : it.key)}
+            >
+              {it.icon ? (
+                <span className="text-sm w-5 text-center shrink-0">{it.icon}</span>
+              ) : (
+                <span className="text-[10px] font-black w-4 text-center shrink-0" style={{ color: i === 0 ? color : "#ffffff55" }}>{i + 1}</span>
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[11px] font-bold text-white/85 truncate">{it.label}</span>
+                  <span className="text-[11px] font-black shrink-0 ml-2" style={{ color: i === 0 ? color : "#ffffff70" }}>{it.count}</span>
+                </div>
+                <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${barW}%` }}
+                    transition={{ duration: 0.5, delay: Math.min(i * 0.03, 0.3), ease: "easeOut" }}
+                    className="h-full rounded-full"
+                    style={{ background: barColor }}
+                  />
+                </div>
+              </div>
+              {expandable && !!it.detail?.length && (isOpen ? <ChevronUp className="w-3.5 h-3.5 text-white/40 shrink-0" /> : <ChevronDown className="w-3.5 h-3.5 text-white/25 shrink-0" />)}
+            </button>
+            {expandable && isOpen && !!it.detail?.length && (
+              <div className="mt-1 mb-1 rounded-lg border border-white/10 bg-white/[0.02] divide-y divide-white/5 max-h-64 overflow-y-auto">
+                {it.detail.map((s: any) => (
+                  <div key={s.id} className="flex items-center gap-3 px-3 py-2">
+                    <Package className="w-3 h-3 text-white/25 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] font-bold text-white/80 truncate">{s.receiverName ?? "بدون اسم"}</span>
+                        {s.shipmentNumber && <span className="text-[9px] text-white/30 shrink-0">#{s.shipmentNumber}</span>}
+                      </div>
+                      <p className="text-[9px] text-white/35 truncate">{s.receiverPhone ?? "—"} · {s.warehouseName ?? "بدون فرع"}</p>
+                    </div>
+                    <span className="text-[9px] text-white/30 shrink-0">
+                      {new Date(s.createdAt).toLocaleDateString("ar-EG", { day: "numeric", month: "short" })}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Date Range Picker — فترة مخصصة (نفس مكوّن shipments-intelligence.tsx لثبات الهوية البصرية)
+// Company Performance Panel — أداء شركات الشحن (composite score)
 // ═══════════════════════════════════════════════════════════════════════════
-const fmtRangeDate = (d?: Date) =>
-  d ? d.toLocaleDateString("ar-EG", { day: "numeric", month: "short" }) : null;
+function CompanyPerformancePanel({ companies }: { companies: any[] }) {
+  if (!companies.length) {
+    return (
+      <div className="flex flex-col items-center justify-center py-10 gap-2">
+        <Truck className="w-8 h-8 text-white/15" />
+        <p className="text-xs text-white/35">لا توجد بيانات كافية</p>
+      </div>
+    );
+  }
+  return (
+    <div className="divide-y divide-white/5">
+      {companies.map((c, idx) => {
+        const rate = Math.round(c.deliveryRate);
+        const rateColor = rate >= 70 ? "#22c55e" : rate >= 50 ? "#eab308" : "#ef4444";
+        return (
+          <div key={c.name} className="flex items-center gap-3 py-2.5">
+            <div
+              className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 text-[10px] font-black"
+              style={{ background: idx === 0 ? "#eab30822" : "#8b5cf622", color: idx === 0 ? "#eab308" : "#8b5cf6" }}
+            >
+              {idx === 0 ? "★" : `#${idx + 1}`}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[11px] font-bold text-white/85 truncate">{c.name}</span>
+                <span className="text-[11px] font-black shrink-0 ml-2" style={{ color: rateColor }}>{rate}%</span>
+              </div>
+              <div className="h-1 rounded-full bg-white/5 overflow-hidden">
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${rate}%` }}
+                  transition={{ duration: 0.5, delay: Math.min(idx * 0.04, 0.3), ease: "easeOut" }}
+                  className="h-full rounded-full"
+                  style={{ background: rateColor }}
+                />
+              </div>
+              <div className="flex items-center gap-3 mt-1 flex-wrap">
+                <span className="text-[9px] text-white/40">{c.total} شحنة</span>
+                <span className="text-[9px] text-emerald-400">{c.delivered} تسليم</span>
+                {c.returned > 0 && <span className="text-[9px] text-rose-400">{c.returned} مرتجع</span>}
+                {c.avgHours !== null && (
+                  <span className="text-[9px] text-white/40 flex items-center gap-0.5">
+                    <Clock3 className="w-2.5 h-2.5" /> متوسط {formatAge(c.avgHours)}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
-function DateRangePicker({
-  active,
-  range,
-  onApply,
-  onClear,
+// ═══════════════════════════════════════════════════════════════════════════
+// Action Alert Group — شحنات بدون شركة / معلقة، قابلة للفتح
+// ═══════════════════════════════════════════════════════════════════════════
+function ActionAlertGroup({
+  count, title, subtitle, list, color, icon: Icon,
 }: {
-  active: boolean;
-  range: DateRange | undefined;
-  onApply: (range: DateRange) => void;
-  onClear: () => void;
+  count: number; title: string; subtitle: string; list: any[]; color: string; icon: typeof AlertCircle;
 }) {
   const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState<DateRange | undefined>(range);
-
-  useEffect(() => {
-    if (open) setDraft(range);
-  }, [open, range]);
-
-  const hasCompleteDraft = !!(draft?.from && draft?.to);
-  const label = active && range?.from
-    ? `${fmtRangeDate(range.from)} - ${fmtRangeDate(range.to)}`
-    : "فترة مخصصة";
-
+  if (count === 0) return null;
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors duration-200 border ${
-            active
-              ? "bg-[#e8b93f] text-black border-[#e8b93f]"
-              : "text-white/60 hover:text-white border-white/10 bg-white/[0.03]"
-          }`}
-        >
-          <CalendarDays className="w-3.5 h-3.5" />
-          {label}
-        </button>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-auto overflow-hidden rounded-2xl border p-0 shadow-2xl" dir="rtl" sideOffset={8}>
-        <div className="border-b px-4 py-3" style={{ background: "hsl(var(--muted)/0.45)", borderColor: "hsl(var(--border))" }}>
-          <p className="text-[12px] font-black text-foreground">اختيار فترة مخصصة</p>
-          <p className="mt-1 text-[10px] font-semibold text-muted-foreground">حدد يوم البداية ثم يوم النهاية</p>
-        </div>
-        <Calendar
-          mode="range"
-          selected={draft}
-          onSelect={setDraft}
-          numberOfMonths={2}
-          initialFocus
-          className="p-3"
-        />
-        <div className="flex items-center justify-between gap-2 border-t px-3 py-3" style={{ borderColor: "hsl(var(--border))" }}>
-          <button
-            type="button"
-            onClick={() => { onClear(); setDraft(undefined); setOpen(false); }}
-            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-bold text-muted-foreground transition hover:bg-muted"
-          >
-            <RotateCcw className="h-3.5 w-3.5" />
-            مسح
-          </button>
-          <button
-            type="button"
-            disabled={!hasCompleteDraft}
-            onClick={() => { if (draft?.from && draft?.to) { onApply(draft); setOpen(false); } }}
-            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-black transition disabled:opacity-40 disabled:cursor-not-allowed"
-            style={{
-              background: hasCompleteDraft ? "rgba(34,197,94,0.14)" : "hsl(var(--muted)/0.55)",
-              color: hasCompleteDraft ? "#22c55e" : "hsl(var(--muted-foreground))",
-            }}
-          >
-            <Check className="h-3.5 w-3.5" />
-            تطبيق
-          </button>
-        </div>
-      </PopoverContent>
-    </Popover>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Collapsible section wrapper
-// ═══════════════════════════════════════════════════════════════════════════
-function CollapsibleDetail({ title, children, defaultOpen = false }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <div className="mt-4 border-t border-white/5 pt-4">
+    <div className="rounded-xl border overflow-hidden" style={{ borderColor: `${color}44`, background: `${color}0c` }}>
       <button
+        type="button"
+        className="w-full flex items-center gap-3 px-4 py-3 transition-colors hover:bg-white/[0.03]"
         onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-2 text-sm font-bold text-white/70 hover:text-white transition-colors duration-200 mb-3"
       >
-        {open ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-        {title}
+        <Icon className="w-4 h-4 shrink-0" style={{ color }} />
+        <div className="flex-1 min-w-0 text-right">
+          <p className="text-[12px] font-bold" style={{ color }}>{title}</p>
+          <p className="text-[10px] text-white/40">{subtitle}</p>
+        </div>
+        {open ? <ChevronDown className="w-4 h-4 shrink-0" style={{ color }} /> : <ChevronRight className="w-4 h-4 shrink-0" style={{ color }} />}
       </button>
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.3 }}
-            style={{ overflow: "hidden" }}
-          >
-            {children}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {open && (
+        <div className="border-t divide-y divide-white/5 max-h-80 overflow-y-auto" style={{ borderColor: `${color}33` }}>
+          {list.map((s: any) => (
+            <div key={s.id} className="flex items-center gap-3 px-4 py-2.5">
+              <Package className="w-3.5 h-3.5 shrink-0" style={{ color }} />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-[12px] font-bold text-white/85 truncate">{s.receiverName ?? "بدون اسم"}</span>
+                  {s.shipmentNumber && <span className="text-[10px] text-white/30 shrink-0">#{s.shipmentNumber}</span>}
+                </div>
+                <p className="text-[10px] text-white/35 truncate">{s.receiverPhone ?? "—"} · {s.warehouseName ?? "بدون فرع"}</p>
+              </div>
+              <span className="text-[9px] text-white/35 shrink-0">
+                {new Date(s.createdAt).toLocaleDateString("ar-EG", { day: "numeric", month: "short" })}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
+
+
 
 // ═══════════════════════════════════════════════════════════════════════════
 // الصفحة الرئيسية
 // ═══════════════════════════════════════════════════════════════════════════
 export default function InventoryIntelligencePage() {
-  const [period, setPeriod] = useState("month");
-  const [customRange, setCustomRange] = useState<DateRange | undefined>(undefined);
+  const fc3 = (n: number | string) =>
+    new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(Number(n) || 0);
 
-  // لما يبقى فيه فترة مخصصة مطبّقة، هي اللي تحكم الطلب فعليًا بغض النظر عن قيمة period
-  const toDateStr = (d: Date) => {
-    const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, "0"), day = String(d.getDate()).padStart(2, "0");
-    return `${y}-${m}-${day}`;
-  };
-  const isCustomActive = !!(customRange?.from && customRange?.to);
-  const effectivePeriod = isCustomActive ? "custom" : period;
-  const effectiveFrom = isCustomActive ? toDateStr(customRange!.from!) : undefined;
-  const effectiveTo = isCustomActive ? toDateStr(customRange!.to!) : undefined;
-
-  const handlePeriodChange = (v: string) => {
-    setCustomRange(undefined); // اختيار فترة سريعة يلغي أي فترة مخصصة مطبّقة
-    setPeriod(v);
-  };
-  const handleCustomApply = (range: DateRange) => setCustomRange(range);
-  const handleCustomClear = () => setCustomRange(undefined);
-
-  const { data, isLoading, isError, error } = useQuery({
-    queryKey: ["analytics", "inventory-intelligence", effectivePeriod, effectiveFrom, effectiveTo],
-    queryFn: () => analyticsApi.inventoryIntelligence({ period: effectivePeriod, from: effectiveFrom, to: effectiveTo }),
-    staleTime: 60_000,
+  const { data: stats, isLoading: statsLoading } = useQuery({
+    queryKey: ["shipments-stats-insights"],
+    queryFn: () => shipmentsApi.stats(),
+    staleTime: 2 * 60_000,
   });
+
+  const { data: shipmentsRes, isLoading: listLoading } = useQuery({
+    queryKey: ["shipments-insights-list"],
+    queryFn: () => shipmentsApi.list({ limit: 200, offset: 0 }),
+    staleTime: 2 * 60_000,
+  });
+
+  const isLoading = statsLoading || listLoading;
+  const shipments = shipmentsRes?.data ?? [];
+
+  const statusMap = useMemo(() => {
+    const m: Record<string, number> = {};
+    if (stats?.statuses) {
+      for (const row of stats.statuses) m[row.status] = Number(row.count) || 0;
+    }
+    return m;
+  }, [stats]);
+
+  const delivered  = statusMap["delivered"] ?? 0;
+  const returned   = statusMap["returned"]  ?? 0;
+  const inTransit  = (statusMap["in_transit"] ?? 0) + (statusMap["out_for_delivery"] ?? 0);
+  const waiting    = (statusMap["waiting"] ?? 0) + (statusMap["confirmed"] ?? 0);
+  const totalAll   = Object.values(statusMap).reduce((s, v) => s + v, 0);
+  const closedAll  = delivered + returned;
+
+  const deliveryRate = pct(delivered, closedAll);
+  const returnRate   = pct(returned,  closedAll);
+
+  const totalCod       = Number(stats?.totalCod)         || 0;
+  const totalCollected = Number(stats?.totalCollected)    || 0;
+  const totalFee       = Number(stats?.totalShippingFee)  || 0;
+  const netProfit      = totalCollected - totalFee;
+  const pendingCOD     = shipments
+    .filter(s => (s.status === "in_transit" || s.status === "out_for_delivery") && s.paymentMethod === "cod")
+    .reduce((sum, s) => sum + (Number(s.codAmount) || 0), 0);
+
+  // ── أكثر مناطق الإرجاع ────────────────────────────────────────────────────
+  const returnsByZone = useMemo(() => {
+    const m: Record<string, { count: number; shipments: typeof shipments }> = {};
+    for (const s of shipments) {
+      if (s.status !== "returned") continue;
+      const zone = (s as any).zoneLabel || s.receiverCity || "غير محدد";
+      if (!m[zone]) m[zone] = { count: 0, shipments: [] };
+      m[zone].count++;
+      m[zone].shipments.push(s);
+    }
+    return Object.entries(m).sort((a, b) => b[1].count - a[1].count).slice(0, 5)
+      .map(([zone, data]) => ({ key: zone, label: zone, count: data.count, detail: data.shipments }));
+  }, [shipments]);
+
+  // ── الشحنات حسب الفرع/المخزن ──────────────────────────────────────────────
+  const byBranch = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const s of shipments) {
+      const name = (s as any).warehouseName || "بدون فرع";
+      m[name] = (m[name] ?? 0) + 1;
+    }
+    return Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 6)
+      .map(([name, count]) => ({ key: name, label: name, count }));
+  }, [shipments]);
+
+  // ── الشحنات حسب نوع الطرد ──────────────────────────────────────────────────
+  const byParcelType = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const s of shipments) {
+      const key = (s as any).parcelType || "normal";
+      m[key] = (m[key] ?? 0) + 1;
+    }
+    return Object.entries(m).sort((a, b) => b[1] - a[1])
+      .map(([type, count]) => ({
+        key: type,
+        label: PARCEL_LABELS[type] || type,
+        count,
+        icon: PARCEL_ICONS_MAP[type] || "📦",
+      }));
+  }, [shipments]);
+
+  // ── أداء شركات الشحن: scorecard مركّب (معدل تسليم + سرعة + معدل إرجاع) ────
+  const companyPerf = useMemo(() => {
+    const m: Record<string, { total: number; delivered: number; returned: number; name: string; deliveryHoursSum: number; deliveryHoursCount: number }> = {};
+    for (const s of shipments) {
+      const key  = String(s.shippingCompanyId ?? "بدون شركة");
+      const name = s.shippingCompanyName || "بدون شركة";
+      if (!m[key]) m[key] = { total: 0, delivered: 0, returned: 0, name, deliveryHoursSum: 0, deliveryHoursCount: 0 };
+      m[key].total++;
+      if (s.status === "delivered") {
+        m[key].delivered++;
+        if (s.actualDelivery && s.createdAt) {
+          const hrs = (new Date(s.actualDelivery).getTime() - new Date(s.createdAt).getTime()) / (1000 * 60 * 60);
+          if (hrs >= 0 && hrs < 24 * 30) {
+            m[key].deliveryHoursSum += hrs;
+            m[key].deliveryHoursCount++;
+          }
+        }
+      }
+      if (s.status === "returned")  m[key].returned++;
+    }
+    return Object.values(m)
+      .filter(c => c.total >= 2)
+      .map(c => {
+        const closedCount = c.delivered + c.returned;
+        const deliveryRate = closedCount > 0 ? (c.delivered / closedCount) * 100 : 0;
+        const returnRate   = closedCount > 0 ? (c.returned  / closedCount) * 100 : 0;
+        const avgHours     = c.deliveryHoursCount > 0 ? c.deliveryHoursSum / c.deliveryHoursCount : null;
+        const speedPenalty = avgHours !== null && avgHours > 72 ? Math.min(20, (avgHours - 72) / 12) : 0;
+        const score = Math.max(0, deliveryRate - speedPenalty);
+        return { ...c, deliveryRate, returnRate, avgHours, score };
+      })
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5);
+  }, [shipments]);
+
+  // ── شحنات تحتاج action ────────────────────────────────────────────────────
+  const noCompanyList = useMemo(() => shipments.filter(s =>
+    !s.shippingCompanyId && (s.status === "waiting" || s.status === "confirmed")
+  ), [shipments]);
+  const noCompany = noCompanyList.length;
+
+  const longPendingList = useMemo(() => {
+    const threeDaysAgo = Date.now() - 3 * 24 * 60 * 60 * 1000;
+    return shipments.filter(s =>
+      (s.status === "waiting" || s.status === "confirmed") &&
+      new Date(s.createdAt).getTime() < threeDaysAgo
+    );
+  }, [shipments]);
+  const longPending = longPendingList.length;
+
+  // ── تنبيهات ذكية مركّبة (نفس منطق زي inventory-intelligence القديمة) ─────
+  const alerts = useMemo(() => {
+    const list: { severity: string; message: string }[] = [];
+    if (returnRate > 20) list.push({ severity: "critical", message: `معدل الإرجاع مرتفع (${returnRate}%) — راجع أعلى مناطق الإرجاع بالأسفل` });
+    else if (returnRate > 12) list.push({ severity: "warning", message: `معدل الإرجاع (${returnRate}%) أعلى من المعتاد` });
+    if (noCompany > 0) list.push({ severity: "warning", message: `${noCompany} شحنة مؤكدة بدون شركة شحن — تحتاج إسناد` });
+    if (longPending > 0) list.push({ severity: "critical", message: `${longPending} شحنة معلقة أكثر من 3 أيام — تحتاج مراجعة فورية` });
+    if (deliveryRate > 0 && deliveryRate < 60) list.push({ severity: "warning", message: `معدل التسليم (${deliveryRate}%) أقل من المستهدف` });
+    return list;
+  }, [returnRate, noCompany, longPending, deliveryRate]);
 
   if (isLoading) {
     return (
@@ -526,19 +491,6 @@ export default function InventoryIntelligencePage() {
     );
   }
 
-  if (isError || !data) {
-    return (
-      <div className="min-h-screen text-white p-4 md:p-6 flex items-center justify-center" dir="rtl">
-        <div className="text-center">
-          <AlertTriangle className="w-10 h-10 text-red-500 mx-auto mb-3" />
-          <p className="text-white/70">تعذّر تحميل البيانات{error instanceof Error ? `: ${error.message}` : ""}</p>
-        </div>
-      </div>
-    );
-  }
-
-  const topRisky = data.ranking.filter(r => r.category === "out" || r.category === "fast").slice(0, 3);
-
   return (
     <div className="min-h-screen text-white p-4 md:p-6 space-y-6" dir="rtl">
       {/* Header */}
@@ -549,159 +501,154 @@ export default function InventoryIntelligencePage() {
           </div>
           <div>
             <h1 className="text-xl md:text-2xl font-black text-white">تحليل المخزون الذكي</h1>
-            <p className="text-xs text-white/40">سرعة الحركة، رأس المال المجمّد، توزيع المخازن، وتنبيهات ذكية لكل منتج</p>
+            <p className="text-xs text-white/40">تحليلات الشحن: الأداء، المرتجعات، الفروع، وتنبيهات ذكية — من آخر 200 شحنة</p>
           </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <PeriodSwitcher value={isCustomActive ? "" : period} onChange={handlePeriodChange} />
-          <DateRangePicker
-            active={isCustomActive}
-            range={customRange}
-            onApply={handleCustomApply}
-            onClear={handleCustomClear}
-          />
         </div>
       </div>
 
       {/* Alerts */}
-      <AlertsBanner alerts={data.alerts} />
+      <AlertsBanner alerts={alerts} />
+
+      {/* Action Alerts — شحنات بدون شركة / معلقة */}
+      {(noCompany > 0 || longPending > 0) && (
+        <div className="space-y-2">
+          <ActionAlertGroup
+            count={noCompany} color="#f59e0b" icon={ShieldAlert}
+            title={`${noCompany} شحنة بدون شركة شحن`}
+            subtitle="شحنات مؤكدة لم تُسند لشركة شحن بعد — اضغط للعرض"
+            list={noCompanyList}
+          />
+          <ActionAlertGroup
+            count={longPending} color="#ef4444" icon={AlertCircle}
+            title={`${longPending} شحنة معلقة أكثر من 3 أيام`}
+            subtitle="تحتاج مراجعة فورية أو إلغاء — اضغط للعرض"
+            list={longPendingList}
+          />
+        </div>
+      )}
 
       {/* Hero KPIs */}
       <SectionCard>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-[#e8b93f]/20 text-[#e8b93f]">
-              <Boxes className="w-4.5 h-4.5" />
+          <div className={`rounded-2xl border p-4 flex items-center gap-3 ${netProfit >= 0 ? "border-emerald-500/20 bg-emerald-500/[0.04]" : "border-red-500/20 bg-red-500/[0.04]"}`}>
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: netProfit >= 0 ? "#22c55e22" : "#ef444422", color: netProfit >= 0 ? "#22c55e" : "#ef4444" }}>
+              <CircleDollarSign className="w-4.5 h-4.5" />
             </div>
             <div>
-              <p className="text-xs text-white/50">إجمالي المنتجات</p>
-              <p className="text-xl font-black text-white tabular-nums">{fmt(data.kpis.totalProducts)}</p>
+              <p className="text-xs text-white/50">صافي المحصّل</p>
+              <p className="text-lg font-black tabular-nums" style={{ color: netProfit >= 0 ? "#22c55e" : "#ef4444" }}>{fc3(netProfit)}</p>
             </div>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-[#06b6d4]/20 text-[#06b6d4]">
-              <Package className="w-4.5 h-4.5" />
+          <div className="rounded-2xl border border-amber-500/20 bg-amber-500/[0.04] p-4 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-amber-500/20 text-amber-400">
+              <Clock3 className="w-4.5 h-4.5" />
             </div>
             <div>
-              <p className="text-xs text-white/50">إجمالي القطع بالمخزون</p>
-              <p className="text-xl font-black text-white tabular-nums">{fmt(data.kpis.totalUnitsInStock)}</p>
+              <p className="text-xs text-white/50">COD معلق في الطريق</p>
+              <p className="text-lg font-black text-amber-400 tabular-nums">{fc3(pendingCOD)}</p>
             </div>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-[#ef4444]/20 text-[#ef4444]">
-              <PackageX className="w-4.5 h-4.5" />
+          <div className={`rounded-2xl border p-4 flex items-center gap-3 ${deliveryRate >= 70 ? "border-blue-500/20 bg-blue-500/[0.04]" : "border-orange-500/20 bg-orange-500/[0.04]"}`}>
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: deliveryRate >= 70 ? "#3b82f622" : "#f9731622", color: deliveryRate >= 70 ? "#3b82f6" : "#f97316" }}>
+              <Target className="w-4.5 h-4.5" />
             </div>
             <div>
-              <p className="text-xs text-white/50">نافد المخزون</p>
-              <p className="text-xl font-black text-white tabular-nums">{fmt(data.kpis.outOfStockCount)}</p>
+              <p className="text-xs text-white/50">معدل التسليم</p>
+              <p className="text-lg font-black tabular-nums" style={{ color: deliveryRate >= 70 ? "#3b82f6" : "#f97316" }}>{deliveryRate}%</p>
             </div>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-[#eab308]/20 text-[#eab308]">
-              <AlertCircle className="w-4.5 h-4.5" />
+          <div className={`rounded-2xl border p-4 flex items-center gap-3 ${returnRate <= 15 ? "border-white/10 bg-white/[0.03]" : "border-red-500/20 bg-red-500/[0.04]"}`}>
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: returnRate <= 15 ? "#ffffff12" : "#ef444422", color: returnRate <= 15 ? "#ffffff80" : "#ef4444" }}>
+              <RotateCcw className="w-4.5 h-4.5" />
             </div>
             <div>
-              <p className="text-xs text-white/50">مخزون منخفض</p>
-              <p className="text-xl font-black text-white tabular-nums">{fmt(data.kpis.lowStockCount)}</p>
+              <p className="text-xs text-white/50">معدل الإرجاع</p>
+              <p className="text-lg font-black tabular-nums" style={{ color: returnRate > 15 ? "#ef4444" : "#ffffff" }}>{returnRate}%</p>
             </div>
           </div>
         </div>
       </SectionCard>
 
-      {/* Financial KPIs */}
-      <SectionCard>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-[#f97316]/20 text-[#f97316]">
-              <Wallet className="w-4.5 h-4.5" />
-            </div>
-            <div>
-              <p className="text-xs text-white/50">رأس مال مجمّد</p>
-              <p className="text-lg font-black text-white tabular-nums">{fmtMoney(data.kpis.totalFrozenCapital)} ج.م</p>
-            </div>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-[#8b5cf6]/20 text-[#8b5cf6]">
-              <Sparkles className="w-4.5 h-4.5" />
-            </div>
-            <div>
-              <p className="text-xs text-white/50">إيراد محتمل من المخزون</p>
-              <p className="text-lg font-black text-white tabular-nums">{fmtMoney(data.kpis.totalPotentialRevenue)} ج.م</p>
-            </div>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-[#22c55e]/20 text-[#22c55e]">
-              <PackageCheck className="w-4.5 h-4.5" />
-            </div>
-            <div>
-              <p className="text-xs text-white/50">مبيعات الفترة (قطعة)</p>
-              <p className="text-lg font-black text-white tabular-nums">{fmt(data.kpis.totalSoldInRange)}</p>
-            </div>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-[#ef4444]/20 text-[#ef4444]">
-              <ShieldAlert className="w-4.5 h-4.5" />
-            </div>
-            <div>
-              <p className="text-xs text-white/50">تالف الفترة</p>
-              <p className="text-lg font-black text-white tabular-nums">{fmt(data.kpis.totalDamagedInRange)}</p>
-            </div>
-          </div>
-        </div>
-      </SectionCard>
-
-      {/* منتجات تحتاج انتباه فوري — نافدة أو سريعة الحركة (فرصة/خطر) */}
-      {topRisky.length > 0 && (
+      {/* مناطق الإرجاع + أداء شركات الشحن */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <SectionCard>
-          <SectionHeader icon={AlertTriangle} title="منتجات تحتاج انتباه فوري" subtitle="نافدة من المخزون أو حركتها سريعة جدًا وقربانة تخلص" />
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {topRisky.map((r, i) => <RankingCard key={r.productId} row={r} index={i} />)}
-          </div>
-        </SectionCard>
-      )}
-
-      {/* الترتيب الكامل */}
-      <SectionCard>
-        <SectionHeader icon={TrendingUp} title="كل المنتجات حسب سرعة الحركة" subtitle="من الأسرع حركة (فرصة نمو) إلى الراكد والنافد (يحتاج مراجعة)" />
-        {data.ranking.length === 0 ? (
-          <p className="text-center text-sm text-white/40 py-8">لا توجد منتجات مسجّلة</p>
-        ) : (
-          <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {data.ranking.slice(0, 6).map((r, i) => <RankingCard key={r.productId} row={r} index={i} />)}
-            </div>
-            {data.ranking.length > 6 && (
-              <CollapsibleDetail title={`عرض باقي المنتجات (${data.ranking.length - 6})`}>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {data.ranking.slice(6).map((r, i) => <RankingCard key={r.productId} row={r} index={i} />)}
-                </div>
-              </CollapsibleDetail>
-            )}
-          </>
-        )}
-      </SectionCard>
-
-      {/* رأس المال المجمّد + توزيع المخازن */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <SectionCard>
-          <SectionHeader icon={Wallet} title="رأس المال المجمّد" subtitle="أعلى المنتجات البطيئة أو الراكدة اللي مجمّدة فيها فلوس بدون حركة بيع كافية" />
-          <FrozenCapitalTable data={data.frozenCapitalRanking} />
+          <SectionHeader icon={MapPin} title="مناطق الإرجاع الأعلى" subtitle="من آخر 200 شحنة" />
+          <RankedBarList
+            items={returnsByZone}
+            color="#ef4444"
+            accentColor="#f97316"
+            emptyIcon={PackageCheck}
+            emptyLabel="لا مرتجعات 🎉"
+            expandable
+          />
         </SectionCard>
         <SectionCard>
-          <SectionHeader icon={Warehouse} title="توزيع المخزون بين المخازن" subtitle="هل المخزون موزّع بعدل بين المخازن ولا مخزن واحد شايل كل الحمل؟" />
-          <WarehouseDistributionPanel data={data.warehouseDistribution} />
+          <SectionHeader icon={Activity} title="أداء شركات الشحن" subtitle="مرتبة حسب الأداء (معدل تسليم + سرعة)" />
+          <CompanyPerformancePanel companies={companyPerf} />
         </SectionCard>
       </div>
 
-      {/* حركات المخزون حسب السبب */}
-      <SectionCard>
-        <SectionHeader icon={Recycle} title="حركات المخزون حسب السبب" subtitle="توزيع كل حركات الإدخال والإخراج في الفترة المختارة حسب سببها" />
-        <MovementsBreakdownPanel data={data.movementsBreakdown} />
-      </SectionCard>
+      {/* الشحنات حسب الفرع + حسب نوع الطرد */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <SectionCard>
+          <SectionHeader icon={WarehouseIcon} title="الشحنات حسب الفرع" subtitle="من آخر 200 شحنة" />
+          <RankedBarList items={byBranch} color="#3b82f6" emptyIcon={WarehouseIcon} emptyLabel="لا توجد بيانات" />
+        </SectionCard>
+        <SectionCard>
+          <SectionHeader icon={Boxes} title="الشحنات حسب نوع الطرد" subtitle="من آخر 200 شحنة" />
+          <RankedBarList items={byParcelType} color="#8b5cf6" emptyIcon={Boxes} emptyLabel="لا توجد بيانات" />
+        </SectionCard>
+      </div>
+
+      {/* توزيع الحالات + ملخص مالي */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <SectionCard>
+          <SectionHeader icon={PieChart} title="توزيع حالات الشحنات" subtitle={`${totalAll} إجمالي`} />
+          <div className="space-y-2.5">
+            {[
+              { label: "تم التسليم",   count: delivered, color: "#22c55e" },
+              { label: "في الطريق",    count: inTransit, color: "#8b5cf6" },
+              { label: "مرتجع",        count: returned,  color: "#ef4444" },
+              { label: "انتظار/مؤكد",  count: waiting,   color: "#eab308" },
+            ].filter(r => r.count > 0).map(row => (
+              <div key={row.label} className="flex items-center gap-3">
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ background: row.color }} />
+                <span className="text-[11px] text-white/50 flex-1">{row.label}</span>
+                <span className="text-[11px] font-black" style={{ color: row.color }}>{row.count}</span>
+                <div className="w-16 h-1.5 rounded-full bg-white/5 overflow-hidden">
+                  <div className="h-full rounded-full" style={{ width: `${pct(row.count, totalAll)}%`, background: row.color }} />
+                </div>
+                <span className="text-[9px] text-white/35 w-6 text-left">{pct(row.count, totalAll)}%</span>
+              </div>
+            ))}
+          </div>
+        </SectionCard>
+        <SectionCard>
+          <SectionHeader icon={DollarSign} title="الملخص المالي للشحنات" />
+          <div className="divide-y divide-white/5">
+            {[
+              { label: "إجمالي COD المتوقع",  value: totalCod,       color: "#ffffffcc", icon: CircleDollarSign },
+              { label: "إجمالي المحصّل",       value: totalCollected, color: "#22c55e",   icon: PackageCheck     },
+              { label: "إجمالي رسوم الشحن",   value: totalFee,       color: "#eab308",   icon: Truck            },
+              { label: "COD معلق في الطريق",  value: pendingCOD,     color: "#8b5cf6",   icon: Clock3           },
+              { label: "صافي (محصّل - رسوم)", value: netProfit,      color: netProfit >= 0 ? "#22c55e" : "#ef4444", icon: TrendingUp },
+            ].map(row => {
+              const Icon = row.icon;
+              return (
+                <div key={row.label} className="flex items-center gap-3 px-1 py-2.5">
+                  <Icon className="w-3.5 h-3.5 shrink-0" style={{ color: row.color }} />
+                  <span className="text-[11px] text-white/50 flex-1">{row.label}</span>
+                  <span className="text-[12px] font-black tabular-nums" style={{ color: row.color }}>{fc3(row.value)}</span>
+                </div>
+              );
+            })}
+          </div>
+        </SectionCard>
+      </div>
 
       {/* Footer */}
       <p className="text-center text-[11px] text-white/25 pb-2">
-        آخر تحديث: {new Date(data.generatedAt).toLocaleString("ar-EG")} — {data.periodLabel} — البيانات مبنية على جداول المنتجات والمخازن وحركات المخزون فقط
+        آخر تحديث: {new Date().toLocaleString("ar-EG")} — البيانات مبنية على آخر 200 شحنة
       </p>
     </div>
   );
