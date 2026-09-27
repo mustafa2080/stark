@@ -16,7 +16,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import {
   Plus, Edit2, Trash2, Phone, ToggleLeft, ToggleRight,
   Users, MapPin, Target, ShoppingBag, FileText, TrendingUp,
-  Eye, BarChart2, Search, Filter, ChevronLeft, ChevronRight, ChevronDown,
+  Eye, Search, Filter, ChevronLeft, ChevronRight, ChevronDown,
   ShoppingCart, Receipt, ListFilter, X, Camera, Printer, KeyRound,
 } from "lucide-react";
 import { format } from "date-fns";
@@ -871,12 +871,10 @@ export default function FinanceClients() {
         )}
       </div>
 
-      {/* ── 4 KPI Cards ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {/* ── KPI Cards ── */}
+      <div className="grid grid-cols-2 gap-3">
         {[
           { key: "finance_clients.kpi_total_clients", label: "إجمالي العملاء",    value: totalClients, sub: `+${clients.filter(c => { const d = new Date(c.createdAt); const now = new Date(); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear(); }).length} هذا الشهر`, icon: <Users className="w-6 h-6" />, color: "text-foreground" },
-          { key: "finance_clients.kpi_monthly_collected", label: "المحصّل هذا الشهر", value: `${fmt(monthlyCollected)} ج.م`, sub: "من الشحنات المحصّلة", icon: <Receipt className="w-6 h-6" />, color: "text-emerald-400" },
-          { key: "finance_clients.kpi_total_outstanding", label: "المستحق الإجمالي",  value: `${fmt(totalOutstanding)} ج.م`, sub: "على كل العملاء", icon: <ShoppingCart className="w-6 h-6" />, color: "text-amber-400" },
           { key: "finance_clients.kpi_total_shipments", label: "إجمالي الشحنات",    value: totalShipmentsCount, sub: `عدد شحنات جميع الحالات`, icon: <TrendingUp className="w-6 h-6" />, color: "text-primary" },
         ].filter(kpi => canSee(kpi.key)).map((kpi, i) => (
           <Card key={i} className="border-border bg-card p-4">
@@ -1085,27 +1083,6 @@ export default function FinanceClients() {
         </Card>
         )}
       </div>
-
-      {canSee("finance_clients.sales_report_link") && (
-      <Card
-        onClick={() => navigate("/finance/sales-report")}
-        className="relative overflow-hidden border-border bg-card p-5 cursor-pointer group hover:border-primary/40 transition-all"
-      >
-        <div className="absolute inset-0 bg-gradient-to-l from-primary/10 via-transparent to-transparent opacity-70 group-hover:opacity-100 transition-opacity" />
-        <div className="relative flex items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-primary/15 border border-primary/20 flex items-center justify-center text-primary group-hover:scale-105 transition-transform">
-              <BarChart2 className="w-6 h-6" />
-            </div>
-            <div>
-              <h2 className="font-bold text-sm">تقرير المبيعات</h2>
-              <p className="text-[11px] text-muted-foreground mt-0.5">عرض تحليلات وتفاصيل المبيعات الكاملة</p>
-            </div>
-          </div>
-          <ChevronLeft className="w-5 h-5 text-muted-foreground group-hover:text-primary group-hover:-translate-x-1 transition-all" />
-        </div>
-      </Card>
-      )}
 
       {/* ── الجدول الرئيسي ── */}
       {canSee("finance_clients.clients_table") && (
