@@ -192,6 +192,94 @@ function ColumnFilter({ label, options, selected, onChange }: {
   );
 }
 
+// ── Goal Sort Filter (نفس شكل ColumnFilter بس اختيار واحد للترتيب) ─────────
+function GoalSortFilter({ label, value, onChange }: {
+  label: string;
+  value: "" | "orders_desc" | "orders_asc" | "goal_closest" | "goal_farthest";
+  onChange: (v: "" | "orders_desc" | "orders_asc" | "goal_closest" | "goal_farthest") => void;
+}) {
+  const options: { value: typeof value; label: string }[] = [
+    { value: "orders_desc",   label: "الأكثر عدد أوردرات" },
+    { value: "orders_asc",    label: "الأقل عدد أوردرات" },
+    { value: "goal_closest",  label: "الأقرب للوصول للهدف" },
+    { value: "goal_farthest", label: "الأبعد عن الوصول للهدف" },
+  ];
+  const [open, setOpen] = useState(false);
+  const ref    = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const [pos, setPos] = useState({ top: 0, right: 0 });
+  const hasFilter = value !== "";
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node) &&
+          btnRef.current && !btnRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const handleOpen = () => {
+    if (btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      setPos({ top: rect.bottom + 6, right: window.innerWidth - rect.right });
+    }
+    setOpen(o => !o);
+  };
+
+  return (
+    <div className="relative flex items-center gap-1">
+      <span className="text-[10px] font-bold text-muted-foreground">{label}</span>
+      <button
+        ref={btnRef}
+        onClick={handleOpen}
+        className={`relative p-0.5 rounded transition-colors ${hasFilter ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
+      >
+        <ListFilter className={`w-3 h-3 ${hasFilter ? "text-primary" : ""}`} />
+        {hasFilter && (
+          <span className="absolute -top-1 -left-1 w-3 h-3 bg-primary rounded-full text-[8px] text-primary-foreground flex items-center justify-center font-black">
+            1
+          </span>
+        )}
+      </button>
+
+      {open && typeof window !== "undefined" && (
+        <div
+          ref={ref}
+          style={{ position: "fixed", top: pos.top, right: pos.right, zIndex: 9999 }}
+          className="min-w-[190px] bg-card border border-border rounded-xl shadow-2xl p-2"
+          dir="rtl"
+        >
+          <div className="flex items-center justify-between mb-1.5 px-1">
+            <span className="text-[10px] font-bold text-muted-foreground">ترتيب {label}</span>
+            {hasFilter && (
+              <button onClick={() => onChange("")} className="text-[9px] text-destructive hover:underline flex items-center gap-0.5">
+                <X className="w-2.5 h-2.5" />مسح
+              </button>
+            )}
+          </div>
+          <div className="space-y-1 max-h-48 overflow-y-auto">
+            {options.map(opt => (
+              <label key={opt.value} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted/30 cursor-pointer text-xs">
+                <input
+                  type="radio"
+                  name="goal-sort"
+                  checked={value === opt.value}
+                  onChange={() => onChange(opt.value)}
+                  className="accent-primary w-3 h-3 shrink-0"
+                />
+                <span>{opt.label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Client Form ───────────────────────────────────────────────────────────
 function ClientForm({ open, onClose, editClient, onSuccess }: {
   open: boolean; onClose: () => void; editClient: Client | null; onSuccess: () => void;
@@ -557,6 +645,7 @@ export default function FinanceClients() {
   const [filterStatus,       setFilterStatus]       = useState<string[]>([]);
   const [filterPaymentTerms, setFilterPaymentTerms] = useState<string[]>([]);
   const [filterName,         setFilterName]         = useState<string[]>([]);
+  const [goalSort, setGoalSort] = useState<"" | "orders_desc" | "orders_asc" | "goal_closest" | "goal_farthest">("");
   const PER_PAGE = 10;
 
   const { data: clients = [], isLoading: loadingClients } = useQuery<Client[]>({
@@ -701,9 +790,33 @@ export default function FinanceClients() {
     });
   }, [clients, search, filterCity, filterStatus, filterPaymentTerms]);
 
-  const activeFiltersCount = filterCity.length + filterStatus.length + filterPaymentTerms.length + filterName.length;
+  const activeFiltersCount = filterCity.length + filterStatus.length + filterPaymentTerms.length + filterName.length + (goalSort ? 1 : 0);
 
-  const tableData = filteredClients;
+  // ترتيب حسب عمود "تحقيق الهدف" — عدد الأوردرات أو نسبة الاقتراب من الهدف
+  const goalStats = (c: Client) => {
+    const orders = c.totalOrders ?? 0;
+    const target = parseFloat(c.creditLimit ?? "0") || 100;
+    const pct = Math.min((orders / target) * 100, 100);
+    return { orders, pct };
+  };
+
+  const sortedClients = useMemo(() => {
+    if (!goalSort) return filteredClients;
+    const arr = [...filteredClients];
+    arr.sort((a, b) => {
+      const sa = goalStats(a), sb = goalStats(b);
+      switch (goalSort) {
+        case "orders_desc":    return sb.orders - sa.orders;
+        case "orders_asc":     return sa.orders - sb.orders;
+        case "goal_closest":   return sb.pct - sa.pct;
+        case "goal_farthest":  return sa.pct - sb.pct;
+        default: return 0;
+      }
+    });
+    return arr;
+  }, [filteredClients, goalSort]);
+
+  const tableData = sortedClients;
   const totalPages = Math.ceil(tableData.length / PER_PAGE);
   const pageData   = tableData.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
@@ -1141,7 +1254,9 @@ export default function FinanceClients() {
                       ) : <span className="text-[10px] font-bold text-muted-foreground">المحافظة</span>}
                     </th>
                     <th className="text-right px-3 py-2 min-w-[130px]">
-                      <span className="text-[10px] font-bold text-muted-foreground">تحقيق الهدف</span>
+                      {showColFilters ? (
+                        <GoalSortFilter label="تحقيق الهدف" value={goalSort} onChange={v => { setGoalSort(v); setPage(1); }} />
+                      ) : <span className="text-[10px] font-bold text-muted-foreground">تحقيق الهدف</span>}
                     </th>
                     <th className="text-right px-3 py-2 min-w-[100px]">
                       {showColFilters ? (
@@ -1152,7 +1267,7 @@ export default function FinanceClients() {
                       <div className="flex items-center justify-between gap-1">
                         <span className="text-[10px] font-bold text-muted-foreground">إجراءات</span>
                         {showColFilters && activeFiltersCount > 0 && (
-                          <button onClick={() => { setFilterCity([]); setFilterStatus([]); setFilterPaymentTerms([]); setFilterName([]); }}
+                          <button onClick={() => { setFilterCity([]); setFilterStatus([]); setFilterPaymentTerms([]); setFilterName([]); setGoalSort(""); }}
                             className="text-[9px] text-destructive hover:underline flex items-center gap-0.5">
                             <X className="w-2.5 h-2.5" />مسح
                           </button>
