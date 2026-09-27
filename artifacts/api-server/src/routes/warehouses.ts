@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import { eq, and, or, desc, count, isNull, inArray, sql } from "drizzle-orm";
 import {
   db,
@@ -8,15 +8,68 @@ import {
   productsTable,
   productVariantsTable,
   inventoryMovementsTable,
-  ordersTable,
   shipmentsTable,
   shippingCompaniesTable,
   shipmentManifestItemsTable,
+  usersTable,
 } from "@workspace/db";
 import { getTenantId } from "../middlewares/requireTenant.js";
 import { z } from "zod";
 import { requireAuth } from "../middlewares/requireAuth";
 import { syncProductQuantityFromWarehouses, recordMovement } from "../lib/inventory.js";
+
+// الصلاحيات ممكن تكون JSON string أو مصفوفة (وأحياناً متداخلة) — نفس منطق routes/users.ts
+function parseUserPermissions(permissions: any): string[] {
+  let parsed = permissions;
+  if (typeof parsed === "string") {
+    try { parsed = JSON.parse(parsed); } catch { return []; }
+  }
+  if (!Array.isArray(parsed)) return [];
+  const flat: string[] = [];
+  for (const item of parsed) {
+    if (typeof item === "string") flat.push(item);
+    else if (Array.isArray(item)) {
+      for (const sub of item) { if (typeof sub === "string") flat.push(sub); }
+    }
+  }
+  return flat;
+}
+
+// بيقرا الدور والصلاحيات من الـ DB (مش من الـ JWT اللي بيتعمل وقت الدخول وصلاحيته 7 أيام)
+// عشان أي تعديل في الصلاحيات (إضافة أو سحب) يسري فوراً من غير ما اليوزر يسجّل خروج ودخول.
+// admin/super_admin مسموح لهم دايماً، وأي يوزر تاني لازم يكون عنده الصلاحية المحددة.
+function requireFreshPermission(permission: string) {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const authUser = req.user;
+      if (!authUser) {
+        res.status(401).json({ error: "غير مصرح" });
+        return;
+      }
+      const [row] = await db
+        .select({ role: usersTable.role, permissions: usersTable.permissions, isActive: usersTable.isActive })
+        .from(usersTable)
+        .where(eq(usersTable.id, authUser.id))
+        .limit(1);
+      if (!row || row.isActive === false) {
+        res.status(403).json({ error: "ليس لديك صلاحية لهذه العملية" });
+        return;
+      }
+      if (row.role === "admin" || row.role === "super_admin") {
+        next();
+        return;
+      }
+      if (parseUserPermissions(row.permissions).includes(permission)) {
+        next();
+        return;
+      }
+      res.status(403).json({ error: "ليس لديك صلاحية لهذه العملية" });
+    } catch (e) {
+      console.error("[requireFreshPermission]", e);
+      res.status(500).json({ error: "خطأ في التحقق من الصلاحية" });
+    }
+  };
+}
 
 // ─── Helper: سجّل حركة تسوية في inventory_movements ─────────────────────────
 async function recordAdjustmentMovement(
@@ -120,10 +173,18 @@ router.get("/warehouses", async (req, res): Promise<void> => {
       const totalUnits = stockItems.reduce((s, si) => s + si.quantity, 0);
       const skuCount = stockItems.length;
 
+      // "عدد الطلبات" (orderCount) بيتحسب فعليًا كإجمالي كل الشحنات المرتبطة بالمخزن
+      // (بدون فلترة على status) — مش من جدول orders، لأن orders.warehouse_id
+      // مالوش أي كود بيكتب فيه في السيستم كله، فبيفضل صفر دايمًا لكل مخزن. الجدولين
+      // orders/shipments مفيش بينهم FK أصلاً (مفيش shipment_id في orders)، فمافيش
+      // طريقة نستنتج بيها ربط تلقائي؛ الرقم المتاح والمعبّر فعليًا هو عدد الشحنات.
       const [orderCountRow] = await db
         .select({ cnt: count() })
-        .from(ordersTable)
-        .where(eq(ordersTable.warehouseId, w.id));
+        .from(shipmentsTable)
+        .where(and(
+          eq(shipmentsTable.warehouseId, w.id),
+          isNull(shipmentsTable.deletedAt),
+        ));
 
       // عدد الشحنات "قيد الشحن بالمخزن" فقط — مفيش عد لحالات قبل ما توصل warehouse_ready
       const [shipmentCountRow] = await db
@@ -243,9 +304,13 @@ router.get("/warehouses/:id/shipments", async (req, res): Promise<void> => {
 
   // الشحنة لازم تكون أو كانت في warehouse_ready عشان تظهر في صفحة المخزن أصلاً —
   // الحالات اللي قبلها (pending, waiting, confirmed...) متظهرش خالص لحد ما توصل warehouse_ready
+  // "replaced"/"parcel_picked" (رجلة مرتجع الاستبدال/إحضار الطرد) لازم يظهروا هنا
+  // كمان — نفس معاملة "returned" بالظبط، لأن البضاعة (المنتج القديم/الطرد) بترجع
+  // فعليًا للمخزن بمجرد returnReceived=1، فلازم تاخد نفس مسار المرتجع الطبيعي.
   const VISIBLE_IN_WAREHOUSE = [
     "warehouse_ready", "picked_up", "in_transit", "out_for_delivery",
     "delivered", "received", "partial_received", "returned", "cancelled", "delayed",
+    "replaced", "parcel_picked",
   ];
 
   const conditions: any[] = [
@@ -264,8 +329,12 @@ router.get("/warehouses/:id/shipments", async (req, res): Promise<void> => {
     // شركة الشحن (returnReceived غير true) مايدخلش هنا خالص، نفس شرط الـ stats بالظبط
     // عشان الجدول والعداد يفضلوا متطابقين مع بعض. "ملغية" منطقيًا مالهاش returnReceived
     // (اتلغت مش اترجعت)، فبتفضل تدخل هنا بدون الشرط ده.
+    // "replaced"/"parcel_picked" مع returnReceived=1 نفس المعاملة بالظبط — دي رجلة
+    // المرتجع بتاعتهم (المنتج القديم/الطرد) اللي فعليًا رجعت المخزن، فلازم تاخد
+    // مسارها الطبيعي كمرتجع هنا بدل ما تفضل مختفية جوه حالة "تم الاستبدال".
     conditions.push(or(
       and(eq(shipmentsTable.status, "returned"), eq(shipmentsTable.returnReceived, 1)),
+      and(inArray(shipmentsTable.status, ["replaced", "parcel_picked"]), eq(shipmentsTable.returnReceived, 1)),
       eq(shipmentsTable.status, "cancelled"),
     ));
   } else if (statusFilter === "returned_partial") {
@@ -279,9 +348,10 @@ router.get("/warehouses/:id/shipments", async (req, res): Promise<void> => {
     // "الكل" (بدون فلتر): كل الشحنات اللي وصلت warehouse_ready على الأقل، إلا الشحنات
     // المرتجعة (returned/partial_received) اللي لسه مع المندوب/شركة الشحن ومارجعتش
     // فعليًا للمخزون (returnReceived غير true) — نفس شرط تابي "مرتجع" و"مرتجع جزئي"
-    // بالظبط، عشان "الكل" ميعرضش شحنة مش موجودة فعليًا في المخزن.
+    // بالظبط، عشان "الكل" ميعرضش شحنة مش موجودة فعليًا في المخزن. نفس الاستثناء
+    // ينطبق على "replaced"/"parcel_picked" — لسه مع المندوب لحد ما returnReceived=1.
     conditions.push(or(
-      sql`${shipmentsTable.status} NOT IN ('returned', 'partial_received')`,
+      sql`${shipmentsTable.status} NOT IN ('returned', 'partial_received', 'replaced', 'parcel_picked')`,
       eq(shipmentsTable.returnReceived, 1),
     ));
   }
@@ -365,10 +435,10 @@ router.get("/warehouses/:id/shipments", async (req, res): Promise<void> => {
     ));
 
   // "الكل" هنا لازم يتطابق بالظبط مع نفس منطق فلتر "الكل" فوق في /shipments:
-  // شحنة returned/partial_received لسه مع المندوب (returnReceived غير true) متتحسبش
-  // ضمن "الكل" لأنها مش موجودة فعليًا في المخزون.
+  // شحنة returned/partial_received/replaced/parcel_picked لسه مع المندوب
+  // (returnReceived غير true) متتحسبش ضمن "الكل" لأنها مش موجودة فعليًا في المخزون.
   const totalVisible = allForStats.filter(s =>
-    !["returned", "partial_received"].includes(s.status)
+    !["returned", "partial_received", "replaced", "parcel_picked"].includes(s.status)
     || (s.returnReceived === 1 || (s.returnReceived as any) === true)
   ).length;
 
@@ -380,8 +450,10 @@ router.get("/warehouses/:id/shipments", async (req, res): Promise<void> => {
     // (returnReceived=true) — لسه مع المندوب/شركة الشحن (returnReceived غير true)
     // متحسبش في أي منهم، نفس منطق تاب "مرتجع" في صفحة المخزون (inventory.tsx / tabMap).
     // مفصولين بقى عن بعض بناءً على طلب صاحب المشروع: مرتجع كامل، ومرتجع جزئي.
+    // "replaced"/"parcel_picked" مع returnReceived=1 بيتحسبوا ضمن "مرتجع" الكامل —
+    // نفس رجلة المرتجع بتاعت returned بالظبط، فلازم ياخدوا نفس العداد.
     returned:  allForStats.filter(s =>
-      (s.status === "returned" && (s.returnReceived === 1 || (s.returnReceived as any) === true))
+      ((s.status === "returned" || s.status === "replaced" || s.status === "parcel_picked") && (s.returnReceived === 1 || (s.returnReceived as any) === true))
       || s.status === "cancelled"
     ).length,
     returnedPartial: allForStats.filter(s =>
@@ -817,24 +889,48 @@ router.post("/warehouses/transfer", requireAuth, async (req, res): Promise<void>
 });
 
 // POST /warehouses/transfer-bulk — تحويل عدة شحنات دفعة واحدة لمخزن آخر
-router.post("/warehouses/transfer-bulk", requireAuth, async (req, res): Promise<void> => {
+router.post("/warehouses/transfer-bulk", requireAuth, requireFreshPermission("inventory.movements"), async (req, res): Promise<void> => {
   try {
     const tenantId = getTenantId(req);
     const user = (req as any).user;
     const schema = z.object({
       shipmentIds:       z.array(z.number()).min(1),
-      toWarehouseId:     z.number().nullable(),
+      toWarehouseId:     z.number(),
       notes:             z.string().optional(),
       shippingCompanyId: z.number().nullable().optional(),
       newStatus:         z.string().optional(),
     });
-    const body = schema.parse(req.body);
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "بيانات غير صالحة: حدد المخزن المنقول إليه وشحنة واحدة على الأقل" });
+      return;
+    }
+    const body = parsed.data;
+
+    // المخزن الهدف لازم يكون موجود وتابع لنفس الـ tenant (مفيش نقل لمخزن شركة تانية أو "بدون مخزن")
+    const [targetWarehouse] = await db
+      .select({ id: warehousesTable.id })
+      .from(warehousesTable)
+      .where(
+        tenantId !== null
+          ? and(eq(warehousesTable.id, body.toWarehouseId), eq(warehousesTable.tenantId, tenantId))
+          : eq(warehousesTable.id, body.toWarehouseId),
+      )
+      .limit(1);
+    if (!targetWarehouse) {
+      res.status(404).json({ error: "المخزن المنقول إليه غير موجود" });
+      return;
+    }
 
     // اجلب كل الشحنات المطلوبة دفعة واحدة
     const shipments = await db
       .select()
       .from(shipmentsTable)
-      .where(inArray(shipmentsTable.id, body.shipmentIds));
+      .where(
+        tenantId !== null
+          ? and(inArray(shipmentsTable.id, body.shipmentIds), eq(shipmentsTable.tenantId, tenantId))
+          : inArray(shipmentsTable.id, body.shipmentIds),
+      );
 
     if (shipments.length === 0) {
       res.status(404).json({ error: "لم يتم العثور على أي من الشحنات المحددة" });
