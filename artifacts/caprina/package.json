@@ -87,6 +87,7 @@
     "lottie-web": "^5.13.0",
     "maplibre-gl": "^5.24.0",
     "react-map-gl": "^8.1.1",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "xlsx-js-style": "^1.2.0"
   }
 }

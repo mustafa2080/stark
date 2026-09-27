@@ -1,14 +1,15 @@
-import { useState } from "react";
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import { motion, AnimatePresence } from "framer-motion";
+import * as XLSX from "xlsx-js-style";
 import {
   Brain, TrendingUp, TrendingDown, Crown, AlertTriangle, AlertCircle, Info,
   Moon, Sparkles, Users, DollarSign, Activity, HeartPulse, ChevronDown, ChevronUp,
   RefreshCw, Calendar as CalendarIcon, CalendarDays, Check, RotateCcw,
+  Printer, FileSpreadsheet,
 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -153,45 +154,457 @@ function SegmentCard({ seg, index, active, onClick }: { seg: ClientsIntelligence
 // ═══════════════════════════════════════════════════════════════════════════
 // Segment Clients Table — جدول عملاء الشريحة المختارة
 // ═══════════════════════════════════════════════════════════════════════════
-function SegmentClientsTable({ clients }: { clients: ClientsIntelligenceResponse["segmentClients"][string] }) {
+type SegmentClient = ClientsIntelligenceResponse["segmentClients"][string][number];
+
+function exportSegmentClientsToExcel(clients: SegmentClient[], segmentLabel: string) {
+  const headers = ["#", "العميل", "المدينة", "الهاتف", "الشحنات", "تسليم", "مرتجع", "الإيراد (ج.م)", "آخر نشاط (يوم)"];
+  const dataRows = clients.map((c, i) => [
+    i + 1, c.name, c.city ?? "—", c.phone ?? "—",
+    c.total, c.delivered, c.returned, Number(c.revenue),
+    c.idleDays !== null ? c.idleDays : "—",
+  ]);
+  const totalsRow = [
+    "", "الإجمالي", "", "",
+    clients.reduce((s, c) => s + c.total, 0),
+    clients.reduce((s, c) => s + c.delivered, 0),
+    clients.reduce((s, c) => s + c.returned, 0),
+    clients.reduce((s, c) => s + Number(c.revenue), 0),
+    "",
+  ];
+
+  const titleRow = [`تقرير عملاء شريحة "${segmentLabel}"`];
+  const subtitleRow = [`عدد العملاء: ${clients.length}   ·   تاريخ التصدير: ${new Date().toLocaleDateString("ar-EG")}   ·   Stark — نظام إدارة الشحن`];
+
+  const ws = XLSX.utils.aoa_to_sheet([
+    titleRow,
+    subtitleRow,
+    [],
+    headers,
+    ...dataRows,
+    totalsRow,
+  ]);
+
+  const HEADER_ROW = 4;              // 1-based row index of the headers row (after title/subtitle/blank)
+  const FIRST_DATA_ROW = 5;
+  const TOTALS_ROW = HEADER_ROW + dataRows.length + 1;
+  const LAST_COL = headers.length - 1;
+
+  ws["!cols"] = [
+    { wch: 5 }, { wch: 26 }, { wch: 16 }, { wch: 16 },
+    { wch: 10 }, { wch: 9 }, { wch: 9 }, { wch: 15 }, { wch: 15 },
+  ];
+  ws["!merges"] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: LAST_COL } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: LAST_COL } },
+  ];
+  ws["!freeze"] = { xSplit: 0, ySplit: HEADER_ROW };
+
+  const GOLD = "E8B93F";
+  const DARK = "111111";
+  const LIGHT_GREY = "F2F2F2";
+  const BORDER_GREY = "CCCCCC";
+
+  const borderThin = { style: "thin", color: { rgb: BORDER_GREY } } as const;
+  const allBorders = { top: borderThin, bottom: borderThin, left: borderThin, right: borderThin };
+
+  const setCell = (r: number, c: number, style: any) => {
+    const addr = XLSX.utils.encode_cell({ r, c });
+    if (!ws[addr]) ws[addr] = { t: "z", v: "" };
+    ws[addr].s = { ...(ws[addr].s || {}), ...style };
+  };
+
+  // العنوان الرئيسي
+  setCell(0, 0, {
+    font: { bold: true, sz: 16, color: { rgb: DARK } },
+    alignment: { horizontal: "center", vertical: "center", readingOrder: 2 },
+    fill: { fgColor: { rgb: GOLD } },
+  });
+  // السطر الفرعي
+  setCell(1, 0, {
+    font: { sz: 11, color: { rgb: "444444" } },
+    alignment: { horizontal: "center", vertical: "center", readingOrder: 2 },
+  });
+
+  // رأس الجدول
+  for (let c = 0; c <= LAST_COL; c++) {
+    setCell(HEADER_ROW, c, {
+      font: { bold: true, sz: 12, color: { rgb: "FFFFFF" } },
+      fill: { fgColor: { rgb: DARK } },
+      alignment: { horizontal: "center", vertical: "center", readingOrder: 2 },
+      border: allBorders,
+    });
+  }
+
+  // صفوف البيانات
+  dataRows.forEach((_, i) => {
+    const r = FIRST_DATA_ROW + i;
+    const isEven = i % 2 === 1;
+    for (let c = 0; c <= LAST_COL; c++) {
+      setCell(r, c, {
+        font: { sz: 11, color: { rgb: "222222" }, bold: c === 1 },
+        fill: isEven ? { fgColor: { rgb: LIGHT_GREY } } : undefined,
+        alignment: {
+          horizontal: c === 1 || c === 2 || c === 3 ? "right" : "center",
+          vertical: "center",
+          readingOrder: 2,
+        },
+        border: allBorders,
+      });
+      if (c === 7) { // عمود الإيراد
+        const addr = XLSX.utils.encode_cell({ r, c });
+        ws[addr].z = "#,##0 \u0022ج.م\u0022";
+      }
+    }
+  });
+
+  // صف الإجمالي
+  for (let c = 0; c <= LAST_COL; c++) {
+    setCell(TOTALS_ROW, c, {
+      font: { bold: true, sz: 12, color: { rgb: DARK } },
+      fill: { fgColor: { rgb: GOLD } },
+      alignment: { horizontal: c === 1 ? "right" : "center", vertical: "center", readingOrder: 2 },
+      border: allBorders,
+    });
+    if (c === 7) {
+      const addr = XLSX.utils.encode_cell({ r: TOTALS_ROW, c });
+      ws[addr].z = "#,##0 \u0022ج.م\u0022";
+    }
+  }
+
+  ws["!rows"] = [{ hpt: 26 }, { hpt: 18 }, { hpt: 6 }, { hpt: 22 }];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "عملاء الشريحة");
+  XLSX.writeFile(wb, `عملاء-${segmentLabel}.xlsx`);
+}
+
+function printSegmentClients(clients: SegmentClient[], segmentLabel: string) {
+  const totalShipments = clients.reduce((s, c) => s + c.total, 0);
+  const totalDelivered  = clients.reduce((s, c) => s + c.delivered, 0);
+  const totalReturned   = clients.reduce((s, c) => s + c.returned, 0);
+  const totalRevenue    = clients.reduce((s, c) => s + Number(c.revenue), 0);
+  const avgRevenue      = clients.length ? totalRevenue / clients.length : 0;
+  const deliveryRate    = totalShipments > 0 ? Math.round((totalDelivered / totalShipments) * 100) : 0;
+
+  const rows = clients.map((c, i) => `
+    <tr>
+      <td class="idx">${i + 1}</td>
+      <td class="name">${c.name}${c.phone ? `<div class="phone">${c.phone}</div>` : ""}</td>
+      <td class="muted">${c.city ?? "—"}</td>
+      <td class="num">${fmt(c.total)}</td>
+      <td class="num good">${fmt(c.delivered)}</td>
+      <td class="num bad">${fmt(c.returned)}</td>
+      <td class="num revenue">${fmtMoney(c.revenue)} ج.م</td>
+      <td class="muted">${c.idleDays !== null ? `منذ ${c.idleDays} يوم` : "—"}</td>
+    </tr>`).join("");
+
+  const win = window.open("", "_blank", "width=1100,height=1300");
+  if (!win) return;
+
+  win.document.write(`
+    <!DOCTYPE html>
+    <html dir="rtl" lang="ar">
+    <head>
+      <meta charset="UTF-8" />
+      <title>تقرير عملاء شريحة ${segmentLabel} — Stark</title>
+      <style>
+        @page { size: A4; margin: 12mm 14mm; }
+        * { box-sizing: border-box; }
+        body {
+          font-family: "Segoe UI", "Cairo", Tahoma, Arial, sans-serif;
+          direction: rtl;
+          color: #1a1a1a;
+          padding: 0;
+          margin: 0;
+          background: #fff;
+        }
+
+        /* ── شريط علوي بالهوية الذهبية ── */
+        .brand-bar { height: 6px; background: linear-gradient(90deg, #e8b93f, #c9962a); }
+
+        .header {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          padding: 20px 0 16px;
+          border-bottom: 3px solid #111;
+          margin-bottom: 20px;
+        }
+        .brand {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+        .brand-badge {
+          width: 44px; height: 44px;
+          border-radius: 12px;
+          background: linear-gradient(135deg, #e8b93f, #c9962a);
+          display: flex; align-items: center; justify-content: center;
+          color: #111; font-weight: 900; font-size: 20px;
+          flex-shrink: 0;
+        }
+        .brand-text h1 { font-size: 22px; font-weight: 900; margin: 0; color: #111; }
+        .brand-text p { font-size: 12px; font-weight: 700; color: #888; margin: 2px 0 0; letter-spacing: 0.3px; }
+        .report-title { margin-top: 4px; }
+        .report-title h2 { font-size: 17px; font-weight: 800; color: #111; margin: 10px 0 0; }
+        .report-title .segment-tag {
+          display: inline-block;
+          margin-top: 6px;
+          padding: 3px 12px;
+          border-radius: 20px;
+          background: #fdf3d9;
+          border: 1px solid #e8b93f;
+          color: #8a6a17;
+          font-size: 12px;
+          font-weight: 800;
+        }
+        .meta {
+          text-align: left;
+          font-size: 12px;
+          font-weight: 700;
+          color: #666;
+          white-space: nowrap;
+        }
+        .meta div { margin-bottom: 3px; }
+        .meta .meta-label { color: #999; font-weight: 600; }
+
+        /* ── كروت الملخص ── */
+        .kpi-row {
+          display: grid;
+          grid-template-columns: repeat(5, 1fr);
+          gap: 10px;
+          margin-bottom: 22px;
+        }
+        .kpi-card {
+          border: 1px solid #e5e5e5;
+          border-radius: 10px;
+          padding: 11px 12px;
+          background: #fafafa;
+        }
+        .kpi-card .kpi-label { font-size: 10.5px; font-weight: 700; color: #888; margin-bottom: 4px; }
+        .kpi-card .kpi-value { font-size: 18px; font-weight: 900; color: #111; }
+        .kpi-card.accent { background: #fdf3d9; border-color: #e8b93f; }
+        .kpi-card.accent .kpi-value { color: #8a6a17; }
+        .kpi-card.good .kpi-value { color: #16a34a; }
+        .kpi-card.bad .kpi-value { color: #dc2626; }
+
+        /* ── الجدول ── */
+        table { width: 100%; border-collapse: collapse; }
+        thead th {
+          background: #111;
+          color: #fff;
+          font-size: 12.5px;
+          font-weight: 800;
+          padding: 11px 9px;
+          text-align: right;
+          border: 1px solid #111;
+        }
+        thead th:first-child { border-top-right-radius: 6px; }
+        thead th:last-child { border-top-left-radius: 6px; }
+        tbody td {
+          font-size: 13px;
+          font-weight: 600;
+          padding: 9px 9px;
+          border-bottom: 1px solid #eee;
+          border-left: 1px solid #f0f0f0;
+          border-right: 1px solid #f0f0f0;
+          vertical-align: middle;
+        }
+        tbody tr:nth-child(even) { background: #fafafa; }
+        tbody tr:hover { background: #fdf3d9; }
+        td.idx { text-align: center; width: 34px; color: #aaa; font-weight: 700; }
+        td.name { font-weight: 800; font-size: 13.5px; color: #111; }
+        td .phone { font-size: 11px; font-weight: 600; color: #999; margin-top: 2px; }
+        td.muted { color: #777; }
+        td.num { text-align: center; font-variant-numeric: tabular-nums; font-weight: 700; }
+        td.num.good { color: #16a34a; }
+        td.num.bad { color: #dc2626; }
+        td.num.revenue { color: #8a6a17; font-weight: 800; }
+
+        .footer {
+          margin-top: 22px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          font-size: 11px;
+          font-weight: 700;
+          color: #999;
+          border-top: 2px solid #eee;
+          padding-top: 10px;
+        }
+        .footer .brand-footer { display: flex; align-items: center; gap: 6px; }
+        .footer .brand-footer .dot { width: 6px; height: 6px; border-radius: 50%; background: #e8b93f; }
+
+        @media print {
+          .no-print { display: none; }
+          .brand-bar { position: fixed; top: 0; left: 0; right: 0; }
+        }
+        .print-btn {
+          position: fixed;
+          top: 16px;
+          left: 16px;
+          padding: 11px 22px;
+          background: #111;
+          color: #e8b93f;
+          border: none;
+          border-radius: 10px;
+          font-size: 14px;
+          font-weight: 800;
+          cursor: pointer;
+          box-shadow: 0 4px 14px rgba(0,0,0,0.2);
+        }
+        .print-btn:hover { background: #222; }
+      </style>
+    </head>
+    <body>
+      <div class="brand-bar"></div>
+      <button class="print-btn no-print" onclick="window.print()">🖨 طباعة التقرير</button>
+
+      <div style="padding: 0 4mm;">
+        <div class="header">
+          <div>
+            <div class="brand">
+              <div class="brand-badge">S</div>
+              <div class="brand-text">
+                <h1>Stark</h1>
+                <p>نظام إدارة الشحن</p>
+              </div>
+            </div>
+            <div class="report-title">
+              <h2>تقرير خريطة قيمة × ولاء العملاء</h2>
+              <span class="segment-tag">شريحة: ${segmentLabel}</span>
+            </div>
+          </div>
+          <div class="meta">
+            <div><span class="meta-label">تاريخ التقرير:</span> ${new Date().toLocaleDateString("ar-EG", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</div>
+            <div><span class="meta-label">وقت الإصدار:</span> ${new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" })}</div>
+            <div><span class="meta-label">عدد العملاء:</span> ${fmt(clients.length)}</div>
+          </div>
+        </div>
+
+        <div class="kpi-row">
+          <div class="kpi-card accent">
+            <div class="kpi-label">عدد العملاء</div>
+            <div class="kpi-value">${fmt(clients.length)}</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">إجمالي الشحنات</div>
+            <div class="kpi-value">${fmt(totalShipments)}</div>
+          </div>
+          <div class="kpi-card good">
+            <div class="kpi-label">نسبة التسليم</div>
+            <div class="kpi-value">${deliveryRate}%</div>
+          </div>
+          <div class="kpi-card bad">
+            <div class="kpi-label">إجمالي المرتجع</div>
+            <div class="kpi-value">${fmt(totalReturned)}</div>
+          </div>
+          <div class="kpi-card accent">
+            <div class="kpi-label">إجمالي الإيراد</div>
+            <div class="kpi-value">${fmtMoney(totalRevenue)}</div>
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>#</th><th>اسم العميل</th><th>المدينة</th><th>الشحنات</th><th>تسليم</th><th>مرتجع</th><th>الإيراد</th><th>آخر نشاط</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+
+        <div class="footer">
+          <div class="brand-footer"><span class="dot"></span> Stark — نظام إدارة الشحن</div>
+          <div>متوسط الإيراد لكل عميل: ${fmtMoney(avgRevenue)} ج.م</div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `);
+  win.document.close();
+  win.focus();
+}
+
+function SegmentClientsTable({ clients, segmentLabel }: { clients: SegmentClient[]; segmentLabel: string }) {
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+
   if (!clients || clients.length === 0) {
     return <p className="text-center text-sm text-white/40 py-8">لا يوجد عملاء في هذه الشريحة</p>;
   }
+
+  const allSelected = selected.size > 0 && selected.size === clients.length;
+  const toggleAll = () => setSelected(allSelected ? new Set() : new Set(clients.map(c => c.id)));
+  const toggleOne = (id: number) => setSelected(prev => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
+
+  const exportSet = selected.size > 0 ? clients.filter(c => selected.has(c.id)) : clients;
+
   return (
-    <div className="overflow-x-auto -mx-1">
-      <table className="w-full text-sm min-w-[640px]">
-        <thead>
-          <tr className="border-b border-white/10">
-            <th className="py-2 px-2 text-xs font-bold text-white/40 whitespace-nowrap text-right">العميل</th>
-            <th className="py-2 px-2 text-xs font-bold text-white/40 whitespace-nowrap text-left">الشحنات</th>
-            <th className="py-2 px-2 text-xs font-bold text-white/40 whitespace-nowrap text-left">تسليم</th>
-            <th className="py-2 px-2 text-xs font-bold text-white/40 whitespace-nowrap text-left">مرتجع</th>
-            <th className="py-2 px-2 text-xs font-bold text-white/40 whitespace-nowrap text-left">الإيراد</th>
-            <th className="py-2 px-2 text-xs font-bold text-white/40 whitespace-nowrap text-left">آخر نشاط</th>
-          </tr>
-        </thead>
-        <tbody>
-          {clients.map((c, i) => (
-            <motion.tr
-              key={c.id}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.3, delay: Math.min(i * 0.02, 0.3) }}
-              className="border-b border-white/5 last:border-0 transition-colors duration-200 hover:bg-white/[0.02]"
-            >
-              <td className="py-2.5 px-2 whitespace-nowrap text-right">
-                <p className="font-medium text-white">{c.name}</p>
-                <p className="text-[11px] text-white/40">{c.city ?? "—"}{c.phone ? ` · ${c.phone}` : ""}</p>
-              </td>
-              <td className="py-2.5 px-2 whitespace-nowrap text-left tabular-nums text-white/70">{fmt(c.total)}</td>
-              <td className="py-2.5 px-2 whitespace-nowrap text-left tabular-nums text-[#22c55e]">{fmt(c.delivered)}</td>
-              <td className="py-2.5 px-2 whitespace-nowrap text-left tabular-nums text-[#ef4444]">{fmt(c.returned)}</td>
-              <td className="py-2.5 px-2 whitespace-nowrap text-left tabular-nums text-white/70">{fmtMoney(c.revenue)} ج.م</td>
-              <td className="py-2.5 px-2 whitespace-nowrap text-left text-white/50">{c.idleDays !== null ? `منذ ${c.idleDays} يوم` : "—"}</td>
-            </motion.tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="space-y-2.5">
+      <div className="flex items-center justify-between">
+        <p className="text-[11px] text-white/40">
+          {selected.size > 0 ? `تم تحديد ${fmt(selected.size)} عميل` : "لم يتم تحديد أي عميل — سيتم تصدير الكل"}
+        </p>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => printSegmentClients(exportSet, segmentLabel)}
+            className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-xs font-bold text-white/70 transition-colors duration-200 hover:bg-white/[0.06] hover:text-white"
+          >
+            <Printer className="w-3.5 h-3.5" /> طباعة
+          </button>
+          <button
+            onClick={() => exportSegmentClientsToExcel(exportSet, segmentLabel)}
+            className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-xs font-bold text-white/70 transition-colors duration-200 hover:bg-white/[0.06] hover:text-white"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5" /> Excel
+          </button>
+        </div>
+      </div>
+      <div className="overflow-x-auto -mx-1">
+        <table className="w-full text-sm min-w-[680px]">
+          <thead>
+            <tr className="border-b border-white/10">
+              <th className="py-2 px-2 text-xs font-bold text-white/40 whitespace-nowrap text-right w-8">
+                <input type="checkbox" checked={allSelected} onChange={toggleAll} className="accent-[#e8b93f] w-3.5 h-3.5 cursor-pointer" />
+              </th>
+              <th className="py-2 px-2 text-xs font-bold text-white/40 whitespace-nowrap text-right">العميل</th>
+              <th className="py-2 px-2 text-xs font-bold text-white/40 whitespace-nowrap text-left">الشحنات</th>
+              <th className="py-2 px-2 text-xs font-bold text-white/40 whitespace-nowrap text-left">تسليم</th>
+              <th className="py-2 px-2 text-xs font-bold text-white/40 whitespace-nowrap text-left">مرتجع</th>
+              <th className="py-2 px-2 text-xs font-bold text-white/40 whitespace-nowrap text-left">الإيراد</th>
+              <th className="py-2 px-2 text-xs font-bold text-white/40 whitespace-nowrap text-left">آخر نشاط</th>
+            </tr>
+          </thead>
+          <tbody>
+            {clients.map((c, i) => (
+              <motion.tr
+                key={c.id}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.3, delay: Math.min(i * 0.02, 0.3) }}
+                className={`border-b border-white/5 last:border-0 transition-colors duration-200 hover:bg-white/[0.02] ${selected.has(c.id) ? "bg-[#e8b93f]/[0.04]" : ""}`}
+              >
+                <td className="py-2.5 px-2 whitespace-nowrap text-right">
+                  <input type="checkbox" checked={selected.has(c.id)} onChange={() => toggleOne(c.id)} className="accent-[#e8b93f] w-3.5 h-3.5 cursor-pointer" />
+                </td>
+                <td className="py-2.5 px-2 whitespace-nowrap text-right">
+                  <p className="font-medium text-white">{c.name}</p>
+                  <p className="text-[11px] text-white/40">{c.city ?? "—"}{c.phone ? ` · ${c.phone}` : ""}</p>
+                </td>
+                <td className="py-2.5 px-2 whitespace-nowrap text-left tabular-nums text-white/70">{fmt(c.total)}</td>
+                <td className="py-2.5 px-2 whitespace-nowrap text-left tabular-nums text-[#22c55e]">{fmt(c.delivered)}</td>
+                <td className="py-2.5 px-2 whitespace-nowrap text-left tabular-nums text-[#ef4444]">{fmt(c.returned)}</td>
+                <td className="py-2.5 px-2 whitespace-nowrap text-left tabular-nums text-white/70">{fmtMoney(c.revenue)} ج.م</td>
+                <td className="py-2.5 px-2 whitespace-nowrap text-left text-white/50">{c.idleDays !== null ? `منذ ${c.idleDays} يوم` : "—"}</td>
+              </motion.tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -675,7 +1088,7 @@ export default function ClientIntelligencePage() {
             <p className="text-sm font-bold text-white/70 mb-3">
               عملاء شريحة "{selectedSegMeta?.label ?? selectedSegment}" ({fmt(selectedClients.length)} من أصل {fmt(selectedSegMeta?.count ?? 0)})
             </p>
-            <SegmentClientsTable clients={selectedClients} />
+            <SegmentClientsTable clients={selectedClients} segmentLabel={selectedSegMeta?.label ?? String(selectedSegment)} />
           </div>
         )}
       </SectionCard>
