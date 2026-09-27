@@ -4984,6 +4984,28 @@ router.get("/analytics/shipments-intelligence", requireAuth, async (req, res): P
       return t >= prevRangeFrom.getTime() && t <= prevRangeTo.getTime();
     });
 
+    // ── وقت التسليم الفعلي لأي شحنة (actualDelivery لو متسجل، وإلا updatedAt كتقريب) ──
+    // isApprox = true لو الرقم تقريبي (لسه معتمد على updatedAt) — نستخدمها لوسم الأرقام
+    // اللي مبنية على تقريب مش قيمة حقيقية مسجّلة وقت الإنجاز.
+    function SI_deliveryFinishTime(r: { actualDelivery: Date | string | null; updatedAt: Date | string }): { time: number; isApprox: boolean } {
+      if (r.actualDelivery) return { time: new Date(r.actualDelivery).getTime(), isApprox: false };
+      return { time: new Date(r.updatedAt).getTime(), isApprox: true };
+    }
+
+    // ── الشحنات "المُسلَّمة داخل الفترة" — بمعيار وقت التسليم الفعلي مش وقت الإنشاء ──
+    // ده مختلف عن rangeRows: شحنة اتعملت أمس واتسلمت النهارده لازم تدخل في تقرير "اليوم"
+    // لأن التقرير ده بيتكلم عن *زمن التسليم*، مش عن حجم الطلبات الجديدة.
+    const deliveredRangeRows = allActiveRows.filter(r => {
+      if (SI_normalize(r.status) !== "received") return false;
+      const { time } = SI_deliveryFinishTime(r);
+      return time >= rangeFrom.getTime() && time <= rangeTo.getTime();
+    });
+    const prevDeliveredRangeRows = allActiveRows.filter(r => {
+      if (SI_normalize(r.status) !== "received") return false;
+      const { time } = SI_deliveryFinishTime(r);
+      return time >= prevRangeFrom.getTime() && time <= prevRangeTo.getTime();
+    });
+
     const companies = tenantId !== null
       ? await db.select().from(shippingCompaniesTable).where(eq(shippingCompaniesTable.tenantId, tenantId))
       : await db.select().from(shippingCompaniesTable);
@@ -4996,22 +5018,30 @@ router.get("/analytics/shipments-intelligence", requireAuth, async (req, res): P
     const userMap = new Map(users.map(u => [u.id, u.name]));
 
     // ── 1) Health Score: مركّب من معدل التسليم + الالتزام بالمواعيد + معدل المرتجعات + السرعة ──
-    let delivered = 0, returned = 0, onTime = 0, deliveredWithEta = 0;
-    let deliveryHoursSum = 0, deliveryHoursCount = 0;
+    let delivered = 0, returned = 0;
     for (const r of rangeRows) {
       const status = SI_normalize(r.status);
-      if (status === "received") {
-        delivered++;
-        const created = new Date(r.createdAt).getTime();
-        const finished = r.actualDelivery ? new Date(r.actualDelivery).getTime() : new Date(r.updatedAt).getTime();
-        const hours = (finished - created) / (1000 * 60 * 60);
-        if (hours >= 0 && hours < 24 * 30) { deliveryHoursSum += hours; deliveryHoursCount++; }
-        if (r.estimatedDelivery) {
-          deliveredWithEta++;
-          if (finished <= new Date(r.estimatedDelivery).getTime()) onTime++;
-        }
-      }
+      if (status === "received") delivered++;
       if (status === "returned") returned++;
+    }
+    // مقاييس "زمن التسليم" و"الالتزام بالمواعيد" لازم تتحسب من الشحنات اللي *اتسلمت* داخل
+    // الفترة (deliveredRangeRows) مش اللي *اتعملت* داخلها (rangeRows) — وإلا شحنة اتعملت
+    // أمس واتسلمت النهارده هتضيع من تقرير "اليوم"، وهيبان إن العينة صغيرة أو الرقم بيقفز
+    // بشكل غير منطقي مع كل فترة قصيرة.
+    let onTime = 0, deliveredWithEta = 0;
+    let deliveryHoursSum = 0, deliveryHoursCount = 0, deliveryApproxCount = 0;
+    for (const r of deliveredRangeRows) {
+      const created = new Date(r.createdAt).getTime();
+      const { time: finished, isApprox } = SI_deliveryFinishTime(r);
+      const hours = (finished - created) / (1000 * 60 * 60);
+      if (hours >= 0 && hours < 24 * 30) {
+        deliveryHoursSum += hours; deliveryHoursCount++;
+        if (isApprox) deliveryApproxCount++;
+      }
+      if (r.estimatedDelivery) {
+        deliveredWithEta++;
+        if (finished <= new Date(r.estimatedDelivery).getTime()) onTime++;
+      }
     }
     const totalInRange = rangeRows.length;
     // ⚠️ عدّاد "تحقيق الهدف" (kpis.total) لازم يستبعد الشحنات "قيد الانتظار" (waiting/pending)
@@ -5021,7 +5051,11 @@ router.get("/analytics/shipments-intelligence", requireAuth, async (req, res): P
     const achievedInRange = rangeRows.filter(r => !["pending", "waiting"].includes(SI_normalize(r.status))).length;
     const deliveryRate = totalInRange > 0 ? (delivered / totalInRange) * 100 : 0;
     const returnRate = totalInRange > 0 ? (returned / totalInRange) * 100 : 0;
-    const onTimeRate = deliveredWithEta > 0 ? (onTime / deliveredWithEta) * 100 : (delivered > 0 ? 100 : 0);
+    // ⚠️ لو مفيش ولا شحنة عندها estimatedDelivery، الرقم ده مش "التزام 100%" — دي حالة
+    // "من غير بيانات كفاية نحكم بيها" ولازم تتفرق عن التزام حقيقي. بنرجّع null هنا،
+    // وفي حساب healthScore بس (اللي محتاج رقم فعلي) بنعتبرها محايدة (100) بدل ما تكسر المعادلة.
+    const onTimeRateRaw = deliveredWithEta > 0 ? (onTime / deliveredWithEta) * 100 : null;
+    const onTimeRate = onTimeRateRaw ?? 100; // للاستخدام الداخلي في healthScore فقط
     const avgDeliveryHours = deliveryHoursCount > 0 ? deliveryHoursSum / deliveryHoursCount : 0;
     // سرعة التسليم كنسبة: كل ما قلّت الساعات عن 72 ساعة (3 أيام) كل ما زادت النقطة
     const speedScore = avgDeliveryHours > 0 ? Math.max(0, Math.min(100, 100 - ((avgDeliveryHours - 24) / 96) * 100)) : 70;
@@ -5031,29 +5065,31 @@ router.get("/analytics/shipments-intelligence", requireAuth, async (req, res): P
     const healthGrade = healthScore >= 85 ? "excellent" : healthScore >= 70 ? "good" : healthScore >= 50 ? "warning" : "critical";
 
     // ── 1.5) نفس الحسابات لكن على الفترة السابقة — لمقارنة الفترات (This vs Last) ──
-    let prevDelivered = 0, prevReturned = 0, prevOnTime = 0, prevDeliveredWithEta = 0;
-    let prevDeliveryHoursSum = 0, prevDeliveryHoursCount = 0;
+    let prevDelivered = 0, prevReturned = 0;
     for (const r of prevRangeRows) {
       const status = SI_normalize(r.status);
-      if (status === "received") {
-        prevDelivered++;
-        const created = new Date(r.createdAt).getTime();
-        const finished = r.actualDelivery ? new Date(r.actualDelivery).getTime() : new Date(r.updatedAt).getTime();
-        const hours = (finished - created) / (1000 * 60 * 60);
-        if (hours >= 0 && hours < 24 * 30) { prevDeliveryHoursSum += hours; prevDeliveryHoursCount++; }
-        if (r.estimatedDelivery) {
-          prevDeliveredWithEta++;
-          if (finished <= new Date(r.estimatedDelivery).getTime()) prevOnTime++;
-        }
-      }
+      if (status === "received") prevDelivered++;
       if (status === "returned") prevReturned++;
+    }
+    let prevOnTime = 0, prevDeliveredWithEta = 0;
+    let prevDeliveryHoursSum = 0, prevDeliveryHoursCount = 0;
+    for (const r of prevDeliveredRangeRows) {
+      const created = new Date(r.createdAt).getTime();
+      const { time: finished } = SI_deliveryFinishTime(r);
+      const hours = (finished - created) / (1000 * 60 * 60);
+      if (hours >= 0 && hours < 24 * 30) { prevDeliveryHoursSum += hours; prevDeliveryHoursCount++; }
+      if (r.estimatedDelivery) {
+        prevDeliveredWithEta++;
+        if (finished <= new Date(r.estimatedDelivery).getTime()) prevOnTime++;
+      }
     }
     const prevTotalInRange = prevRangeRows.length;
     // نفس استبعاد "قيد الانتظار" من عدّاد الهدف، لكن للفترة السابقة (عشان مقارنة الفترات تفضل متسقة)
     const prevAchievedInRange = prevRangeRows.filter(r => !["pending", "waiting"].includes(SI_normalize(r.status))).length;
     const prevDeliveryRate = prevTotalInRange > 0 ? (prevDelivered / prevTotalInRange) * 100 : 0;
     const prevReturnRate = prevTotalInRange > 0 ? (prevReturned / prevTotalInRange) * 100 : 0;
-    const prevOnTimeRate = prevDeliveredWithEta > 0 ? (prevOnTime / prevDeliveredWithEta) * 100 : (prevDelivered > 0 ? 100 : 0);
+    const prevOnTimeRateRaw = prevDeliveredWithEta > 0 ? (prevOnTime / prevDeliveredWithEta) * 100 : null;
+    const prevOnTimeRate = prevOnTimeRateRaw ?? 100; // للاستخدام الداخلي فقط (لا يُعرض للمستخدم)
     const prevAvgDeliveryHours = prevDeliveryHoursCount > 0 ? prevDeliveryHoursSum / prevDeliveryHoursCount : 0;
 
     // نسبة التغيّر: (الحالي - السابق) / السابق × 100 — null لو مفيش بيانات كافية للمقارنة (مش صفر مضلل)
@@ -5116,33 +5152,51 @@ router.get("/analytics/shipments-intelligence", requireAuth, async (req, res): P
       .slice(0, 12);
 
     // ── 4) أداء شركات الشحن ─────────────────────────────────────────────────
-    const companyStatsMap = new Map<number | "none", { total: number; delivered: number; returned: number; hoursSum: number; hoursCount: number; fee: number }>();
+    // total/delivered/returned بتفضل مبنية على rangeRows (حجم الشغل مع كل شركة خلال الفترة).
+    // avgDeliveryHours لازم يتحسب من deliveredRangeRows (نفس تصحيح المقياس العام فوق) —
+    // وإلا شحنة اتعملت الشهر اللي فات مع شركة X واتسلمت النهارده مش هتدخل في متوسط اليوم بتاعها.
+    const companyStatsMap = new Map<number | "none", { total: number; delivered: number; returned: number; fee: number }>();
     for (const r of rangeRows) {
       const key = r.shippingCompanyId ?? "none";
-      if (!companyStatsMap.has(key)) companyStatsMap.set(key, { total: 0, delivered: 0, returned: 0, hoursSum: 0, hoursCount: 0, fee: 0 });
+      if (!companyStatsMap.has(key)) companyStatsMap.set(key, { total: 0, delivered: 0, returned: 0, fee: 0 });
       const c = companyStatsMap.get(key)!;
       c.total++;
       c.fee += Number(r.shippingFee ?? 0);
       const status = SI_normalize(r.status);
-      if (status === "received") {
-        c.delivered++;
-        const created = new Date(r.createdAt).getTime();
-        const finished = r.actualDelivery ? new Date(r.actualDelivery).getTime() : new Date(r.updatedAt).getTime();
-        const hours = (finished - created) / (1000 * 60 * 60);
-        if (hours >= 0 && hours < 24 * 30) { c.hoursSum += hours; c.hoursCount++; }
-      }
+      if (status === "received") c.delivered++;
       if (status === "returned") c.returned++;
     }
+    const companyHoursMap = new Map<number | "none", { hoursSum: number; hoursCount: number }>();
+    for (const r of deliveredRangeRows) {
+      const key = r.shippingCompanyId ?? "none";
+      if (!companyHoursMap.has(key)) companyHoursMap.set(key, { hoursSum: 0, hoursCount: 0 });
+      const h = companyHoursMap.get(key)!;
+      const created = new Date(r.createdAt).getTime();
+      const { time: finished } = SI_deliveryFinishTime(r);
+      const hours = (finished - created) / (1000 * 60 * 60);
+      if (hours >= 0 && hours < 24 * 30) { h.hoursSum += hours; h.hoursCount++; }
+    }
+    // ⚠️ أقل عدد شحنات مسلَّمة عشان نعتبر متوسط الساعات موثوق فيه بالنسبة للشركة —
+    // شركة عندها شحنة واحدة أو اتنين بس مش المفروض تتصنف "الأسرع/الأبطأ" بنفس ثقة شركة
+    // عندها مئات الشحنات. الواجهة تقدر تستخدم sampleSize دي لإخفاء أو تعتيم الشركات الصغيرة.
+    const COMPANY_MIN_SAMPLE_SIZE = 5;
     const companyPerformance = Array.from(companyStatsMap.entries())
-      .map(([key, d]) => ({
-        companyId: key === "none" ? null : key,
-        companyName: key === "none" ? "شحنة بدون مندوب شحن" : (companyMap.get(key as number) ?? "—"),
-        total: d.total, delivered: d.delivered, returned: d.returned,
-        successRate: d.total > 0 ? Math.round((d.delivered / d.total) * 100) : 0,
-        returnRate: d.total > 0 ? Math.round((d.returned / d.total) * 100) : 0,
-        avgDeliveryHours: d.hoursCount > 0 ? Math.round(d.hoursSum / d.hoursCount) : 0,
-        totalFees: Math.round(d.fee),
-      }))
+      .map(([key, d]) => {
+        const h = companyHoursMap.get(key);
+        const hoursCount = h?.hoursCount ?? 0;
+        return {
+          companyId: key === "none" ? null : key,
+          companyName: key === "none" ? "شحنة بدون مندوب شحن" : (companyMap.get(key as number) ?? "—"),
+          total: d.total, delivered: d.delivered, returned: d.returned,
+          successRate: d.total > 0 ? Math.round((d.delivered / d.total) * 100) : 0,
+          returnRate: d.total > 0 ? Math.round((d.returned / d.total) * 100) : 0,
+          avgDeliveryHours: hoursCount > 0 ? Math.round((h!.hoursSum / hoursCount)) : 0,
+          // عدد الشحنات اللي فعلاً بنى عليها متوسط الساعات — استخدمها قبل ما تعتمد على avgDeliveryHours
+          avgDeliveryHoursSampleSize: hoursCount,
+          isLowSample: hoursCount < COMPANY_MIN_SAMPLE_SIZE,
+          totalFees: Math.round(d.fee),
+        };
+      })
       .sort((a, b) => b.total - a.total);
 
     // ── 4.5) تحليل الوزن وعدد القطع مقابل معدل النجاح ───────────────────────
@@ -5421,8 +5475,13 @@ router.get("/analytics/shipments-intelligence", requireAuth, async (req, res): P
         delivered, returned,
         deliveryRate: Math.round(deliveryRate * 10) / 10,
         returnRate: Math.round(returnRate * 10) / 10,
-        onTimeRate: Math.round(onTimeRate * 10) / 10,
+        // null لو مفيش شحنة عندها estimatedDelivery — مش 100% (اللي كان بيوهم بالتزام تام)
+        onTimeRate: onTimeRateRaw !== null ? Math.round(onTimeRateRaw * 10) / 10 : null,
         avgDeliveryHours: Math.round(avgDeliveryHours * 10) / 10,
+        // عدد الشحنات اللي فعلاً دخلت في متوسط الساعات — الواجهة تقدر تحذّر لو العينة صغيرة
+        avgDeliveryHoursSampleSize: deliveryHoursCount,
+        // منها كام واحدة معتمدة على updatedAt كتقريب (مفيش actualDelivery مسجّل ليها)
+        avgDeliveryHoursApproxCount: deliveryApproxCount,
       },
       // ── مقارنة الفترات: نفس الـ KPIs لكن للفترة السابقة مباشرة + نسبة/فرق التغيّر ──
       // hasPreviousPeriod = false لو مفيش شحنات في الفترة السابقة أصلاً (يمنع عرض "0%" مضلل)
@@ -5436,7 +5495,7 @@ router.get("/analytics/shipments-intelligence", requireAuth, async (req, res): P
           delivered: prevDelivered, returned: prevReturned,
           deliveryRate: Math.round(prevDeliveryRate * 10) / 10,
           returnRate: Math.round(prevReturnRate * 10) / 10,
-          onTimeRate: Math.round(prevOnTimeRate * 10) / 10,
+          onTimeRate: prevOnTimeRateRaw !== null ? Math.round(prevOnTimeRateRaw * 10) / 10 : null,
           avgDeliveryHours: Math.round(prevAvgDeliveryHours * 10) / 10,
         },
       },
@@ -5446,7 +5505,8 @@ router.get("/analytics/shipments-intelligence", requireAuth, async (req, res): P
         returned: pctChange(returned, prevReturned),
         deliveryRate: ptChange(deliveryRate, prevDeliveryRate),
         returnRate: ptChange(returnRate, prevReturnRate),
-        onTimeRate: ptChange(onTimeRate, prevOnTimeRate),
+        // null لو مفيش بيانات كافية (estimatedDelivery) في أي من الفترتين — بدل فرق 0 مضلل
+        onTimeRate: (onTimeRateRaw !== null && prevOnTimeRateRaw !== null) ? ptChange(onTimeRateRaw, prevOnTimeRateRaw) : null,
         avgDeliveryHours: pctChange(avgDeliveryHours, prevAvgDeliveryHours),
       },
       statusDistribution,

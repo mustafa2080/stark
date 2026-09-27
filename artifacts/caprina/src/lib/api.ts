@@ -1071,8 +1071,13 @@ export interface ShipmentsIntelligenceResponse {
     returned: number;
     deliveryRate: number;
     returnRate: number;
-    onTimeRate: number;
+    // null لو مفيش شحنة عندها estimatedDelivery في الفترة دي — يفرّق بين "التزام 100%" و"لا بيانات كافية"
+    onTimeRate: number | null;
     avgDeliveryHours: number;
+    // عدد الشحنات اللي فعلاً دخلت في متوسط الساعات — استخدمها قبل ما تعرض avgDeliveryHours بثقة
+    avgDeliveryHoursSampleSize: number;
+    // كام واحدة من دول رقمها تقريبي (معتمد على updatedAt، مفيش actualDelivery مسجّل)
+    avgDeliveryHoursApproxCount: number;
   };
   // مقارنة فترات: نفس الـ KPIs بالظبط للفترة السابقة (نفس المدة، فورًا قبل الفترة الحالية)
   previousPeriod: {
@@ -1085,7 +1090,7 @@ export interface ShipmentsIntelligenceResponse {
       returned: number;
       deliveryRate: number;
       returnRate: number;
-      onTimeRate: number;
+      onTimeRate: number | null;
       avgDeliveryHours: number;
     };
   };
@@ -1101,7 +1106,7 @@ export interface ShipmentsIntelligenceResponse {
   };
   statusDistribution: { status: string; label: string; color: string; value: number; pct: number }[];
   cityPerformance: { city: string; total: number; delivered: number; returned: number; codValue: number; successRate: number; returnRate: number }[];
-  companyPerformance: { companyId: number | null; companyName: string; total: number; delivered: number; returned: number; successRate: number; returnRate: number; avgDeliveryHours: number; totalFees: number }[];
+  companyPerformance: { companyId: number | null; companyName: string; total: number; delivered: number; returned: number; successRate: number; returnRate: number; avgDeliveryHours: number; avgDeliveryHoursSampleSize: number; isLowSample: boolean; totalFees: number }[];
   weightAnalysis: { key: string; label: string; total: number; delivered: number; returned: number; successRate: number; returnRate: number }[];
   piecesAnalysis: { key: string; label: string; total: number; delivered: number; returned: number; successRate: number; returnRate: number }[];
   routeAnalysis: { from: string; to: string; total: number; delivered: number; returned: number; successRate: number; returnRate: number; avgDeliveryHours: number }[];

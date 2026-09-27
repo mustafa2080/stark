@@ -27,7 +27,7 @@ import {
 // Helpers
 // ═══════════════════════════════════════════════════════════════════════════
 const fmt = (n: number) => new Intl.NumberFormat("ar-EG").format(Math.round(n || 0));
-const fmtPct = (n: number) => `${n}%`;
+const fmtPct = (n: number | null) => (n === null ? "—" : `${n}%`);
 
 function rateColor(pct: number, invert = false): string {
   const good = invert ? pct <= 10 : pct >= 80;
@@ -852,14 +852,26 @@ function AlertsBanner({ alerts }: { alerts: ShipmentsIntelligenceResponse["alert
 // ═══════════════════════════════════════════════════════════════════════════
 function DeliveryIntelligencePanel({ data }: { data: ShipmentsIntelligenceResponse }) {
   const { kpis, companyPerformance } = data;
-  const fastest = [...companyPerformance].filter(c => c.avgDeliveryHours > 0).sort((a, b) => a.avgDeliveryHours - b.avgDeliveryHours)[0];
-  const slowest = [...companyPerformance].filter(c => c.avgDeliveryHours > 0).sort((a, b) => b.avgDeliveryHours - a.avgDeliveryHours)[0];
+  // نستبعد الشركات "منخفضة العينة" من تصنيف الأسرع/الأبطأ — عينة صغيرة (أقل من 5 شحنات
+  // مسلَّمة) مش كافية نحكم بيها على سرعة شركة شحن، ومينفعش تتصدّر "الأسرع" بالصدفة.
+  const reliableCompanies = companyPerformance.filter(c => c.avgDeliveryHours > 0 && !c.isLowSample);
+  const fastest = [...reliableCompanies].sort((a, b) => a.avgDeliveryHours - b.avgDeliveryHours)[0];
+  const slowest = [...reliableCompanies].sort((a, b) => b.avgDeliveryHours - a.avgDeliveryHours)[0];
+  const hasOnTimeData = kpis.onTimeRate !== null;
+  const approxNote = kpis.avgDeliveryHoursApproxCount > 0;
 
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
         <div className="flex justify-center">
-          <RingGauge value={kpis.onTimeRate} max={100} size={150} strokeWidth={13} color={rateColor(kpis.onTimeRate)} label="الالتزام بالمواعيد" sub={`${kpis.avgDeliveryHours} ساعة متوسط`} />
+          {hasOnTimeData ? (
+            <RingGauge value={kpis.onTimeRate!} max={100} size={150} strokeWidth={13} color={rateColor(kpis.onTimeRate!)} label="الالتزام بالمواعيد" sub={`${kpis.avgDeliveryHours} ساعة متوسط`} />
+          ) : (
+            <div className="flex flex-col items-center justify-center gap-1.5 text-center" style={{ width: 150, height: 150 }}>
+              <p className="text-xs text-white/40">لا توجد شحنات بموعد تسليم متوقع في هذه الفترة</p>
+              <p className="text-sm font-bold tabular-nums text-[#06b6d4]">{kpis.avgDeliveryHours} ساعة متوسط</p>
+            </div>
+          )}
         </div>
         <div className="space-y-2.5">
           {fastest && (
@@ -887,13 +899,21 @@ function DeliveryIntelligencePanel({ data }: { data: ShipmentsIntelligenceRespon
         </div>
       </div>
       <div>
-        <p className="text-xs font-bold text-white/40 mb-2">متوسط زمن التسليم لكل شركة</p>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-xs font-bold text-white/40">متوسط زمن التسليم لكل شركة</p>
+          {approxNote && (
+            <p className="text-[10px] text-white/30">بعض الأرقام تقريبية (تعتمد على آخر تحديث للشحنة)</p>
+          )}
+        </div>
         <div className="space-y-1">
           {companyPerformance.filter(c => c.avgDeliveryHours > 0).sort((a, b) => a.avgDeliveryHours - b.avgDeliveryHours).slice(0, 6).map((c, i) => (
             <div key={String(c.companyId)} className="flex items-center gap-3 py-2.5 border-b border-white/5 last:border-0 transition-colors duration-200 hover:bg-white/[0.02] rounded-lg px-1">
               <span className="w-6 text-center text-xs font-bold text-white/30">{i + 1}</span>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-white truncate">{c.companyName}</p>
+                <p className="text-sm font-medium text-white truncate flex items-center gap-1.5">
+                  {c.companyName}
+                  {c.isLowSample && <span className="text-[10px] font-normal text-white/30">(عينة صغيرة)</span>}
+                </p>
                 <p className="text-xs text-white/45 mt-0.5">{fmt(c.total)} شحنة · نجاح {c.successRate}%</p>
               </div>
               <span className="text-sm font-bold tabular-nums text-[#06b6d4] shrink-0">{c.avgDeliveryHours} س</span>
@@ -1146,7 +1166,7 @@ export default function ShipmentsIntelligencePage() {
             <KpiTile icon={Package} label="إجمالي الشحنات" value={fmt(kpis.total)} color="#e8b93f" trend={normalTrend(kpiTrends.total)} />
             <KpiTile icon={CheckCircle2} label="تم التسليم" value={fmt(kpis.delivered)} sub={`${kpis.deliveryRate}%`} color="#22c55e" trend={normalTrend(kpiTrends.delivered)} />
             <KpiTile icon={RotateCcw} label="مرتجعة" value={fmt(kpis.returned)} sub={`${kpis.returnRate}%`} color="#ef4444" trend={invertedTrend(kpiTrends.returned)} />
-            <KpiTile icon={Timer} label="الالتزام بالمواعيد" value={fmtPct(kpis.onTimeRate)} color="#06b6d4" trend={normalTrend(kpiTrends.onTimeRate)} />
+            <KpiTile icon={Timer} label="الالتزام بالمواعيد" value={fmtPct(kpis.onTimeRate)} color="#06b6d4" trend={kpis.onTimeRate !== null ? normalTrend(kpiTrends.onTimeRate) : undefined} />
             <KpiTile icon={Clock} label="متوسط زمن التسليم" value={`${kpis.avgDeliveryHours} س`} color="#8b5cf6" trend={invertedTrend(kpiTrends.avgDeliveryHours)} />
             <KpiTile icon={Percent} label="معدل التسليم" value={fmtPct(kpis.deliveryRate)} color="#22c55e" trend={normalTrend(kpiTrends.deliveryRate)} />
             <KpiTile icon={Activity} label="معدل المرتجعات" value={fmtPct(kpis.returnRate)} color="#ef4444" trend={invertedTrend(kpiTrends.returnRate)} />
