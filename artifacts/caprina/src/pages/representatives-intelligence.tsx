@@ -257,6 +257,12 @@ function CodAnalysisPanel({ data }: { data: RepresentativesIntelligenceResponse[
             <p className="text-xs text-white/45 mt-0.5">
               {fmtMoney(r.codCollected)} من {fmtMoney(r.codExpected)} ج.م محصّلة
             </p>
+            {r.ongoingCodAmount > 0 && (
+              <p className="text-[11px] text-white/35 mt-0.5">
+                متوقع تحصيله من الجاري: <span className="text-white/60 tabular-nums">{fmtMoney(r.projectedCollection)}</span> ج.م
+                <span className="text-white/25"> (من أصل {fmtMoney(r.ongoingCodAmount)} ج.م لسه مفتوحة)</span>
+              </p>
+            )}
           </div>
           <MiniRing pct={r.collectionRate} color={rateColor(r.collectionRate)} />
         </motion.div>

@@ -5530,6 +5530,7 @@ router.get("/analytics/representatives-intelligence", requireAuth, async (req, r
         updatedAt: shipmentsTable.updatedAt,
         estimatedDelivery: shipmentsTable.estimatedDelivery,
         actualDelivery: shipmentsTable.actualDelivery,
+        zoneId: shipmentsTable.zoneId,
       })
       .from(shipmentsTable)
       .where(baseCond);
@@ -5551,12 +5552,14 @@ router.get("/analytics/representatives-intelligence", requireAuth, async (req, r
       deliveryHoursSum: number; deliveryHoursCount: number; avgDeliveryHours: number;
       codExpected: number; codCollected: number; collectionRate: number;
       shippingFeesTotal: number;
+      ongoingCodAmount: number; // إجمالي قيمة COD للشحنات المفتوحة (لسه جارية) حاليًا مع المندوب
     };
     function computeRepMetrics(repRows: typeof rows): RepMetrics {
       let total = 0, delivered = 0, returned = 0, ongoing = 0;
       let onTime = 0, deliveredWithEta = 0;
       let deliveryHoursSum = 0, deliveryHoursCount = 0;
       let codExpected = 0, codCollected = 0, shippingFeesTotal = 0;
+      let ongoingCodAmount = 0;
       for (const r of repRows) {
         total++;
         const status = SI_normalize(r.status);
@@ -5577,6 +5580,7 @@ router.get("/analytics/representatives-intelligence", requireAuth, async (req, r
           returned++;
         } else {
           ongoing++;
+          ongoingCodAmount += Number(r.codAmount ?? 0);
         }
       }
       const deliveryRate = total > 0 ? (delivered / total) * 100 : 0;
@@ -5587,6 +5591,7 @@ router.get("/analytics/representatives-intelligence", requireAuth, async (req, r
       return {
         total, delivered, returned, ongoing,
         deliveryRate, returnRate, onTime, deliveredWithEta, onTimeRate,
+        ongoingCodAmount,
         deliveryHoursSum, deliveryHoursCount, avgDeliveryHours,
         codExpected, codCollected, collectionRate, shippingFeesTotal,
       };
@@ -5628,10 +5633,34 @@ router.get("/analytics/representatives-intelligence", requireAuth, async (req, r
       return { direction: delta > 0 ? "up" : "down", delta };
     };
 
-    // ── حساب تكلفة الشحن الفعلية لكل مندوب (من shippingCompaniesTable.shippingCost) ──
-    // ملحوظة: costMode ممكن يكون "rep" (سعر ثابت) أو "zone" — بنستخدم shippingCost كتقدير موحّد لكل الحالتين
-    // لأن حساب تكلفة الزون الفعلي محتاج ربط بجدول zone_costs لكل شحنة، وده تفصيل زايد عن هدف "نظرة سريعة على التكلفة"
-    const repCostById = new Map(reps.map(r => [r.id, Number(r.shippingCost ?? 0)]));
+    // ── حساب تكلفة الشحن الفعلية لكل مندوب ──
+    // costMode = "rep": سعر ثابت من shippingCompaniesTable.shippingCost لكل شحنة
+    // costMode = "zone": التكلفة بتختلف حسب منطقة كل شحنة — بنجيبها من zoneCostsTable.deliveryCost
+    // نفس المنطق المستخدم في حساب صافي أرباح المناديب (courierCostClosed) أعلى في الملف، عشان الرقمين يفضلوا متسقين
+    const zoneIdsForCost = [...new Set(inRange.map(r => r.zoneId).filter((id): id is number => id != null))];
+    const zoneCostsForReps = zoneIdsForCost.length
+      ? await db.select({ zoneId: zoneCostsTable.zoneId, deliveryCost: zoneCostsTable.deliveryCost })
+          .from(zoneCostsTable)
+          .where(and(
+            inArray(zoneCostsTable.zoneId, zoneIdsForCost),
+            tenantId !== null
+              ? or(eq(zoneCostsTable.tenantId, tenantId), isNull(zoneCostsTable.tenantId))
+              : undefined,
+          ))
+      : [];
+    const zoneCostMapForReps = new Map(zoneCostsForReps.map(z => [z.zoneId, Number(z.deliveryCost ?? 0)]));
+    const repById = new Map(reps.map(r => [r.id, r]));
+
+    // تكلفة شحنة واحدة، حسب نمط تسعير مندوبها
+    function shipmentCourierCost(r: { shippingCompanyId: number | null; zoneId: number | null }): number {
+      if (r.shippingCompanyId == null) return 0;
+      const rep = repById.get(r.shippingCompanyId);
+      if (!rep) return 0;
+      const isZoneMode = (rep as any).costMode === "zone";
+      return isZoneMode
+        ? Number(zoneCostMapForReps.get(r.zoneId ?? -1) ?? 0)
+        : Math.abs(Number(rep.shippingCost ?? 0));
+    }
 
     // ── بناء صف تحليل كامل لكل مندوب ─────────────────────────────────────────
     type RepInsight = {
@@ -5651,9 +5680,10 @@ router.get("/analytics/representatives-intelligence", requireAuth, async (req, r
       const prevMetrics = prevRangeByRep.has(rep.id) ? computeRepMetrics(prevRangeByRep.get(rep.id)!) : null;
       const rankingScore = rankingScoreOf(metrics);
       const trend = trendOf(rankingScore, prevMetrics);
-      const shippingCost = repCostById.get(rep.id) ?? 0;
+      // إجمالي تكلفة الشحن الفعلية = مجموع تكلفة كل شحنة حقيقية للمندوب في الفترة (zone أو rep حسب costMode)
+      const shippingCost = Math.round(repRows.reduce((sum, r) => sum + shipmentCourierCost(r), 0) * 100) / 100;
       const costPerDelivery = metrics.delivered > 0 && shippingCost > 0
-        ? Math.round((shippingCost * metrics.total / metrics.delivered) * 100) / 100
+        ? Math.round((shippingCost / metrics.delivered) * 100) / 100
         : null;
       const loadSharePct = totalShipmentsInRange > 0 ? Math.round((metrics.total / totalShipmentsInRange) * 1000) / 10 : 0;
       return {
@@ -5710,13 +5740,17 @@ router.get("/analytics/representatives-intelligence", requireAuth, async (req, r
 
     // ── 4) تحليل COD (نسبة التحصيل الفعلي لكل مندوب) — بس للي عندهم COD في الفترة ──
     const codAnalysis = repInsights
-      .filter(r => r.metrics.codExpected > 0)
+      .filter(r => r.metrics.codExpected > 0 || r.metrics.ongoingCodAmount > 0)
       .map(r => ({
         id: r.id, name: r.name,
         codExpected: Math.round(r.metrics.codExpected),
         codCollected: Math.round(r.metrics.codCollected),
         collectionRate: Math.round(r.metrics.collectionRate * 10) / 10,
         shippingFeesTotal: Math.round(r.metrics.shippingFeesTotal),
+        // المبلغ المتوقع تحصيله من الشحنات المفتوحة حاليًا (لسه جارية) = نسبة تسليم المندوب الفعلية × إجمالي COD الجاري معاه
+        // (مش مبني على COD اللي خلص فعلاً — ده تنبؤ بالمستقبل، مختلف عن codExpected/codCollected اللي بيعكسوا التاريخ الفعلي)
+        ongoingCodAmount: Math.round(r.metrics.ongoingCodAmount),
+        projectedCollection: Math.round((r.metrics.deliveryRate / 100) * r.metrics.ongoingCodAmount),
       }))
       .sort((a, b) => a.collectionRate - b.collectionRate); // الأسوأ تحصيلاً أولاً — يحتاج انتباه
 

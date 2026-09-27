@@ -1171,6 +1171,8 @@ export interface RepCodAnalysisRow {
   codCollected: number;
   collectionRate: number;
   shippingFeesTotal: number;
+  ongoingCodAmount: number;
+  projectedCollection: number;
 }
 export interface RepLoadBalanceRow {
   id: number;
