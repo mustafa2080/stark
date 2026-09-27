@@ -546,7 +546,7 @@ export default function RepresentativesIntelligencePage() {
 
       {/* Footer */}
       <p className="text-center text-[11px] text-white/25 pb-2">
-        آخر تحديث: {new Date(data.generatedAt).toLocaleString("ar-EG")} — {data.periodLabel} — البيانات مبنية على جدول الشحنات وشركات الشحن فقط
+        آخر تحديث: {new Date(data.generatedAt).toLocaleString("ar-EG")} — {data.periodLabel} — البيانات مبنية على جدول الشحنات ومناديب الشحن فقط
       </p>
     </div>
   );
