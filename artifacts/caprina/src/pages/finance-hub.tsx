@@ -38,7 +38,7 @@ const CAT_LABELS: Record<string,string> = {
 const TX_LABELS: Record<string,{label:string;credit:boolean}> = {
   deposit:{label:"إيداع",credit:true}, withdrawal:{label:"سحب",credit:false},
   order_collected:{label:"تحصيل طلب",credit:true}, shipping_transfer:{label:"تحويل شحن",credit:true},
-  cash_sale:{label:"مبيعات نقدية",credit:true}, expense_paid:{label:"دفع مصروف",credit:false},
+  cash_sale:{label:"مبيعات نقدية",credit:true}, client_collection:{label:"تحصيل حساب عميل",credit:true}, expense_paid:{label:"دفع مصروف",credit:false},
   purchase_paid:{label:"دفع مورد",credit:false}, transfer_in:{label:"تحويل وارد",credit:true},
   transfer_out:{label:"تحويل صادر",credit:false},
 };
@@ -56,6 +56,11 @@ const apiFetch = (url: string) => _apiFetch<any>(url.replace(/^\/api/, ""));
 const fmt  = (v:number) => Number(v).toLocaleString("ar-EG", {minimumFractionDigits:0, maximumFractionDigits:0});
 const fmtF = (v:number) => Number(v).toLocaleString("ar-EG", {minimumFractionDigits:2}) + " ج.م";
 const fmtS = (v:number) => v >= 1_000_000 ? (v/1_000_000).toFixed(1)+"م" : v >= 1_000 ? (v/1_000).toFixed(1)+"k" : fmt(v);
+// مبلغ مختصر بالعربي (أرقام هندية + "ألف"/"مليون") بدل k/م
+const fmtAr = (v:number) => {
+  const d = (n:number) => n.toLocaleString("ar-EG", {minimumFractionDigits:0, maximumFractionDigits:1});
+  return v >= 1_000_000 ? `${d(v/1_000_000)} مليون` : v >= 1_000 ? `${d(v/1_000)} ألف` : d(v);
+};
 const pctColor = (v:number|null,inverse=false) => {
   if (v===null) return "text-muted-foreground";
   return (inverse ? v < 0 : v > 0) ? "text-emerald-500" : "text-rose-500";
@@ -1168,7 +1173,7 @@ export default function FinanceHub() {
           ) : (
             <div className="space-y-2 max-h-52 overflow-y-auto pr-1 scrollbar-thin">
               {recentTx.map((tx:any, i:number) => {
-                const info = TX_LABELS[tx.type] ?? {label:tx.type, credit:true};
+                const info = TX_LABELS[tx.type] ?? {label:"حركة أخرى", credit:true};
                 return (
                   <div key={tx.id} className="flex items-center gap-2.5 py-2 border-b border-border/50 last:border-0 animate-in slide-in-from-right-1" style={{animationDelay:`${i*30}ms`}}>
                     <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${info.credit?"bg-emerald-500/10":"bg-rose-500/10"}`}>
@@ -1180,7 +1185,7 @@ export default function FinanceHub() {
                     </div>
                     <div className="text-end shrink-0">
                       <p className={`text-xs font-bold ${info.credit?"text-emerald-500":"text-rose-500"}`}>
-                        {info.credit?"+":"−"}{fmtS(parseFloat(tx.amount??0))}
+                        {info.credit?"+":"−"}{fmtAr(parseFloat(tx.amount??0))}
                       </p>
                       <p className="text-[10px] text-muted-foreground">
                         {new Date(tx.transactionDate).toLocaleDateString("ar-EG",{month:"numeric",day:"numeric"})}
