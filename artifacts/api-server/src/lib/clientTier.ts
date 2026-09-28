@@ -64,6 +64,20 @@ export interface TierShipmentRow { createdAt: Date | string | null; status: stri
 
 export interface TierTip { kind: "goal" | "success" | "warning" | "info"; text: string }
 
+/** رسالة تحفيزية للعميل — بتتغير حسب موقفه الفعلي في الشهر (مش عبارة ثابتة) */
+export type MotivationStage =
+  | "new_month" | "start" | "push" | "almost" | "on_track" | "target_reached" | "top";
+
+export interface TierMotivation {
+  stage: MotivationStage;
+  headline: string;
+  message: string;
+  /** المعدل اليومي المطلوب للوصول للهدف الأقرب (null لو مش منطبق) */
+  dailyPace: number | null;
+  /** اسم الهدف الأقرب (مستوى أو تارجت) عشان الواجهة تعرضه */
+  focusLabel: string | null;
+}
+
 /** التارجت الشهري اللي الأدمن كاتبه للعميل (عدد شحنات في الشهر) */
 export interface ClientTarget {
   value: number;
@@ -95,6 +109,8 @@ export interface ClientTierSummary {
   history: { key: string; label: string; count: number; tierKey: TierKey | null }[];
   ladder: (TierDef & { status: "achieved" | "current" | "locked" })[];
   tips: TierTip[];
+  /** رسالة تشجيع شخصية للعميل (بتظهر في بوابة العميل بس) */
+  motivation: TierMotivation;
 }
 
 export function buildTierSummary(rows: TierShipmentRow[], now: Date = new Date(), targetValue = 0): ClientTierSummary {
@@ -175,6 +191,11 @@ export function buildTierSummary(rows: TierShipmentRow[], now: Date = new Date()
     prevMonth, projected, atRisk, monthLabel: AR_MONTHS[today.m - 1], target: targetInfo,
   });
 
+  const motivation = buildMotivation({
+    count, tier, next: nextInfo, daysElapsed, daysLeft, projected,
+    prevMonth, trendPct, monthLabel: AR_MONTHS[today.m - 1], target: targetInfo, dayOfMonth: today.d,
+  });
+
   return {
     month: { key: curKey, label: AR_MONTHS[today.m - 1], daysElapsed, daysInMonth, daysLeft },
     count, returns,
@@ -183,7 +204,7 @@ export function buildTierSummary(rows: TierShipmentRow[], now: Date = new Date()
     progressPct: targetInfo ? targetInfo.pct : progressPct,
     tierProgressPct: progressPct,
     target: targetInfo,
-    prevMonth, trendPct, projected, atRisk, history, ladder, tips,
+    prevMonth, trendPct, projected, atRisk, history, ladder, tips, motivation,
   };
 }
 
@@ -265,6 +286,152 @@ function buildTips(c: {
   }
 
   return tips.slice(0, c.target ? 5 : 4);
+}
+
+// ═══════════ رسائل التحفيز ═══════════
+// ─ الرسالة مبنية على موقف العميل الفعلي (قرّب؟ ماشي كويس؟ متأخر؟ بدأ الشهر؟)
+//   وبأرقامه الحقيقية، مش عبارات عامة.
+// ─ الاختيار من كل مجموعة ثابت طول اليوم (بيتغير يوم بيوم) عشان الرسالة
+//   متتغيرش مع كل refresh وتبان عشوائية.
+// ─ لتعديل الصياغة: عدّل المصفوفات جوه buildMotivation بس.
+
+/** صيغة عربية سليمة لعدد الشحنات: شحنة واحدة / شحنتان / 5 شحنات / 12 شحنة */
+function shipmentsPhrase(n: number): string {
+  if (n === 1) return "شحنة واحدة";
+  if (n === 2) return "شحنتان";
+  if (n <= 10) return `${n} شحنات`;
+  return `${n} شحنة`;
+}
+
+function buildMotivation(c: {
+  count: number; tier: TierDef | null; next: ClientTierSummary["nextTier"];
+  daysElapsed: number; daysLeft: number; projected: ClientTierSummary["projected"];
+  prevMonth: ClientTierSummary["prevMonth"]; trendPct: number | null;
+  monthLabel: string; target: ClientTarget | null; dayOfMonth: number;
+}): TierMotivation {
+  const pick = <T,>(arr: T[]): T => arr[c.dayOfMonth % arr.length];
+  const t = c.target;
+  const targetOpen = !!t && !t.reached;
+
+  // ── 1) العميل حقق التارجت الشهري ──
+  if (t?.reached) {
+    const over = c.count - t.value;
+    const extra = c.next
+      ? ` وباقي ${shipmentsPhrase(c.next.remaining)} فقط للوصول إلى المستوى ${c.next.name}.`
+      : " ومستواك في القمة، فاستمر لتثبيته.";
+    return {
+      stage: "target_reached",
+      headline: pick(["إنجاز رائع هذا الشهر", "حققت هدفك الشهري", "أداء يستحق التقدير"]),
+      message: (over > 0
+        ? `تجاوزت التارجت الشهري (${t.value} شحنة) بزيادة ${shipmentsPhrase(over)}${extra}`
+        : `أتممت التارجت الشهري (${t.value} شحنة) بنجاح${extra}`),
+      dailyPace: null,
+      focusLabel: c.next ? `مستوى ${c.next.name}` : null,
+    };
+  }
+
+  // ── 2) أعلى مستوى ولا يوجد تارجت مفتوح ──
+  if (!targetOpen && !c.next && c.tier) {
+    return {
+      stage: "top",
+      headline: pick(["أنت في القمة", "مستوى استثنائي", "شريك من الطراز الأول"]),
+      message: pick([
+        `حافظت على مستوى ${c.tier.name} في ${c.monthLabel}. استمرارك بهذه الوتيرة هو ما يُثبّت مكانتك بين أفضل عملائنا.`,
+        `وصلت إلى أعلى مستوى (${c.tier.name}) بجهدك المتواصل. كل شحنة إضافية تُعزّز موقعك وتحافظ على الفارق.`,
+        `مستوى ${c.tier.name} لا يصل إليه إلا القليل. واصل بنفس الالتزام لتبقى في الصدارة.`,
+      ]),
+      dailyPace: null,
+      focusLabel: null,
+    };
+  }
+
+  // ── الهدف الأقرب: التارجت المفتوح أولًا، وإلا المستوى التالي ──
+  const focusRemaining = targetOpen ? t!.remaining : (c.next?.remaining ?? 0);
+  const focusName = targetOpen ? "التارجت الشهري" : `المستوى ${c.next?.name ?? ""}`.trim();
+  const gapTotal = targetOpen ? t!.value : Math.max(1, (c.next?.min ?? 1) - (c.tier?.min ?? 0));
+  const needPace = c.daysLeft > 0 ? Math.ceil(focusRemaining / c.daysLeft) : focusRemaining;
+  const dailyPace = focusRemaining > 0 ? needPace : null;
+  const rem = shipmentsPhrase(focusRemaining);
+
+  // ── 3) قرّب جدًا من الهدف ──
+  if (c.count > 0 && focusRemaining > 0 && focusRemaining <= Math.max(3, Math.ceil(gapTotal * 0.15))) {
+    return {
+      stage: "almost",
+      headline: pick(["أنت على بعد خطوات من الهدف", "اقتربت جدًا", "دفعة أخيرة وتحسمها"]),
+      message: pick([
+        `باقي ${rem} فقط على ${focusName}. ركّز على شحناتك القادمة وستحسمها قريبًا.`,
+        `أنجزت معظم الطريق نحو ${focusName}، ويفصلك عنه ${rem}. لا تتوقف الآن.`,
+        `${rem} فقط تفصلك عن ${focusName} — الجهد الأكبر أصبح خلفك.`,
+      ]),
+      dailyPace,
+      focusLabel: focusName,
+    };
+  }
+
+  // ── 4) بداية شهر جديد ──
+  if (c.daysElapsed <= 3) {
+    const prev = c.prevMonth.tierKey
+      ? ` مستواك الشهر الماضي كان ${tierName(c.prevMonth.tierKey)}، فابدأ الآن لتحافظ عليه أو تتخطاه.`
+      : "";
+    return {
+      stage: "new_month",
+      headline: pick(["بداية شهر جديدة", "صفحة جديدة في " + c.monthLabel, "انطلاقة قوية تصنع الفرق"]),
+      message: pick([
+        `الشحنات المبكرة هي أساس نتيجة الشهر كله. ابدأ بقوة نحو ${focusName}.${prev}`,
+        `شهر ${c.monthLabel} فرصة جديدة لرفع مستواك. كل يوم من أول الشهر يخفف الضغط عليك في آخره.${prev}`,
+        `من يبدأ مبكرًا يصل مرتاحًا. هدفك: ${focusName}.${prev}`,
+      ]),
+      dailyPace,
+      focusLabel: focusName,
+    };
+  }
+
+  // ── 5) لسه ما بدأش الشهر ──
+  if (c.count === 0) {
+    return {
+      stage: "start",
+      headline: pick(["ابدأ الآن", "أول شحنة تفتح الطريق", "الفرصة ما زالت قائمة"]),
+      message: `لم تُسجَّل أي شحنة في ${c.monthLabel} حتى الآن. أول شحنة هي أهم خطوة، وبعدها تبدأ رحلتك نحو ${focusName}${c.daysLeft > 0 ? ` خلال الـ ${c.daysLeft} يوم المتبقية` : ""}.`,
+      dailyPace,
+      focusLabel: focusName,
+    };
+  }
+
+  // ── 6) ماشي كويس: المتوقع يوصل للهدف ──
+  const projectedHits = c.projected
+    ? (targetOpen ? c.projected.count >= t!.value : !!c.next && c.projected.count >= c.next.min)
+    : false;
+  if (projectedHits && c.projected) {
+    const trend = c.trendPct !== null && c.trendPct >= 5
+      ? ` وأداؤك أفضل من ${c.prevMonth.label} بنسبة ${c.trendPct}%.`
+      : "";
+    return {
+      stage: "on_track",
+      headline: pick(["أداؤك يسير في الاتجاه الصحيح", "إيقاع ممتاز", "أنت على المسار الصحيح"]),
+      message: pick([
+        `بمعدلك الحالي ستصل إلى ${focusName} قبل نهاية ${c.monthLabel} (المتوقع ${c.projected.count} شحنة)${trend || "."}`,
+        `استمرارك على هذا الإيقاع يضمن لك ${focusName} بنهاية الشهر${trend || "."}`,
+        `النتائج تؤكد أن جهدك يؤتي ثماره: المتوقع ${c.projected.count} شحنة بنهاية الشهر${trend || "."}`,
+      ]),
+      dailyPace: null,
+      focusLabel: focusName,
+    };
+  }
+
+  // ── 7) محتاج دفعة: نصيحة صريحة برقم واقعي ──
+  const avgDaily = c.daysElapsed > 0 ? c.count / c.daysElapsed : 0;
+  const message = c.daysLeft <= 0
+    ? `اليوم آخر يوم في ${c.monthLabel}، وكل شحنة تُضاف الآن تُحتسب في مستواك. باقي ${rem} على ${focusName}.`
+    : needPace <= Math.max(1, Math.ceil(avgDaily * 1.5))
+      ? `تحتاج نحو ${shipmentsPhrase(needPace)} يوميًا للوصول إلى ${focusName} خلال الـ ${c.daysLeft} يوم المتبقية، وهو قريب جدًا من معدلك الحالي. زيادة بسيطة كافية.`
+      : `للوصول إلى ${focusName} تحتاج نحو ${shipmentsPhrase(needPace)} يوميًا خلال الـ ${c.daysLeft} يوم المتبقية. يتطلب الأمر رفع الوتيرة، وكل شحنة تُقرّبك خطوة.`;
+  return {
+    stage: "push",
+    headline: pick(["الوقت ما زال في صالحك", "ارفع الوتيرة قليلًا", "الفرصة قائمة والفارق قابل للتعويض"]),
+    message,
+    dailyPace,
+    focusLabel: focusName,
+  };
 }
 
 // ═══════════ DB helpers ═══════════

@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import {
   Medal, Award, Trophy, Crown, Target, Lightbulb, TrendingUp, TrendingDown,
   AlertTriangle, CheckCircle2, Info, Lock, Flag, CalendarDays, Gauge, Pencil, Check, X, Loader2,
+  Rocket, Flame, Sparkles, Zap,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -33,6 +34,20 @@ export interface ClientTierData {
   history: { key: string; label: string; count: number; tierKey: TierKey | null }[];
   ladder: { key: TierKey; name: string; min: number; perks: string[]; status: "achieved" | "current" | "locked" }[];
   tips: { kind: "goal" | "success" | "warning" | "info"; text: string }[];
+  /** رسالة تشجيع شخصية للعميل — اختيارية عشان الـ API القديم ممكن ما يرجعهاش */
+  motivation?: TierMotivation;
+}
+
+export type MotivationStage =
+  | "new_month" | "start" | "push" | "almost" | "on_track" | "target_reached" | "top";
+
+export interface TierMotivation {
+  stage: MotivationStage;
+  headline: string;
+  message: string;
+  /** الشحنات اليومية المطلوبة للوصول للهدف الأقرب */
+  dailyPace: number | null;
+  focusLabel: string | null;
 }
 
 export interface ClientTierLite {
@@ -289,6 +304,64 @@ const TIP_STYLE = {
   info:    { Icon: Info,          color: "#94a3b8", bg: "rgba(148,163,184,.10)" },
 } as const;
 
+// ── بانر التشجيع (للعميل بس) — رسالة مخصصة حسب موقفه الفعلي في الشهر ─────────
+const MOTIVATION_STYLE: Record<MotivationStage, { Icon: typeof Rocket; color: string }> = {
+  new_month:      { Icon: Rocket,     color: "#60a5fa" },
+  start:          { Icon: Zap,        color: "#60a5fa" },
+  push:           { Icon: Flame,      color: "#fb923c" },
+  almost:         { Icon: Target,     color: "#fbbf24" },
+  on_track:       { Icon: TrendingUp, color: "#34d399" },
+  target_reached: { Icon: Trophy,     color: "#34d399" },
+  top:            { Icon: Crown,      color: "#c084fc" },
+};
+
+function MotivationBanner({ m }: { m: TierMotivation }) {
+  const st = MOTIVATION_STYLE[m.stage] ?? { Icon: Sparkles, color: "#94a3b8" };
+  const Icon = st.Icon;
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
+      className="mb-5 rounded-xl border p-3.5 flex items-start gap-3"
+      style={{
+        borderColor: `${st.color}40`,
+        background: `linear-gradient(120deg, ${st.color}1f 0%, ${st.color}08 70%)`,
+        borderInlineStartWidth: 3,
+        borderInlineStartColor: st.color,
+      }}
+    >
+      <div
+        className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+        style={{ background: `${st.color}26`, boxShadow: `0 0 14px ${st.color}40` }}
+      >
+        <Icon style={{ color: st.color, width: 18, height: 18 }} />
+      </div>
+      <div className="min-w-0 flex-1 space-y-1.5">
+        <p className="text-[13px] font-black leading-snug" style={{ color: st.color }}>{m.headline}</p>
+        <p className="text-[12px] leading-relaxed text-foreground/90">{m.message}</p>
+        {(m.dailyPace !== null || m.focusLabel) && (
+          <div className="flex flex-wrap gap-1.5 pt-0.5">
+            {m.focusLabel && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-muted/40 text-muted-foreground">
+                <Flag className="w-3 h-3" /> هدفك الحالي: {m.focusLabel}
+              </span>
+            )}
+            {m.dailyPace !== null && m.dailyPace > 0 && (
+              <span
+                className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full"
+                style={{ background: `${st.color}1f`, color: st.color }}
+              >
+                <Gauge className="w-3 h-3" /> المطلوب ≈ {n(m.dailyPace)} شحنة يوميًا
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
 export function ClientTierCard({ data, isLoading, variant = "client", className = "", onSaveTarget }: {
   data: ClientTierData | null | undefined;
   isLoading?: boolean;
@@ -335,6 +408,9 @@ export function ClientTierCard({ data, isLoading, variant = "client", className 
           </span>
         </div>
       </div>
+
+      {/* ── رسالة تشجيع للعميل (مش بتظهر للأدمن) ── */}
+      {!isAdmin && data.motivation && <MotivationBanner m={data.motivation} />}
 
       <div className="grid gap-5 md:grid-cols-2">
         {/* ── العمود الأول: الدايرة + الأرقام + السلّم ── */}
