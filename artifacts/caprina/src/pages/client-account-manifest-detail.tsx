@@ -5007,16 +5007,16 @@ export default function ShippingManifestPage() {
         </div>
 
         <div className="hidden md:grid grid-cols-[minmax(0,0.9fr)_minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,1.5fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,1.1fr)_minmax(0,1.3fr)] gap-0 px-3 py-2 text-[11px] leading-tight font-bold text-muted-foreground border-b border-border/60 bg-muted/20">
-          <span className="flex items-center justify-start gap-1">الراسل{showColFilters && <ColFilterBtn col="sender" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
-          <span className="flex items-center justify-start gap-1">العميل{showColFilters && <ColFilterBtn col="customer" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
-          <span className="flex items-center justify-start gap-1">الهاتف{showColFilters && <ColFilterBtn col="phone" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
-          <span className="flex items-center justify-start gap-1">المحافظة{showColFilters && <ColFilterBtn col="governorate" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
-          <span className="flex items-center justify-start gap-1">العنوان{showColFilters && <ColFilterBtn col="address" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
-          <span className="flex items-center justify-center gap-1">إجمالي سعر الشحنة{showColFilters && <ColFilterBtn col="total" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
-          <span className="flex items-center justify-center gap-1">القيمة المستلمة{showColFilters && <ColFilterBtn col="collected" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
-          <span className="flex items-center justify-center gap-1">سعر الشحن{showColFilters && <ColFilterBtn col="shipping" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
-          <span className="flex items-center justify-center gap-1">الحالة{showColFilters && <ColFilterBtn col="status" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
-          <span className="flex items-center justify-start gap-1">ملاحظات</span>
+          <span className="flex items-center justify-center text-center gap-1">الراسل{showColFilters && <ColFilterBtn col="sender" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
+          <span className="flex items-center justify-center text-center gap-1">العميل{showColFilters && <ColFilterBtn col="customer" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
+          <span className="flex items-center justify-center text-center gap-1">الهاتف{showColFilters && <ColFilterBtn col="phone" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
+          <span className="flex items-center justify-center text-center gap-1">المحافظة{showColFilters && <ColFilterBtn col="governorate" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
+          <span className="flex items-center justify-center text-center gap-1">العنوان{showColFilters && <ColFilterBtn col="address" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
+          <span className="flex items-center justify-center text-center gap-1">إجمالي سعر الشحنة{showColFilters && <ColFilterBtn col="total" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
+          <span className="flex items-center justify-center text-center gap-1">القيمة المستلمة{showColFilters && <ColFilterBtn col="collected" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
+          <span className="flex items-center justify-center text-center gap-1">سعر الشحن{showColFilters && <ColFilterBtn col="shipping" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
+          <span className="flex items-center justify-center text-center gap-1">الحالة{showColFilters && <ColFilterBtn col="status" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
+          <span className="flex items-center justify-center text-center gap-1">ملاحظات</span>
         </div>
 
         {displayGroups.length === 0 ? (
@@ -5044,17 +5044,17 @@ export default function ShippingManifestPage() {
             return (
               <div key={`client-look-${key}`}>
                 <div className="hidden md:grid grid-cols-[minmax(0,0.9fr)_minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,1.5fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,1.1fr)_minmax(0,1.3fr)] gap-0 px-3 py-3 text-[11px] items-center border-b border-border/40 hover:bg-muted/10 transition-colors">
-                  <div className="min-w-0 pr-2 text-muted-foreground break-words">{(rep as any).senderName || <span className="text-muted-foreground/40">—</span>}</div>
-                  <div className="min-w-0 pr-2">
+                  <div className="min-w-0 px-1 text-center text-muted-foreground break-words">{(rep as any).senderName || <span className="text-muted-foreground/40">—</span>}</div>
+                  <div className="min-w-0 px-1 text-center">
                     <p className="font-bold break-words">{rep.customerName}</p>
                     <p className="text-[10px] text-muted-foreground font-mono break-all">{rep.invoiceNumber}</p>
                   </div>
-                  <div className="min-w-0 pr-2 text-muted-foreground flex items-center gap-1">
+                  <div className="min-w-0 px-1 text-muted-foreground flex items-center justify-center text-center gap-1">
                     <Phone className="w-2.5 h-2.5 shrink-0" />
                     <span className="break-all">{rep.phone}</span>
                   </div>
-                  <div className="min-w-0 pr-2 font-semibold break-words">{rep.city || <span className="text-muted-foreground/40">—</span>}</div>
-                  <div className="min-w-0 pr-2 flex items-start gap-1">
+                  <div className="min-w-0 px-1 text-center font-semibold break-words">{rep.city || <span className="text-muted-foreground/40">—</span>}</div>
+                  <div className="min-w-0 px-1 flex items-center justify-center text-center gap-1">
                     <MapPin className="w-3 h-3 text-muted-foreground shrink-0 mt-0.5" />
                     <span className="break-words text-muted-foreground">{(rep as any).address || "—"}</span>
                   </div>
@@ -5089,7 +5089,7 @@ export default function ShippingManifestPage() {
                       ) : null;
                     })()}
                   </div>
-                  <div className="min-w-0 px-2">
+                  <div className="min-w-0 px-1 text-center">
                     {(() => {
                       const groupNotes = [...new Set(group.map((o) => o.deliveryNote).filter(Boolean))].join(" | ");
                       return groupNotes ? (
