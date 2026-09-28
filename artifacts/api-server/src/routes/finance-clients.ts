@@ -1199,9 +1199,19 @@ router.get("/finance/clients/:id/shipments", async (req, res): Promise<void> => 
       notInArray(shipmentsTable.status, ["pending", "waiting", "confirmed"]),
     ];
     const idCond   = eq(shipmentsTable.clientId, id);
-    const nameCond = eq(shipmentsTable.senderName, client.name);
+    // مطابقة الـ clientId من غير فلتر tenant (الـ id فريد، والعميل نفسه اتفلتر بالـ tenant فوق) — شحنات كتير
+    // tenant_id بتاعها NULL. مطابقة الاسم بس هي اللي بتتقيّد بنفس الـ tenant أو NULL.
+    const nameCond = tenantId !== null
+      ? and(eq(shipmentsTable.senderName, client.name), or(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.tenantId)))!
+      : eq(shipmentsTable.senderName, client.name);
     shipConds.push(or(idCond, nameCond)!);
-    if (tenantId !== null) shipConds.push(eq(shipmentsTable.tenantId, tenantId));
+
+    // العدد الحقيقي للشحنات (كارت "إجمالي الشحنات") — منفصل عن القايمة المعروضة عشان مايتقصش بالحد الأقصى.
+    const [totalRow] = await db
+      .select({ total: sql<number>`count(distinct ${shipmentsTable.id})` })
+      .from(shipmentsTable)
+      .where(and(...shipConds));
+    const realTotal = Number(totalRow?.total ?? 0);
 
     const rawShipments = await db.select({
       id:             shipmentsTable.id,
@@ -1248,7 +1258,7 @@ router.get("/finance/clients/:id/shipments", async (req, res): Promise<void> => 
       .leftJoin(clientReturnManifestsTable, eq(clientReturnManifestsTable.id, clientReturnManifestItemsTable.manifestId))
       .where(and(...shipConds))
       .orderBy(desc(shipmentsTable.createdAt), desc(clientAccountManifestItemsTable.manifestId), desc(clientReturnManifestItemsTable.manifestId))
-      .limit(400);
+      .limit(6000);
 
     // ✅ "مؤجل" الحقيقي مش عمود فى shipmentsTable.status ولا فى
     // clientAccountManifestItemsTable.deliveryStatus (ده مفهوش قيمة delayed أصلًا).
@@ -1280,10 +1290,10 @@ router.get("/finance/clients/:id/shipments", async (req, res): Promise<void> => 
       if (seen.has(s.id)) continue;
       seen.add(s.id);
       shipments.push({ ...s, isDelayed: delayedShipmentIds.has(s.id) });
-      if (shipments.length >= 200) break;
+      if (shipments.length >= 5000) break;
     }
 
-    res.json({ shipments, total: shipments.length });
+    res.json({ shipments, total: realTotal });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

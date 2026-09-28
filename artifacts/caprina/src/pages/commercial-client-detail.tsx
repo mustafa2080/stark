@@ -941,7 +941,7 @@ export default function CommercialClientDetailPage() {
         >
           <Send className="w-3.5 h-3.5" />
           الشحنات
-          {clientShipments.length > 0 && <Badge variant="outline" className="text-[9px] ml-1">{clientShipments.length}</Badge>}
+          {clientShipments.length > 0 && <Badge variant="outline" className="text-[9px] ml-1">{shipmentsData?.total ?? clientShipments.length}</Badge>}
         </button>
         <button
           onClick={() => setActiveTab("returns")}
@@ -976,7 +976,7 @@ export default function CommercialClientDetailPage() {
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           <Card className="card-glow border-teal-900/40 p-3 text-center" style={GLOW.teal.style}>
             <p className="text-[10px] text-teal-400 mb-0.5">إجمالي الشحنات</p>
-            <p className="text-xl font-black text-teal-400">{clientShipments.length}</p>
+            <p className="text-xl font-black text-teal-400">{shipmentsData?.total ?? clientShipments.length}</p>
             <p className="text-[10px] text-teal-600">
               {clientShipments.filter(s => ["received","delivered"].includes(s.status)).length} مسلّمة
               {" · "}
