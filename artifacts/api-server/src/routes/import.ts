@@ -5,6 +5,7 @@ import { db, ordersTable, productsTable, productVariantsTable, shipmentsTable, s
 import { eq, and, ilike } from "drizzle-orm";
 import { getTenantId } from "../middlewares/requireTenant.js";
 import { generateShipmentNumber } from "./shipments.js";
+import { buildShipmentsImportTemplate } from "../lib/shipmentsImportTemplate.js";
 
 const router: IRouter = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
@@ -212,6 +213,60 @@ router.post("/shipments/import/parse", upload.single("file"), async (req, res): 
     res.json({ headers, sample: rows.slice(0, 5), totalRows: rows.length, allRows: rows });
   } catch (err: any) {
     res.status(500).json({ error: `فشل قراءة الملف: ${err.message}` });
+  }
+});
+
+// ─── Shipments Import: Template (نسخة Excel فارغة بقوائم منسدلة) ─────────────────
+// نفس أعمدة SHIPMENTS_FIELDS في import.tsx بنفس الترتيب والمسميات، فالربط التلقائي
+// (autoDetect) بيشتغل 100% عند الرفع. القوائم (الراسلين/المناطق/أنواع الشحنات)
+// بتتسحب من بيانات الـ tenant الحالي.
+router.get("/import/shipments-template", async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+
+    const [zonesRows, parcelRows, clientRows] = await Promise.all([
+      db.select().from(shipmentZonesTable)
+        .where(tenantId !== null ? eq(shipmentZonesTable.tenantId, tenantId) : undefined as any),
+      db.select().from(parcelTypePricingTable)
+        .where(tenantId !== null ? eq(parcelTypePricingTable.tenantId, tenantId) : undefined as any),
+      db.select().from(clientsTable)
+        .where(tenantId !== null ? eq(clientsTable.tenantId, tenantId) : undefined as any),
+    ]);
+
+    const sortAr = (a: string, b: string) => a.localeCompare(b, "ar");
+    const uniq = (arr: string[]) => Array.from(new Set(arr.filter(Boolean)));
+
+    const senders = uniq(
+      clientRows.filter(c => c.isActive !== false).map(c => (c.name || "").trim()),
+    ).sort(sortAr);
+
+    // نفس صيغة findZone في الاستيراد: "المحافظة - المنطقة"
+    const zones = uniq(
+      zonesRows.filter(z => z.isActive !== false).map(z => {
+        const name = (z.name || "").trim();
+        const gov = (z.toGovernorate || "").trim();
+        return gov && name ? `${gov} - ${name}` : (gov || name);
+      }),
+    ).sort(sortAr);
+
+    // الاسم لازم يكون مقبول من findParcelPricing: label الصنف، وإلا الاسم العربي المعتمد في PARCEL_TYPE_MAP
+    const PARCEL_FALLBACK_LABEL: Record<string, string> = {
+      document: "مستندات", normal: "عادي", fragile: "قابل للكسر", heavy: "ثقيل",
+      electronics: "إلكترونيات", clothing: "ملابس", food: "طعام", other: "أخرى",
+    };
+    const parcelTypes = uniq(
+      parcelRows.filter(p => p.isActive !== false).map(p =>
+        (p.label || "").trim() || PARCEL_FALLBACK_LABEL[p.parcelType] || p.parcelType,
+      ),
+    );
+
+    const buffer = await buildShipmentsImportTemplate({ senders, zones, parcelTypes });
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", 'attachment; filename="shipments-import-template.xlsx"');
+    res.setHeader("Cache-Control", "no-store");
+    res.send(buffer);
+  } catch (err: any) {
+    res.status(500).json({ error: `فشل إنشاء النموذج: ${err.message}` });
   }
 });
 

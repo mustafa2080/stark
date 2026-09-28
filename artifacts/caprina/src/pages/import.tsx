@@ -4,7 +4,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Upload, FileSpreadsheet, CheckCircle2,
   ArrowRight, ArrowLeft, Settings2, Eye, Loader2,
-  RotateCcw, Info, Link2, Package, Undo2, AlertTriangle, GitMerge, List,
+  RotateCcw, Info, Link2, Package, AlertTriangle, GitMerge, List, Download,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { importApi, type ParsedImport } from "@/lib/api";
@@ -16,7 +16,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Label } from "@/components/ui/label";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
-type ImportMode = "products" | "returns" | "inventory" | "shipments";
+// قسم الاستيراد بقى للشحنات فقط (المنتجات والمرتجعات والمخزون اتشالوا من الواجهة)
+type ImportMode = "shipments";
 
 interface FieldDef {
   key: string;
@@ -25,25 +26,9 @@ interface FieldDef {
   hint: string;
 }
 
-// ─── Field definitions per mode ────────────────────────────────────────────────
-const PRODUCTS_FIELDS: FieldDef[] = [
-  { key: "name",           label: "اسم المنتج",        required: true,  hint: "product, item, name, منتج, اسم" },
-  { key: "sku",            label: "SKU",               required: false, hint: "sku, code, كود, رقم" },
-  { key: "unitPrice",      label: "سعر البيع (ج.م)",  required: false, hint: "price, sell, بيع, سعر, selling" },
-  { key: "costPrice",      label: "سعر التكلفة (ج.م)", required: false, hint: "cost, تكلفة, شراء, buying" },
-  { key: "totalQuantity",  label: "الكمية",            required: false, hint: "qty, quantity, كمية, stock" },
-  { key: "lowStockThreshold", label: "حد التنبيه",    required: false, hint: "threshold, minimum, حد, تنبيه" },
-  { key: "color",          label: "اللون",             required: false, hint: "color, colour, لون" },
-  { key: "size",           label: "المقاس",            required: false, hint: "size, مقاس, قياس" },
-];
-
-const RETURNS_FIELDS: FieldDef[] = [
-  { key: "orderId",      label: "رقم الطلب",     required: false, hint: "id, order_id, رقم, طلب" },
-  { key: "customerName", label: "اسم العميل",    required: false, hint: "customer, name, اسم, عميل" },
-  { key: "product",      label: "المنتج",         required: false, hint: "product, item, منتج" },
-  { key: "reason",       label: "سبب الإرجاع",  required: false, hint: "reason, سبب, ملاحظة" },
-];
-
+// ─── حقول استيراد الشحنات ───────────────────────────────────────────────────────
+// ⚠️ الأسماء (label) والترتيب هنا لازم تفضل مطابقة 1:1 لأعمدة نموذج Excel الفارغ في
+// artifacts/api-server/src/lib/shipmentsImportTemplate.ts — عشان الربط التلقائي يشتغل.
 // نفس حقول فورم "شحنة جديدة" بالظبط، عشان يترفع الملف بدون مشاكل
 const SHIPMENTS_FIELDS: FieldDef[] = [
   { key: "senderName",      label: "اسم الراسل",             required: true,  hint: "اسم الراسل، sender، senderName" },
@@ -169,10 +154,7 @@ function cellDisplay(v: any): string {
 
 // ─── Mode Selector ─────────────────────────────────────────────────────────────
 const MODES: { id: ImportMode; label: string; desc: string; icon: any; color: string }[] = [
-  { id: "shipments", label: "شحنات",     desc: "استورد قائمة شحنات جاهزة مباشرة",      icon: Package,      color: "border-teal-700/40 bg-teal-900/5 text-teal-400" },
-  { id: "products",  label: "منتجات",     desc: "استورد منتجات بأسعار البيع والتكلفة",   icon: Package,      color: "border-amber-700/40 bg-amber-900/5 text-amber-400" },
-  { id: "returns",   label: "مرتجعات",   desc: "سجّل مرتجعات بالجملة من ملف Excel",    icon: Undo2,        color: "border-red-800/40 bg-red-900/5 text-red-400" },
-  { id: "inventory", label: "مخزون",     desc: "تحديث كميات المخزون عبر SKU",          icon: Package,      color: "border-green-700/40 bg-green-900/5 text-green-400" },
+  { id: "shipments", label: "شحنات",     desc: "استورد قائمة شحناتك جاهزة مباشرة من الشيت الخاص بك", icon: Package, color: "border-teal-700/40 bg-teal-900/5 text-teal-400" },
 ];
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
@@ -207,9 +189,22 @@ export default function Import() {
   const [duplicateCustomers, setDuplicateCustomers] = useState<{ name: string; count: number; rows: number[] }[]>([]);
   const [duplicateAction, setDuplicateAction] = useState<"separate" | "merge" | null>(null);
 
-  const currentFields = mode === "products" ? PRODUCTS_FIELDS
-    : mode === "shipments" ? SHIPMENTS_FIELDS
-    : RETURNS_FIELDS ?? [];
+  const [isDownloadingTemplate, setIsDownloadingTemplate] = useState(false);
+
+  const currentFields = SHIPMENTS_FIELDS;
+
+  // تحميل نموذج Excel الفارغ (نفس أعمدة الاستيراد + قوائم منسدلة للراسل/المنطقة/نوع الشحنة...)
+  const handleDownloadTemplate = async () => {
+    setIsDownloadingTemplate(true);
+    try {
+      await importApi.downloadShipmentsTemplate();
+      toast({ title: "تم تحميل النموذج", description: "املأ ورقة «الشحنات» ثم ارفع الملف هنا." });
+    } catch (e: any) {
+      toast({ title: "فشل تحميل النموذج", description: e.message || "حاول مرة أخرى.", variant: "destructive" });
+    } finally {
+      setIsDownloadingTemplate(false);
+    }
+  };
 
   useEffect(() => {
     if (mode) setHasSavedMapping(!!loadMapping(mode));
@@ -230,26 +225,8 @@ export default function Import() {
     if (!file.name.match(/\.(xlsx|xls|csv)$/i)) { setError("يرجى رفع ملف Excel (.xlsx, .xls) أو CSV."); return; }
     setError(null); setIsLoading(true); setFileName(file.name);
 
-    // Inventory mode: direct upload, no column mapping step
-    if (mode === "inventory") {
-      try {
-        const data = await importApi.uploadInventory(file);
-        setResult(data);
-        setStep(4);
-        queryClient.invalidateQueries({ queryKey: ["variants"] });
-      } catch (e: any) {
-        setError(e.message || "فشل معالجة الملف.");
-      } finally {
-        setIsLoading(false);
-      }
-      return;
-    }
-
     try {
-      const parseFn = mode === "products" ? importApi.parseProducts
-        : mode === "shipments" ? importApi.parseShipments
-        : importApi.parseReturns;
-      const data = await parseFn(file);
+      const data = await importApi.parseShipments(file);
       if (!data.headers.length) { setError("لم يتم العثور على أعمدة."); setIsLoading(false); return; }
       setParsed(data);
 
@@ -279,22 +256,15 @@ export default function Import() {
     saveMapping(mode, mapping);
     setHasSavedMapping(true);
     try {
-      let res: any;
       const payload = { headers: parsed.headers, rows: parsed.allRows, mapping, duplicateAction: duplicateAction ?? "separate" };
-      if (mode === "products") res = await importApi.executeProducts(payload);
-      else if (mode === "shipments") res = await importApi.executeShipments(payload);
-      else res = await importApi.executeReturns(payload);
+      const res: any = await importApi.executeShipments(payload);
       setResult(res);
       setStep(4);
       if (res.imported > 0) {
-        queryClient.invalidateQueries({ queryKey: ["products"] });
-        queryClient.invalidateQueries({ queryKey: ["variants"] });
-        queryClient.invalidateQueries({ queryKey: ["analytics-profit"] });
-        if (mode === "shipments") queryClient.invalidateQueries({ queryKey: ["shipments"] });
-        const modeLabel = mode === "products" ? "منتجات" : mode === "shipments" ? "شحنات" : "مرتجعات";
+        queryClient.invalidateQueries({ queryKey: ["shipments"] });
         toast({
           title: `تم الاستيراد بنجاح`,
-          description: `تم استيراد ${res.imported} ${modeLabel} بنجاح.${res.errors?.length ? ` (${res.errors.length} أخطاء)` : ""}`,
+          description: `تم استيراد ${res.imported} شحنات بنجاح.${res.errors?.length ? ` (${res.errors.length} أخطاء)` : ""}`,
         });
       }
     } catch (e: any) {
@@ -348,6 +318,24 @@ export default function Import() {
             );
           })}
         </div>
+        <Card className="border-teal-700/40 bg-teal-900/5">
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-background/30 flex items-center justify-center shrink-0">
+              <FileSpreadsheet className="w-5 h-5 text-teal-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-sm text-teal-400">تحميل نسخة فارغة لتسجيل البيانات</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                نموذج Excel جاهز بنفس أعمدة الشحنة وبنفس الترتيب، مع قوائم منسدلة للراسل والمنطقة ونوع الشحنة لتجنب أخطاء الكتابة.
+              </p>
+            </div>
+            <Button size="sm" variant="outline" className="gap-1.5 border-teal-700/40 text-teal-400 shrink-0"
+              onClick={handleDownloadTemplate} disabled={isDownloadingTemplate}>
+              {isDownloadingTemplate ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+              تحميل النموذج
+            </Button>
+          </CardContent>
+        </Card>
         <Card className="border-border bg-card">
           <CardContent className="p-4 flex gap-3">
             <Info className="w-4 h-4 text-primary mt-0.5 shrink-0" />
@@ -398,54 +386,22 @@ export default function Import() {
               </CardContent>
             </Card>
           )}
-          {mode === "products" && (
-            <Card className="border-amber-900/40 bg-amber-900/5">
-              <CardContent className="p-3 flex gap-3 text-xs">
-                <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                <p className="text-muted-foreground leading-relaxed">
-                  كل صف يمثل منتجاً أو <span className="text-amber-400 font-bold">SKU (لون + مقاس)</span>. إذا كان المنتج موجوداً بنفس الاسم، سيتم تحديث أسعاره.
-                  إذا أضفت لون ومقاس، سيُنشأ SKU جديد تحت نفس المنتج.
-                </p>
-              </CardContent>
-            </Card>
-          )}
-          {mode === "inventory" && (
-            <Card className="border-green-900/40 bg-green-900/5">
-              <CardContent className="p-3 flex gap-3 text-xs">
-                <Info className="w-4 h-4 text-green-400 shrink-0 mt-0.5" />
-                <p className="text-muted-foreground leading-relaxed">
-                  الملف يجب أن يحتوي على عمود <span className="text-green-400 font-bold">SKU</span> (أو: باركود، كود)
-                  وعمود <span className="text-green-400 font-bold">الكمية المضافة</span> (أو: كمية، qty). يمكن إضافة
-                  عمود <span className="text-green-400 font-bold">سعر التكلفة</span> اختيارياً لتحديث التكلفة في نفس الوقت.
-                  الكميات تُضاف على الرصيد الحالي ولا تحل محله.
-                </p>
-              </CardContent>
-            </Card>
-          )}
-          {mode === "returns" && (
-            <Card className="border-red-900/40 bg-red-900/5">
-              <CardContent className="p-3 flex gap-3 text-xs">
-                <Info className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-                <p className="text-muted-foreground leading-relaxed">
-                  حدّد الطلبات بـ<span className="text-red-400 font-bold">رقم الطلب</span> أو بـ(اسم العميل + المنتج).
-                  سيتم تغيير حالة الطلبات إلى &quot;مُرتجع&quot; وإضافة سبب الإرجاع في الملاحظات.
-                </p>
-              </CardContent>
-            </Card>
-          )}
-          {mode === "shipments" && (
-            <Card className="border-teal-900/40 bg-teal-900/5">
-              <CardContent className="p-3 flex gap-3 text-xs">
-                <Info className="w-4 h-4 text-teal-400 shrink-0 mt-0.5" />
-                <p className="text-muted-foreground leading-relaxed">
-                  نفس بيانات فورم <span className="text-teal-400 font-bold">"شحنة جديدة"</span> بالظبط.
-                  <span className="text-teal-400 font-bold"> اسم الراسل، اسم المستلم، والمخزن</span> حقول مطلوبة.
-                  لو حددت <span className="text-teal-400 font-bold">منطقة توصيل</span> أو <span className="text-teal-400 font-bold">نوع شحنة</span>، لازم تكون مطابقة لاسم موجود بالفعل في النظام
-                  وإلا هيظهر خطأ واضح لكل صف يوضح سبب الرفض.
-                </p>
-              </CardContent>
-            </Card>
-          )}
+          <Card className="border-teal-900/40 bg-teal-900/5">
+            <CardContent className="p-3 flex items-start gap-3 text-xs">
+              <Info className="w-4 h-4 text-teal-400 shrink-0 mt-0.5" />
+              <p className="text-muted-foreground leading-relaxed flex-1">
+                نفس بيانات فورم <span className="text-teal-400 font-bold">"شحنة جديدة"</span> بالظبط.
+                <span className="text-teal-400 font-bold"> اسم الراسل، اسم المستلم، هاتف المستلم، حالة الفتح، حالة التجزئة وحالة الرفض</span> حقول مطلوبة.
+                لو حددت <span className="text-teal-400 font-bold">منطقة توصيل</span> أو <span className="text-teal-400 font-bold">نوع شحنة</span>، لازم تكون مطابقة لاسم موجود بالفعل في النظام
+                وإلا هيظهر خطأ واضح لكل صف يوضح سبب الرفض.
+              </p>
+              <Button size="sm" variant="outline" className="gap-1.5 border-teal-700/40 text-teal-400 shrink-0 text-xs"
+                onClick={handleDownloadTemplate} disabled={isDownloadingTemplate}>
+                {isDownloadingTemplate ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                تحميل نسخة فارغة لتسجيل البيانات
+              </Button>
+            </CardContent>
+          </Card>
 
           <div
             className={`relative border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-all duration-200
@@ -708,48 +664,17 @@ export default function Import() {
                   <CheckCircle2 className={`w-6 h-6 ${(result.imported ?? result.updated ?? 0) > 0 ? "text-emerald-400" : "text-amber-400"}`} />
                 </div>
                 <div className="flex-1">
-                  <p className="font-bold text-base mb-2">
-                    {mode === "inventory" ? "نتيجة تحديث المخزون" : "نتيجة الاستيراد"}
-                  </p>
+                  <p className="font-bold text-base mb-2">نتيجة الاستيراد</p>
                   <div className="flex flex-wrap gap-4 text-sm">
-                    {mode === "inventory" ? (
-                      <>
-                        <div className="text-center">
-                          <p className="text-2xl font-black text-emerald-400">{result.updated}</p>
-                          <p className="text-xs text-muted-foreground">SKU محدّث</p>
-                        </div>
-                        {result.failed > 0 && (
-                          <div className="text-center">
-                            <p className="text-2xl font-black text-red-400">{result.failed}</p>
-                            <p className="text-xs text-muted-foreground">فشل</p>
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      <>
                     <div className="text-center">
                       <p className="text-2xl font-black text-emerald-400">{result.imported}</p>
                       <p className="text-xs text-muted-foreground">تم استيراده</p>
                     </div>
-                    {result.importedProducts !== undefined && (
-                      <div className="text-center">
-                        <p className="text-lg font-black text-amber-400">{result.importedProducts}</p>
-                        <p className="text-xs text-muted-foreground">منتج جديد</p>
-                      </div>
-                    )}
-                    {result.importedVariants !== undefined && (
-                      <div className="text-center">
-                        <p className="text-lg font-black text-primary">{result.importedVariants}</p>
-                        <p className="text-xs text-muted-foreground">SKU جديد</p>
-                      </div>
-                    )}
                     {result.failed > 0 && (
                       <div className="text-center">
                         <p className="text-2xl font-black text-red-400">{result.failed}</p>
                         <p className="text-xs text-muted-foreground">فشل</p>
                       </div>
-                    )}
-                      </>
                     )}
                   </div>
                 </div>

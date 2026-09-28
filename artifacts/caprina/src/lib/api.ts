@@ -322,6 +322,33 @@ export const importApi = {
   // Shipments
   parseShipments: (file: File) => parseFile(file, "shipments/import/parse"),
   executeShipments: (payload: { headers: string[]; rows: any[][]; mapping: any }) => executeImport("shipments/import/execute", payload),
+  // تحميل نموذج Excel فارغ لاستيراد الشحنات (أعمدة مطابقة 1:1 + قوائم منسدلة من بيانات الحساب)
+  downloadShipmentsTemplate: async (): Promise<void> => {
+    const token = getToken();
+    const res = await fetch(`${BASE}/import/shipments-template`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (res.status === 401) {
+      localStorage.removeItem("caprina_token");
+      localStorage.removeItem("caprina_user");
+      window.location.href = "/login";
+      throw new Error("غير مصرح");
+    }
+    if (!res.ok) {
+      let msg = `HTTP ${res.status}`;
+      try { msg = (await res.json()).error || msg; } catch {}
+      throw new Error(msg);
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "نموذج-استيراد-الشحنات.xlsx";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  },
   // Client-portal: Shipments (نفس منطق الأدمن، بدون اسم راسل — العميل مقفول على نفسه)
   parseClientShipments: (file: File) => parseFile(file, "client-portal/shipments/import/parse"),
   executeClientShipments: (payload: { headers: string[]; rows: any[][]; mapping: any }) => executeImport("client-portal/shipments/import/execute", payload),
