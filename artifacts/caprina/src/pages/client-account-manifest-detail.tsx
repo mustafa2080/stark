@@ -5006,8 +5006,7 @@ export default function ShippingManifestPage() {
           </button>
         </div>
 
-        <div className="overflow-x-auto">
-        <div className="hidden md:grid grid-cols-[100px_minmax(120px,1fr)_110px_90px_minmax(120px,1.2fr)_110px_110px_110px_110px_minmax(140px,1fr)] md:min-w-[1160px] gap-0 px-4 py-2 text-[11px] font-bold text-muted-foreground border-b border-border/60 bg-muted/20">
+        <div className="hidden md:grid grid-cols-[minmax(0,0.9fr)_minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,1.5fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,1.1fr)_minmax(0,1.3fr)] gap-0 px-3 py-2 text-[11px] leading-tight font-bold text-muted-foreground border-b border-border/60 bg-muted/20">
           <span className="flex items-center justify-start gap-1">الراسل{showColFilters && <ColFilterBtn col="sender" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
           <span className="flex items-center justify-start gap-1">العميل{showColFilters && <ColFilterBtn col="customer" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
           <span className="flex items-center justify-start gap-1">الهاتف{showColFilters && <ColFilterBtn col="phone" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
@@ -5044,27 +5043,27 @@ export default function ShippingManifestPage() {
             const key = group.map((order) => order.id).join("-");
             return (
               <div key={`client-look-${key}`}>
-                <div className="hidden md:grid grid-cols-[100px_minmax(120px,1fr)_110px_90px_minmax(120px,1.2fr)_110px_110px_110px_110px_minmax(140px,1fr)] md:min-w-[1160px] gap-0 px-4 py-3 text-xs items-center border-b border-border/40 hover:bg-muted/10 transition-colors">
-                  <div className="min-w-0 pr-2 text-muted-foreground truncate">{(rep as any).senderName || <span className="text-muted-foreground/40">—</span>}</div>
+                <div className="hidden md:grid grid-cols-[minmax(0,0.9fr)_minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,1.5fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,1.1fr)_minmax(0,1.3fr)] gap-0 px-3 py-3 text-[11px] items-center border-b border-border/40 hover:bg-muted/10 transition-colors">
+                  <div className="min-w-0 pr-2 text-muted-foreground break-words">{(rep as any).senderName || <span className="text-muted-foreground/40">—</span>}</div>
                   <div className="min-w-0 pr-2">
-                    <p className="font-bold truncate">{rep.customerName}</p>
-                    <p className="text-[10px] text-muted-foreground font-mono">{rep.invoiceNumber}</p>
+                    <p className="font-bold break-words">{rep.customerName}</p>
+                    <p className="text-[10px] text-muted-foreground font-mono break-all">{rep.invoiceNumber}</p>
                   </div>
                   <div className="min-w-0 pr-2 text-muted-foreground flex items-center gap-1">
                     <Phone className="w-2.5 h-2.5 shrink-0" />
-                    <span className="truncate">{rep.phone}</span>
+                    <span className="break-all">{rep.phone}</span>
                   </div>
-                  <div className="min-w-0 pr-2 font-semibold truncate">{rep.city || <span className="text-muted-foreground/40">—</span>}</div>
+                  <div className="min-w-0 pr-2 font-semibold break-words">{rep.city || <span className="text-muted-foreground/40">—</span>}</div>
                   <div className="min-w-0 pr-2 flex items-start gap-1">
                     <MapPin className="w-3 h-3 text-muted-foreground shrink-0 mt-0.5" />
-                    <span className="truncate text-muted-foreground">{(rep as any).address || "—"}</span>
+                    <span className="break-words text-muted-foreground">{(rep as any).address || "—"}</span>
                   </div>
                   <div className="text-center font-bold">{formatCurrency(total)}</div>
                   <div className="text-center font-semibold text-emerald-400">{formatCurrency(collected)}</div>
                   <div className="text-center font-semibold text-sky-400">
                     {formatCurrency(shippingDisplay)}
                     {extraFee > 0 && (
-                      <p className="text-[9px] text-amber-400 font-semibold truncate">
+                      <p className="text-[9px] text-amber-400 font-semibold break-words">
                         {extraReasons || "نوع الشحنة"} +{formatCurrency(extraFee)}
                       </p>
                     )}
@@ -5158,7 +5157,6 @@ export default function ShippingManifestPage() {
             );
           })
         )}
-        </div>
       </div>
 
       {/* ─── حاوية المرتجعات والجزئي لسه عند مندوب الشحن ─── */}
