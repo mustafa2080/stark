@@ -1112,7 +1112,7 @@ export default function ClientIntelligencePage() {
           <MisclassifiedTable data={data.misclassified} />
         </SectionCard>
         <SectionCard>
-          <SectionHeader icon={TrendingUp} title="تنبؤ الإيراد للشهر القادم" subtitle="مبني على متوسط آخر شهرين مع معدل النمو (مقيّد لتقليل التقلب الشديد)" />
+          <SectionHeader icon={TrendingUp} title="تنبؤ الإيراد للشهر القادم" subtitle="مبني على رسوم الشحن للشحنات غير المرتجعة، بمعدل الشهر الحالي ومعدل النمو (مقيّد لتقليل التقلب الشديد)" />
           {data.forecast ? (
             <div className="space-y-4">
               <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3.5">
@@ -1135,6 +1135,23 @@ export default function ClientIntelligencePage() {
                 <span className="text-white/50">الإيراد الفعلي الشهر الماضي</span>
                 <span className="text-white/80 font-bold tabular-nums">{fmtMoney(data.forecast.lastMonthActual)} ج.م</span>
               </div>
+              {data.forecast.currentMonthSoFar != null && (
+                <>
+                  <div className="flex items-center justify-between text-sm px-1">
+                    <span className="text-white/50">الشهر الحالي حتى الآن ({data.forecast.daysElapsed} من {data.forecast.daysInMonth} يوم)</span>
+                    <span className="text-white/80 font-bold tabular-nums">{fmtMoney(data.forecast.currentMonthSoFar)} ج.م</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm px-1">
+                    <span className="text-white/50">المتوقع للشهر الحالي بمعدله</span>
+                    <span className="text-white/80 font-bold tabular-nums">{fmtMoney(data.forecast.currentMonthProjected ?? 0)} ج.م</span>
+                  </div>
+                </>
+              )}
+              {data.forecast.rampUp && (
+                <p className="text-[11px] text-amber-300/80 px-1">
+                  الشهر السابق كان بداية تشغيل (أقل بكتير من الشهر الحالي)، فمعدل النمو اتحسب صفر عشان التوقع ما يتضخّمش.
+                </p>
+              )}
             </div>
           ) : (
             <p className="text-center text-sm text-white/40 py-8">لا توجد بيانات كافية للتنبؤ</p>

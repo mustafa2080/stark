@@ -597,6 +597,9 @@ export interface ClientsIntelligenceResponse {
   forecast: {
     nextMonthEstimate: number; lastMonthActual: number;
     growthRate: number; confidence: number;
+    basis?: "run_rate" | "last_month"; rampUp?: boolean;
+    currentMonthSoFar?: number; currentMonthProjected?: number;
+    daysElapsed?: number; daysInMonth?: number;
   } | null;
   alerts: ClientIntelAlert[];
 }

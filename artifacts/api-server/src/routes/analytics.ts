@@ -6632,9 +6632,9 @@ router.get("/analytics/clients-intelligence", requireAuth, async (req, res): Pro
     }
 
     const clientIds = clients.map(c => c.id);
-    const shipCond = tenantId !== null
-      ? and(inArray(shipmentsTable.clientId, clientIds), isNull(shipmentsTable.deletedAt), eq(shipmentsTable.tenantId, tenantId))
-      : and(inArray(shipmentsTable.clientId, clientIds), isNull(shipmentsTable.deletedAt));
+    // الـ clientIds أصلاً مفلترة بالـ tenant، والـ client_id فريد، فمفيش داعي نفلتر الشحنات بـ tenant_id
+    // (شحنات كتير tenant_id بتاعها NULL فكانت بتتشال من الحسبة).
+    const shipCond = and(inArray(shipmentsTable.clientId, clientIds), isNull(shipmentsTable.deletedAt));
 
     const rows = await db
       .select({
@@ -6842,18 +6842,49 @@ router.get("/analytics/clients-intelligence", requireAuth, async (req, res): Pro
       .sort((a, b) => b.monthlyShipments - a.monthlyShipments)
       .slice(0, 15);
 
-    // ── 5) تنبؤ إيراد بسيط للشهر القادم (متوسط آخر 3 شهور + معدل نمو) ───────
+    // ── 5) تنبؤ إيراد الشهر القادم ─────────────────────────────────────────
+    // الإيراد = رسوم الشحن للشحنات المؤهّلة فقط (غير المرتجع/الملغي/المعلّق، والمرتجع بأسباب فيها رسوم شحن
+    // بيتحسب) — نفس منطق الدشبورد. الشهور بتوقيت القاهرة.
+    // الأساس: معدل الشهر الحالي (run-rate) لو عدّى ٧ أيام، وإلا آخر شهر كامل. النمو بيتحسب مقابل الشهر اللي
+    // قبل الأساس، ولو الشهر المرجعي أقل من ٢٥٪ من الأساس (شهر تشغيل/بداية) النمو بيتعتبر صفر بدل ما يتضخّم.
+    const cairoFmt = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit" });
+    const cairoParts = (d: Date) => {
+      const p = cairoFmt.formatToParts(d);
+      const g = (t: string) => Number(p.find(x => x.type === t)?.value ?? 0);
+      return { y: g("year"), m: g("month"), d: g("day") };
+    };
+    const FORECAST_EXCLUDED_STATUSES = new Set(["pending", "waiting", "confirmed", "cancelled"]);
+    const FORECAST_RETURN_REASONS_WITH_FEE = ["refused_paid", "refused_unpaid", "quality"];
+    const forecastFee = (r: { status: string; returnReason: string | null; shippingFee: unknown }): number => {
+      if (FORECAST_EXCLUDED_STATUSES.has(r.status)) return 0;
+      if (r.status === "returned" && !FORECAST_RETURN_REASONS_WITH_FEE.includes(r.returnReason ?? "")) return 0;
+      return Number(r.shippingFee ?? 0);
+    };
+    const nowC = cairoParts(now);
+    const daysInMonth = new Date(nowC.y, nowC.m, 0).getDate();
+    const daysElapsed = Math.max(1, nowC.d);
     const monthBuckets: number[] = [0, 0, 0]; // [الشهر الحالي(جزئي), الشهر اللي فات, الشهر اللي قبله]
     for (const r of rows) {
-      const created = new Date(r.createdAt);
-      const monthsAgo = (now.getFullYear() - created.getFullYear()) * 12 + (now.getMonth() - created.getMonth());
-      if (monthsAgo >= 0 && monthsAgo <= 2) monthBuckets[monthsAgo] += Number(r.shippingFee ?? 0);
+      const cc = cairoParts(new Date(r.createdAt));
+      const monthsAgo = (nowC.y - cc.y) * 12 + (nowC.m - cc.m);
+      if (monthsAgo >= 0 && monthsAgo <= 2) monthBuckets[monthsAgo] += forecastFee(r);
     }
-    const [, lastMonth, twoMonthsAgo] = monthBuckets;
-    const growthRate = twoMonthsAgo > 0 ? (lastMonth - twoMonthsAgo) / twoMonthsAgo : 0;
+    const [currentSoFar, lastMonth, twoMonthsAgo] = monthBuckets;
+    const projectedCurrent = (currentSoFar / daysElapsed) * daysInMonth;
+    const useRunRate = daysElapsed >= 7 && currentSoFar > 0;
+    const forecastAnchor = useRunRate ? projectedCurrent : (lastMonth > 0 ? lastMonth : twoMonthsAgo);
+    const forecastReference = useRunRate ? lastMonth : (lastMonth > 0 ? twoMonthsAgo : 0);
+    const forecastRampUp = forecastReference > 0 && forecastReference < forecastAnchor * 0.25;
+    const growthRate = forecastReference > 0 && !forecastRampUp ? (forecastAnchor - forecastReference) / forecastReference : 0;
     const clampedGrowth = Math.max(-0.5, Math.min(0.5, growthRate)); // تقييد التقلب الشديد
-    const forecastNextMonth = lastMonth > 0 ? lastMonth * (1 + clampedGrowth) : twoMonthsAgo;
-    const forecastConfidence = twoMonthsAgo > 0 && lastMonth > 0 ? 75 : 45;
+    const forecastNextMonth = forecastAnchor * (1 + clampedGrowth);
+    let forecastConfidence = 35;
+    if (lastMonth > 0) forecastConfidence += 15;
+    if (twoMonthsAgo > 0) forecastConfidence += 10;
+    if (useRunRate) forecastConfidence += Math.round(Math.min(1, daysElapsed / daysInMonth) * 20);
+    if (forecastReference > 0 && !forecastRampUp) forecastConfidence += Math.round(15 * (1 - Math.min(1, Math.abs(growthRate))));
+    if (forecastRampUp) forecastConfidence -= 10;
+    forecastConfidence = Math.max(30, Math.min(90, forecastConfidence));
 
     // ── KPIs عامة + Health Score مركّب ──────────────────────────────────────
     const totalClients = clients.length;
@@ -6920,6 +6951,12 @@ router.get("/analytics/clients-intelligence", requireAuth, async (req, res): Pro
         lastMonthActual: Math.round(lastMonth),
         growthRate: Math.round(clampedGrowth * 1000) / 10,
         confidence: forecastConfidence,
+        basis: useRunRate ? "run_rate" : "last_month",
+        rampUp: forecastRampUp,
+        currentMonthSoFar: Math.round(currentSoFar),
+        currentMonthProjected: Math.round(projectedCurrent),
+        daysElapsed,
+        daysInMonth,
       },
       alerts,
     };
