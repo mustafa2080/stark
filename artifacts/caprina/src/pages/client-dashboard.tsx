@@ -16,6 +16,7 @@ import { apiFetch } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PushNotificationsCard } from "@/pages/profile";
+import { ClientTierCard, type ClientTierData } from "@/components/client-tier-card";
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 const fc = (n: number | string) =>
@@ -380,6 +381,14 @@ export default function ClientDashboardPage() {
 
   // ── نجيب كل شحنات العميل (بدون تقسيم صفحات سيرفر) عشان الفلاتر تشتغل زي صفحة قائمة الشحنات ──
   const { data: allShipments = [], isLoading: shipmentsLoading, refetch } = useQuery<ShipmentRow[]>({
+  // ── مستوى العميل الشهري + النصائح (نفس حسبة لوحة الأدمن بالظبط) ──
+  const { data: tierData, isLoading: tierLoading } = useQuery<ClientTierData | null>({
+    queryKey: ["client-portal-tier"],
+    queryFn: () => apiFetch("/client-portal/tier"),
+    enabled: !!user,
+    staleTime: 30_000,
+  });
+
     queryKey: ["client-portal-shipments-all"],
     queryFn: async () => {
       const pageSize = 100;
@@ -571,6 +580,9 @@ export default function ClientDashboardPage() {
 
         {/* ── Top Grid: sidebar cards + donut ── */}
         <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4">
+        {/* ── مستوى العميل الشهري (برونزي / فضي / ذهبي / VIP) + نصائح ── */}
+        <ClientTierCard data={tierData} isLoading={tierLoading} variant="client" />
+
 
           {/* ── Left column (account + wallet mini) ── */}
           <div className="space-y-4">

@@ -34,6 +34,8 @@ import { ar } from "date-fns/locale";
 import { apiFetch, clientAccountManifestsApi, clientReturnManifestsApi, shipmentsApi, type ClientAccountManifestListItem, type ClientReturnManifestListItem, type ClientReturnManifestItem } from "@/lib/api";
 import { cn, formatCurrency } from "@/lib/utils";
 import { returnReasonLabel } from "@/lib/order-constants";
+import { ClientTierCard, type ClientTierData } from "@/components/client-tier-card";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
   ReferenceLine, CartesianGrid, PieChart, Pie, Cell,
@@ -353,6 +355,27 @@ export default function CommercialClientDetailPage() {
     enabled: !isNaN(clientId),
   });
   const clientShipments = shipmentsData?.shipments ?? [];
+
+  // ── مستوى العميل الشهري (برونزي/فضي/ذهبي/VIP) — نفس حسبة بوابة العميل ──────────
+  const { data: tierData, isLoading: tierLoading } = useQuery<ClientTierData>({
+    queryKey: ["client-tier", clientId],
+    queryFn: () => apiFetch<ClientTierData>(`/finance/clients/${clientId}/tier`),
+    enabled: !isNaN(clientId),
+    staleTime: 30_000,
+  });
+
+  // التارجت الشهري للعميل — الأدمن بس هو اللي بيحدده (الـ API كمان بيتحقق من الصلاحية)
+  const { isAdmin } = useAuth();
+  const saveTargetMut = useMutation({
+    mutationFn: (target: number) =>
+      apiFetch<ClientTierData>(`/finance/clients/${clientId}/tier-target`, { method: "PATCH", body: JSON.stringify({ target }) }),
+    onSuccess: (_d, target) => {
+      qc.invalidateQueries({ queryKey: ["client-tier", clientId] });
+      qc.invalidateQueries({ queryKey: ["finance-clients-tiers"] });
+      toast({ title: target > 0 ? "تم حفظ التارجت الشهري" : "تم إلغاء التارجت الشهري" });
+    },
+    onError: (err: any) => toast({ title: "فشل حفظ التارجت", description: err?.message, variant: "destructive" }),
+  });
 
   // ── بيانات حساب العميل (Client Account Manifests — شحنات) ──────────────────
   const { data: manifests, isLoading: manifestsLoading } = useQuery<ClientAccountManifestListItem[]>({
@@ -1044,58 +1067,12 @@ export default function CommercialClientDetailPage() {
       {!isLoading && client && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
-          {/* Donut — مقياس الهدف */}
-          <Card className="card-glow border-border p-4" style={GLOW.neutral.style}>
-            <p className="text-xs font-bold mb-3 flex items-center gap-2">
-              <Target className="w-3.5 h-3.5 text-muted-foreground" />
-              مقياس الهدف
-            </p>
-            <div className="flex items-center gap-4">
-              <div className="relative shrink-0" style={{ width: 110, height: 110 }}>
-                <PieChart width={110} height={110}>
-                  <Pie
-                    data={donutData}
-                    cx={55} cy={55}
-                    innerRadius={34} outerRadius={50}
-                    startAngle={90} endAngle={-270}
-                    dataKey="value" strokeWidth={0}
-                  >
-                    <Cell fill={salesPct >= 75 ? "#10b981" : salesPct >= 50 ? "#f59e0b" : "#3b82f6"} />
-                    <Cell fill="hsl(var(--muted)/0.3)" />
-                  </Pie>
-                </PieChart>
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <p className={`text-lg font-black leading-none ${salesPct >= 75 ? "text-emerald-400" : salesPct >= 50 ? "text-amber-400" : "text-blue-400"}`}>
-                    {Math.round(salesPct)}%
-                  </p>
-                  <p className="text-[9px] text-muted-foreground mt-0.5">من الهدف</p>
-                </div>
-              </div>
-              <div className="flex-1 space-y-2.5">
-                <div>
-                  <div className="flex items-center gap-1.5 mb-0.5">
-                    <span className="w-2 h-2 rounded-full shrink-0" style={{ background: salesPct >= 75 ? "#10b981" : salesPct >= 50 ? "#f59e0b" : "#3b82f6" }} />
-                    <p className="text-[10px] text-muted-foreground">الأوردرات الفعلية</p>
-                  </div>
-                  <p className="text-sm font-black text-primary">{totalOrdersCount} أوردر</p>
-                </div>
-                <div>
-                  <div className="flex items-center gap-1.5 mb-0.5">
-                    <span className="w-2 h-2 rounded-full bg-muted-foreground/30 shrink-0" />
-                    <p className="text-[10px] text-muted-foreground">المتبقي للهدف</p>
-                  </div>
-                  <p className="text-sm font-black text-muted-foreground">{Math.max(0, TARGET - totalOrdersCount)} أوردر</p>
-                </div>
-                <div className="pt-1 border-t border-border">
-                  <p className="text-[10px] text-muted-foreground">الهدف الكلي</p>
-                  <p className="text-xs font-bold">{TARGET} أوردر</p>
-                </div>
-              </div>
-            </div>
-          </Card>
+          {/* مستوى العميل الشهري — بديل مقياس الهدف القديم (الدايرة + المستوى + النصائح) */}
+          <ClientTierCard data={tierData} isLoading={tierLoading} variant="admin" className="sm:col-span-2"
+          onSaveTarget={isAdmin ? async (v) => { await saveTargetMut.mutateAsync(v); } : undefined} />
 
           {/* Line chart — النمو الشهري */}
-          <Card className="card-glow border-border p-4" style={GLOW.neutral.style}>
+          <Card className="card-glow border-border p-4 sm:col-span-2" style={GLOW.neutral.style}>
             <p className="text-xs font-bold mb-1 flex items-center gap-2">
               <TrendingUp className="w-3.5 h-3.5 text-muted-foreground" />
               النمو الشهري

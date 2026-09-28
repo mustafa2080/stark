@@ -2,11 +2,13 @@ import { Router } from "express";
 import { db, clientsTable, saleOrdersTable, saleOrderItemsTable, shipmentsTable, warehousesTable, usersTable, clientAccountManifestItemsTable, clientAccountManifestsTable, pickupRequestsTable, shipmentZonesTable, shipmentManifestsTable, shipmentManifestItemsTable, shippingCompaniesTable, clientReturnManifestsTable, clientReturnManifestItemsTable } from "@workspace/db";
 import { eq, desc, and, sql, or, like, isNull, inArray, notInArray, ne } from "drizzle-orm";
 import { getTenantId } from "../middlewares/requireTenant.js";
+import { requireAdmin } from "../middlewares/requireRole.js";
 import { hashPassword } from "../lib/auth.js";
 import { computeClosedManifestsForClient, computeClientBalancesForAllClients, computeNetRevenueDueForAllClients } from "../lib/clientAccountBalance.js";
 // قيمة البيان المفتوح لكل عميل — لفلتر "عميل غير صفري" (لازم نحسب قيمة
 // البيان المفتوح نفسه، مش رصيد العميل الكلي من البيانات المقفولة).
 import { computeClientManifestNetDue } from "../lib/manifestFinance.js";
+import { computeClientTier, computeTiersForAllClients } from "../lib/clientTier.js";
 import { z } from "zod";
 
 const router = Router();
@@ -459,6 +461,56 @@ router.get("/finance/clients", async (req, res): Promise<void> => {
     });
 
     res.json(enriched);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /finance/clients/tiers — مستوى كل العملاء (بادج قايمة العملاء) ────────
+// ⚠️ لازم يفضل قبل "/finance/clients/:id" عشان "tiers" ميتاخدش كـ id.
+router.get("/finance/clients/tiers", async (req, res): Promise<void> => {
+  try {
+    const tiers = await computeTiersForAllClients(getTenantId(req));
+    res.json({ tiers });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /finance/clients/:id/tier — مستوى عميل واحد بالتفصيل + النصائح ───────
+router.get("/finance/clients/:id/tier", async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) { res.status(400).json({ error: "معرّف غير صحيح" }); return; }
+    const conds: any[] = [eq(clientsTable.id, id)];
+    if (tenantId !== null) conds.push(eq(clientsTable.tenantId, tenantId));
+    const [client] = await db.select({ id: clientsTable.id, name: clientsTable.name, tenantId: clientsTable.tenantId })
+      .from(clientsTable).where(and(...conds));
+    if (!client) { res.status(404).json({ error: "العميل غير موجود" }); return; }
+    res.json(await computeClientTier(client));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── PATCH /finance/clients/:id/tier-target — الأدمن بيحدد التارجت الشهري للعميل (0 = إلغاء) ──
+router.patch("/finance/clients/:id/tier-target", requireAdmin, async (req, res): Promise<void> => {
+  try {
+    const tenantId = getTenantId(req);
+    const id = parseInt(String(req.params.id));
+    if (isNaN(id)) { res.status(400).json({ error: "معرّف غير صالح" }); return; }
+    const parsed = z.object({ target: z.coerce.number().int().min(0).max(100000) }).safeParse(req.body);
+    if (!parsed.success) { res.status(400).json({ error: "التارجت لازم يكون رقم صحيح من 0 لـ 100000" }); return; }
+
+    const conds: any[] = [eq(clientsTable.id, id)];
+    if (tenantId !== null) conds.push(eq(clientsTable.tenantId, tenantId));
+    const [client] = await db.select({ id: clientsTable.id, name: clientsTable.name, tenantId: clientsTable.tenantId })
+      .from(clientsTable).where(and(...conds));
+    if (!client) { res.status(404).json({ error: "العميل غير موجود" }); return; }
+
+    await db.execute(sql`UPDATE clients SET monthly_shipment_target = ${parsed.data.target}, updated_at = NOW() WHERE id = ${id}`);
+    res.json(await computeClientTier(client));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

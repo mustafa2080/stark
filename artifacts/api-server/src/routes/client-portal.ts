@@ -33,6 +33,7 @@ import { logAudit } from "../lib/audit.js";
 import { generateShipmentNumber, syncShipmentInventory, computeTotalAmount } from "./shipments.js";
 import { pushNotification } from "../lib/notifications.js";
 import { computeClosedManifestsForClient } from "../lib/clientAccountBalance.js";
+import { computeClientTier } from "../lib/clientTier.js";
 
 const router: IRouter = Router();
 const importUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
@@ -536,6 +537,20 @@ router.get("/client-portal/stats", async (req, res): Promise<void> => {
       creditLimit: client.creditLimit,
       clientBalance,
     });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── GET /client-portal/tier — مستوى العميل الشهري + نصائح (نفس حسبة لوحة الأدمن) ─
+router.get("/client-portal/tier", async (req, res): Promise<void> => {
+  try {
+    const user = (req as any).user;
+    if (!user.clientId) { res.json(null); return; }
+    const [client] = await db.select({ id: clientsTable.id, name: clientsTable.name, tenantId: clientsTable.tenantId })
+      .from(clientsTable).where(eq(clientsTable.id, user.clientId)).limit(1);
+    if (!client) { res.json(null); return; }
+    res.json(await computeClientTier(client));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

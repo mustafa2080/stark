@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { TierBadge as MonthTierBadge, type ClientTierLite } from "@/components/client-tier-card";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import {
   Plus, Edit2, Trash2, Phone, ToggleLeft, ToggleRight,
@@ -646,6 +647,14 @@ export default function FinanceClients() {
   const [filterPaymentTerms, setFilterPaymentTerms] = useState<string[]>([]);
   const [filterName,         setFilterName]         = useState<string[]>([]);
   const [goalSort, setGoalSort] = useState<"" | "orders_desc" | "orders_asc" | "goal_closest" | "goal_farthest">("");
+
+  // مستوى كل عميل هذا الشهر (برونزي/فضي/ذهبي/VIP) — نفس حسبة صفحة العميل وبوابته
+  const { data: tiersData } = useQuery<{ tiers: Record<string, ClientTierLite> }>({
+    queryKey: ["finance-clients-tiers"],
+    queryFn: () => apiFetch("/finance/clients/tiers"),
+    staleTime: 60_000,
+  });
+  const tiersMap = tiersData?.tiers ?? {};
   const PER_PAGE = 10;
 
   const { data: clients = [], isLoading: loadingClients } = useQuery<Client[]>({
@@ -794,9 +803,9 @@ export default function FinanceClients() {
 
   // ترتيب حسب عمود "تحقيق الهدف" — عدد الأوردرات أو نسبة الاقتراب من الهدف
   const goalStats = (c: Client) => {
-    const orders = c.totalOrders ?? 0;
-    const target = parseFloat(c.creditLimit ?? "0") || 100;
-    const pct = Math.min((orders / target) * 100, 100);
+    const t = tiersMap[String(c.id)];
+    const orders = t?.count ?? 0;
+    const pct = t?.progressPct ?? 0;
     return { orders, pct };
   };
 
@@ -814,7 +823,7 @@ export default function FinanceClients() {
       }
     });
     return arr;
-  }, [filteredClients, goalSort]);
+  }, [filteredClients, goalSort, tiersData]);
 
   const tableData = sortedClients;
   const totalPages = Math.ceil(tableData.length / PER_PAGE);
@@ -1282,9 +1291,9 @@ export default function FinanceClients() {
                   ) : (pageData as Client[]).length === 0 ? (
                     <tr><td colSpan={6} className="py-10 text-center text-muted-foreground text-sm">لا يوجد عملاء</td></tr>
                   ) : (pageData as Client[]).map(c => {
-                    const orders = c.totalOrders ?? 0;
-                    const target = parseFloat(c.creditLimit ?? "0") || 100;
-                    const pct = Math.min((orders / target) * 100, 100);
+                    const tierInfo = tiersMap[String(c.id)];
+                    const orders = tierInfo?.count ?? 0;
+                    const pct = tierInfo?.progressPct ?? 0;
                     const color = pct >= 75 ? "bg-emerald-500 text-emerald-400" : pct >= 50 ? "bg-amber-500 text-amber-400" : "bg-primary text-primary";
                     const [barColor, textColor] = color.split(" ");
                     return (
@@ -1312,11 +1321,20 @@ export default function FinanceClients() {
                         </td>
                         {/* نسبة تحقيق الهدف */}
                         <td className="px-3 py-3">
-                          <p className={`text-[10px] font-bold ${textColor}`}>{pct.toFixed(1)}%</p>
+                          <div className="flex items-center justify-between gap-1">
+                            <MonthTierBadge tierKey={tierInfo?.tier?.key ?? null} name={tierInfo?.tier?.name ?? "بدون مستوى"} />
+                            <span className={`text-[10px] font-bold ${textColor}`}>{pct}%</span>
+                          </div>
                           <div className="w-full bg-muted/30 rounded-full h-1 mt-0.5 overflow-hidden">
                             <div className={`h-1 rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
                           </div>
-                          <p className="text-[9px] text-muted-foreground mt-0.5">{orders} / {target} أوردر</p>
+                          <p className="text-[9px] text-muted-foreground mt-0.5">
+                            {tierInfo?.target
+                              ? `${orders} / ${tierInfo.target} شحنة من التارجت الشهري`
+                              : tierInfo?.nextTier
+                              ? `${orders} / ${tierInfo.nextTier.min} شحنة للمستوى ${tierInfo.nextTier.name}`
+                              : tierInfo ? `${orders} شحنة — أعلى مستوى` : "—"}
+                          </p>
                         </td>
                         {/* شروط الدفع */}
                         <td className="px-3 py-3">
