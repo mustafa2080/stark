@@ -61,6 +61,8 @@ const STATUS_LABELS: Record<string, { label: string; color: string; bg: string }
   cancelled:         { label: "ملغية",               color: "#6b7280", bg: "rgba(107,114,128,0.12)" },
   partial_received:  { label: "استلم جزئى",          color: "#38bdf8", bg: "rgba(56,189,248,0.12)" },
   received:          { label: "استلم",               color: "#22c55e", bg: "rgba(34,197,94,0.12)" },
+  replaced:          { label: "تم الاستبدال",         color: "#a855f7", bg: "rgba(168,85,247,0.12)" },
+  parcel_picked:     { label: "تم إحضار الطرد",       color: "#06b6d4", bg: "rgba(6,182,212,0.12)" },
   still_in_warehouse:{ label: "في المخزن",           color: "#38bdf8", bg: "rgba(56,189,248,0.12)" },
 };
 function statusMeta(status: string) {
@@ -379,8 +381,6 @@ export default function ClientDashboardPage() {
     staleTime: 30_000,
   });
 
-  // ── نجيب كل شحنات العميل (بدون تقسيم صفحات سيرفر) عشان الفلاتر تشتغل زي صفحة قائمة الشحنات ──
-  const { data: allShipments = [], isLoading: shipmentsLoading, refetch } = useQuery<ShipmentRow[]>({
   // ── مستوى العميل الشهري + النصائح (نفس حسبة لوحة الأدمن بالظبط) ──
   const { data: tierData, isLoading: tierLoading } = useQuery<ClientTierData | null>({
     queryKey: ["client-portal-tier"],
@@ -389,6 +389,8 @@ export default function ClientDashboardPage() {
     staleTime: 30_000,
   });
 
+  // ── نجيب كل شحنات العميل (بدون تقسيم صفحات سيرفر) عشان الفلاتر تشتغل زي صفحة قائمة الشحنات ──
+  const { data: allShipments = [], isLoading: shipmentsLoading, refetch } = useQuery<ShipmentRow[]>({
     queryKey: ["client-portal-shipments-all"],
     queryFn: async () => {
       const pageSize = 100;
@@ -578,11 +580,11 @@ export default function ClientDashboardPage() {
         {/* ── Push Notifications ── */}
         <PushNotificationsCard />
 
-        {/* ── Top Grid: sidebar cards + donut ── */}
-        <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4">
         {/* ── مستوى العميل الشهري (برونزي / فضي / ذهبي / VIP) + نصائح ── */}
         <ClientTierCard data={tierData} isLoading={tierLoading} variant="client" />
 
+        {/* ── Top Grid: sidebar cards + donut ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4">
 
           {/* ── Left column (account + wallet mini) ── */}
           <div className="space-y-4">
