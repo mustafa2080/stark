@@ -1322,7 +1322,7 @@ export default function FinanceClients() {
                         {/* نسبة تحقيق الهدف */}
                         <td className="px-3 py-3">
                           <div className="flex items-center justify-between gap-1">
-                            <MonthTierBadge tierKey={tierInfo?.tier?.key ?? null} name={tierInfo?.tier?.name ?? "بدون مستوى"} />
+                            <MonthTierBadge tierKey={tierInfo?.tier?.key ?? null} color={tierInfo?.tier?.color} icon={tierInfo?.tier?.icon} name={tierInfo?.tier?.name ?? "بدون مستوى"} />
                             <span className={`text-[10px] font-bold ${textColor}`}>{pct}%</span>
                           </div>
                           <div className="w-full bg-muted/30 rounded-full h-1 mt-0.5 overflow-hidden">

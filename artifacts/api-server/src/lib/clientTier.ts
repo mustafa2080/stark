@@ -2,30 +2,178 @@ import { db, clientsTable, shipmentsTable } from "@workspace/db";
 import { and, eq, gte, isNull, notInArray, or, sql } from "drizzle-orm";
 
 // ═══════════════════════════════════════════════════════════════════════════
-// نظام مستويات العملاء التجاريين (Bronze → Silver → Gold → VIP)
+// نظام مستويات العملاء التجاريين (4 فئات: برونزي → فضي → ذهبي → VIP)
 // ─ المستوى بيتحدد من عدد شحنات العميل في الشهر الحالي، وبيبدأ من الصفر كل شهر.
 // ─ ده المصدر الوحيد للحسبة: لوحة الأدمن وبوابة العميل بيقروا من نفس الدالة
 //   فالأرقام والمستوى بيطلعوا متطابقين 100%.
 // ─ لتغيير الحدود أو إضافة صلاحيات كل مستوى: عدّل TIER_LADDER تحت بس.
 // ═══════════════════════════════════════════════════════════════════════════
 
-export type TierKey = "bronze" | "silver" | "gold" | "vip";
+export type TierKey = string;
+export type TierIconKey = "sprout" | "medal" | "award" | "trophy" | "shield" | "gem" | "star" | "crown";
 
 export interface TierDef {
   key: TierKey;
   name: string;
-  /** أقل عدد شحنات في الشهر للوصول للمستوى */
+  /** أقل عدد شحنات في الشهر للوصول للمستوى (شامل) */
   min: number;
+  /** أعلى عدد شحنات داخل المستوى (null = آخر مستوى، مفتوح لفوق) — بيتحسب من بداية المستوى التالي */
+  max: number | null;
+  color: string;
+  icon: TierIconKey;
+  /** صورة/شعار المستوى (data URL) — null = الأيقونة الافتراضية */
+  image: string | null;
   /** صلاحيات/مزايا المستوى — بتظهر للعميل والأدمن لو مش فاضية */
   perks: string[];
 }
 
-export const TIER_LADDER: TierDef[] = [
-  { key: "bronze", name: "برونزي", min: 10,  perks: [] },
-  { key: "silver", name: "فضي",    min: 30,  perks: [] },
-  { key: "gold",   name: "ذهبي",   min: 75,  perks: [] },
-  { key: "vip",    name: "VIP",    min: 150, perks: [] },
+/** اللي الأدمن بيعدّله ويتخزن: الاسم + بداية المستوى + اللون + الصورة (المفتاح والأيقونة ثابتين) */
+export interface TierConfigItem {
+  key: TierKey;
+  name: string;
+  min: number;
+  /** نهاية الفئة (شامل) — null = مفتوحة لفوق. الأدمن بيحددها بإيده لكل فئة */
+  max: number | null;
+  color: string;
+  image: string | null;
+}
+
+// 4 فئات ثابتة (المفاتيح والأيقونات)، والباقي قابل للتعديل من لوحة الأدمن.
+// الافتراضي: برونزي 10+، فضي 30+، ذهبي 75+، VIP 150+ (شحنة في الشهر).
+// أقل من حد أول فئة = بدون فئة (والفئة الأولى مش لازم تبدأ من 0).
+const TIER_META: { key: TierKey; icon: TierIconKey; name: string; color: string; min: number }[] = [
+  { key: "bronze", icon: "medal",  name: "برونزي", color: "#d08a4a", min: 10 },
+  { key: "silver", icon: "award",  name: "فضي",    color: "#cbd5e1", min: 30 },
+  { key: "gold",   icon: "trophy", name: "ذهبي",   color: "#f5b82e", min: 75 },
+  { key: "vip",    icon: "crown",  name: "VIP",    color: "#c084fc", min: 150 },
 ];
+
+export const DEFAULT_TIER_CONFIG: TierConfigItem[] = TIER_META.map((m, i) => ({
+  key: m.key, name: m.name, min: m.min,
+  max: i === TIER_META.length - 1 ? null : TIER_META[i + 1].min - 1,
+  color: m.color, image: null,
+}));
+
+/** بيبني السلّم الكامل (مع الأيقونة و max) من إعدادات محفوظة/افتراضية */
+export function buildTierLadder(config: TierConfigItem[]): TierDef[] {
+  return TIER_META.map((m, i) => {
+    const c = config.find(x => x.key === m.key);
+    const nextMin = config.find(x => x.key === TIER_META[i + 1]?.key)?.min;
+    return {
+      key: m.key,
+      name: c?.name ?? m.name,
+      min: c?.min ?? m.min,
+      max: c && c.max !== undefined
+        ? c.max
+        : (i === TIER_META.length - 1 || nextMin === undefined ? null : nextMin - 1),
+      color: c?.color ?? m.color,
+      icon: m.icon,
+      image: c?.image ?? null,
+      perks: [],
+    };
+  });
+}
+
+export const TIER_LADDER: TierDef[] = buildTierLadder(DEFAULT_TIER_CONFIG);
+
+// ── التحقق من إعدادات المستويات (بيتستخدم في PUT) ──────────────────────────────
+const IMAGE_RE = /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/;
+const MAX_IMAGE_CHARS = 120_000;
+
+export function validateTierConfig(input: unknown): { ok: true; config: TierConfigItem[] } | { ok: false; error: string } {
+  if (!Array.isArray(input) || input.length !== TIER_META.length) {
+    return { ok: false, error: `لازم تبعت ${TIER_META.length} مستويات بالظبط` };
+  }
+  const out: TierConfigItem[] = [];
+  for (let i = 0; i < TIER_META.length; i++) {
+    const meta = TIER_META[i];
+    const raw = input[i] as any;
+    if (!raw || raw.key !== meta.key) return { ok: false, error: "ترتيب أو مفاتيح المستويات غير صحيحة" };
+    const name = String(raw.name ?? "").trim();
+    if (name.length < 1 || name.length > 30) return { ok: false, error: `اسم المستوى (${meta.name}) لازم يكون من 1 لـ 30 حرف` };
+    const min = Number(raw.min);
+    if (!Number.isInteger(min) || min < 0 || min > 1_000_000) return { ok: false, error: `بداية المستوى "${name}" لازم تكون رقم صحيح` };
+    if (i > 0 && min <= out[i - 1].min) return { ok: false, error: `بداية "${name}" لازم تكون أكبر من بداية "${out[i - 1].name}"` };
+    let max: number | null = null;
+    if (raw.max !== undefined && raw.max !== null && raw.max !== "") {
+      max = Number(raw.max);
+      if (!Number.isInteger(max) || max < min || max > 1_000_000) {
+        return { ok: false, error: `نهاية المستوى "${name}" لازم تكون رقم صحيح أكبر من أو يساوي بدايته` };
+      }
+    }
+    if (i > 0) {
+      const prevMax = out[i - 1].max;
+      if (prevMax !== null && min <= prevMax) {
+        return { ok: false, error: `بداية "${name}" لازم تكون بعد نهاية "${out[i - 1].name}" (متتداخلش)` };
+      }
+    }
+    const color = String(raw.color ?? meta.color);
+    if (!/^#[0-9a-fA-F]{6}$/.test(color)) return { ok: false, error: `لون المستوى "${name}" غير صحيح` };
+    let image: string | null = null;
+    if (raw.image) {
+      if (typeof raw.image !== "string" || raw.image.length > MAX_IMAGE_CHARS || !IMAGE_RE.test(raw.image)) {
+        return { ok: false, error: `صورة المستوى "${name}" غير مدعومة أو كبيرة (PNG/JPG/WebP، حتى ~90KB)` };
+      }
+      image = raw.image;
+    }
+    out.push({ key: meta.key, name, min, max, color, image });
+  }
+  // فئة (غير الأخيرة) من غير نهاية → نهايتها قبل بداية اللي بعدها مباشرة
+  for (let i = 0; i < out.length - 1; i++) {
+    if (out[i].max === null) out[i].max = out[i + 1].min - 1;
+  }
+  return { ok: true, config: out };
+}
+
+// ── تخزين الإعدادات (جدول بيتعمل تلقائي أول استخدام — مفيش migration يدوي) ─────
+let tableReady: Promise<void> | null = null;
+function ensureConfigTable(): Promise<void> {
+  if (!tableReady) {
+    tableReady = (async () => {
+      await db.execute(sql`CREATE TABLE IF NOT EXISTS client_tier_settings (
+        tenant_id INT NOT NULL PRIMARY KEY,
+        config LONGTEXT NOT NULL,
+        updated_at DATETIME NOT NULL
+      )`);
+    })().catch(err => { tableReady = null; throw err; });
+  }
+  return tableReady;
+}
+
+const CONFIG_TTL_MS = 30_000;
+const configCache = new Map<number, { at: number; config: TierConfigItem[] }>();
+const tenantSlot = (tenantId: number | null) => tenantId ?? 0;
+
+export async function getTierConfig(tenantId: number | null): Promise<TierConfigItem[]> {
+  const slot = tenantSlot(tenantId);
+  const hit = configCache.get(slot);
+  if (hit && Date.now() - hit.at < CONFIG_TTL_MS) return hit.config;
+  let config = DEFAULT_TIER_CONFIG;
+  try {
+    await ensureConfigTable();
+    const [rows] = await db.execute(sql`SELECT config FROM client_tier_settings WHERE tenant_id = ${slot} LIMIT 1`) as any;
+    const raw = rows?.[0]?.config;
+    if (raw) {
+      const v = validateTierConfig(JSON.parse(raw));
+      if (v.ok) config = v.config;
+    }
+  } catch { /* أي مشكلة في القراءة → الإعدادات الافتراضية */ }
+  configCache.set(slot, { at: Date.now(), config });
+  return config;
+}
+
+export async function saveTierConfig(tenantId: number | null, config: TierConfigItem[]): Promise<void> {
+  await ensureConfigTable();
+  const slot = tenantSlot(tenantId);
+  await db.execute(sql`INSERT INTO client_tier_settings (tenant_id, config, updated_at)
+    VALUES (${slot}, ${JSON.stringify(config)}, NOW())
+    ON DUPLICATE KEY UPDATE config = VALUES(config), updated_at = NOW()`);
+  configCache.delete(slot);
+}
+
+export async function getTierLadder(tenantId: number | null): Promise<TierDef[]> {
+  return buildTierLadder(await getTierConfig(tenantId));
+}
 
 // نفس الـ whitelist المستخدم في كارت "إجمالي الشحنات" — الشحنة اللي لسه
 // "قيد الانتظار/مؤكدة" (أو ملغية) متتحسبش في المستوى.
@@ -54,10 +202,24 @@ function shiftMonth(y: number, m: number, delta: number): { y: number; m: number
   return { y: Math.floor(idx / 12), m: (idx % 12) + 1 };
 }
 
-export function tierForCount(n: number): TierDef | null {
-  let hit: TierDef | null = null;
-  for (const t of TIER_LADDER) if (n >= t.min) hit = t;
-  return hit;
+export function tierForCount(n: number, ladder: TierDef[] = TIER_LADDER): TierDef | null {
+  return ladder.find(t => n >= t.min && (t.max === null || n <= t.max)) ?? null;
+}
+
+/** بيانات هوية المستوى اللي بتروح للواجهة (الاسم + اللون + الأيقونة + الصورة + النطاق) */
+export interface TierBrand {
+  key: TierKey; name: string; min: number; max: number | null;
+  color: string; icon: TierIconKey; image: string | null;
+}
+const brandOf = (t: TierDef): TierBrand => ({
+  key: t.key, name: t.name, min: t.min, max: t.max, color: t.color, icon: t.icon, image: t.image,
+});
+
+/** تقدّم العميل داخل شريحته نحو المستوى التالي (0–100). المستوى الأول بيبدأ من 0 وباقي المستويات من (min - 1). */
+function progressWithin(count: number, tier: TierDef | null, next: TierDef | null): number {
+  if (!next) return 100;
+  const base = !tier || tier.min === 0 ? 0 : tier.min - 1;
+  return Math.max(0, Math.min(100, Math.round(((count - base) / Math.max(1, next.min - base)) * 100)));
 }
 
 export interface TierShipmentRow { createdAt: Date | string | null; status: string }
@@ -93,8 +255,8 @@ export interface ClientTierSummary {
   month: { key: string; label: string; daysElapsed: number; daysInMonth: number; daysLeft: number };
   count: number;
   returns: number;
-  tier: { key: TierKey; name: string } | null;
-  nextTier: { key: TierKey; name: string; min: number; remaining: number } | null;
+  tier: TierBrand | null;
+  nextTier: (TierBrand & { remaining: number }) | null;
   /** تقدّم العميل داخل الشريحة الحالية نحو المستوى التالي (0–100) */
   // لو الأدمن حدد تارجت للعميل بيبقى progressPct = نسبة التارجت، وإلا نسبة المستوى التالي
   progressPct: number;
@@ -113,7 +275,9 @@ export interface ClientTierSummary {
   motivation: TierMotivation;
 }
 
-export function buildTierSummary(rows: TierShipmentRow[], now: Date = new Date(), targetValue = 0): ClientTierSummary {
+export function buildTierSummary(
+  rows: TierShipmentRow[], now: Date = new Date(), targetValue = 0, tierLadder: TierDef[] = TIER_LADDER,
+): ClientTierSummary {
   const today = cairoYMD(now);
   const daysInMonth = new Date(Date.UTC(today.y, today.m, 0)).getUTCDate();
   const daysElapsed = today.d;
@@ -132,22 +296,18 @@ export function buildTierSummary(rows: TierShipmentRow[], now: Date = new Date()
   }
 
   const count = counts.get(curKey) ?? 0;
-  const tier = tierForCount(count);
-  const tierIdx = tier ? TIER_LADDER.findIndex(t => t.key === tier.key) : -1;
-  const next = TIER_LADDER[tierIdx + 1] ?? null;
+  const tier = tierForCount(count, tierLadder);
+  const tierIdx = tier ? tierLadder.findIndex(t => t.key === tier.key) : -1;
+  const next = tierLadder.find(t => t.min > count) ?? null;
 
-  let progressPct = 100;
-  if (next) {
-    const floor = tier ? tier.min : 0;
-    progressPct = Math.max(0, Math.min(100, Math.round(((count - floor) / (next.min - floor)) * 100)));
-  }
+  const progressPct = progressWithin(count, tier, next);
 
   // ── آخر 6 شهور ──
   const history: ClientTierSummary["history"] = [];
   for (let i = 5; i >= 0; i--) {
     const s = shiftMonth(today.y, today.m, -i);
     const n = counts.get(monthKey(s.y, s.m)) ?? 0;
-    history.push({ key: monthKey(s.y, s.m), label: AR_MONTHS[s.m - 1], count: n, tierKey: tierForCount(n)?.key ?? null });
+    history.push({ key: monthKey(s.y, s.m), label: AR_MONTHS[s.m - 1], count: n, tierKey: tierForCount(n, tierLadder)?.key ?? null });
   }
   const prevH = history[history.length - 2];
   const prevMonth = { label: prevH.label, count: prevH.count, tierKey: prevH.tierKey };
@@ -156,7 +316,7 @@ export function buildTierSummary(rows: TierShipmentRow[], now: Date = new Date()
   const projected = count > 0 && daysElapsed >= 5
     ? (() => {
         const p = Math.round((count / daysElapsed) * daysInMonth);
-        return { count: p, tierKey: tierForCount(p)?.key ?? null };
+        return { count: p, tierKey: tierForCount(p, tierLadder)?.key ?? null };
       })()
     : null;
 
@@ -174,32 +334,37 @@ export function buildTierSummary(rows: TierShipmentRow[], now: Date = new Date()
     ? Math.round(((projected.count - prevMonth.count) / prevMonth.count) * 100)
     : null;
 
-  const rank = (k: TierKey | null) => (k ? TIER_LADDER.findIndex(t => t.key === k) : -1);
+  const rank = (k: TierKey | null) => (k ? tierLadder.findIndex(t => t.key === k) : -1);
   const atRisk = !!projected && daysElapsed >= 10 && rank(projected.tierKey) < rank(prevMonth.tierKey);
 
   const nextInfo = next
-    ? { key: next.key, name: next.name, min: next.min, remaining: Math.max(0, next.min - count) }
+    ? { ...brandOf(next), remaining: Math.max(0, next.min - count) }
     : null;
 
-  const ladder = TIER_LADDER.map((t, i) => ({
+  const ladder = tierLadder.map((t, i) => ({
     ...t,
-    status: (i < tierIdx ? "achieved" : i === tierIdx ? "current" : "locked") as "achieved" | "current" | "locked",
+    status: (
+      i === tierIdx ? "current"
+      : tierIdx >= 0 ? (i < tierIdx ? "achieved" : "locked")
+      : (t.max !== null && count > t.max ? "achieved" : "locked")
+    ) as "achieved" | "current" | "locked",
   }));
 
   const tips = buildTips({
     count, returns, tier, next: nextInfo, daysElapsed, daysLeft, daysInMonth,
-    prevMonth, projected, atRisk, monthLabel: AR_MONTHS[today.m - 1], target: targetInfo,
+    prevMonth, projected, atRisk, monthLabel: AR_MONTHS[today.m - 1], target: targetInfo, ladder: tierLadder,
   });
 
   const motivation = buildMotivation({
     count, tier, next: nextInfo, daysElapsed, daysLeft, projected,
     prevMonth, trendPct, monthLabel: AR_MONTHS[today.m - 1], target: targetInfo, dayOfMonth: today.d,
+    ladder: tierLadder,
   });
 
   return {
     month: { key: curKey, label: AR_MONTHS[today.m - 1], daysElapsed, daysInMonth, daysLeft },
     count, returns,
-    tier: tier ? { key: tier.key, name: tier.name } : null,
+    tier: tier ? brandOf(tier) : null,
     nextTier: nextInfo,
     progressPct: targetInfo ? targetInfo.pct : progressPct,
     tierProgressPct: progressPct,
@@ -208,8 +373,8 @@ export function buildTierSummary(rows: TierShipmentRow[], now: Date = new Date()
   };
 }
 
-function tierName(k: TierKey | null): string {
-  return TIER_LADDER.find(t => t.key === k)?.name ?? "بدون مستوى";
+function tierName(k: TierKey | null, ladder: TierDef[] = TIER_LADDER): string {
+  return ladder.find(t => t.key === k)?.name ?? "بدون مستوى";
 }
 
 function buildTips(c: {
@@ -218,9 +383,10 @@ function buildTips(c: {
   daysElapsed: number; daysLeft: number; daysInMonth: number;
   prevMonth: ClientTierSummary["prevMonth"]; projected: ClientTierSummary["projected"];
   atRisk: boolean; monthLabel: string; target: ClientTarget | null;
+  ladder: TierDef[];
 }): TierTip[] {
   const tips: TierTip[] = [];
-  const bronze = TIER_LADDER[0];
+  const topTier = c.ladder[c.ladder.length - 1];
 
   // 0) التارجت الشهري اللي الأدمن محدده للعميل (لو موجود) — بيتعرض الأول
   if (c.target) {
@@ -250,7 +416,12 @@ function buildTips(c: {
 
   // 1) الهدف الأقرب
   if (c.count === 0) {
-    tips.push({ kind: "goal", text: `لم تُسجَّل أي شحنة في ${c.monthLabel} حتى الآن — ${bronze.min} شحنة توصلك للمستوى ${bronze.name}.` });
+    tips.push({
+      kind: "goal",
+      text: c.next
+        ? `لم تُسجَّل أي شحنة في ${c.monthLabel} حتى الآن — أول شحنة تبدأ بها الشهر، و${c.next.min} شحنة توصلك للمستوى ${c.next.name}.`
+        : `لم تُسجَّل أي شحنة في ${c.monthLabel} حتى الآن.`,
+    });
   } else if (c.next) {
     const perDay = c.daysLeft > 0 ? Math.ceil(c.next.remaining / c.daysLeft) : c.next.remaining;
     const pace = c.daysLeft > 0
@@ -258,7 +429,7 @@ function buildTips(c: {
       : " — واليوم هو آخر يوم في الشهر.";
     tips.push({ kind: "goal", text: `باقي ${c.next.remaining} شحنة للوصول إلى المستوى ${c.next.name}${pace}` });
   } else {
-    tips.push({ kind: "success", text: `وصلت لأعلى مستوى (${c.tier?.name}). حافظ على ${TIER_LADDER[TIER_LADDER.length - 1].min} شحنة أو أكثر شهريًا لتثبيت مستواك.` });
+    tips.push({ kind: "success", text: `وصلت لأعلى مستوى (${c.tier?.name}). حافظ على ${topTier.min} شحنة أو أكثر شهريًا لتثبيت مستواك.` });
   }
 
   // 2) الإيقاع مقابل المستوى التالي
@@ -272,9 +443,9 @@ function buildTips(c: {
 
   // 3) خطر النزول عن مستوى الشهر الماضي / بداية شهر جديد
   if (c.atRisk) {
-    tips.push({ kind: "warning", text: `مستواك الشهر الماضي كان ${tierName(c.prevMonth.tierKey)} وممكن تنزل إلى ${tierName(c.projected?.tierKey ?? null)} إذا استمر المعدل الحالي.` });
+    tips.push({ kind: "warning", text: `مستواك الشهر الماضي كان ${tierName(c.prevMonth.tierKey, c.ladder)} وممكن تنزل إلى ${tierName(c.projected?.tierKey ?? null, c.ladder)} إذا استمر المعدل الحالي.` });
   } else if (c.daysElapsed <= 3 && c.prevMonth.tierKey) {
-    tips.push({ kind: "info", text: `بدأ شهر جديد — مستواك الشهر الماضي كان ${tierName(c.prevMonth.tierKey)}. ابدأ بقوة لتحافظ عليه.` });
+    tips.push({ kind: "info", text: `بدأ شهر جديد — مستواك الشهر الماضي كان ${tierName(c.prevMonth.tierKey, c.ladder)}. ابدأ بقوة لتحافظ عليه.` });
   }
 
   // 4) نسبة المرتجع
@@ -308,6 +479,7 @@ function buildMotivation(c: {
   daysElapsed: number; daysLeft: number; projected: ClientTierSummary["projected"];
   prevMonth: ClientTierSummary["prevMonth"]; trendPct: number | null;
   monthLabel: string; target: ClientTarget | null; dayOfMonth: number;
+  ladder: TierDef[];
 }): TierMotivation {
   const pick = <T,>(arr: T[]): T => arr[c.dayOfMonth % arr.length];
   const t = c.target;
@@ -371,7 +543,7 @@ function buildMotivation(c: {
   // ── 4) بداية شهر جديد ──
   if (c.daysElapsed <= 3) {
     const prev = c.prevMonth.tierKey
-      ? ` مستواك الشهر الماضي كان ${tierName(c.prevMonth.tierKey)}، فابدأ الآن لتحافظ عليه أو تتخطاه.`
+      ? ` مستواك الشهر الماضي كان ${tierName(c.prevMonth.tierKey, c.ladder)}، فابدأ الآن لتحافظ عليه أو تتخطاه.`
       : "";
     return {
       stage: "new_month",
@@ -477,12 +649,14 @@ export async function computeClientTier(client: ClientRow): Promise<ClientTierSu
     ));
 
   const target = await readClientTarget(client.id);
-  return buildTierSummary(rows, now, target);
+  const tierLadder = await getTierLadder(client.tenantId);
+  return buildTierSummary(rows, now, target, tierLadder);
 }
 
 export interface ClientTierLite {
   count: number;
-  tier: { key: TierKey; name: string } | null;
+  /** من غير الصورة عمدًا (القايمة فيها عملاء كتير) — الصورة بتيجي من إعدادات المستويات */
+  tier: { key: TierKey; name: string; color: string; icon: TierIconKey } | null;
   nextTier: { key: TierKey; name: string; min: number; remaining: number } | null;
   progressPct: number;
   /** التارجت الشهري (0 = لسه متحددش) */
@@ -541,21 +715,20 @@ export async function computeTiersForAllClients(tenantId: number | null): Promis
     for (const id of owners) counts.set(id, (counts.get(id) ?? 0) + 1);
   }
 
+  const ladder = await getTierLadder(tenantId);
   const out: Record<number, ClientTierLite> = {};
   for (const c of clients) {
     const count = counts.get(c.id) ?? 0;
-    const tier = tierForCount(count);
-    const idx = tier ? TIER_LADDER.findIndex(x => x.key === tier.key) : -1;
-    const next = TIER_LADDER[idx + 1] ?? null;
-    const floor = tier ? tier.min : 0;
+    const tier = tierForCount(count, ladder);
+    const next = ladder.find(x => x.min > count) ?? null;
     const target = targets.get(c.id) ?? 0;
     out[c.id] = {
       count,
-      tier: tier ? { key: tier.key, name: tier.name } : null,
+      tier: tier ? { key: tier.key, name: tier.name, color: tier.color, icon: tier.icon } : null,
       nextTier: next ? { key: next.key, name: next.name, min: next.min, remaining: Math.max(0, next.min - count) } : null,
       progressPct: target > 0
         ? Math.min(100, Math.round((count / target) * 100))
-        : next ? Math.max(0, Math.min(100, Math.round(((count - floor) / (next.min - floor)) * 100))) : 100,
+        : progressWithin(count, tier, next),
       target,
     };
   }

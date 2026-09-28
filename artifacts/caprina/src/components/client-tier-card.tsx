@@ -1,26 +1,40 @@
-import { useState } from "react";
-import { motion } from "framer-motion";
+import { useEffect, useState } from "react";
+import { motion, animate, useReducedMotion } from "framer-motion";
 import {
-  Medal, Award, Trophy, Crown, Target, Lightbulb, TrendingUp, TrendingDown,
+  Medal, Award, Trophy, Crown, Sprout, ShieldCheck, Gem, Star, Target, Lightbulb, TrendingUp, TrendingDown,
   AlertTriangle, CheckCircle2, Info, Lock, Flag, CalendarDays, Gauge, Pencil, Check, X, Loader2,
-  Rocket, Flame, Sparkles, Zap,
+  Rocket, Flame, Sparkles, Zap, Settings2,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
 // ═══════════════════════════════════════════════════════════════════════════
-// كارت مستوى العميل الشهري (برونزي / فضي / ذهبي / VIP)
+// كارت مستوى العميل الشهري (8 مستويات: مبتدئ ← برونز ← سيلفر ← ... ← أسطورة)
 // بيتعرض في لوحة الأدمن (تفاصيل العميل) وفي بوابة العميل — نفس الداتا من الـ API.
+// حدود المستويات وأسماءها وألوانها وصورها بيعدّلها الأدمن (client-tier-settings.tsx)،
+// والـ API بيرجّعها جاهزة جوه data.ladder / data.tier / data.nextTier.
 // ═══════════════════════════════════════════════════════════════════════════
 
-export type TierKey = "bronze" | "silver" | "gold" | "vip";
+export type TierKey = string;
+export type TierIconKey = "sprout" | "medal" | "award" | "trophy" | "shield" | "gem" | "star" | "crown";
+
+/** هوية المستوى — الحقول الاختيارية للتوافق مع API قديم لسه مرجّعش اللون/الأيقونة/الصورة */
+export interface TierBrand {
+  key: TierKey;
+  name: string;
+  min: number;
+  max?: number | null;
+  color?: string;
+  icon?: TierIconKey;
+  image?: string | null;
+}
 
 export interface ClientTierData {
   month: { key: string; label: string; daysElapsed: number; daysInMonth: number; daysLeft: number };
   count: number;
   returns: number;
-  tier: { key: TierKey; name: string } | null;
-  nextTier: { key: TierKey; name: string; min: number; remaining: number } | null;
+  tier: TierBrand | null;
+  nextTier: (TierBrand & { remaining: number }) | null;
   /** لو في تارجت = نسبة التارجت، وإلا نسبة المستوى التالي */
   progressPct: number;
   /** نسبة التقدّم نحو المستوى التالي (لسلّم المستويات) */
@@ -32,7 +46,7 @@ export interface ClientTierData {
   projected: { count: number; tierKey: TierKey | null } | null;
   atRisk: boolean;
   history: { key: string; label: string; count: number; tierKey: TierKey | null }[];
-  ladder: { key: TierKey; name: string; min: number; perks: string[]; status: "achieved" | "current" | "locked" }[];
+  ladder: (TierBrand & { perks: string[]; status: "achieved" | "current" | "locked" })[];
   tips: { kind: "goal" | "success" | "warning" | "info"; text: string }[];
   /** رسالة تشجيع شخصية للعميل — اختيارية عشان الـ API القديم ممكن ما يرجعهاش */
   motivation?: TierMotivation;
@@ -52,74 +66,152 @@ export interface TierMotivation {
 
 export interface ClientTierLite {
   count: number;
-  tier: { key: TierKey; name: string } | null;
+  tier: { key: TierKey; name: string; color?: string; icon?: TierIconKey } | null;
   nextTier: { key: TierKey; name: string; min: number; remaining: number } | null;
   progressPct: number;
   /** التارجت الشهري (0 = لسه متحددش) */
   target?: number;
 }
 
-export const TIER_STYLE: Record<TierKey | "none", { color: string; soft: string; label: string; Icon: typeof Medal }> = {
-  none:   { color: "#64748b", soft: "rgba(100,116,139,.14)", label: "بدون مستوى", Icon: Target },
-  bronze: { color: "#d08a4a", soft: "rgba(208,138,74,.16)",  label: "برونزي",     Icon: Medal  },
-  silver: { color: "#cbd5e1", soft: "rgba(203,213,225,.14)", label: "فضي",        Icon: Award  },
-  gold:   { color: "#f5b82e", soft: "rgba(245,184,46,.16)",  label: "ذهبي",       Icon: Trophy },
-  vip:    { color: "#c084fc", soft: "rgba(192,132,252,.18)", label: "VIP",        Icon: Crown  },
+export const TIER_ICONS: Record<TierIconKey, typeof Medal> = {
+  sprout: Sprout, medal: Medal, award: Award, trophy: Trophy,
+  shield: ShieldCheck, gem: Gem, star: Star, crown: Crown,
 };
 
-const styleOf = (k: TierKey | null | undefined) => TIER_STYLE[k ?? "none"];
+/** قيم احتياطية لو الـ API لسه بيرجّع مستويات من غير لون/أيقونة (نفس افتراضيات السيرفر) */
+const TIER_FALLBACK: Record<string, { color: string; icon: TierIconKey; name: string }> = {
+  bronze: { color: "#d08a4a", icon: "medal",  name: "برونزي" },
+  silver: { color: "#cbd5e1", icon: "award",  name: "فضي" },
+  gold:   { color: "#f5b82e", icon: "trophy", name: "ذهبي" },
+  vip:    { color: "#c084fc", icon: "crown",  name: "VIP" },
+};
+const NONE_COLOR = "#64748b";
+
+/** بيضيف شفافية للون hex (#rrggbb) */
+export const alpha = (hex: string, a: number) =>
+  /^#[0-9a-fA-F]{6}$/.test(hex) ? hex + Math.round(a * 255).toString(16).padStart(2, "0") : hex;
+
+export interface TierLook { color: string; soft: string; Icon: typeof Medal; image: string | null; name: string }
+
+/** بيحوّل أي وصف مستوى (من الـ API) لشكل جاهز للرسم: لون + أيقونة + صورة + اسم */
+export function tierLook(
+  t: { key?: string | null; name?: string; color?: string; icon?: TierIconKey; image?: string | null } | null | undefined,
+): TierLook {
+  if (!t || !t.key) return { color: NONE_COLOR, soft: alpha(NONE_COLOR, 0.14), Icon: Target, image: null, name: "بدون مستوى" };
+  const fb = TIER_FALLBACK[t.key];
+  const color = t.color ?? fb?.color ?? NONE_COLOR;
+  return {
+    color,
+    soft: alpha(color, 0.16),
+    Icon: TIER_ICONS[t.icon ?? fb?.icon ?? "medal"],
+    image: t.image ?? null,
+    name: t.name ?? fb?.name ?? t.key,
+  };
+}
+
 const n = (v: number) => v.toLocaleString("en-US");
 
-// ── بادج صغير للمستوى (يُستخدم في قايمة العملاء وأي مكان تاني) ─────────────
-export function TierBadge({ tierKey, name, size = "sm", className = "" }: {
-  tierKey: TierKey | null | undefined; name?: string; size?: "sm" | "md"; className?: string;
+/** نطاق المستوى: 0–100 / 101–200 / 2001+ */
+export const rangeLabel = (t: { min: number; max?: number | null }) =>
+  t.max == null ? `${n(t.min)}+` : `${n(t.min)}–${n(t.max)}`;
+
+// ── شعار المستوى: الصورة اللي الأدمن رفعها، أو الأيقونة الافتراضية ──────────
+export function TierEmblem({ look, size = 40, glow = false, className = "" }: {
+  look: TierLook; size?: number; glow?: boolean; className?: string;
 }) {
-  const s = styleOf(tierKey);
-  const Icon = s.Icon;
+  return (
+    <div
+      className={`relative shrink-0 rounded-full flex items-center justify-center overflow-hidden ${className}`}
+      style={{
+        width: size, height: size,
+        background: look.image ? "hsl(var(--card))" : look.soft,
+        border: `2px solid ${look.color}`,
+        boxShadow: glow ? `0 0 0 4px ${alpha(look.color, 0.15)}, 0 0 22px ${alpha(look.color, 0.45)}` : undefined,
+      }}
+    >
+      {look.image
+        ? <img src={look.image} alt={look.name} className="w-full h-full object-cover" draggable={false} />
+        : <look.Icon style={{ color: look.color, width: size * 0.5, height: size * 0.5 }} />}
+    </div>
+  );
+}
+
+// ── بادج صغير للمستوى (يُستخدم في قايمة العملاء وأي مكان تاني) ─────────────
+export function TierBadge({ tierKey, name, color, icon, size = "sm", className = "" }: {
+  tierKey: TierKey | null | undefined; name?: string; color?: string; icon?: TierIconKey;
+  size?: "sm" | "md"; className?: string;
+}) {
+  const look = tierLook(tierKey ? { key: tierKey, name, color, icon } : null);
+  const Icon = look.Icon;
   const pad = size === "md" ? "px-2.5 py-1 text-xs gap-1.5" : "px-2 py-0.5 text-[10px] gap-1";
   return (
     <span
       className={`inline-flex items-center rounded-full font-bold border whitespace-nowrap ${pad} ${className}`}
-      style={{ color: s.color, background: s.soft, borderColor: `${s.color}55` }}
+      style={{ color: look.color, background: look.soft, borderColor: `${look.color}55` }}
     >
       <Icon className={size === "md" ? "w-3.5 h-3.5" : "w-3 h-3"} />
-      {name ?? s.label}
+      {name ?? look.name}
     </span>
   );
 }
 
-// ── الدايرة: تقدّم العميل نحو المستوى التالي، وفي النص المستوى الحالي ────────
+// ── عدّاد بيعدّ من 0 للرقم (احترامًا لـ reduced-motion بيعرض الرقم مباشرة) ──
+function CountUp({ value }: { value: number }) {
+  const reduce = useReducedMotion();
+  const [v, setV] = useState(reduce ? value : 0);
+  useEffect(() => {
+    if (reduce) { setV(value); return; }
+    const c = animate(0, value, { duration: 1.1, ease: "easeOut", onUpdate: x => setV(Math.round(x)) });
+    return () => c.stop();
+  }, [value, reduce]);
+  return <>{n(v)}</>;
+}
+
+// ── الدايرة: تقدّم العميل نحو المستوى التالي، وفي النص شعار المستوى الحالي ────
 function TierRing({ data }: { data: ClientTierData }) {
-  const s = styleOf(data.tier?.key ?? null);
+  const reduce = useReducedMotion();
+  const look = tierLook(data.tier);
   const reached = !!data.target?.reached;
-  const color = reached ? "#34d399" : data.tier ? s.color : TIER_STYLE.bronze.color;
-  const R = 54, C = 2 * Math.PI * R;
-  const Icon = s.Icon;
+  const color = reached ? "#34d399" : look.color;
+  const SIZE = 168, R = 70, C = 2 * Math.PI * R;
   const pct = Math.max(0, Math.min(100, data.progressPct));
   const gid = `tier-grad-${data.tier?.key ?? "none"}${reached ? "-ok" : ""}`;
   return (
-    <div className="relative shrink-0" style={{ width: 144, height: 144 }}>
-      <svg width="144" height="144" viewBox="0 0 144 144" className="-rotate-90">
+    <div className="relative shrink-0" style={{ width: SIZE, height: SIZE }}>
+      {/* هالة متحركة حوالين الدايرة */}
+      <motion.div
+        aria-hidden
+        className="absolute inset-3 rounded-full blur-xl"
+        style={{ background: `conic-gradient(from 0deg, ${alpha(color, 0.6)}, transparent 35%, ${alpha(color, 0.35)} 65%, transparent)` }}
+        animate={reduce ? undefined : { rotate: 360 }}
+        transition={{ duration: 14, repeat: Infinity, ease: "linear" }}
+      />
+      <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} className="relative -rotate-90">
         <defs>
           <linearGradient id={gid} x1="0" y1="0" x2="1" y2="1">
             <stop offset="0%" stopColor={color} />
             <stop offset="100%" stopColor={color} stopOpacity=".55" />
           </linearGradient>
         </defs>
-        <circle cx="72" cy="72" r={R} fill="none" stroke="hsl(var(--muted))" strokeOpacity=".35" strokeWidth="10" />
+        <circle cx={SIZE / 2} cy={SIZE / 2} r={R} fill="none" stroke="hsl(var(--muted))" strokeOpacity=".35" strokeWidth="10" />
         <motion.circle
-          cx="72" cy="72" r={R} fill="none" stroke={`url(#${gid})`} strokeWidth="10" strokeLinecap="round"
+          cx={SIZE / 2} cy={SIZE / 2} r={R} fill="none" stroke={`url(#${gid})`} strokeWidth="10" strokeLinecap="round"
           strokeDasharray={C}
           initial={{ strokeDashoffset: C }}
           animate={{ strokeDashoffset: C * (1 - pct / 100) }}
-          transition={{ duration: 1, ease: "easeOut" }}
-          style={{ filter: `drop-shadow(0 0 6px ${color}66)` }}
+          transition={{ duration: 1.1, ease: "easeOut" }}
+          style={{ filter: `drop-shadow(0 0 7px ${alpha(color, 0.45)})` }}
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-        <Icon className="w-6 h-6 mb-1" style={{ color: data.tier ? s.color : "hsl(var(--muted-foreground))" }} />
-        <p className="text-base font-black leading-none" style={{ color: data.tier ? s.color : undefined }}>
-          {data.tier ? data.tier.name : "بداية"}
+        <motion.div
+          animate={reduce ? undefined : { scale: [1, 1.05, 1] }}
+          transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
+        >
+          <TierEmblem look={look} size={62} glow />
+        </motion.div>
+        <p className="text-[13px] font-black leading-none mt-1.5" style={{ color: data.tier ? look.color : undefined }}>
+          {data.tier ? look.name : "بداية"}
         </p>
         {data.target ? (
           <>
@@ -127,51 +219,88 @@ function TierRing({ data }: { data: ClientTierData }) {
             <p className="text-[10px] text-muted-foreground mt-0.5">{pct}% من التارجت</p>
           </>
         ) : (
-          <p className="text-[10px] text-muted-foreground mt-1">{pct}% للمستوى التالي</p>
+          <p className="text-[10px] text-muted-foreground mt-1.5">{pct}% للمستوى التالي</p>
         )}
       </div>
     </div>
   );
 }
 
-// ── سلّم المستويات ─────────────────────────────────────────────────────────
+// ── سلّم المستويات: كارت لكل مستوى (شعار + اسم + نطاق الشحنات) ───────────────
 function TierLadder({ data }: { data: ClientTierData }) {
-  const idx = data.ladder.findIndex(l => l.status === "current");
-  const fill = idx === -1 ? 0 : data.nextTier ? (idx + (data.tierProgressPct ?? data.progressPct) / 100) / (data.ladder.length - 1) : 1;
+  const reduce = useReducedMotion();
+  const tierProgress = Math.max(0, Math.min(100, data.tierProgressPct ?? data.progressPct));
   return (
-    <div className="relative flex items-start" dir="rtl">
-      <div className="absolute h-[3px] rounded-full bg-muted/40" style={{ top: 19, right: "12.5%", width: "75%" }} />
-      <motion.div
-        className="absolute h-[3px] rounded-full"
-        style={{ top: 19, right: "12.5%", background: styleOf(data.tier?.key ?? "bronze").color }}
-        initial={{ width: 0 }}
-        animate={{ width: `${fill * 75}%` }}
-        transition={{ duration: 1, ease: "easeOut" }}
-      />
-      {data.ladder.map(step => {
-        const st = styleOf(step.key);
-        const Icon = st.Icon;
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2" dir="rtl">
+      {data.ladder.map((step, i) => {
+        const look = tierLook(step);
         const isCur = step.status === "current";
         const done = step.status === "achieved";
+        const active = isCur || done;
         return (
-          <div key={step.key} className="relative flex-1 flex flex-col items-center text-center gap-1.5">
-            <div
-              className="w-10 h-10 rounded-full flex items-center justify-center border-2 bg-card"
-              style={{
-                borderColor: done || isCur ? st.color : "hsl(var(--border))",
-                background: done || isCur ? st.soft : undefined,
-                boxShadow: isCur ? `0 0 0 4px ${st.color}22, 0 0 18px ${st.color}55` : undefined,
-              }}
-            >
-              {done ? <CheckCircle2 className="w-4 h-4" style={{ color: st.color }} />
-                : isCur ? <Icon className="w-4 h-4" style={{ color: st.color }} />
-                : <Lock className="w-3.5 h-3.5 text-muted-foreground/60" />}
+          <motion.div
+            key={step.key}
+            initial={reduce ? false : { opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: reduce ? 0 : i * 0.05, duration: 0.35, ease: "easeOut" }}
+            className="relative rounded-xl border p-2.5 flex flex-col items-center text-center gap-1.5 overflow-hidden"
+            style={{
+              borderColor: isCur ? look.color : done ? alpha(look.color, 0.4) : "hsl(var(--border))",
+              background: isCur
+                ? `linear-gradient(160deg, ${alpha(look.color, 0.24)}, ${alpha(look.color, 0.05)})`
+                : done ? alpha(look.color, 0.07) : "hsl(var(--muted)/.15)",
+              boxShadow: isCur ? `0 0 0 1px ${look.color}, 0 8px 26px -8px ${alpha(look.color, 0.7)}` : undefined,
+            }}
+          >
+            {isCur && !reduce && (
+              <motion.div
+                aria-hidden
+                className="absolute inset-y-0 left-0 w-1/3 pointer-events-none"
+                style={{ background: `linear-gradient(90deg, transparent, ${alpha(look.color, 0.28)}, transparent)` }}
+                initial={{ x: "-100%" }}
+                animate={{ x: "400%" }}
+                transition={{ duration: 2.2, repeat: Infinity, repeatDelay: 2.6, ease: "easeInOut" }}
+              />
+            )}
+            <div className="relative">
+              <TierEmblem
+                look={look} size={isCur ? 54 : 44} glow={isCur}
+                className={active ? "" : "grayscale opacity-45"}
+              />
+              {done && (
+                <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-card flex items-center justify-center">
+                  <CheckCircle2 className="w-4 h-4" style={{ color: look.color }} />
+                </span>
+              )}
+              {!active && (
+                <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-card border border-border flex items-center justify-center">
+                  <Lock className="w-2.5 h-2.5 text-muted-foreground/70" />
+                </span>
+              )}
             </div>
-            <p className="text-[11px] font-bold leading-none" style={{ color: done || isCur ? st.color : "hsl(var(--muted-foreground))" }}>
+            <p className="text-[12px] font-black leading-none" style={{ color: active ? look.color : "hsl(var(--muted-foreground))" }}>
               {step.name}
             </p>
-            <p className="text-[10px] text-muted-foreground leading-none">{n(step.min)}+ شحنة</p>
-          </div>
+            <p className="text-[10px] text-muted-foreground leading-none">{rangeLabel(step)} شحنة</p>
+            {isCur && (
+              <>
+                {data.nextTier && (
+                  <div className="w-full h-1.5 rounded-full bg-muted/40 overflow-hidden">
+                    <motion.div
+                      className="h-full rounded-full"
+                      style={{ background: look.color }}
+                      initial={{ width: 0 }}
+                      animate={{ width: `${tierProgress}%` }}
+                      transition={{ duration: 1.1, ease: "easeOut" }}
+                    />
+                  </div>
+                )}
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: alpha(look.color, 0.2), color: look.color }}>
+                  أنت هنا
+                </span>
+              </>
+            )}
+          </motion.div>
         );
       })}
     </div>
@@ -180,7 +309,8 @@ function TierLadder({ data }: { data: ClientTierData }) {
 
 // ── تاريخ آخر 6 شهور ───────────────────────────────────────────────────────
 function TierHistory({ data }: { data: ClientTierData }) {
-  const max = Math.max(1, ...data.history.map(h => h.count), data.ladder[0]?.min ?? 1);
+  const max = Math.max(1, ...data.history.map(h => h.count), data.ladder[1]?.min ?? 1);
+  const lookOf = (key: TierKey | null) => tierLook(data.ladder.find(l => l.key === key) ?? (key ? { key } : null));
   return (
     <div>
       <p className="text-[11px] font-bold text-muted-foreground mb-2 flex items-center gap-1.5">
@@ -188,18 +318,19 @@ function TierHistory({ data }: { data: ClientTierData }) {
       </p>
       <div className="flex items-end gap-2 h-[74px]" dir="rtl">
         {[...data.history].reverse().map((h, i) => {
-          const st = styleOf(h.tierKey);
+          const st = lookOf(h.tierKey);
           const isCur = i === 0;
+          const has = h.count > 0 && !!h.tierKey;
           return (
-            <div key={h.key} className="flex-1 flex flex-col items-center justify-end gap-1 h-full" title={`${h.label}: ${h.count} شحنة`}>
+            <div key={h.key} className="flex-1 flex flex-col items-center justify-end gap-1 h-full" title={`${h.label}: ${h.count} شحنة${has ? ` — ${st.name}` : ""}`}>
               <span className="text-[9px] text-muted-foreground leading-none">{h.count > 0 ? n(h.count) : ""}</span>
               <div
                 className="w-full rounded-t-md"
                 style={{
                   height: `${Math.max(4, (h.count / max) * 48)}px`,
-                  background: h.tierKey ? st.color : "hsl(var(--muted-foreground)/.35)",
+                  background: has ? st.color : "hsl(var(--muted-foreground)/.35)",
                   opacity: isCur ? 1 : 0.6,
-                  boxShadow: isCur ? `0 0 10px ${st.color}66` : undefined,
+                  boxShadow: isCur && has ? `0 0 10px ${alpha(st.color, 0.4)}` : undefined,
                 }}
               />
               <span className={`text-[9px] leading-none ${isCur ? "font-bold text-foreground" : "text-muted-foreground"}`}>{h.label}</span>
@@ -362,42 +493,59 @@ function MotivationBanner({ m }: { m: TierMotivation }) {
   );
 }
 
-export function ClientTierCard({ data, isLoading, variant = "client", className = "", onSaveTarget }: {
+export function ClientTierCard({ data, isLoading, variant = "client", className = "", onSaveTarget, onEditTiers }: {
   data: ClientTierData | null | undefined;
   isLoading?: boolean;
   variant?: "admin" | "client";
   className?: string;
   /** لو موجودة (للأدمن بس) بيظهر زرار تحديد/تعديل التارجت الشهري. لازم ترمي error لو الحفظ فشل. */
   onSaveTarget?: (value: number) => Promise<void>;
+  /** لو موجودة (للأدمن بس) بيظهر زرار "إعدادات المستويات" (حدود + صور + ألوان) */
+  onEditTiers?: () => void;
 }) {
+  const reduce = useReducedMotion();
   if (isLoading) {
     return <Card className={`p-5 animate-pulse h-[300px] ${className}`} />;
   }
   if (!data) return null;
 
-  const s = styleOf(data.tier?.key ?? null);
-  const glow = data.tier ? s.color : "#64748b";
+  const look = tierLook(data.tier);
+  const glow = data.tier ? look.color : NONE_COLOR;
   const isAdmin = variant === "admin";
   const currentStep = data.ladder.find(l => l.status === "current");
   const perksStep = currentStep && currentStep.perks.length > 0 ? currentStep
     : data.ladder.find(l => l.key === data.nextTier?.key && l.perks.length > 0);
+  const perksLook = perksStep ? tierLook(perksStep) : null;
+  const curStep = currentStep ?? data.tier;
 
   return (
     <Card
       dir="rtl"
-      className={`card-glow border-border p-4 sm:p-5 ${className}`}
+      className={`card-glow relative overflow-hidden border-border p-4 sm:p-5 ${className}`}
       style={{
-        background: `linear-gradient(145deg, ${glow}14 0%, hsl(var(--card)/.90) 55%)`,
-        boxShadow: `0 0 0 1px ${glow}38, 0 6px 28px -8px ${glow}40`,
+        background: `linear-gradient(145deg, ${alpha(glow, 0.09)} 0%, hsl(var(--card)/.90) 55%)`,
+        boxShadow: `0 0 0 1px ${alpha(glow, 0.22)}, 0 6px 28px -8px ${alpha(glow, 0.25)}`,
       }}
     >
+      {/* شريط لامع بيعدّي على أعلى الكارت */}
+      {!reduce && (
+        <motion.div
+          aria-hidden
+          className="absolute top-0 left-0 h-[2px] w-1/3 pointer-events-none"
+          style={{ background: `linear-gradient(90deg, transparent, ${glow}, transparent)` }}
+          initial={{ x: "-100%" }}
+          animate={{ x: "300%" }}
+          transition={{ duration: 3.2, repeat: Infinity, repeatDelay: 2, ease: "easeInOut" }}
+        />
+      )}
+
       {/* ── الهيدر ── */}
-      <div className="flex items-center justify-between gap-2 mb-4">
+      <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
         <p className="text-sm font-black flex items-center gap-2">
           <Gauge className="w-4 h-4" style={{ color: glow }} />
           {isAdmin ? "مستوى العميل الشهري" : "مستواك هذا الشهر"}
         </p>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {isAdmin && data.atRisk && (
             <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-700 bg-amber-900/30 text-amber-400">
               <TrendingDown className="w-3 h-3" /> معرّض للتراجع
@@ -406,6 +554,14 @@ export function ClientTierCard({ data, isLoading, variant = "client", className 
           <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border border-border bg-muted/30 text-muted-foreground">
             <CalendarDays className="w-3 h-3" /> {data.month.label} · باقي {data.month.daysLeft} يوم
           </span>
+          {isAdmin && onEditTiers && (
+            <button
+              type="button" onClick={onEditTiers}
+              className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border border-border bg-muted/30 text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors"
+            >
+              <Settings2 className="w-3 h-3" /> إعدادات المستويات
+            </button>
+          )}
         </div>
       </div>
 
@@ -413,24 +569,29 @@ export function ClientTierCard({ data, isLoading, variant = "client", className 
       {!isAdmin && data.motivation && <MotivationBanner m={data.motivation} />}
 
       <div className="grid gap-5 md:grid-cols-2">
-        {/* ── العمود الأول: الدايرة + الأرقام + السلّم ── */}
-        <div className="space-y-5">
+        {/* ── العمود الأول: الدايرة + الأرقام ── */}
+        <div className="space-y-4">
           <div className="flex items-center gap-4">
             <TierRing data={data} />
             <div className="flex-1 min-w-0 space-y-2">
               <div>
                 <p className="text-[11px] text-muted-foreground">{isAdmin ? "شحنات العميل في" : "شحناتك في"} {data.month.label}</p>
-                <p className="text-3xl font-black leading-tight" style={{ color: data.tier ? s.color : undefined }}>
-                  {n(data.count)} <span className="text-xs font-bold text-muted-foreground">شحنة</span>
+                <p className="text-3xl font-black leading-tight" style={{ color: data.tier ? look.color : undefined }}>
+                  <CountUp value={data.count} /> <span className="text-xs font-bold text-muted-foreground">شحنة</span>
                 </p>
+                {curStep && (
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    مستوى {look.name}: {rangeLabel(curStep)} شحنة في الشهر
+                  </p>
+                )}
               </div>
               {data.nextTier ? (
                 <p className="text-[11px] text-muted-foreground leading-snug">
                   باقي <b className="text-foreground">{n(data.nextTier.remaining)}</b> شحنة للوصول إلى{" "}
-                  <TierBadge tierKey={data.nextTier.key} name={data.nextTier.name} />
+                  <TierBadge tierKey={data.nextTier.key} name={data.nextTier.name} color={data.nextTier.color} icon={data.nextTier.icon} />
                 </p>
               ) : (
-                <p className="text-[11px] font-bold" style={{ color: s.color }}>وصلت لأعلى مستوى 🎉</p>
+                <p className="text-[11px] font-bold" style={{ color: look.color }}>وصلت لأعلى مستوى 🎉</p>
               )}
               <TargetRow target={data.target ?? null} onSave={isAdmin ? onSaveTarget : undefined} />
               <div className="flex flex-wrap gap-1.5">
@@ -449,17 +610,15 @@ export function ClientTierCard({ data, isLoading, variant = "client", className 
             </div>
           </div>
 
-          <TierLadder data={data} />
-
-          {perksStep && (
-            <div className="rounded-xl border p-3" style={{ borderColor: `${styleOf(perksStep.key).color}40`, background: styleOf(perksStep.key).soft }}>
-              <p className="text-[11px] font-bold mb-1.5" style={{ color: styleOf(perksStep.key).color }}>
+          {perksStep && perksLook && (
+            <div className="rounded-xl border p-3" style={{ borderColor: alpha(perksLook.color, 0.25), background: perksLook.soft }}>
+              <p className="text-[11px] font-bold mb-1.5" style={{ color: perksLook.color }}>
                 مزايا المستوى {perksStep.name}
               </p>
               <ul className="space-y-1">
                 {perksStep.perks.map((p, i) => (
                   <li key={i} className="text-[11px] flex items-start gap-1.5">
-                    <CheckCircle2 className="w-3 h-3 mt-0.5 shrink-0" style={{ color: styleOf(perksStep.key).color }} /> {p}
+                    <CheckCircle2 className="w-3 h-3 mt-0.5 shrink-0" style={{ color: perksLook.color }} /> {p}
                   </li>
                 ))}
               </ul>
@@ -488,6 +647,14 @@ export function ClientTierCard({ data, isLoading, variant = "client", className 
           </div>
           <TierHistory data={data} />
         </div>
+      </div>
+
+      {/* ── سلّم المستويات (عرض كامل) ── */}
+      <div className="mt-5 pt-4 border-t border-border/60">
+        <p className="text-[11px] font-bold text-muted-foreground mb-3 flex items-center gap-1.5">
+          <Trophy className="w-3 h-3" /> مستويات الشحنات الشهرية
+        </p>
+        <TierLadder data={data} />
       </div>
     </Card>
   );

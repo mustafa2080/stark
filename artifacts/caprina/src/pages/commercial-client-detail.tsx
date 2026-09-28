@@ -35,6 +35,7 @@ import { apiFetch, clientAccountManifestsApi, clientReturnManifestsApi, shipment
 import { cn, formatCurrency } from "@/lib/utils";
 import { returnReasonLabel } from "@/lib/order-constants";
 import { ClientTierCard, type ClientTierData } from "@/components/client-tier-card";
+import { TierSettingsDialog } from "@/components/client-tier-settings";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -286,6 +287,7 @@ export default function CommercialClientDetailPage() {
 
   // ── تابات: البيانات / الشحنات / الداشبورد ────────────────────────────────
   const [activeTab, setActiveTab] = useState<"data" | "shipments" | "dashboard" | "statement" | "returns">("dashboard");
+  const [showTierSettings, setShowTierSettings] = useState(false);
   const [showNewManifest, setShowNewManifest] = useState(false);
   const [showOpenManifestWarning, setShowOpenManifestWarning] = useState(false);
   const [statementFrom, setStatementFrom] = useState("");
@@ -1069,7 +1071,9 @@ export default function CommercialClientDetailPage() {
 
           {/* مستوى العميل الشهري — بديل مقياس الهدف القديم (الدايرة + المستوى + النصائح) */}
           <ClientTierCard data={tierData} isLoading={tierLoading} variant="admin" className="sm:col-span-2"
-          onSaveTarget={isAdmin ? async (v) => { await saveTargetMut.mutateAsync(v); } : undefined} />
+          onSaveTarget={isAdmin ? async (v) => { await saveTargetMut.mutateAsync(v); } : undefined}
+          onEditTiers={isAdmin ? () => setShowTierSettings(true) : undefined} />
+          {isAdmin && <TierSettingsDialog open={showTierSettings} onOpenChange={setShowTierSettings} />}
 
           {/* Line chart — النمو الشهري */}
           <Card className="card-glow border-border p-4 sm:col-span-2" style={GLOW.neutral.style}>

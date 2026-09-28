@@ -8,7 +8,10 @@ import { computeClosedManifestsForClient, computeClientBalancesForAllClients, co
 // قيمة البيان المفتوح لكل عميل — لفلتر "عميل غير صفري" (لازم نحسب قيمة
 // البيان المفتوح نفسه، مش رصيد العميل الكلي من البيانات المقفولة).
 import { computeClientManifestNetDue } from "../lib/manifestFinance.js";
-import { computeClientTier, computeTiersForAllClients } from "../lib/clientTier.js";
+import {
+  computeClientTier, computeTiersForAllClients,
+  getTierLadder, saveTierConfig, validateTierConfig, buildTierLadder, DEFAULT_TIER_CONFIG,
+} from "../lib/clientTier.js";
 import { z } from "zod";
 
 const router = Router();
@@ -472,6 +475,30 @@ router.get("/finance/clients/tiers", async (req, res): Promise<void> => {
   try {
     const tiers = await computeTiersForAllClients(getTenantId(req));
     res.json({ tiers });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /finance/clients/tier-settings — إعدادات مستويات العملاء (الاسم + بداية المستوى + اللون + الصورة) ──
+router.get("/finance/clients/tier-settings", async (req, res): Promise<void> => {
+  try {
+    const ladder = await getTierLadder(getTenantId(req));
+    res.json({ ladder, defaults: buildTierLadder(DEFAULT_TIER_CONFIG) });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── PUT /finance/clients/tier-settings — الأدمن بيعدّل حدود المستويات وصورها ──
+// الـ body: { tiers: [{ key, name, min, max, color, image }] } — 4 فئات بالترتيب (max = null لآخر فئة المفتوحة).
+router.put("/finance/clients/tier-settings", requireAdmin, async (req, res): Promise<void> => {
+  try {
+    const parsed = validateTierConfig(req.body?.tiers);
+    if (!parsed.ok) { res.status(400).json({ error: parsed.error }); return; }
+    const tenantId = getTenantId(req);
+    await saveTierConfig(tenantId, parsed.config);
+    res.json({ ladder: await getTierLadder(tenantId), defaults: buildTierLadder(DEFAULT_TIER_CONFIG) });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
