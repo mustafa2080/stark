@@ -455,14 +455,25 @@ export async function computeClientTier(client: ClientRow): Promise<ClientTierSu
   const from = shiftMonth(t.y, t.m, -5);
   const lowerBound = new Date(Date.UTC(from.y, from.m - 1, 1) - 2 * 86_400_000);
 
+  // ⚠️ فلتر الـ tenant: شحنات كتير (خصوصًا القديمة / اللي جاية من بيانات مستوردة)
+  // tenant_id بتاعها NULL بينما العميل نفسه tenant_id = 1. لو فلترنا بـ
+  // eq(tenantId) بس، الشحنات دي كلها كانت بتختفي من المستوى (العميل يظهر 0).
+  // فمطابقة الـ clientId (رقم فريد) من غير فلتر tenant، ومطابقة الاسم بس هي
+  // اللي بتتقيّد بنفس الـ tenant (أو NULL) عشان أسماء متشابهة في tenants تانية متتخلطش.
+  const nameMatch = client.tenantId !== null
+    ? and(
+        eq(shipmentsTable.senderName, client.name),
+        or(eq(shipmentsTable.tenantId, client.tenantId), isNull(shipmentsTable.tenantId)),
+      )!
+    : eq(shipmentsTable.senderName, client.name);
+
   const rows = await db.select({ createdAt: shipmentsTable.createdAt, status: shipmentsTable.status })
     .from(shipmentsTable)
     .where(and(
       isNull(shipmentsTable.deletedAt),
       notInArray(shipmentsTable.status, EXCLUDED_STATUSES),
-      or(eq(shipmentsTable.clientId, client.id), eq(shipmentsTable.senderName, client.name))!,
+      or(eq(shipmentsTable.clientId, client.id), nameMatch)!,
       gte(shipmentsTable.createdAt, lowerBound),
-      client.tenantId !== null ? eq(shipmentsTable.tenantId, client.tenantId) : undefined,
     ));
 
   const target = await readClientTarget(client.id);
@@ -497,7 +508,8 @@ export async function computeTiersForAllClients(tenantId: number | null): Promis
     isNull(shipmentsTable.deletedAt),
     notInArray(shipmentsTable.status, EXCLUDED_STATUSES),
     gte(shipmentsTable.createdAt, lowerBound),
-    tenantId !== null ? eq(shipmentsTable.tenantId, tenantId) : undefined,
+    // شحنات tenant_id بتاعها NULL لازم تتحسب برضه (نفس سبب computeClientTier)
+    tenantId !== null ? or(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.tenantId)) : undefined,
   ));
 
   const targets = new Map<number, number>();
