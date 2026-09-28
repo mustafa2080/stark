@@ -690,7 +690,7 @@ router.get("/analytics/financial-summary", requirePermission("orders.financials"
 // ─── Helper: نفس منطق manifests-pnl-summary لكن قابل لإعادة الاستخدام ────────
 // (بيستخدمه route الخاص بيه وكمان executive-summary عشان الرقمين يفضلوا متطابقين
 // ومبنيين على نفس مصدر الحقيقة — بيانات المناديب المقفولة + مصروفات الخزنة الفعلية).
-async function computeManifestsPnl(tenantId: number | null, fromDate: Date | null, toDate: Date | null) {
+export async function computeManifestsPnl(tenantId: number | null, fromDate: Date | null, toDate: Date | null) {
   const manifestConditions: any[] = [eq(shipmentManifestsTable.status, "closed")];
   if (tenantId !== null) manifestConditions.push(eq(shipmentManifestsTable.tenantId, tenantId));
   if (fromDate) manifestConditions.push(gte(shipmentManifestsTable.closedAt, fromDate));
@@ -847,6 +847,9 @@ async function computeManifestsPnl(tenantId: number | null, fromDate: Date | nul
     totalRevenue: repNetDue,
     totalExpenses: operatingExpenses,
     netRevenue,
+    // تفصيل صافي الإيراد (يستخدمه Finance Hub عشان قائمة الأرباح والخسائر تطابق نفس الرقم)
+    shippingFees: deliveredShippingFeesClosed,
+    courierCost: courierCostClosed,
     orders: eligibleCount,
     returnCount,
     returnRate,

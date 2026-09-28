@@ -964,10 +964,8 @@ export default function FinanceHub() {
           </div>
           <div className="divide-y divide-border">
             {[
-              {label:"الإيراد الإجمالي",   val:pnl?.revenue??0,     color:"text-emerald-500", sign:"+",Icon:DollarSign },
-              {label:"تكلفة البضاعة",      val:pnl?.cogs??0,         color:"text-orange-400",  sign:"−",Icon:Package    },
-              {label:"مصاريف الشحن",       val:pnl?.shipping??0,     color:"text-sky-400",     sign:"−",Icon:Truck      },
-              {label:"خسائر المرتجعات",    val:pnl?.returnLoss??0,   color:"text-red-400",     sign:"−",Icon:RefreshCw  },
+              {label:"رسوم الشحن المحصّلة", val:pnl?.revenue??0,     color:"text-emerald-500", sign:"+",Icon:DollarSign },
+              {label:"تكلفة المناديب",     val:pnl?.shipping??0,     color:"text-sky-400",     sign:"−",Icon:Truck      },
               {label:"المصروفات التشغيلية",val:pnl?.expenses??0,     color:"text-rose-400",    sign:"−",Icon:Receipt    },
             ].map(row => (
               <div key={row.label} className="flex items-center justify-between px-5 py-3 hover:bg-muted/20 transition-colors">

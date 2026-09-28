@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db, cashRegistersTable, cashTransactionsTable, expensesTable, ordersTable, purchaseOrdersTable, shippingFinancialInvoicesTable, shippingManifestsTable, shippingManifestOrdersTable, shippingCompaniesTable, CREDIT_TYPES, DEBIT_TYPES } from "@workspace/db";
 import { eq, desc, gte, lte, and, sql, lt, isNull, inArray } from "drizzle-orm";
 import { getTenantId } from "../middlewares/requireTenant.js";
+import { computeManifestsPnl } from "./analytics.js";
 
 const router = Router();
 
@@ -380,22 +381,24 @@ router.get("/finance/hub", async (req, res): Promise<void> => {
     const returnLoss = Number(returnsCur?.returnCogs ?? 0); // فقط تكلفة التوالف
 
     // إجمالي الإيراد بعد خصم رسوم الشحن من البيانات (زي financial-summary)
-    const revenueNet = revenue - manualShippingCur;
+    // ── مصدر الحقيقة: نفس حسبة "صافي الإيراد الفعلي" في الدشبورد (بيانات المناديب
+    // المقفولة + مصروفات الخزنة الفعلية) — عشان صافي الربح هنا يطابقه بالظبط بدل
+    // الحسبة القديمة المبنية على الأوردرات (كانت بتطلع سالب غلط).
+    const [curPnl, prevPnl] = await Promise.all([
+      computeManifestsPnl(tenantId, curFrom, curToEnd),
+      computeManifestsPnl(tenantId, prevFrom, prevToEnd),
+    ]);
+    const revenueNet = curPnl.shippingFees;
 
     // مجمل الربح = الإيرادات الصافية − تكلفة البضاعة
-    const grossProfit = revenueNet - cogs;
+    const grossProfit = revenueNet - curPnl.courierCost;
     // صافي الربح = مجمل الربح − كل مصاريف الشحن − خسائر المرتجعات − المصروفات التشغيلية
-    const netProfit   = grossProfit - shipping - returnLoss - expenses;
+    const netProfit   = curPnl.netRevenue; // = مجمل الربح − مصروفات الخزنة التشغيلية
     const netMargin   = revenueNet > 0 ? +((netProfit / revenueNet) * 100).toFixed(1) : 0;
     const grossMargin = revenueNet > 0 ? +((grossProfit / revenueNet) * 100).toFixed(1) : 0;
 
-    const prevRevenue    = Number(salesPrev?.revenue ?? 0);
-    const prevCogs       = Number(salesPrev?.cogs    ?? 0);
-    const prevShipping   = Number(salesPrev?.shipping ?? 0);
-    const prevExp        = Number(expPrev?.total ?? 0);
-    const prevReturnLoss = Number(returnsPrev?.returnCogs ?? 0);
-    const prevGrossProfit = prevRevenue - prevCogs;
-    const prevProfit     = prevGrossProfit - prevShipping - prevReturnLoss - prevExp;
+    const prevRevenue    = prevPnl.shippingFees;
+    const prevProfit     = prevPnl.netRevenue;
 
     const pct = (a:number, b:number) => b === 0 ? null : +((( a - b) / b) * 100).toFixed(1);
 
@@ -413,9 +416,9 @@ router.get("/finance/hub", async (req, res): Promise<void> => {
 
     // ── 10. Smart Alerts ─────────────────────────────────────────────────────
     const alerts: { type:string; title:string; detail:string }[] = [];
-    if (netProfit < 0 && revenue > 0)
+    if (netProfit < 0 && (revenueNet > 0 || curPnl.totalExpenses > 0))
       alerts.push({ type:"danger", title:"الشهر بخسارة صافية", detail:`الخسارة: ${Math.abs(netProfit).toLocaleString("ar-EG")} ج.م` });
-    else if (netMargin < 10 && revenue > 0)
+    else if (netMargin < 10 && revenueNet > 0)
       alerts.push({ type:"warning", title:"هامش ربح منخفض", detail:`الهامش ${netMargin}% — المثالي فوق 20%` });
     if (Number(orderStats?.returned ?? 0) / Math.max(Number(orderStats?.total ?? 1), 1) > 0.25)
       alerts.push({ type:"danger", title:"نسبة مرتجعات مرتفعة", detail:`${Number(orderStats?.returned??0)} طلب مرتجع` });
@@ -433,10 +436,12 @@ router.get("/finance/hub", async (req, res): Promise<void> => {
       cash: { registers: regSummaries, totalBalance: totalCash, lowBalanceAlerts },
       dailyFlow: dailyFlow.map(r=>({ day: r.day, in: Number(r.totalIn), out: Number(r.totalOut), net: Number(r.totalIn)-Number(r.totalOut) })),
       pnl: {
-        revenue: revenueNet, cogs, shipping, expenses, grossProfit, netProfit, netMargin, grossMargin,
-        returnLoss, returnCount: Number(returnsCur?.count ?? 0),
+        // الأرقام كلها من حسبة المناديب المقفولة (نفس "صافي الإيراد الفعلي"):
+        // الإيراد = رسوم الشحن المحصّلة، مصاريف الشحن = تكلفة المندوب، المصروفات = خزنة تشغيلية.
+        revenue: revenueNet, cogs: 0, shipping: curPnl.courierCost, expenses: curPnl.totalExpenses, grossProfit, netProfit, netMargin, grossMargin,
+        returnLoss: 0, returnCount: Number(returnsCur?.count ?? 0),
         prevRevenue, prevProfit,
-        changes: { revenue: pct(revenueNet,prevRevenue), netProfit: pct(netProfit,prevProfit), expenses: pct(expenses,prevExp) },
+        changes: { revenue: pct(revenueNet,prevRevenue), netProfit: pct(netProfit,prevProfit), expenses: pct(curPnl.totalExpenses,prevPnl.totalExpenses) },
       },
       orders: {
         total: Number(orderStats?.total??0),
