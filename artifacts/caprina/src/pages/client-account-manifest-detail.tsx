@@ -5006,7 +5006,8 @@ export default function ShippingManifestPage() {
           </button>
         </div>
 
-        <div className="hidden md:grid grid-cols-[100px_1fr_110px_90px_1fr_110px_110px_110px_110px] gap-0 px-4 py-2 text-[11px] font-bold text-muted-foreground border-b border-border/60 bg-muted/20">
+        <div className="overflow-x-auto">
+        <div className="hidden md:grid grid-cols-[100px_minmax(120px,1fr)_110px_90px_minmax(120px,1.2fr)_110px_110px_110px_110px_minmax(140px,1fr)] md:min-w-[1160px] gap-0 px-4 py-2 text-[11px] font-bold text-muted-foreground border-b border-border/60 bg-muted/20">
           <span className="flex items-center justify-start gap-1">الراسل{showColFilters && <ColFilterBtn col="sender" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
           <span className="flex items-center justify-start gap-1">العميل{showColFilters && <ColFilterBtn col="customer" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
           <span className="flex items-center justify-start gap-1">الهاتف{showColFilters && <ColFilterBtn col="phone" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
@@ -5016,6 +5017,7 @@ export default function ShippingManifestPage() {
           <span className="flex items-center justify-center gap-1">القيمة المستلمة{showColFilters && <ColFilterBtn col="collected" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
           <span className="flex items-center justify-center gap-1">سعر الشحن{showColFilters && <ColFilterBtn col="shipping" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
           <span className="flex items-center justify-center gap-1">الحالة{showColFilters && <ColFilterBtn col="status" colFilters={colFilters} getColOptions={getColOptions} toggleColFilter={toggleColFilter} clearColFilter={clearColFilter} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}</span>
+          <span className="flex items-center justify-start gap-1">ملاحظات</span>
         </div>
 
         {displayGroups.length === 0 ? (
@@ -5042,7 +5044,7 @@ export default function ShippingManifestPage() {
             const key = group.map((order) => order.id).join("-");
             return (
               <div key={`client-look-${key}`}>
-                <div className="hidden md:grid grid-cols-[100px_1fr_110px_90px_1fr_110px_110px_110px_110px] gap-0 px-4 py-3 text-xs items-center border-b border-border/40 hover:bg-muted/10 transition-colors">
+                <div className="hidden md:grid grid-cols-[100px_minmax(120px,1fr)_110px_90px_minmax(120px,1.2fr)_110px_110px_110px_110px_minmax(140px,1fr)] md:min-w-[1160px] gap-0 px-4 py-3 text-xs items-center border-b border-border/40 hover:bg-muted/10 transition-colors">
                   <div className="min-w-0 pr-2 text-muted-foreground truncate">{(rep as any).senderName || <span className="text-muted-foreground/40">—</span>}</div>
                   <div className="min-w-0 pr-2">
                     <p className="font-bold truncate">{rep.customerName}</p>
@@ -5086,6 +5088,16 @@ export default function ShippingManifestPage() {
                           {noteText}
                         </p>
                       ) : null;
+                    })()}
+                  </div>
+                  <div className="min-w-0 px-2">
+                    {(() => {
+                      const groupNotes = [...new Set(group.map((o) => o.deliveryNote).filter(Boolean))].join(" | ");
+                      return groupNotes ? (
+                        <p className="text-[10px] leading-snug text-foreground/80 break-words" title={groupNotes}>{groupNotes}</p>
+                      ) : (
+                        <p className="text-muted-foreground/40 text-[10px]">—</p>
+                      );
                     })()}
                   </div>
                 </div>
@@ -5146,6 +5158,7 @@ export default function ShippingManifestPage() {
             );
           })
         )}
+        </div>
       </div>
 
       {/* ─── حاوية المرتجعات والجزئي لسه عند مندوب الشحن ─── */}
