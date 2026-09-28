@@ -420,6 +420,21 @@ async function ensureClientsWhatsappGroupLink() {
 }
 if (IS_PRIMARY_INSTANCE) ensureClientsWhatsappGroupLink();
 
+// ─── Ensure clients.monthly_shipment_target column exists (التارجت الشهري للعميل — مؤشر المستوى) ──
+async function ensureClientsMonthlyShipmentTarget() {
+  try {
+    await db.execute(sql`
+      ALTER TABLE clients ADD COLUMN IF NOT EXISTS monthly_shipment_target INT NULL DEFAULT 0
+    `);
+    logger.info("clients.monthly_shipment_target column ensured");
+  } catch (err: any) {
+    if (err?.message && !err.message.includes("Duplicate column")) {
+      logger.error({ err }, "Failed to ensure clients.monthly_shipment_target column");
+    }
+  }
+}
+if (IS_PRIMARY_INSTANCE) ensureClientsMonthlyShipmentTarget();
+
 // ─── Ensure client_account_closures.client_id column exists (ربط إقفال حساب العميل التجاري) ──
 async function ensureClientAccountClosuresClientId() {
   try {
@@ -467,21 +482,6 @@ async function ensureTripSettlementTables() {
         previous_settlement_id INT NULL,
         total_reps_balance DECIMAL(14,2) NULL,
         total_clients_balance DECIMAL(14,2) NULL,
-// ─── Ensure clients.monthly_shipment_target column exists (التارجت الشهري للعميل — مؤشر المستوى) ──
-async function ensureClientsMonthlyShipmentTarget() {
-  try {
-    await db.execute(sql`
-      ALTER TABLE clients ADD COLUMN IF NOT EXISTS monthly_shipment_target INT NULL DEFAULT 0
-    `);
-    logger.info("clients.monthly_shipment_target column ensured");
-  } catch (err: any) {
-    if (err?.message && !err.message.includes("Duplicate column")) {
-      logger.error({ err }, "Failed to ensure clients.monthly_shipment_target column");
-    }
-  }
-}
-if (IS_PRIMARY_INSTANCE) ensureClientsMonthlyShipmentTarget();
-
         net_balance DECIMAL(14,2) NULL,
         created_by_user_id INT NULL,
         created_by_name VARCHAR(255) NULL,
