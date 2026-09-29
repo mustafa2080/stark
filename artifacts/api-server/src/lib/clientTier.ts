@@ -2,7 +2,7 @@ import { db, clientsTable, shipmentsTable } from "@workspace/db";
 import { and, eq, gte, isNull, notInArray, or, sql } from "drizzle-orm";
 
 // ═══════════════════════════════════════════════════════════════════════════
-// نظام مستويات العملاء التجاريين (8 مستويات: مبتدئ → برونز → سيلفر → ... → أسطورة)
+// نظام مستويات العملاء التجاريين (8 مستويات: STARTER → BRONZE → SILVER → GOLD → VIP → VIP PLUS → ELITE → STARK PARTNER)
 // ─ المستوى بيتحدد من عدد شحنات العميل في الشهر الحالي، وبيبدأ من الصفر كل شهر.
 // ─ ده المصدر الوحيد للحسبة: لوحة الأدمن وبوابة العميل بيقروا من نفس الدالة
 //   فالأرقام والمستوى بيطلعوا متطابقين 100%.
@@ -40,16 +40,17 @@ export interface TierConfigItem {
 
 // 8 مستويات ثابتة (المفاتيح والأيقونات)، والباقي قابل للتعديل من لوحة الأدمن
 // (الاسم + بداية ونهاية كل مستوى + اللون + الصورة).
-// الافتراضي (حسب كلام المدير): مبتدئ 0–100، برونز 101–200، سيلفر 201–300 ... وآخر مستوى 2001+.
+// الافتراضي (حسب كلام المدير + بوستر ستارك): STARTER 0–100، BRONZE 101–200، SILVER 201–300،
+// GOLD 301–500، VIP 501–1000، VIP PLUS 1001–1500، ELITE 1501–2000، STARK PARTNER 2001+.
 const TIER_META: { key: TierKey; icon: TierIconKey; name: string; color: string; min: number }[] = [
-  { key: "starter",  icon: "sprout", name: "مبتدئ",     color: "#94a3b8", min: 0 },
-  { key: "bronze",   icon: "medal",  name: "برونز",     color: "#d08a4a", min: 101 },
-  { key: "silver",   icon: "award",  name: "سيلفر",     color: "#cbd5e1", min: 201 },
-  { key: "gold",     icon: "trophy", name: "جولد",      color: "#f5b82e", min: 301 },
-  { key: "platinum", icon: "shield", name: "بلاتينيوم", color: "#5eead4", min: 501 },
-  { key: "diamond",  icon: "gem",    name: "دايموند",   color: "#60a5fa", min: 801 },
-  { key: "master",   icon: "star",   name: "ماستر",     color: "#f472b6", min: 1201 },
-  { key: "legend",   icon: "crown",  name: "أسطورة",    color: "#c084fc", min: 2001 },
+  { key: "starter",  icon: "crown",  name: "STARTER",       color: "#e2e8f0", min: 0 },
+  { key: "bronze",   icon: "crown",  name: "BRONZE",        color: "#d08a4a", min: 101 },
+  { key: "silver",   icon: "crown",  name: "SILVER",        color: "#a8b3c5", min: 201 },
+  { key: "gold",     icon: "crown",  name: "GOLD",          color: "#f5b82e", min: 301 },
+  { key: "vip",      icon: "crown",  name: "VIP",           color: "#38bdf8", min: 501 },
+  { key: "vip_plus", icon: "crown",  name: "VIP PLUS",      color: "#a855f7", min: 1001 },
+  { key: "elite",    icon: "crown",  name: "ELITE",         color: "#ef4444", min: 1501 },
+  { key: "partner",  icon: "shield", name: "STARK PARTNER", color: "#f3d9a0", min: 2001 },
 ];
 
 export const DEFAULT_TIER_CONFIG: TierConfigItem[] = TIER_META.map((m, i) => ({

@@ -80,14 +80,14 @@ export const TIER_ICONS: Record<TierIconKey, typeof Medal> = {
 
 /** قيم احتياطية لو الـ API لسه بيرجّع مستويات من غير لون/أيقونة (نفس افتراضيات السيرفر) */
 const TIER_FALLBACK: Record<string, { color: string; icon: TierIconKey; name: string }> = {
-  starter:  { color: "#94a3b8", icon: "sprout", name: "مبتدئ" },
-  bronze:   { color: "#d08a4a", icon: "medal",  name: "برونز" },
-  silver:   { color: "#cbd5e1", icon: "award",  name: "سيلفر" },
-  gold:     { color: "#f5b82e", icon: "trophy", name: "جولد" },
-  platinum: { color: "#5eead4", icon: "shield", name: "بلاتينيوم" },
-  diamond:  { color: "#60a5fa", icon: "gem",    name: "دايموند" },
-  master:   { color: "#f472b6", icon: "star",   name: "ماستر" },
-  legend:   { color: "#c084fc", icon: "crown",  name: "أسطورة" },
+  starter:  { color: "#e2e8f0", icon: "crown",  name: "STARTER" },
+  bronze:   { color: "#d08a4a", icon: "crown",  name: "BRONZE" },
+  silver:   { color: "#a8b3c5", icon: "crown",  name: "SILVER" },
+  gold:     { color: "#f5b82e", icon: "crown",  name: "GOLD" },
+  vip:      { color: "#38bdf8", icon: "crown",  name: "VIP" },
+  vip_plus: { color: "#a855f7", icon: "crown",  name: "VIP PLUS" },
+  elite:    { color: "#ef4444", icon: "crown",  name: "ELITE" },
+  partner:  { color: "#f3d9a0", icon: "shield", name: "STARK PARTNER" },
 };
 const NONE_COLOR = "#64748b";
 
@@ -207,6 +207,20 @@ function TierRing({ data }: { data: ClientTierData }) {
           style={{ filter: `drop-shadow(0 0 7px ${alpha(color, 0.45)})` }}
         />
       </svg>
+      {/* نقطة لامعة بتدور حوالين الدايرة */}
+      {!reduce && (
+        <motion.div
+          aria-hidden
+          className="absolute inset-0 pointer-events-none"
+          animate={{ rotate: 360 }}
+          transition={{ duration: 7, repeat: Infinity, ease: "linear" }}
+        >
+          <span
+            className="absolute left-1/2 -translate-x-1/2 top-[10px] w-2 h-2 rounded-full"
+            style={{ background: color, boxShadow: `0 0 10px 2px ${alpha(color, 0.85)}` }}
+          />
+        </motion.div>
+      )}
       <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
         <motion.div
           animate={reduce ? undefined : { scale: [1, 1.05, 1] }}
@@ -234,76 +248,138 @@ function TierRing({ data }: { data: ClientTierData }) {
 function TierLadder({ data }: { data: ClientTierData }) {
   const reduce = useReducedMotion();
   const tierProgress = Math.max(0, Math.min(100, data.tierProgressPct ?? data.progressPct));
+  // شكل الدرع السداسي (زي بوستر ستارك)
+  const HEX = "polygon(9% 0, 91% 0, 100% 50%, 91% 100%, 9% 100%, 0 50%)";
+  const SPARKS = [
+    { top: "18%", left: "14%", size: 4, delay: 0 },
+    { top: "28%", left: "82%", size: 3, delay: 0.7 },
+    { top: "70%", left: "20%", size: 3, delay: 1.3 },
+    { top: "76%", left: "78%", size: 4, delay: 0.4 },
+  ];
+  const last = data.ladder.length - 1;
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2" dir="rtl">
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3" dir="rtl">
       {data.ladder.map((step, i) => {
         const look = tierLook(step);
         const isCur = step.status === "current";
         const done = step.status === "achieved";
         const active = isCur || done;
+        const premium = isCur || i === last;
         return (
           <motion.div
             key={step.key}
-            initial={reduce ? false : { opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: reduce ? 0 : i * 0.05, duration: 0.35, ease: "easeOut" }}
-            className="relative rounded-xl border p-2.5 flex flex-col items-center text-center gap-1.5 overflow-hidden"
+            initial={reduce ? false : { opacity: 0, y: 16, scale: 0.94 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            whileHover={reduce ? undefined : { y: -4, scale: 1.03 }}
+            transition={{ delay: reduce ? 0 : i * 0.06, duration: 0.4, ease: "easeOut" }}
+            className="relative"
             style={{
-              borderColor: isCur ? look.color : done ? alpha(look.color, 0.4) : "hsl(var(--border))",
-              background: isCur
-                ? `linear-gradient(160deg, ${alpha(look.color, 0.24)}, ${alpha(look.color, 0.05)})`
-                : done ? alpha(look.color, 0.07) : "hsl(var(--muted)/.15)",
-              boxShadow: isCur ? `0 0 0 1px ${look.color}, 0 8px 26px -8px ${alpha(look.color, 0.7)}` : undefined,
+              filter: isCur
+                ? `drop-shadow(0 6px 16px ${alpha(look.color, 0.55)})`
+                : active
+                  ? `drop-shadow(0 3px 9px ${alpha(look.color, 0.28)})`
+                  : `drop-shadow(0 2px 6px ${alpha(look.color, 0.14)})`,
             }}
           >
+            {/* توهّج نابض ورا المستوى الحالي */}
             {isCur && !reduce && (
               <motion.div
                 aria-hidden
-                className="absolute inset-y-0 left-0 w-1/3 pointer-events-none"
-                style={{ background: `linear-gradient(90deg, transparent, ${alpha(look.color, 0.28)}, transparent)` }}
-                initial={{ x: "-100%" }}
-                animate={{ x: "400%" }}
-                transition={{ duration: 2.2, repeat: Infinity, repeatDelay: 2.6, ease: "easeInOut" }}
+                className="absolute inset-3 rounded-full blur-2xl pointer-events-none"
+                style={{ background: alpha(look.color, 0.5) }}
+                animate={{ opacity: [0.25, 0.7, 0.25] }}
+                transition={{ duration: 2.6, repeat: Infinity, ease: "easeInOut" }}
               />
             )}
-            <div className="relative">
-              <TierEmblem
-                look={look} size={isCur ? 54 : 44} glow={isCur}
-                className={active ? "" : "grayscale opacity-45"}
-              />
-              {done && (
-                <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-card flex items-center justify-center">
-                  <CheckCircle2 className="w-4 h-4" style={{ color: look.color }} />
-                </span>
-              )}
-              {!active && (
-                <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-card border border-border flex items-center justify-center">
-                  <Lock className="w-2.5 h-2.5 text-muted-foreground/70" />
-                </span>
-              )}
-            </div>
-            <p className="text-[12px] font-black leading-none" style={{ color: active ? look.color : "hsl(var(--muted-foreground))" }}>
-              {step.name}
-            </p>
-            <p className="text-[10px] text-muted-foreground leading-none">{rangeLabel(step)} شحنة</p>
-            {isCur && (
-              <>
-                {data.nextTier && (
-                  <div className="w-full h-1.5 rounded-full bg-muted/40 overflow-hidden">
-                    <motion.div
-                      className="h-full rounded-full"
-                      style={{ background: look.color }}
-                      initial={{ width: 0 }}
-                      animate={{ width: `${tierProgress}%` }}
-                      transition={{ duration: 1.1, ease: "easeOut" }}
-                    />
-                  </div>
+            {/* الإطار المتدرّج */}
+            <div
+              style={{
+                clipPath: HEX,
+                padding: 1.5,
+                background: `linear-gradient(135deg, ${alpha(look.color, isCur ? 1 : active ? 0.85 : 0.5)}, ${alpha(look.color, 0.15)} 55%, ${alpha(look.color, isCur ? 0.8 : 0.35)})`,
+              }}
+            >
+              <div
+                className="relative overflow-hidden flex flex-col items-center text-center gap-1.5 px-4 pt-3.5 pb-3.5"
+                style={{
+                  clipPath: HEX,
+                  background: `radial-gradient(130% 100% at 50% 0%, ${alpha(look.color, isCur ? 0.34 : active ? 0.2 : 0.11)}, hsl(var(--card)) 72%)`,
+                }}
+              >
+                {/* لمعة بتعدّي على المستوى الحالي وآخر مستوى */}
+                {premium && !reduce && (
+                  <motion.div
+                    aria-hidden
+                    className="absolute inset-y-0 left-0 w-1/3 pointer-events-none"
+                    style={{ background: `linear-gradient(100deg, transparent, ${alpha(look.color, 0.3)}, transparent)` }}
+                    initial={{ x: "-120%" }}
+                    animate={{ x: "420%" }}
+                    transition={{ duration: 2.2, repeat: Infinity, repeatDelay: 2.4, ease: "easeInOut" }}
+                  />
                 )}
-                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: alpha(look.color, 0.2), color: look.color }}>
-                  أنت هنا
+                {/* نقط لامعة بتومّض حوالين المستوى الحالي */}
+                {isCur && !reduce && SPARKS.map((s, k) => (
+                  <motion.span
+                    key={k}
+                    aria-hidden
+                    className="absolute rounded-full pointer-events-none"
+                    style={{ width: s.size, height: s.size, top: s.top, left: s.left, background: look.color, boxShadow: `0 0 8px 1px ${look.color}` }}
+                    animate={{ opacity: [0, 1, 0], scale: [0.4, 1.2, 0.4] }}
+                    transition={{ duration: 2.2, repeat: Infinity, delay: s.delay, ease: "easeInOut" }}
+                  />
+                ))}
+                {/* رقم المستوى */}
+                <span
+                  className="absolute top-1.5 right-7 w-[18px] h-[18px] rounded-full flex items-center justify-center text-[10px] font-black"
+                  style={{
+                    border: `1.5px solid ${alpha(look.color, active ? 0.9 : 0.5)}`,
+                    color: look.color,
+                    background: alpha(look.color, 0.12),
+                  }}
+                >
+                  {i + 1}
                 </span>
-              </>
-            )}
+                <motion.div
+                  className="relative"
+                  animate={isCur && !reduce ? { y: [0, -3, 0] } : undefined}
+                  transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                >
+                  <TierEmblem look={look} size={isCur ? 56 : 46} glow={isCur} className={active ? "" : "opacity-75"} />
+                  {done && (
+                    <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-card flex items-center justify-center">
+                      <CheckCircle2 className="w-4 h-4" style={{ color: look.color }} />
+                    </span>
+                  )}
+                  {!active && (
+                    <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-card border border-border flex items-center justify-center">
+                      <Lock className="w-2.5 h-2.5 text-muted-foreground/70" />
+                    </span>
+                  )}
+                </motion.div>
+                <p className="text-[12px] font-black leading-none tracking-wide" style={{ color: look.color, opacity: active ? 1 : 0.85 }}>
+                  {step.name}
+                </p>
+                <p className="text-[10px] text-muted-foreground leading-none">{rangeLabel(step)} شحنة</p>
+                {isCur && (
+                  <>
+                    {data.nextTier && (
+                      <div className="w-full h-1.5 rounded-full bg-muted/40 overflow-hidden">
+                        <motion.div
+                          className="h-full rounded-full"
+                          style={{ background: look.color }}
+                          initial={{ width: 0 }}
+                          animate={{ width: `${tierProgress}%` }}
+                          transition={{ duration: 1.1, ease: "easeOut" }}
+                        />
+                      </div>
+                    )}
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: alpha(look.color, 0.2), color: look.color }}>
+                      أنت هنا
+                    </span>
+                  </>
+                )}
+              </div>
+            </div>
           </motion.div>
         );
       })}
