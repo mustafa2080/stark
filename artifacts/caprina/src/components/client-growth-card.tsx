@@ -1,7 +1,7 @@
 import { useMemo, type CSSProperties } from "react";
 import {
-  ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ReferenceLine, Cell, LabelList,
+  ResponsiveContainer, ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip,
+  ReferenceLine, LabelList,
 } from "recharts";
 import { TrendingUp, TrendingDown, Minus, Trophy, CalendarDays, Gauge, Activity } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -9,8 +9,8 @@ import type { ClientTierData } from "@/components/client-tier-card";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // كارت "النمو الشهري" (صفحة العميل التجاري) — شحنات آخر 6 شهور من الداتا الفعلية.
-//  • الأعمدة متقسّمة: مسلّمة / مرتجع / أخرى، والرقم الإجمالي فوق كل عمود.
-//  • الشهر الحالي بلون أهدأ (لسه ماخلصش) + خط التارجت الشهري لو الأدمن حدده.
+//  • خطوط منحنية مايلة: الإجمالي (خط سميك + تدرّج تحته) ومعاه مسلّمة / مرتجع / أخرى، والرقم الإجمالي فوق كل نقطة.
+//  • الشهر الحالي بخط متقطّع ونقطة مفرّغة (لسه ماخلصش) + خط التارجت الشهري لو الأدمن حدده.
 //  • مؤشرات: شحنات الشهر الحالي (والمتوقع)، نمو آخر شهر مكتمل، المتوسط، أفضل شهر.
 // الحساب بتوقيت القاهرة وبنفس فلتر كارت المستوى (الملغي مش بيتحسب) عشان الأرقام تتطابق.
 // ═══════════════════════════════════════════════════════════════════════════
@@ -28,6 +28,15 @@ const IGNORED = new Set(["cancelled", "pending", "waiting", "confirmed"]);
 const C_DELIVERED = "#10b981";
 const C_RETURNED = "#ef4444";
 const C_OTHER = "#3b82f6";
+const C_TOTAL = "#6366f1";
+
+// الإجمالي بيتحط آخر واحد عشان يترسم فوق الباقي
+const SERIES = [
+  { key: "other", color: C_OTHER, width: 2 },
+  { key: "returned", color: C_RETURNED, width: 2 },
+  { key: "delivered", color: C_DELIVERED, width: 2 },
+  { key: "total", color: C_TOTAL, width: 3.5 },
+] as const;
 
 const cairoFmt = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit" });
 function cairoYM(d: Date): { y: number; m: number } {
@@ -129,6 +138,16 @@ export function ClientGrowthCard({ shipments, tier, isLoading, className = "", s
     return list;
   }, [shipments]);
 
+  // كل خط بيتقسّم: _a للشهور المكتملة (متصل) و _b من آخر شهر مكتمل للشهر الجاري (متقطّع)
+  const chartData = useMemo(() => rows.map((r, i) => {
+    const o: Record<string, any> = { ...r };
+    for (const k of ["total", "delivered", "returned", "other"] as const) {
+      o[`${k}_a`] = i <= 4 ? r[k] : null;
+      o[`${k}_b`] = i >= 4 ? r[k] : null;
+    }
+    return o;
+  }), [rows]);
+
   if (isLoading) {
     return (
       <Card className={`p-4 ${className}`} style={style}>
@@ -167,9 +186,10 @@ export function ClientGrowthCard({ shipments, tier, isLoading, className = "", s
           <p className="text-[10px] text-muted-foreground mt-0.5">شحنات آخر 6 شهور (بتوقيت القاهرة، من غير الملغي)</p>
         </div>
         <div className="flex items-center gap-3 text-[10px]">
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: C_DELIVERED }} />مسلّمة</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: C_RETURNED }} />مرتجع</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: C_OTHER }} />أخرى</span>
+          <span className="flex items-center gap-1"><span className="w-3.5 h-[3px] rounded-full" style={{ background: C_TOTAL }} />الإجمالي</span>
+          <span className="flex items-center gap-1"><span className="w-3.5 h-[3px] rounded-full" style={{ background: C_DELIVERED }} />مسلّمة</span>
+          <span className="flex items-center gap-1"><span className="w-3.5 h-[3px] rounded-full" style={{ background: C_RETURNED }} />مرتجع</span>
+          <span className="flex items-center gap-1"><span className="w-3.5 h-[3px] rounded-full" style={{ background: C_OTHER }} />أخرى</span>
           {target > 0 && (
             <span className="flex items-center gap-1"><span className="w-4 border-t border-dashed border-amber-400 inline-block" />التارجت</span>
           )}
@@ -200,39 +220,81 @@ export function ClientGrowthCard({ shipments, tier, isLoading, className = "", s
           </div>
 
           <div dir="ltr" className="w-full">
-            <ResponsiveContainer width="100%" height={220}>
-              <ComposedChart data={rows} margin={{ top: 18, right: 8, left: -18, bottom: 0 }} barCategoryGap="22%">
+            <ResponsiveContainer width="100%" height={240}>
+              <ComposedChart data={chartData} margin={{ top: 24, right: 14, left: -18, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="growthTotalFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={C_TOTAL} stopOpacity={0.3} />
+                    <stop offset="100%" stopColor={C_TOTAL} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                <XAxis dataKey="label" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+                <XAxis
+                  dataKey="label" padding={{ left: 18, right: 18 }}
+                  tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false}
+                />
                 <YAxis
                   allowDecimals={false}
-                  domain={[0, Math.max(5, Math.ceil(Math.max(maxTotal, target) * 1.15))]}
+                  domain={[0, Math.max(5, Math.ceil(Math.max(maxTotal, target) * 1.2))]}
                   tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false}
                   tickFormatter={(v: number) => (v >= 1000 ? `${Math.round(v / 100) / 10}K` : String(v))}
                 />
-                <Tooltip content={<GrowthTooltip />} cursor={{ fill: "hsl(var(--muted) / .25)" }} />
+                <Tooltip
+                  content={<GrowthTooltip />}
+                  cursor={{ stroke: "hsl(var(--muted-foreground))", strokeOpacity: 0.4, strokeDasharray: "3 3" }}
+                />
                 {target > 0 && (
                   <ReferenceLine
                     y={target} stroke="#f59e0b" strokeDasharray="4 3" strokeWidth={1.5}
                     label={{ value: `التارجت ${n(target)}`, position: "insideTopRight", fill: "#f59e0b", fontSize: 10 }}
                   />
                 )}
-                <Bar dataKey="delivered" stackId="s" fill={C_DELIVERED} maxBarSize={44}>
-                  {rows.map(r => <Cell key={r.key} fillOpacity={r.isCurrent ? 0.6 : 1} />)}
-                </Bar>
-                <Bar dataKey="returned" stackId="s" fill={C_RETURNED} maxBarSize={44}>
-                  {rows.map(r => <Cell key={r.key} fillOpacity={r.isCurrent ? 0.6 : 1} />)}
-                </Bar>
-                <Bar dataKey="other" stackId="s" fill={C_OTHER} radius={[5, 5, 0, 0]} maxBarSize={44}>
-                  {rows.map(r => <Cell key={r.key} fillOpacity={r.isCurrent ? 0.6 : 1} />)}
-                </Bar>
-                {/* الرقم الإجمالي فوق كل عمود (خط شفاف بس عشان الـ label) */}
-                <Line dataKey="total" stroke="none" dot={false} activeDot={false} isAnimationActive={false} legendType="none" tooltipType="none">
-                  <LabelList
-                    dataKey="total" position="top" fontSize={11} fontWeight={700} fill="hsl(var(--foreground))"
-                    formatter={(v: number) => (v > 0 ? n(v) : "")}
-                  />
-                </Line>
+                {/* تدرّج ناعم تحت خط الإجمالي */}
+                <Area
+                  dataKey="total" type="monotone" stroke="none" fill="url(#growthTotalFill)"
+                  isAnimationActive={false} activeDot={false} legendType="none" tooltipType="none"
+                />
+                {SERIES.flatMap(sr => {
+                  const isTotal = sr.key === "total";
+                  return [
+                    // الشهور المكتملة — خط متصل بنقاط
+                    <Line
+                      key={`${sr.key}_a`} dataKey={`${sr.key}_a`} type="monotone"
+                      stroke={sr.color} strokeWidth={sr.width} strokeLinecap="round"
+                      strokeOpacity={isTotal ? 1 : 0.85}
+                      dot={{ r: isTotal ? 4 : 3, fill: isTotal ? sr.color : "hsl(var(--card))", stroke: sr.color, strokeWidth: 2 }}
+                      activeDot={{ r: isTotal ? 6 : 5, strokeWidth: 2, stroke: "hsl(var(--card))", fill: sr.color }}
+                      isAnimationActive={false} legendType="none" tooltipType="none"
+                    >
+                      {isTotal && (
+                        <LabelList
+                          dataKey="total_a" position="top" offset={10} fontSize={11} fontWeight={700} fill="hsl(var(--foreground))"
+                          formatter={(v: number) => (v > 0 ? n(v) : "")}
+                        />
+                      )}
+                    </Line>,
+                    // آخر شهر مكتمل ← الشهر الجاري — خط متقطّع ونقطة مفرّغة (لسه ماخلصش)
+                    <Line
+                      key={`${sr.key}_b`} dataKey={`${sr.key}_b`} type="monotone"
+                      stroke={sr.color} strokeWidth={sr.width} strokeLinecap="round" strokeDasharray="6 5"
+                      strokeOpacity={isTotal ? 0.9 : 0.6}
+                      dot={(p: any) => p.index === 5
+                        ? <circle key={`live-${sr.key}`} cx={p.cx} cy={p.cy} r={isTotal ? 4.5 : 3.5} fill="hsl(var(--card))" stroke={sr.color} strokeWidth={2} />
+                        : <g key={`live-${sr.key}-${p.index}`} />}
+                      activeDot={{ r: isTotal ? 6 : 5, strokeWidth: 2, stroke: "hsl(var(--card))", fill: sr.color }}
+                      isAnimationActive={false} legendType="none" tooltipType="none"
+                    >
+                      {isTotal && (
+                        <LabelList
+                          dataKey="total_b"
+                          content={(p: any) => (p.index === 5 && p.value > 0
+                            ? <text key="live-total-label" x={p.x} y={p.y - 10} textAnchor="middle" fontSize={11} fontWeight={700} fill="hsl(var(--foreground))" opacity={0.7}>{n(p.value)}</text>
+                            : null)}
+                        />
+                      )}
+                    </Line>,
+                  ];
+                })}
               </ComposedChart>
             </ResponsiveContainer>
           </div>
