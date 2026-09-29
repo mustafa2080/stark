@@ -34,7 +34,7 @@ import { ar } from "date-fns/locale";
 import { apiFetch, clientAccountManifestsApi, clientReturnManifestsApi, shipmentsApi, type ClientAccountManifestListItem, type ClientReturnManifestListItem, type ClientReturnManifestItem } from "@/lib/api";
 import { cn, formatCurrency } from "@/lib/utils";
 import { returnReasonLabel } from "@/lib/order-constants";
-import { ClientTierCard, type ClientTierData } from "@/components/client-tier-card";
+import { ClientTierCard, TierGoalStrip, type ClientTierData } from "@/components/client-tier-card";
 import { TierSettingsDialog } from "@/components/client-tier-settings";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -377,6 +377,31 @@ export default function CommercialClientDetailPage() {
       toast({ title: target > 0 ? "تم حفظ التارجت الشهري" : "تم إلغاء التارجت الشهري" });
     },
     onError: (err: any) => toast({ title: "فشل حفظ التارجت", description: err?.message, variant: "destructive" }),
+  });
+
+  // صورة كل مستوى (رفع/حذف مباشرة من سلّم المستويات) — بنقرأ الإعدادات المحفوظة ونبدّل صورة المستوى ده بس ونحفظ
+  const saveTierImageMut = useMutation({
+    mutationFn: async ({ tierKey, image }: { tierKey: string; image: string | null }) => {
+      const cur = await apiFetch<{ ladder: { key: string; name: string; min: number; max?: number | null; color: string; image?: string | null }[] }>(
+        "/finance/clients/tier-settings",
+      );
+      return apiFetch("/finance/clients/tier-settings", {
+        method: "PUT",
+        body: JSON.stringify({
+          tiers: cur.ladder.map(t => ({
+            key: t.key, name: t.name, min: t.min, max: t.max ?? null, color: t.color,
+            image: t.key === tierKey ? image : (t.image ?? null),
+          })),
+        }),
+      });
+    },
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ["client-tier"] });
+      qc.invalidateQueries({ queryKey: ["client-tier-settings"] });
+      qc.invalidateQueries({ queryKey: ["finance-clients-tiers"] });
+      qc.invalidateQueries({ queryKey: ["client-portal-tier"] });
+      toast({ title: v.image ? "تم حفظ صورة المستوى" : "تم حذف صورة المستوى" });
+    },
   });
 
   // ── بيانات حساب العميل (Client Account Manifests — شحنات) ──────────────────
@@ -976,10 +1001,13 @@ export default function CommercialClientDetailPage() {
       {/* ─── Stats Cards — زي شركات الشحن بس بأرقام العميل ─── */}
       {!isLoading && client && (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          <Card className="card-glow border-teal-900/40 p-3 text-center" style={GLOW.teal.style}>
-            <p className="text-[10px] text-teal-400 mb-0.5">إجمالي الشحنات</p>
-            <p className="text-xl font-black text-teal-400">{shipmentsData?.total ?? clientShipments.length}</p>
-            <p className="text-[10px] text-teal-600">
+          <Card
+            className={`card-glow p-3 text-center border h-full flex flex-col items-center justify-center ${salesPct >= 75 ? "border-emerald-900/40" : salesPct >= 50 ? "border-amber-900/40" : "border-primary/30"}`}
+            style={salesPct >= 75 ? GLOW.emerald.style : salesPct >= 50 ? GLOW.amber.style : GLOW.blue.style}
+          >
+            <p className="text-[10px] text-muted-foreground mb-0.5">إجمالي الشحنات</p>
+            <p className={`text-2xl font-black ${salesPct >= 75 ? "text-emerald-400" : salesPct >= 50 ? "text-amber-400" : "text-primary"}`}>{shipmentsData?.total ?? clientShipments.length}</p>
+            <p className="text-[10px] text-muted-foreground mt-1.5">
               {clientShipments.filter(s => ["received","delivered"].includes(s.status)).length} مسلّمة
               {" · "}
               {clientShipments.filter(s => ["returned"].includes(s.status)).length} مرتجع
@@ -987,15 +1015,18 @@ export default function CommercialClientDetailPage() {
               {clientShipments.filter(s => s.isDelayed).length} مؤجل
             </p>
           </Card>
-          <Card className="card-glow border-emerald-900/40 p-3 text-center" style={GLOW.emerald.style}>
-            <p className="text-[10px] text-emerald-400 mb-0.5">إجمالي رصيد العميل</p>
+          <Card
+            className={`card-glow p-3 text-center border h-full flex flex-col items-center justify-center ${salesPct >= 75 ? "border-emerald-900/40" : salesPct >= 50 ? "border-amber-900/40" : "border-primary/30"}`}
+            style={salesPct >= 75 ? GLOW.emerald.style : salesPct >= 50 ? GLOW.amber.style : GLOW.blue.style}
+          >
+            <p className="text-[10px] text-muted-foreground mb-0.5">إجمالي رصيد العميل</p>
             {(balanceData?.manifestsCount ?? 0) > 0 ? (
               <>
-                <p className="text-xl font-black text-emerald-400">{fmt(balanceData?.balance ?? 0)}</p>
-                <p className="text-[10px] text-muted-foreground">{balanceData?.manifestsCount ?? 0} بيان</p>
+                <p className={`text-2xl font-black ${salesPct >= 75 ? "text-emerald-400" : salesPct >= 50 ? "text-amber-400" : "text-primary"}`}>{fmt(balanceData?.balance ?? 0)}</p>
+                <p className="text-[10px] text-muted-foreground mt-1.5">{balanceData?.manifestsCount ?? 0} بيان</p>
               </>
             ) : (
-              <p className="text-[11px] font-semibold text-emerald-400/80 leading-snug px-1">
+              <p className="text-[11px] font-semibold text-muted-foreground leading-snug px-1 mt-1">
                 سيتم عرض الإجمالي بعد إغلاق البيان
               </p>
             )}
@@ -1018,12 +1049,19 @@ export default function CommercialClientDetailPage() {
             <p className={`text-2xl font-black ${salesPct >= 75 ? "text-emerald-400" : salesPct >= 50 ? "text-amber-400" : "text-primary"}`}>
               {salesPct.toFixed(1)}%
             </p>
-            <div className="w-full bg-muted/30 rounded-full h-1.5 mt-1.5 overflow-hidden">
-              <div
-                className={`h-1.5 rounded-full transition-all ${salesPct >= 75 ? "bg-emerald-500" : salesPct >= 50 ? "bg-amber-500" : "bg-primary"}`}
-                style={{ width: `${Math.min(salesPct, 100)}%` }}
-              />
-            </div>
+            {/* شريط ملوّن بألوان مستويات الشحنات الشهرية + دبوس "أنت هنا" (للعرض فقط) */}
+            {tierData ? (
+              <div className="mt-1.5">
+                <TierGoalStrip data={tierData} caption />
+              </div>
+            ) : (
+              <div className="w-full bg-muted/30 rounded-full h-1.5 mt-1.5 overflow-hidden">
+                <div
+                  className={`h-1.5 rounded-full transition-all ${salesPct >= 75 ? "bg-emerald-500" : salesPct >= 50 ? "bg-amber-500" : "bg-primary"}`}
+                  style={{ width: `${Math.min(salesPct, 100)}%` }}
+                />
+              </div>
+            )}
 
             {/* الهدف قابل للتعديل inline */}
             {editingTarget ? (
@@ -1072,6 +1110,7 @@ export default function CommercialClientDetailPage() {
           {/* مستوى العميل الشهري — بديل مقياس الهدف القديم (الدايرة + المستوى + النصائح) */}
           <ClientTierCard data={tierData} isLoading={tierLoading} variant="admin" className="sm:col-span-2"
           onSaveTarget={isAdmin ? async (v) => { await saveTargetMut.mutateAsync(v); } : undefined}
+          onSaveTierImage={isAdmin ? async (tierKey, image) => { await saveTierImageMut.mutateAsync({ tierKey, image }); } : undefined}
           onEditTiers={isAdmin ? () => setShowTierSettings(true) : undefined} />
           {isAdmin && <TierSettingsDialog open={showTierSettings} onOpenChange={setShowTierSettings} />}
 

@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, animate, useReducedMotion } from "framer-motion";
 import {
   Medal, Award, Trophy, Crown, Sprout, ShieldCheck, Gem, Star, Target, Lightbulb, TrendingUp, TrendingDown,
   AlertTriangle, CheckCircle2, Info, Lock, Flag, CalendarDays, Gauge, Pencil, Check, X, Loader2,
-  Rocket, Flame, Sparkles, Zap, Settings2,
+  Rocket, Flame, Sparkles, Zap, Settings2, ImagePlus, Trash2,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -114,6 +114,37 @@ export function tierLook(
 }
 
 const n = (v: number) => v.toLocaleString("en-US");
+
+const MAX_IMAGE_CHARS = 120_000; // نفس حد السيرفر
+const IMG_SIZE = 128;
+
+/** بيصغّر الصورة (قص من النص لمربع 128×128) ويرجّعها data URL خفيف — مشترك بين الكارت وإعدادات المستويات */
+export async function fileToTierImage(file: File): Promise<string> {
+  if (!/^image\/(png|jpeg|webp|gif)$/.test(file.type)) throw new Error("الصورة لازم تكون PNG أو JPG أو WebP");
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = () => reject(new Error("تعذّر قراءة الصورة"));
+      i.src = url;
+    });
+    const side = Math.min(img.naturalWidth, img.naturalHeight);
+    const sx = (img.naturalWidth - side) / 2;
+    const sy = (img.naturalHeight - side) / 2;
+    const canvas = document.createElement("canvas");
+    canvas.width = IMG_SIZE; canvas.height = IMG_SIZE;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("المتصفح مش بيدعم معالجة الصور");
+    ctx.drawImage(img, sx, sy, side, side, 0, 0, IMG_SIZE, IMG_SIZE);
+    let out = canvas.toDataURL("image/webp", 0.9);
+    if (out.length > MAX_IMAGE_CHARS) out = canvas.toDataURL("image/webp", 0.6);
+    if (out.length > MAX_IMAGE_CHARS) throw new Error("الصورة كبيرة — جرّب صورة أبسط");
+    return out;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
 
 /** نطاق المستوى: 0–100 / 101–200 / 2001+ */
 export const rangeLabel = (t: { min: number; max?: number | null }) =>
@@ -245,8 +276,30 @@ function TierRing({ data }: { data: ClientTierData }) {
 }
 
 // ── سلّم المستويات: كارت لكل مستوى (شعار + اسم + نطاق الشحنات) ───────────────
-function TierLadder({ data }: { data: ClientTierData }) {
+function TierLadder({ data, onSaveImage }: {
+  data: ClientTierData;
+  /** لو موجودة (للأدمن بس) بيظهر على كل مستوى زرار رفع/حذف الصورة بدل القفل. image = null يعني حذف. */
+  onSaveImage?: (tierKey: string, image: string | null) => Promise<void>;
+}) {
   const reduce = useReducedMotion();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const pickKey = useRef<string>("");
+  const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [imgError, setImgError] = useState<string | null>(null);
+  const saveImage = async (key: string, getImage: () => Promise<string | null>) => {
+    if (!onSaveImage || busyKey) return;
+    setBusyKey(key); setImgError(null);
+    try { await onSaveImage(key, await getImage()); }
+    catch (err: any) { setImgError(err?.message || "تعذّر حفظ الصورة"); }
+    finally { setBusyKey(null); }
+  };
+  const onPickFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const key = pickKey.current;
+    e.target.value = "";
+    if (!file || !key) return;
+    void saveImage(key, () => fileToTierImage(file));
+  };
   const tierProgress = Math.max(0, Math.min(100, data.tierProgressPct ?? data.progressPct));
   // شكل الدرع السداسي (زي بوستر ستارك)
   const HEX = "polygon(9% 0, 91% 0, 100% 50%, 91% 100%, 9% 100%, 0 50%)";
@@ -259,6 +312,10 @@ function TierLadder({ data }: { data: ClientTierData }) {
   const last = data.ladder.length - 1;
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3" dir="rtl">
+      {onSaveImage && (
+        <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={onPickFile} />
+      )}
+      {imgError && <p className="col-span-full text-[11px] text-red-400">{imgError}</p>}
       {data.ladder.map((step, i) => {
         const look = tierLook(step);
         const isCur = step.status === "current";
@@ -350,10 +407,38 @@ function TierLadder({ data }: { data: ClientTierData }) {
                       <CheckCircle2 className="w-4 h-4" style={{ color: look.color }} />
                     </span>
                   )}
-                  {!active && (
+                  {!active && !onSaveImage && (
                     <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-card border border-border flex items-center justify-center">
                       <Lock className="w-2.5 h-2.5 text-muted-foreground/70" />
                     </span>
+                  )}
+                  {/* للأدمن: رفع/تغيير/حذف صورة المستوى مباشرة من هنا (بدل القفل) */}
+                  {onSaveImage && (
+                    <>
+                      <button
+                        type="button"
+                        disabled={!!busyKey}
+                        title={step.image ? "تغيير صورة المستوى" : "رفع صورة للمستوى"}
+                        onClick={() => { pickKey.current = step.key; fileRef.current?.click(); }}
+                        className="absolute -bottom-1.5 -left-1.5 w-[22px] h-[22px] rounded-full bg-card border flex items-center justify-center hover:scale-110 transition-transform disabled:opacity-60"
+                        style={{ borderColor: alpha(look.color, 0.7) }}
+                      >
+                        {busyKey === step.key
+                          ? <Loader2 className="w-3 h-3 animate-spin" style={{ color: look.color }} />
+                          : <ImagePlus className="w-3 h-3" style={{ color: look.color }} />}
+                      </button>
+                      {step.image && busyKey !== step.key && (
+                        <button
+                          type="button"
+                          disabled={!!busyKey}
+                          title="حذف الصورة"
+                          onClick={() => void saveImage(step.key, async () => null)}
+                          className="absolute -top-1.5 -left-1.5 w-[18px] h-[18px] rounded-full bg-card border border-border flex items-center justify-center text-muted-foreground hover:text-red-400 disabled:opacity-60"
+                        >
+                          <Trash2 className="w-2.5 h-2.5" />
+                        </button>
+                      )}
+                    </>
                   )}
                 </motion.div>
                 <p className="text-[12px] font-black leading-none tracking-wide" style={{ color: look.color, opacity: active ? 1 : 0.85 }}>
@@ -573,7 +658,7 @@ function MotivationBanner({ m }: { m: TierMotivation }) {
   );
 }
 
-export function ClientTierCard({ data, isLoading, variant = "client", className = "", onSaveTarget, onEditTiers }: {
+export function ClientTierCard({ data, isLoading, variant = "client", className = "", onSaveTarget, onEditTiers, onSaveTierImage }: {
   data: ClientTierData | null | undefined;
   isLoading?: boolean;
   variant?: "admin" | "client";
@@ -582,6 +667,8 @@ export function ClientTierCard({ data, isLoading, variant = "client", className 
   onSaveTarget?: (value: number) => Promise<void>;
   /** لو موجودة (للأدمن بس) بيظهر زرار "إعدادات المستويات" (حدود + صور + ألوان) */
   onEditTiers?: () => void;
+  /** لو موجودة (للأدمن بس) بيظهر على كل مستوى في السلّم زرار رفع/حذف صورة المستوى. image = null يعني حذف. لازم ترمي error لو الحفظ فشل. */
+  onSaveTierImage?: (tierKey: string, image: string | null) => Promise<void>;
 }) {
   const reduce = useReducedMotion();
   if (isLoading) {
@@ -734,7 +821,157 @@ export function ClientTierCard({ data, isLoading, variant = "client", className 
         <p className="text-[11px] font-bold text-muted-foreground mb-3 flex items-center gap-1.5">
           <Trophy className="w-3 h-3" /> مستويات الشحنات الشهرية
         </p>
-        <TierLadder data={data} />
+        <TierLadder data={data} onSaveImage={isAdmin ? onSaveTierImage : undefined} />
+      </div>
+    </Card>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// شريط الهدف الملوّن: 8 مقاطع بألوان المستويات + دبوس "أنت هنا" عند مكان العميل.
+// للعرض فقط — بيتستخدم في كارت "تحقيق الهدف" (لوحة الأدمن + بوابة العميل).
+// ═══════════════════════════════════════════════════════════════════════════
+export function TierGoalStrip({ data, caption = false }: { data: ClientTierData; caption?: boolean }) {
+  const reduce = useReducedMotion();
+  const ladder = data.ladder;
+  const total = ladder.length || 1;
+  const curIdx = ladder.findIndex(s => s.status === "current");
+  const within = Math.max(0, Math.min(100, data.tierProgressPct ?? data.progressPct)) / 100;
+  // مكان الدبوس (0–100%) من الجهة اللي بيبدأ منها أول مستوى (اليمين في الـ RTL)
+  const pos = Math.max(0, Math.min(100, (((curIdx >= 0 ? curIdx : 0) + within) / total) * 100));
+  const markerPct = Math.min(Math.max(pos, 9), 91);
+  const cur = tierLook(curIdx >= 0 ? ladder[curIdx] : null);
+
+  return (
+    <div className="w-full" dir="rtl">
+      <div className="relative pt-6">
+        {/* دبوس "أنت هنا" */}
+        <motion.div
+          aria-hidden
+          className="absolute top-0 flex flex-col items-center pointer-events-none"
+          style={{ right: `${markerPct}%`, transform: "translateX(50%)" }}
+          animate={reduce ? undefined : { y: [0, -2, 0] }}
+          transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+        >
+          <span
+            className="text-[9px] font-black px-1.5 py-0.5 rounded-full whitespace-nowrap leading-none"
+            style={{ background: cur.color, color: "#0b0f17", boxShadow: `0 0 12px ${alpha(cur.color, 0.7)}` }}
+          >
+            أنت هنا
+          </span>
+          <span
+            className="w-0 h-0"
+            style={{ borderLeft: "4px solid transparent", borderRight: "4px solid transparent", borderTop: `5px solid ${cur.color}` }}
+          />
+        </motion.div>
+
+        <div className="flex gap-[3px]">
+          {ladder.map((s, i) => {
+            const look = tierLook(s);
+            const isCur = s.status === "current";
+            const fill = s.status === "achieved" ? 100 : isCur ? within * 100 : 0;
+            return (
+              <div
+                key={s.key}
+                title={`${look.name}: ${rangeLabel(s)} شحنة`}
+                className="relative flex-1 h-2 rounded-full overflow-hidden"
+                style={{
+                  background: alpha(look.color, 0.22),
+                  boxShadow: isCur ? `0 0 10px ${alpha(look.color, 0.65)}` : undefined,
+                }}
+              >
+                <motion.div
+                  className="absolute inset-y-0 right-0 rounded-full"
+                  style={{ background: `linear-gradient(270deg, ${look.color}, ${alpha(look.color, 0.75)})` }}
+                  initial={{ width: 0 }}
+                  animate={{ width: `${fill}%` }}
+                  transition={{ duration: 0.9, delay: reduce ? 0 : i * 0.07, ease: "easeOut" }}
+                />
+                {isCur && !reduce && (
+                  <motion.div
+                    aria-hidden
+                    className="absolute inset-y-0 w-1/2 pointer-events-none"
+                    style={{ background: "linear-gradient(90deg, transparent, rgba(255,255,255,.45), transparent)" }}
+                    initial={{ x: "200%" }}
+                    animate={{ x: "-200%" }}
+                    transition={{ duration: 1.8, repeat: Infinity, repeatDelay: 1.6, ease: "easeInOut" }}
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* أول وآخر مستوى على الشريط */}
+      <div className="flex items-center justify-between mt-1 text-[9px] text-muted-foreground/70">
+        <span>{ladder[0] ? tierLook(ladder[0]).name : ""}</span>
+        <span>{ladder[ladder.length - 1] ? tierLook(ladder[ladder.length - 1]).name : ""}</span>
+      </div>
+
+      {caption && (
+        <p className="text-[10px] text-muted-foreground mt-1 text-center">
+          {n(data.count)} شحنة هذا الشهر
+          {data.tier && <> · <span className="font-bold" style={{ color: cur.color }}>{cur.name}</span></>}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ── كارت "تحقيق الهدف" لبوابة العميل: للعرض فقط (مفيش أي تحكم في التارجت) ──────
+export function TierGoalCard({ data, isLoading, className = "" }: {
+  data: ClientTierData | null | undefined; isLoading?: boolean; className?: string;
+}) {
+  if (isLoading) {
+    return (
+      <Card className={`p-4 ${className}`}>
+        <div className="h-24 rounded-lg bg-muted/30 animate-pulse" />
+      </Card>
+    );
+  }
+  if (!data) return null;
+  const look = tierLook(data.tier);
+  const pct = Math.max(0, Math.min(100, Math.round(data.progressPct)));
+  const target = data.target;
+  const next = data.nextTier;
+  return (
+    <Card className={`p-4 ${className}`} style={{ borderColor: alpha(look.color, 0.35), boxShadow: `0 0 26px -12px ${alpha(look.color, 0.55)}` }}>
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-xs font-bold flex items-center gap-2">
+          <Target className="w-3.5 h-3.5 text-muted-foreground" />
+          تحقيق الهدف
+        </p>
+        <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+          <CalendarDays className="w-3 h-3" /> {data.month.label} · باقي {data.month.daysLeft} يوم
+        </span>
+      </div>
+
+      <div className="flex items-end justify-between gap-3 mb-1">
+        <div>
+          <p className="text-3xl font-black leading-none" style={{ color: look.color }}>
+            <CountUp value={data.count} />
+            <span className="text-xs font-bold text-muted-foreground mr-1.5">شحنة</span>
+          </p>
+          <p className="text-[10px] text-muted-foreground mt-1.5">شحناتك في {data.month.label}</p>
+        </div>
+        <div className="text-left">
+          <p className="text-xl font-black leading-none" style={{ color: look.color }}>{pct}%</p>
+          <p className="text-[10px] text-muted-foreground mt-1">{target ? "من التارجت الشهري" : "للمستوى التالي"}</p>
+        </div>
+      </div>
+
+      <TierGoalStrip data={data} />
+
+      <div className="flex items-center justify-between gap-2 mt-2.5 flex-wrap">
+        <TierBadge tierKey={data.tier?.key} name={data.tier?.name} color={data.tier?.color} icon={data.tier?.icon} size="md" />
+        <p className="text-[11px] text-muted-foreground">
+          {target
+            ? (target.reached ? "🎉 حققت التارجت الشهري" : `التارجت الشهري ${n(target.value)} شحنة — باقي ${n(target.remaining)}`)
+            : next
+              ? <>باقي <b className="text-foreground">{n(next.remaining)}</b> شحنة للوصول إلى <b style={{ color: tierLook(next).color }}>{tierLook(next).name}</b></>
+              : "وصلت لأعلى مستوى 🎉"}
+        </p>
       </div>
     </Card>
   );

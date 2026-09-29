@@ -16,7 +16,7 @@ import { apiFetch } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PushNotificationsCard } from "@/pages/profile";
-import { ClientTierCard, type ClientTierData } from "@/components/client-tier-card";
+import { ClientTierCard, TierGoalCard, type ClientTierData } from "@/components/client-tier-card";
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 const fc = (n: number | string) =>
@@ -580,7 +580,10 @@ export default function ClientDashboardPage() {
         {/* ── Push Notifications ── */}
         <PushNotificationsCard />
 
-        {/* ── مستوى العميل الشهري (برونزي / فضي / ذهبي / VIP) + نصائح ── */}
+        {/* ── تحقيق الهدف: شريط بألوان المستويات + "أنت هنا" (عرض فقط — العميل مبيتحكمش في التارجت) ── */}
+        <TierGoalCard data={tierData} isLoading={tierLoading} />
+
+        {/* ── مستوى العميل الشهري (8 مستويات) + نصائح ── */}
         <ClientTierCard data={tierData} isLoading={tierLoading} variant="client" />
 
         {/* ── Top Grid: sidebar cards + donut ── */}

@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiFetch } from "@/lib/api";
-import { TierEmblem, tierLook, alpha, type TierBrand, type TierIconKey } from "@/components/client-tier-card";
+import { TierEmblem, tierLook, alpha, fileToTierImage, type TierBrand, type TierIconKey } from "@/components/client-tier-card";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // إعدادات مستويات العملاء (للأدمن): لكل فئة → الاسم + بداية الفئة + نهايتها
@@ -24,37 +24,6 @@ const toRows = (l: TierFull[]): Row[] =>
     key: t.key, name: t.name, min: String(t.min), max: t.max === null || t.max === undefined ? "" : String(t.max),
     color: t.color, image: t.image ?? null, icon: t.icon,
   }));
-
-const MAX_IMAGE_CHARS = 120_000; // نفس حد السيرفر
-const IMG_SIZE = 128;
-
-/** بيصغّر الصورة (قص من النص لمربع 128×128) ويرجّعها data URL خفيف */
-async function fileToTierImage(file: File): Promise<string> {
-  if (!/^image\/(png|jpeg|webp|gif)$/.test(file.type)) throw new Error("الصورة لازم تكون PNG أو JPG أو WebP");
-  const url = URL.createObjectURL(file);
-  try {
-    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const i = new Image();
-      i.onload = () => resolve(i);
-      i.onerror = () => reject(new Error("تعذّر قراءة الصورة"));
-      i.src = url;
-    });
-    const side = Math.min(img.naturalWidth, img.naturalHeight);
-    const sx = (img.naturalWidth - side) / 2;
-    const sy = (img.naturalHeight - side) / 2;
-    const canvas = document.createElement("canvas");
-    canvas.width = IMG_SIZE; canvas.height = IMG_SIZE;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) throw new Error("المتصفح مش بيدعم معالجة الصور");
-    ctx.drawImage(img, sx, sy, side, side, 0, 0, IMG_SIZE, IMG_SIZE);
-    let out = canvas.toDataURL("image/webp", 0.9);
-    if (out.length > MAX_IMAGE_CHARS) out = canvas.toDataURL("image/webp", 0.6);
-    if (out.length > MAX_IMAGE_CHARS) throw new Error("الصورة كبيرة — جرّب صورة أبسط");
-    return out;
-  } finally {
-    URL.revokeObjectURL(url);
-  }
-}
 
 export function TierSettingsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
   const qc = useQueryClient();
