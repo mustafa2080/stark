@@ -102,7 +102,14 @@ export async function syncShipmentStatusToManifests(
   },
   dbOrTx: DbOrTx = db,
 ): Promise<void> {
-  const mapped = SHIPMENT_STATUS_TO_DELIVERY[newShipmentStatus];
+  // ⚠️ إصلاح (2026-09-29، بلاغ مصطفى): "قيد الانتظار" في النظام = status "pending"
+  // (STATUS_LABELS في الفرونت)، لكنه مكانش موجود في SHIPMENT_STATUS_TO_DELIVERY
+  // (فيه waiting/confirmed بس) — فالدالة كانت بترجع هنا فورًا ومتوصلش لكود
+  // "شيل الشحنة من البيان المفتوح لما ترجع قبل المخزن" تحت، فالبند كان بيفضل جوه
+  // البيان (شبح) وأي شحنة تانية ترجع المخزن بعدها تتعلّق. pending حالة "قبل
+  // المخزن" زيها زي waiting/confirmed بالظبط، فبنعاملها كده هنا.
+  const mapped = SHIPMENT_STATUS_TO_DELIVERY[newShipmentStatus]
+    ?? (newShipmentStatus === "pending" ? "pending" : undefined);
   if (!mapped) return; // حالة مش معروفة → متلمسش البيانات
 
   const now = new Date();

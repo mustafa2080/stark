@@ -110,29 +110,106 @@ export async function autoAddShipmentToClientAccountManifest(
       tenantCondition,
     ))
     .limit(1);
-  if (openManifest) return;
+  // ⚠️ إصلاح (بلاغ المدير 2026-09-29): البيان المفتوح "الفاضي" (مفيهوش أي
+  // أوردر ظاهر — مثلًا لأن كل شحنات العميل اترجّعت قيد الانتظار فاتشالت بنودها
+  // تلقائيًا من manifestSync) مينفعش يخلّي الأوردرات الراجعة تتعلّق بره. القاعدة:
+  //   • بيان مفتوح فيه أوردر ظاهر  → الأوردرات الجديدة كلها تتعلّق.
+  //   • مفيش أي أوردر ظاهر (بيان مفتوح فاضي أو أول بيان للعميل) → كل الأوردرات
+  //     المؤهلة تدخل البيان مع بعض، مش واحد بس والباقي معلّق.
+  let fillAllEligible = false;
+  if (openManifest) {
+    const openManifestItems = await db
+      .select({ status: shipmentsTable.status })
+      .from(clientAccountManifestItemsTable)
+      .innerJoin(shipmentsTable, eq(clientAccountManifestItemsTable.shipmentId, shipmentsTable.id))
+      .where(and(
+        eq(clientAccountManifestItemsTable.manifestId, openManifest.id),
+        isNull(shipmentsTable.deletedAt),
+      ));
+    if (openManifestItems.some(r => isShipmentVisibleInManifest(r.status))) return;
+    fillAllEligible = true;
+  }
 
-  // لا يوجد بيان مفتوح، والشحنة فعليًا قيد الشحن: افتح بياناً جديداً وضيف
-  // الشحنة اللي سببت الفتح كأول بند فيه فورًا — البيان ميظهرش فاضي 0 شحنة.
+  // الشحنة فعليًا قيد الشحن: لو مفيش بيان مفتوح افتح بياناً جديداً، ولو فيه بيان
+  // مفتوح فاضي استخدمه — وضيف الشحنة اللي سببت النداء (+ باقي المؤهلة لو
+  // fillAllEligible) فورًا، عشان البيان ميظهرش فاضي 0 شحنة.
   const now = new Date();
-  const manifestNumber = await generateManifestNumber(clientId);
-  const [result] = await db.insert(clientAccountManifestsTable).values({
-    tenantId: tenantId ?? null,
-    manifestNumber,
-    clientId,
-    status: "open",
-    notes: null,
-    createdAt: now,
-    scheduledCloseAt: computeNextClosingDate(now),
-  });
-  const newManifestId = (result as any).insertId as number;
-  const deliveryStatus = SHIPMENT_STATUS_TO_DELIVERY[shipmentStatus ?? ""] ?? "pending";
-  await db.insert(clientAccountManifestItemsTable).values({
-    manifestId: newManifestId,
-    shipmentId,
-    deliveryStatus: deliveryStatus as "pending" | "delivered" | "delayed" | "returned" | "partial_delivered",
-    addedAt: now,
-  });
+
+  // ⚠️ إصلاح (بلاغ المدير 2026-09-29): العميل الجديد (أول بيان في حياته، مالوش
+  // أي بيان قديم مفتوح أو مقفول) لو عنده أكتر من أوردر واصل المخزن، البيان كان
+  // بيتفتح بأوردر واحد بس (اللي سبب النداء) والباقي بيتعلّق بره في "الأوردرات
+  // الجديدة" — غلط، لأن مفيش بيان قديم يبرّر التعليق. الصح: أول بيان للعميل
+  // ياخد كل أوردراته المؤهلة دفعة واحدة. العميل القديم (عنده بيانات سابقة)
+  // سلوكه ما اتغيّرش: أول أوردر بعد الإغلاق بيفتح البيان والباقي بيتعلّق.
+  let newManifestId: number;
+  if (openManifest) {
+    // بيان مفتوح فاضي → نستخدمه بدل ما نفتح بيان تاني.
+    newManifestId = openManifest.id;
+  } else {
+    const [priorManifestsRow] = await db
+      .select({ cnt: count() })
+      .from(clientAccountManifestsTable)
+      .where(and(eq(clientAccountManifestsTable.clientId, clientId), tenantCondition));
+    fillAllEligible = Number(priorManifestsRow?.cnt ?? 0) === 0;
+
+    const manifestNumber = await generateManifestNumber(clientId);
+    const [result] = await db.insert(clientAccountManifestsTable).values({
+      tenantId: tenantId ?? null,
+      manifestNumber,
+      clientId,
+      status: "open",
+      notes: null,
+      createdAt: now,
+      scheduledCloseAt: computeNextClosingDate(now),
+    });
+    newManifestId = (result as any).insertId as number;
+  }
+
+  type ItemDeliveryStatus = "pending" | "delivered" | "delayed" | "returned" | "partial_delivered";
+  const itemsToInsert: { shipmentId: number; status: string | null }[] = [
+    { shipmentId, status: shipmentStatus ?? null },
+  ];
+
+  if (fillAllEligible) {
+    const shipmentTenantCondition = tenantId !== null
+      ? or(eq(shipmentsTable.tenantId, tenantId), isNull(shipmentsTable.tenantId))
+      : undefined;
+    const clientShipments = await db
+      .select({ id: shipmentsTable.id, status: shipmentsTable.status })
+      .from(shipmentsTable)
+      .where(and(
+        eq(shipmentsTable.clientId, clientId),
+        isNull(shipmentsTable.deletedAt),
+        shipmentTenantCondition,
+      ));
+    const eligible = clientShipments.filter(
+      s => s.id !== shipmentId && isShipmentVisibleInManifest(s.status) && s.status !== "cancelled",
+    );
+    if (eligible.length) {
+      // استبعاد أي شحنة ليها بند فعلي في بيان موجود (نفس inner join بتاع الفحص فوق).
+      const alreadyLinked = await db
+        .select({ shipmentId: clientAccountManifestItemsTable.shipmentId })
+        .from(clientAccountManifestItemsTable)
+        .innerJoin(
+          clientAccountManifestsTable,
+          eq(clientAccountManifestItemsTable.manifestId, clientAccountManifestsTable.id)
+        )
+        .where(inArray(clientAccountManifestItemsTable.shipmentId, eligible.map(s => s.id)));
+      const linked = new Set(alreadyLinked.map(r => r.shipmentId));
+      eligible.forEach(s => {
+        if (!linked.has(s.id)) itemsToInsert.push({ shipmentId: s.id, status: s.status });
+      });
+    }
+  }
+
+  await db.insert(clientAccountManifestItemsTable).values(
+    itemsToInsert.map(it => ({
+      manifestId: newManifestId,
+      shipmentId: it.shipmentId,
+      deliveryStatus: (SHIPMENT_STATUS_TO_DELIVERY[it.status ?? ""] ?? "pending") as ItemDeliveryStatus,
+      addedAt: now,
+    }))
+  );
 }
 
 // ─── GET /client-account-manifests?clientId=X ────────────────────────────────
