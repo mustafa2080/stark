@@ -156,7 +156,11 @@ export async function getTierConfig(tenantId: number | null): Promise<TierConfig
   let config = DEFAULT_TIER_CONFIG;
   try {
     await ensureConfigTable();
-    const [rows] = await db.execute(sql`SELECT config FROM client_tier_settings WHERE tenant_id = ${slot} LIMIT 1`) as any;
+    // الـ super_admin بيحفظ في slot 0 (tenantId = null) بينما العميل ليه tenant فعلي،
+    // فلو الـ tenant ماعندوش إعدادات خاصة بيه نرجع للإعدادات العامة (slot 0).
+    const [rows] = await db.execute(
+      sql`SELECT config FROM client_tier_settings WHERE tenant_id IN (${slot}, 0) ORDER BY tenant_id DESC LIMIT 1`,
+    ) as any;
     const raw = rows?.[0]?.config;
     if (raw) {
       const v = validateTierConfig(JSON.parse(raw));
@@ -173,7 +177,9 @@ export async function saveTierConfig(tenantId: number | null, config: TierConfig
   await db.execute(sql`INSERT INTO client_tier_settings (tenant_id, config, updated_at)
     VALUES (${slot}, ${JSON.stringify(config)}, NOW())
     ON DUPLICATE KEY UPDATE config = VALUES(config), updated_at = NOW()`);
-  configCache.delete(slot);
+  // الحفظ في slot 0 (الإعدادات العامة) بيأثر على كل الـ tenants اللي ماعندهاش إعدادات خاصة،
+  // فنمسح الكاش كله عشان الصور والحدود الجديدة تظهر فورًا عند العملاء.
+  configCache.clear();
 }
 
 export async function getTierLadder(tenantId: number | null): Promise<TierDef[]> {
