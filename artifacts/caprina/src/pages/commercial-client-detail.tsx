@@ -23,7 +23,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   ArrowRight, Users, ShoppingBag, TrendingUp, TrendingDown,
   ChevronRight, ChevronLeft, Calendar, Package, Phone, MapPin,
-  Clock, CheckCircle2, Target, Edit2, Check, X,
+  Clock, CheckCircle2, Target,
   Download, FileSpreadsheet, FileText, Loader2, Bell, RefreshCw, Truck,
   Send, User, PackagePlus, Lock, LockOpen, Search, LayoutDashboard, Eye,
   Hourglass, RotateCcw, PackageX, PackageCheck, AlertCircle, ChevronDown,
@@ -292,23 +292,6 @@ export default function CommercialClientDetailPage() {
   const [statementTo,   setStatementTo]   = useState("");
   const { toast } = useToast();
 
-  // ── تعديل الهدف inline ──────────────────────────────────────────────────
-  const [editingTarget, setEditingTarget] = useState(false);
-  const [targetInput,   setTargetInput]   = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const targetMutation = useMutation({
-    mutationFn: (newLimit: number) =>
-      apiFetch<any>(`/finance/clients/${clientId}`, {
-        method: "PATCH",
-        body: JSON.stringify({ creditLimit: newLimit }),
-      }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["client-detail", clientId] });
-      setEditingTarget(false);
-    },
-  });
-
   // ── إعادة حساب إحصائيات العميل (عدد/مبلغ الأوردرات) من أوامر البيع الحالية ──
   // مفيد بعد أي تعديل على منطق الحساب في الباك إند (مثلاً استبعاد أوردرات "مسودة")
   // عشان القيم المخزّنة (client.totalOrders...) تتزامن مع الحساب الجديد فورًا.
@@ -323,17 +306,6 @@ export default function CommercialClientDetailPage() {
       toast({ title: "تعذّر تحديث الإحصائيات", description: err?.message, variant: "destructive" });
     },
   });
-
-  const startEdit = (currentLimit: number) => {
-    setTargetInput(String(currentLimit > 0 ? currentLimit : 1_000_000));
-    setEditingTarget(true);
-    setTimeout(() => inputRef.current?.focus(), 50);
-  };
-
-  const confirmEdit = () => {
-    const val = parseFloat(targetInput.replace(/,/g, ""));
-    if (!isNaN(val) && val > 0) targetMutation.mutate(val);
-  };
 
   const { data, isLoading } = useQuery<ClientDetail>({
     queryKey: ["client-detail", clientId],
@@ -1018,42 +990,6 @@ export default function CommercialClientDetailPage() {
               </div>
             )}
 
-            {/* الهدف قابل للتعديل inline */}
-            {editingTarget ? (
-              <div className="flex items-center gap-1 mt-2 justify-center">
-                <Input
-                  ref={inputRef}
-                  type="number"
-                  value={targetInput}
-                  onChange={e => setTargetInput(e.target.value)}
-                  onKeyDown={e => { if (e.key === "Enter") confirmEdit(); if (e.key === "Escape") setEditingTarget(false); }}
-                  className="h-6 text-[11px] text-center w-24 px-1 bg-background border-primary/50"
-                />
-                <button
-                  onClick={confirmEdit}
-                  disabled={targetMutation.isPending}
-                  className="w-5 h-5 rounded flex items-center justify-center bg-emerald-900/40 text-emerald-400 hover:bg-emerald-900/60 transition-colors"
-                >
-                  <Check className="w-3 h-3" />
-                </button>
-                <button
-                  onClick={() => setEditingTarget(false)}
-                  className="w-5 h-5 rounded flex items-center justify-center bg-muted/40 text-muted-foreground hover:bg-muted/60 transition-colors"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => startEdit(creditLimit)}
-                className="flex items-center justify-center gap-1 mt-1.5 mx-auto group"
-              >
-                <p className="text-[10px] text-muted-foreground group-hover:text-foreground transition-colors">
-                  {creditLimit > 0 ? `هدف ${creditLimit} أوردر` : `هدف 100 أوردر`}
-                </p>
-                <Edit2 className="w-2.5 h-2.5 text-muted-foreground/50 group-hover:text-primary transition-colors" />
-              </button>
-            )}
           </Card>
         </div>
       )}
