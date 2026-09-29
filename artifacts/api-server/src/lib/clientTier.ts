@@ -2,7 +2,7 @@ import { db, clientsTable, shipmentsTable } from "@workspace/db";
 import { and, eq, gte, isNull, notInArray, or, sql } from "drizzle-orm";
 
 // ═══════════════════════════════════════════════════════════════════════════
-// نظام مستويات العملاء التجاريين (4 فئات: برونزي → فضي → ذهبي → VIP)
+// نظام مستويات العملاء التجاريين (8 مستويات: مبتدئ → برونز → سيلفر → ... → أسطورة)
 // ─ المستوى بيتحدد من عدد شحنات العميل في الشهر الحالي، وبيبدأ من الصفر كل شهر.
 // ─ ده المصدر الوحيد للحسبة: لوحة الأدمن وبوابة العميل بيقروا من نفس الدالة
 //   فالأرقام والمستوى بيطلعوا متطابقين 100%.
@@ -38,14 +38,18 @@ export interface TierConfigItem {
   image: string | null;
 }
 
-// 4 فئات ثابتة (المفاتيح والأيقونات)، والباقي قابل للتعديل من لوحة الأدمن.
-// الافتراضي: برونزي 10+، فضي 30+، ذهبي 75+، VIP 150+ (شحنة في الشهر).
-// أقل من حد أول فئة = بدون فئة (والفئة الأولى مش لازم تبدأ من 0).
+// 8 مستويات ثابتة (المفاتيح والأيقونات)، والباقي قابل للتعديل من لوحة الأدمن
+// (الاسم + بداية ونهاية كل مستوى + اللون + الصورة).
+// الافتراضي (حسب كلام المدير): مبتدئ 0–100، برونز 101–200، سيلفر 201–300 ... وآخر مستوى 2001+.
 const TIER_META: { key: TierKey; icon: TierIconKey; name: string; color: string; min: number }[] = [
-  { key: "bronze", icon: "medal",  name: "برونزي", color: "#d08a4a", min: 10 },
-  { key: "silver", icon: "award",  name: "فضي",    color: "#cbd5e1", min: 30 },
-  { key: "gold",   icon: "trophy", name: "ذهبي",   color: "#f5b82e", min: 75 },
-  { key: "vip",    icon: "crown",  name: "VIP",    color: "#c084fc", min: 150 },
+  { key: "starter",  icon: "sprout", name: "مبتدئ",     color: "#94a3b8", min: 0 },
+  { key: "bronze",   icon: "medal",  name: "برونز",     color: "#d08a4a", min: 101 },
+  { key: "silver",   icon: "award",  name: "سيلفر",     color: "#cbd5e1", min: 201 },
+  { key: "gold",     icon: "trophy", name: "جولد",      color: "#f5b82e", min: 301 },
+  { key: "platinum", icon: "shield", name: "بلاتينيوم", color: "#5eead4", min: 501 },
+  { key: "diamond",  icon: "gem",    name: "دايموند",   color: "#60a5fa", min: 801 },
+  { key: "master",   icon: "star",   name: "ماستر",     color: "#f472b6", min: 1201 },
+  { key: "legend",   icon: "crown",  name: "أسطورة",    color: "#c084fc", min: 2001 },
 ];
 
 export const DEFAULT_TIER_CONFIG: TierConfigItem[] = TIER_META.map((m, i) => ({

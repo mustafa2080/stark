@@ -80,10 +80,14 @@ export const TIER_ICONS: Record<TierIconKey, typeof Medal> = {
 
 /** قيم احتياطية لو الـ API لسه بيرجّع مستويات من غير لون/أيقونة (نفس افتراضيات السيرفر) */
 const TIER_FALLBACK: Record<string, { color: string; icon: TierIconKey; name: string }> = {
-  bronze: { color: "#d08a4a", icon: "medal",  name: "برونزي" },
-  silver: { color: "#cbd5e1", icon: "award",  name: "فضي" },
-  gold:   { color: "#f5b82e", icon: "trophy", name: "ذهبي" },
-  vip:    { color: "#c084fc", icon: "crown",  name: "VIP" },
+  starter:  { color: "#94a3b8", icon: "sprout", name: "مبتدئ" },
+  bronze:   { color: "#d08a4a", icon: "medal",  name: "برونز" },
+  silver:   { color: "#cbd5e1", icon: "award",  name: "سيلفر" },
+  gold:     { color: "#f5b82e", icon: "trophy", name: "جولد" },
+  platinum: { color: "#5eead4", icon: "shield", name: "بلاتينيوم" },
+  diamond:  { color: "#60a5fa", icon: "gem",    name: "دايموند" },
+  master:   { color: "#f472b6", icon: "star",   name: "ماستر" },
+  legend:   { color: "#c084fc", icon: "crown",  name: "أسطورة" },
 };
 const NONE_COLOR = "#64748b";
 

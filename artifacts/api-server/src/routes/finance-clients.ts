@@ -491,7 +491,7 @@ router.get("/finance/clients/tier-settings", async (req, res): Promise<void> => 
 });
 
 // ── PUT /finance/clients/tier-settings — الأدمن بيعدّل حدود المستويات وصورها ──
-// الـ body: { tiers: [{ key, name, min, max, color, image }] } — 4 فئات بالترتيب (max = null لآخر فئة المفتوحة).
+// الـ body: { tiers: [{ key, name, min, max, color, image }] } — 8 مستويات بالترتيب (max = null لآخر مستوى المفتوح).
 router.put("/finance/clients/tier-settings", requireAdmin, async (req, res): Promise<void> => {
   try {
     const parsed = validateTierConfig(req.body?.tiers);
