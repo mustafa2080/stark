@@ -972,7 +972,11 @@ export default function CommercialClientDetailPage() {
             {nextP && (
               <p className="text-[10px] text-muted-foreground mt-0.5">
                 {nextP.nextName
-                  ? <>للوصول إلى <b style={{ color: nextP.nextColor ?? undefined }}>{nextP.nextName}</b></>
+                  ? <span className="inline-flex items-center gap-1">
+                      للوصول إلى
+                      {nextP.nextImage && <img src={nextP.nextImage} alt="" className="w-4 h-4 rounded-full object-cover" draggable={false} />}
+                      <b style={{ color: nextP.nextColor ?? undefined }}>{nextP.nextName}</b>
+                    </span>
                   : "وصلت لأعلى مستوى 🎉"}
               </p>
             )}

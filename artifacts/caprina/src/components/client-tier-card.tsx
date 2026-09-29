@@ -171,19 +171,22 @@ export function TierEmblem({ look, size = 40, glow = false, className = "" }: {
 }
 
 // ── بادج صغير للمستوى (يُستخدم في قايمة العملاء وأي مكان تاني) ─────────────
-export function TierBadge({ tierKey, name, color, icon, size = "sm", className = "" }: {
-  tierKey: TierKey | null | undefined; name?: string; color?: string; icon?: TierIconKey;
+export function TierBadge({ tierKey, name, color, icon, image, size = "sm", className = "" }: {
+  tierKey: TierKey | null | undefined; name?: string; color?: string; icon?: TierIconKey; image?: string | null;
   size?: "sm" | "md"; className?: string;
 }) {
-  const look = tierLook(tierKey ? { key: tierKey, name, color, icon } : null);
+  const look = tierLook(tierKey ? { key: tierKey, name, color, icon, image } : null);
   const Icon = look.Icon;
   const pad = size === "md" ? "px-2.5 py-1 text-xs gap-1.5" : "px-2 py-0.5 text-[10px] gap-1";
+  const imgCls = size === "md" ? "w-5 h-5" : "w-4 h-4";
   return (
     <span
       className={`inline-flex items-center rounded-full font-bold border whitespace-nowrap ${pad} ${className}`}
       style={{ color: look.color, background: look.soft, borderColor: `${look.color}55` }}
     >
-      <Icon className={size === "md" ? "w-3.5 h-3.5" : "w-3 h-3"} />
+      {look.image
+        ? <img src={look.image} alt="" className={`${imgCls} rounded-full object-cover -my-0.5`} draggable={false} />
+        : <Icon className={size === "md" ? "w-3.5 h-3.5" : "w-3 h-3"} />}
       {name ?? look.name}
     </span>
   );
@@ -602,7 +605,7 @@ export function ClientTierCard({ data, isLoading, variant = "client", className 
               {data.nextTier ? (
                 <p className="text-[11px] text-muted-foreground leading-snug">
                   باقي <b className="text-foreground">{n(data.nextTier.remaining)}</b> شحنة للوصول إلى{" "}
-                  <TierBadge tierKey={data.nextTier.key} name={data.nextTier.name} color={data.nextTier.color} icon={data.nextTier.icon} />
+                  <TierBadge tierKey={data.nextTier.key} name={data.nextTier.name} color={data.nextTier.color} icon={data.nextTier.icon} image={data.nextTier.image} />
                 </p>
               ) : (
                 <p className="text-[11px] font-bold" style={{ color: look.color }}>وصلت لأعلى مستوى 🎉</p>
@@ -700,9 +703,10 @@ export function TierGoalStrip({ data, caption = false }: { data: ClientTierData;
           transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
         >
           <span
-            className="text-[9px] font-black px-1.5 py-0.5 rounded-full whitespace-nowrap leading-none"
+            className="text-[9px] font-black px-1.5 py-0.5 rounded-full whitespace-nowrap leading-none inline-flex items-center gap-1"
             style={{ background: cur.color, color: "#0b0f17", boxShadow: `0 0 12px ${alpha(cur.color, 0.7)}` }}
           >
+            {cur.image && <img src={cur.image} alt="" className="w-3.5 h-3.5 rounded-full object-cover -my-1" draggable={false} />}
             أنت هنا
           </span>
           <span
@@ -751,8 +755,15 @@ export function TierGoalStrip({ data, caption = false }: { data: ClientTierData;
 
       {/* أول وآخر مستوى على الشريط */}
       <div className="flex items-center justify-between mt-1 text-[9px] text-muted-foreground/70">
-        <span>{ladder[0] ? tierLook(ladder[0]).name : ""}</span>
-        <span>{ladder[ladder.length - 1] ? tierLook(ladder[ladder.length - 1]).name : ""}</span>
+        {[ladder[0], ladder[ladder.length - 1]].map((s, k) => {
+          const l = s ? tierLook(s) : null;
+          return (
+            <span key={k} className="inline-flex items-center gap-1">
+              {l?.image && <img src={l.image} alt="" className="w-3.5 h-3.5 rounded-full object-cover" draggable={false} />}
+              {l?.name ?? ""}
+            </span>
+          );
+        })}
       </div>
 
       {caption && (
@@ -810,7 +821,7 @@ export function TierGoalCard({ data, isLoading, className = "" }: {
       <TierGoalStrip data={data} />
 
       <div className="flex items-center justify-between gap-2 mt-2.5 flex-wrap">
-        <TierBadge tierKey={data.tier?.key} name={data.tier?.name} color={data.tier?.color} icon={data.tier?.icon} size="md" />
+        <TierBadge tierKey={data.tier?.key} name={data.tier?.name} color={data.tier?.color} icon={data.tier?.icon} image={data.tier?.image} size="md" />
         <p className="text-[11px] text-muted-foreground">
           {target
             ? (target.reached ? "🎉 حققت التارجت الشهري" : `التارجت الشهري ${n(target.value)} شحنة — باقي ${n(target.remaining)}`)
@@ -858,7 +869,7 @@ export function nextTierProgress(data: ClientTierData | null | undefined) {
   const raw = data.nextTier ? (data.tierProgressPct ?? data.progressPct) : 100;
   const pct = Math.max(0, Math.min(100, raw));
   const next = data.nextTier ? tierLook(data.nextTier) : null;
-  return { pct, nextName: next?.name ?? null, nextColor: next?.color ?? null };
+  return { pct, nextName: next?.name ?? null, nextColor: next?.color ?? null, nextImage: next?.image ?? null };
 }
 
 export function TierStatsRow({
@@ -918,7 +929,11 @@ export function TierStatsRow({
         {nextP && (
           <p className="text-[10px] text-muted-foreground mt-0.5">
             {nextP.nextName
-              ? <>للوصول إلى <b style={{ color: nextP.nextColor ?? undefined }}>{nextP.nextName}</b></>
+              ? <span className="inline-flex items-center gap-1">
+                  للوصول إلى
+                  {nextP.nextImage && <img src={nextP.nextImage} alt="" className="w-4 h-4 rounded-full object-cover" draggable={false} />}
+                  <b style={{ color: nextP.nextColor ?? undefined }}>{nextP.nextName}</b>
+                </span>
               : "وصلت لأعلى مستوى 🎉"}
           </p>
         )}
