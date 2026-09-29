@@ -471,14 +471,6 @@ async function getClientShipments(tenantId: number | null, normalizedPhone: stri
 }
 
 
-// ─── إجمالي رصيد العميل = مجموع صافي المستحق لكل البيانات "المقفولة" الخاصة به ──
-// (نفس الدالة المشتركة المستخدمة في لوحة الأدمن — computeClosedManifestsForClient —
-// لضمان تطابق 100% بين رصيد العميل في البوابة ورصيده في لوحة الأدمن)
-async function computeClientBalance(clientId: number): Promise<number> {
-  const { balance } = await computeClosedManifestsForClient(clientId);
-  return balance;
-}
-
 // ─── GET /client-portal/stats — إحصائيات دائرية (زي الصورة) + KPIs ─────────
 router.get("/client-portal/stats", async (req, res): Promise<void> => {
   try {
@@ -522,7 +514,9 @@ router.get("/client-portal/stats", async (req, res): Promise<void> => {
     const totalCod       = shipments.reduce((s, x) => s + parseFloat(x.codAmount ?? "0"), 0);
     const totalCollected  = shipments.reduce((s, x) => s + parseFloat(x.collectedAmount ?? "0"), 0);
     const totalShippingFee = shipments.reduce((s, x) => s + parseFloat(x.shippingFee ?? "0"), 0);
-    const clientBalance = await computeClientBalance(client.id);
+    const closedInfo = await computeClosedManifestsForClient(client.id);
+    const clientBalance = closedInfo.balance;
+    const manifestsCount = closedInfo.manifests.length;
 
     res.json({
       total,
@@ -536,6 +530,7 @@ router.get("/client-portal/stats", async (req, res): Promise<void> => {
       accountStatus: client.accountStatus,
       creditLimit: client.creditLimit,
       clientBalance,
+      manifestsCount,
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });

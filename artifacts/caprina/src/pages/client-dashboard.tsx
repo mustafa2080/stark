@@ -16,7 +16,7 @@ import { apiFetch } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PushNotificationsCard } from "@/pages/profile";
-import { ClientTierCard, TierGoalCard, type ClientTierData } from "@/components/client-tier-card";
+import { ClientTierCard, TierStatsRow, type ClientTierData } from "@/components/client-tier-card";
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 const fc = (n: number | string) =>
@@ -30,6 +30,7 @@ interface StatsResponse {
   accountStatus: string;
   creditLimit: string;
   clientBalance: number;
+  manifestsCount?: number;
 }
 
 interface ShipmentRow {
@@ -580,8 +581,18 @@ export default function ClientDashboardPage() {
         {/* ── Push Notifications ── */}
         <PushNotificationsCard />
 
-        {/* ── تحقيق الهدف: شريط بألوان المستويات + "أنت هنا" (عرض فقط — العميل مبيتحكمش في التارجت) ── */}
-        <TierGoalCard data={tierData} isLoading={tierLoading} />
+        {/* ── إجمالي الشحنات + إجمالي رصيد العميل + تحقيق الهدف (نفس لوحة الأدمن — عرض فقط) ── */}
+        <TierStatsRow
+          data={tierData}
+          totalShipments={stats?.total ?? 0}
+          delivered={stats?.breakdown.find(b => b.key === "delivered")?.count ?? 0}
+          returned={stats?.breakdown.find(b => b.key === "returned")?.count ?? 0}
+          delayed={stats?.breakdown.find(b => b.key === "delayed")?.count ?? 0}
+          orderGoal={Number(stats?.creditLimit) || 0}
+          balanceText={fc(stats?.clientBalance ?? 0)}
+          manifestsCount={stats?.manifestsCount ?? 0}
+          onBalanceClick={() => navigate("/client-wallet")}
+        />
 
         {/* ── مستوى العميل الشهري (8 مستويات) + نصائح ── */}
         <ClientTierCard data={tierData} isLoading={tierLoading} variant="client" />
@@ -607,14 +618,6 @@ export default function ClientDashboardPage() {
                 <ShieldCheck size={13} style={{ color: stats?.accountStatus === "active" ? "#22c55e" : "#f59e0b" }} />
                 {stats?.accountStatus === "active" ? "الحساب نشط" : "الحساب موقوف مؤقتاً"}
               </div>
-            </button>
-
-            <StatPill value={fn(stats?.total ?? 0)} label="إجمالي الشحنات" />
-
-            <button onClick={() => navigate("/client-wallet")}
-              className="w-full text-right rounded-xl p-4 bg-emerald-500/10 border border-emerald-500/30 hover:bg-emerald-500/15 transition-colors">
-              <p className="text-[11px] text-emerald-400 font-bold mb-1">إجمالي رصيد العميل</p>
-              <p className="text-xl font-black text-emerald-400">{fc(stats?.clientBalance ?? 0)}</p>
             </button>
           </div>
 

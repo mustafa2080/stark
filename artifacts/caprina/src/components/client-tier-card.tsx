@@ -1,12 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, animate, useReducedMotion } from "framer-motion";
 import {
   Medal, Award, Trophy, Crown, Sprout, ShieldCheck, Gem, Star, Target, Lightbulb, TrendingUp, TrendingDown,
-  AlertTriangle, CheckCircle2, Info, Lock, Flag, CalendarDays, Gauge, Pencil, Check, X, Loader2,
-  Rocket, Flame, Sparkles, Zap, Settings2, ImagePlus, Trash2,
+  AlertTriangle, CheckCircle2, Info, Lock, Flag, CalendarDays, Gauge,
+  Rocket, Flame, Sparkles, Zap, Settings2,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // كارت مستوى العميل الشهري (8 مستويات: مبتدئ ← برونز ← سيلفر ← ... ← أسطورة)
@@ -262,44 +261,14 @@ function TierRing({ data }: { data: ClientTierData }) {
         <p className="text-[13px] font-black leading-none mt-1.5" style={{ color: data.tier ? look.color : undefined }}>
           {data.tier ? look.name : "بداية"}
         </p>
-        {data.target ? (
-          <>
-            <p className="text-[11px] font-bold leading-none mt-1.5">{n(data.count)} / {n(data.target.value)}</p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">{pct}% من التارجت</p>
-          </>
-        ) : (
-          <p className="text-[10px] text-muted-foreground mt-1.5">{pct}% للمستوى التالي</p>
-        )}
       </div>
     </div>
   );
 }
 
 // ── سلّم المستويات: كارت لكل مستوى (شعار + اسم + نطاق الشحنات) ───────────────
-function TierLadder({ data, onSaveImage }: {
-  data: ClientTierData;
-  /** لو موجودة (للأدمن بس) بيظهر على كل مستوى زرار رفع/حذف الصورة بدل القفل. image = null يعني حذف. */
-  onSaveImage?: (tierKey: string, image: string | null) => Promise<void>;
-}) {
+function TierLadder({ data }: { data: ClientTierData }) {
   const reduce = useReducedMotion();
-  const fileRef = useRef<HTMLInputElement>(null);
-  const pickKey = useRef<string>("");
-  const [busyKey, setBusyKey] = useState<string | null>(null);
-  const [imgError, setImgError] = useState<string | null>(null);
-  const saveImage = async (key: string, getImage: () => Promise<string | null>) => {
-    if (!onSaveImage || busyKey) return;
-    setBusyKey(key); setImgError(null);
-    try { await onSaveImage(key, await getImage()); }
-    catch (err: any) { setImgError(err?.message || "تعذّر حفظ الصورة"); }
-    finally { setBusyKey(null); }
-  };
-  const onPickFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    const key = pickKey.current;
-    e.target.value = "";
-    if (!file || !key) return;
-    void saveImage(key, () => fileToTierImage(file));
-  };
   const tierProgress = Math.max(0, Math.min(100, data.tierProgressPct ?? data.progressPct));
   // شكل الدرع السداسي (زي بوستر ستارك)
   const HEX = "polygon(9% 0, 91% 0, 100% 50%, 91% 100%, 9% 100%, 0 50%)";
@@ -312,10 +281,6 @@ function TierLadder({ data, onSaveImage }: {
   const last = data.ladder.length - 1;
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3" dir="rtl">
-      {onSaveImage && (
-        <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={onPickFile} />
-      )}
-      {imgError && <p className="col-span-full text-[11px] text-red-400">{imgError}</p>}
       {data.ladder.map((step, i) => {
         const look = tierLook(step);
         const isCur = step.status === "current";
@@ -407,38 +372,10 @@ function TierLadder({ data, onSaveImage }: {
                       <CheckCircle2 className="w-4 h-4" style={{ color: look.color }} />
                     </span>
                   )}
-                  {!active && !onSaveImage && (
+                  {!active && (
                     <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-card border border-border flex items-center justify-center">
                       <Lock className="w-2.5 h-2.5 text-muted-foreground/70" />
                     </span>
-                  )}
-                  {/* للأدمن: رفع/تغيير/حذف صورة المستوى مباشرة من هنا (بدل القفل) */}
-                  {onSaveImage && (
-                    <>
-                      <button
-                        type="button"
-                        disabled={!!busyKey}
-                        title={step.image ? "تغيير صورة المستوى" : "رفع صورة للمستوى"}
-                        onClick={() => { pickKey.current = step.key; fileRef.current?.click(); }}
-                        className="absolute -bottom-1.5 -left-1.5 w-[22px] h-[22px] rounded-full bg-card border flex items-center justify-center hover:scale-110 transition-transform disabled:opacity-60"
-                        style={{ borderColor: alpha(look.color, 0.7) }}
-                      >
-                        {busyKey === step.key
-                          ? <Loader2 className="w-3 h-3 animate-spin" style={{ color: look.color }} />
-                          : <ImagePlus className="w-3 h-3" style={{ color: look.color }} />}
-                      </button>
-                      {step.image && busyKey !== step.key && (
-                        <button
-                          type="button"
-                          disabled={!!busyKey}
-                          title="حذف الصورة"
-                          onClick={() => void saveImage(step.key, async () => null)}
-                          className="absolute -top-1.5 -left-1.5 w-[18px] h-[18px] rounded-full bg-card border border-border flex items-center justify-center text-muted-foreground hover:text-red-400 disabled:opacity-60"
-                        >
-                          <Trash2 className="w-2.5 h-2.5" />
-                        </button>
-                      )}
-                    </>
                   )}
                 </motion.div>
                 <p className="text-[12px] font-black leading-none tracking-wide" style={{ color: look.color, opacity: active ? 1 : 0.85 }}>
@@ -503,92 +440,6 @@ function TierHistory({ data }: { data: ClientTierData }) {
           );
         })}
       </div>
-    </div>
-  );
-}
-
-// ── التارجت الشهري: عرض + تعديل (للأدمن بس — لو onSave موجودة) ─────────────
-function TargetRow({ target, onSave }: {
-  target: ClientTierData["target"];
-  onSave?: (value: number) => Promise<void>;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [val, setVal] = useState("");
-  const [saving, setSaving] = useState(false);
-
-  if (!target && !onSave) return null;
-
-  const start = () => { setVal(target ? String(target.value) : ""); setEditing(true); };
-  const num = Number(val);
-  const valid = val.trim() !== "" && Number.isInteger(num) && num >= 0 && num <= 100000;
-  const submit = async () => {
-    if (!onSave || !valid || saving) return;
-    setSaving(true);
-    try { await onSave(num); setEditing(false); }
-    catch { /* الصفحة بتعرض رسالة الخطأ — بنسيب المحرر مفتوح */ }
-    finally { setSaving(false); }
-  };
-
-  if (editing && onSave) {
-    return (
-      <div className="space-y-1">
-        <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
-          <Flag className="w-3 h-3 text-muted-foreground shrink-0" />
-          <Input
-            autoFocus type="number" inputMode="numeric" min={0} max={100000} step={1}
-            value={val} onChange={e => setVal(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter") submit(); if (e.key === "Escape") setEditing(false); }}
-            placeholder="عدد الشحنات"
-            className="h-7 w-24 text-xs px-2"
-          />
-          <button
-            type="button" onClick={submit} disabled={!valid || saving} title="حفظ"
-            className="h-7 w-7 inline-flex items-center justify-center rounded-md bg-emerald-600/90 text-white disabled:opacity-40"
-          >
-            {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-          </button>
-          <button
-            type="button" onClick={() => setEditing(false)} disabled={saving} title="إلغاء"
-            className="h-7 w-7 inline-flex items-center justify-center rounded-md border border-border text-muted-foreground"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
-        </div>
-        <p className="text-[10px] text-muted-foreground">عدد الشحنات المطلوبة في الشهر — اكتب 0 لإلغاء التارجت.</p>
-      </div>
-    );
-  }
-
-  if (!target) {
-    return (
-      <button
-        type="button" onClick={start}
-        className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2 py-1 rounded-md border border-dashed border-border text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors"
-      >
-        <Flag className="w-3 h-3" /> تحديد التارجت الشهري
-      </button>
-    );
-  }
-
-  return (
-    <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-      <Flag className="w-3 h-3 text-muted-foreground" />
-      <span className="text-muted-foreground">التارجت الشهري</span>
-      <b>{n(target.value)}</b>
-      <span className="text-muted-foreground">شحنة</span>
-      {target.reached && (
-        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-900/25 text-emerald-400">
-          <CheckCircle2 className="w-3 h-3" /> تحقق
-        </span>
-      )}
-      {onSave && (
-        <button
-          type="button" onClick={start} title="تعديل التارجت"
-          className="h-5 w-5 inline-flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/40"
-        >
-          <Pencil className="w-3 h-3" />
-        </button>
-      )}
     </div>
   );
 }
@@ -658,17 +509,13 @@ function MotivationBanner({ m }: { m: TierMotivation }) {
   );
 }
 
-export function ClientTierCard({ data, isLoading, variant = "client", className = "", onSaveTarget, onEditTiers, onSaveTierImage }: {
+export function ClientTierCard({ data, isLoading, variant = "client", className = "", onEditTiers }: {
   data: ClientTierData | null | undefined;
   isLoading?: boolean;
   variant?: "admin" | "client";
   className?: string;
-  /** لو موجودة (للأدمن بس) بيظهر زرار تحديد/تعديل التارجت الشهري. لازم ترمي error لو الحفظ فشل. */
-  onSaveTarget?: (value: number) => Promise<void>;
   /** لو موجودة (للأدمن بس) بيظهر زرار "إعدادات المستويات" (حدود + صور + ألوان) */
   onEditTiers?: () => void;
-  /** لو موجودة (للأدمن بس) بيظهر على كل مستوى في السلّم زرار رفع/حذف صورة المستوى. image = null يعني حذف. لازم ترمي error لو الحفظ فشل. */
-  onSaveTierImage?: (tierKey: string, image: string | null) => Promise<void>;
 }) {
   const reduce = useReducedMotion();
   if (isLoading) {
@@ -760,7 +607,6 @@ export function ClientTierCard({ data, isLoading, variant = "client", className 
               ) : (
                 <p className="text-[11px] font-bold" style={{ color: look.color }}>وصلت لأعلى مستوى 🎉</p>
               )}
-              <TargetRow target={data.target ?? null} onSave={isAdmin ? onSaveTarget : undefined} />
               <div className="flex flex-wrap gap-1.5">
                 {data.trendPct !== null && (
                   <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md ${data.trendPct >= 0 ? "bg-emerald-900/25 text-emerald-400" : "bg-red-900/25 text-red-400"}`}>
@@ -821,7 +667,7 @@ export function ClientTierCard({ data, isLoading, variant = "client", className 
         <p className="text-[11px] font-bold text-muted-foreground mb-3 flex items-center gap-1.5">
           <Trophy className="w-3 h-3" /> مستويات الشحنات الشهرية
         </p>
-        <TierLadder data={data} onSaveImage={isAdmin ? onSaveTierImage : undefined} />
+        <TierLadder data={data} />
       </div>
     </Card>
   );
@@ -974,5 +820,117 @@ export function TierGoalCard({ data, isLoading, className = "" }: {
         </p>
       </div>
     </Card>
+  );
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// صف الكروت التلاتة لبوابة العميل: إجمالي الشحنات + إجمالي رصيد العميل + تحقيق الهدف
+// نفس شكل وألوان لوحة الأدمن بالظبط (الألوان بتتغير مع نسبة الهدف) — للعرض فقط.
+// ═══════════════════════════════════════════════════════════════════════════
+const STAT_TONES = {
+  emerald: {
+    border: "border-emerald-900/40", text: "text-emerald-400", bar: "bg-emerald-500",
+    style: {
+      background: "linear-gradient(145deg, rgba(16,185,129,.10) 0%, hsl(var(--card)/.85) 100%)",
+      boxShadow: "0 0 0 1px rgba(16,185,129,.32), 0 4px 24px -6px rgba(16,185,129,.28), 0 0 44px -12px rgba(16,185,129,.22)",
+    },
+  },
+  amber: {
+    border: "border-amber-900/40", text: "text-amber-400", bar: "bg-amber-500",
+    style: {
+      background: "linear-gradient(145deg, rgba(245,158,11,.09) 0%, hsl(var(--card)/.85) 100%)",
+      boxShadow: "0 0 0 1px rgba(245,158,11,.28), 0 4px 22px -6px rgba(245,158,11,.22), 0 0 40px -14px rgba(245,158,11,.16)",
+    },
+  },
+  blue: {
+    border: "border-primary/30", text: "text-primary", bar: "bg-primary",
+    style: {
+      background: "linear-gradient(145deg, rgba(59,130,246,.10) 0%, hsl(var(--card)/.85) 100%)",
+      boxShadow: "0 0 0 1px rgba(59,130,246,.28), 0 4px 22px -6px rgba(59,130,246,.22), 0 0 40px -14px rgba(59,130,246,.16)",
+    },
+  },
+} as const;
+
+/** نسبة التقدّم نحو المستوى التالي + اسم/لون المستوى التالي — بتتعرض في كارت "تحقيق الهدف" */
+export function nextTierProgress(data: ClientTierData | null | undefined) {
+  if (!data) return null;
+  const raw = data.nextTier ? (data.tierProgressPct ?? data.progressPct) : 100;
+  const pct = Math.max(0, Math.min(100, raw));
+  const next = data.nextTier ? tierLook(data.nextTier) : null;
+  return { pct, nextName: next?.name ?? null, nextColor: next?.color ?? null };
+}
+
+export function TierStatsRow({
+  data, totalShipments, delivered, returned, delayed, orderGoal, balanceText, manifestsCount, onBalanceClick, className = "",
+}: {
+  data: ClientTierData | null | undefined;
+  totalShipments: number;
+  delivered: number;
+  returned: number;
+  delayed: number;
+  /** هدف الأوردرات اللي الأدمن محدده للعميل (0 = الافتراضي 100) */
+  orderGoal: number;
+  /** رصيد العميل جاهز للعرض (مثلًا "١٢٬٠٠٠ ج.م") */
+  balanceText: string;
+  /** عدد البيانات المقفولة — لو 0 بنعرض "سيتم عرض الإجمالي بعد إغلاق البيان" */
+  manifestsCount: number;
+  onBalanceClick?: () => void;
+  className?: string;
+}) {
+  const goal = orderGoal > 0 ? orderGoal : 100;
+  const pct = Math.min((totalShipments / goal) * 100, 100);
+  const tone = pct >= 75 ? STAT_TONES.emerald : pct >= 50 ? STAT_TONES.amber : STAT_TONES.blue;
+  const cardCls = `card-glow p-3 text-center border h-full flex flex-col items-center justify-center ${tone.border}`;
+  const nextP = nextTierProgress(data);
+  const shownPct = nextP ? nextP.pct : pct;
+  return (
+    <div className={`grid grid-cols-2 sm:grid-cols-3 gap-3 ${className}`} dir="rtl">
+      <Card className={cardCls} style={tone.style}>
+        <p className="text-[10px] text-muted-foreground mb-0.5">إجمالي الشحنات</p>
+        <p className={`text-2xl font-black ${tone.text}`}>{n(totalShipments)}</p>
+        <p className="text-[10px] text-muted-foreground mt-1.5">
+          {n(delivered)} مسلّمة · {n(returned)} مرتجع · {n(delayed)} مؤجل
+        </p>
+      </Card>
+
+      <Card
+        className={`${cardCls} ${onBalanceClick ? "cursor-pointer" : ""}`}
+        style={tone.style}
+        onClick={onBalanceClick}
+      >
+        <p className="text-[10px] text-muted-foreground mb-0.5">إجمالي رصيد العميل</p>
+        {manifestsCount > 0 ? (
+          <>
+            <p className={`text-2xl font-black ${tone.text}`}>{balanceText}</p>
+            <p className="text-[10px] text-muted-foreground mt-1.5">{n(manifestsCount)} بيان</p>
+          </>
+        ) : (
+          <p className="text-[11px] font-semibold text-muted-foreground leading-snug px-1 mt-1">
+            سيتم عرض الإجمالي بعد إغلاق البيان
+          </p>
+        )}
+      </Card>
+
+      <Card className={`card-glow p-3 text-center border ${tone.border}`} style={tone.style}>
+        <p className="text-[10px] text-muted-foreground mb-0.5">تحقيق الهدف</p>
+        <p className={`text-2xl font-black ${tone.text}`}>{shownPct.toFixed(1)}%</p>
+        {nextP && (
+          <p className="text-[10px] text-muted-foreground mt-0.5">
+            {nextP.nextName
+              ? <>للوصول إلى <b style={{ color: nextP.nextColor ?? undefined }}>{nextP.nextName}</b></>
+              : "وصلت لأعلى مستوى 🎉"}
+          </p>
+        )}
+        {data ? (
+          <div className="mt-1.5"><TierGoalStrip data={data} caption /></div>
+        ) : (
+          <div className="w-full bg-muted/30 rounded-full h-1.5 mt-1.5 overflow-hidden">
+            <div className={`h-1.5 rounded-full transition-all ${tone.bar}`} style={{ width: `${pct}%` }} />
+          </div>
+        )}
+        <p className="text-[10px] text-muted-foreground mt-1.5">هدف {n(goal)} أوردر</p>
+      </Card>
+    </div>
   );
 }

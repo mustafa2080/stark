@@ -34,7 +34,7 @@ import { ar } from "date-fns/locale";
 import { apiFetch, clientAccountManifestsApi, clientReturnManifestsApi, shipmentsApi, type ClientAccountManifestListItem, type ClientReturnManifestListItem, type ClientReturnManifestItem } from "@/lib/api";
 import { cn, formatCurrency } from "@/lib/utils";
 import { returnReasonLabel } from "@/lib/order-constants";
-import { ClientTierCard, TierGoalStrip, type ClientTierData } from "@/components/client-tier-card";
+import { ClientTierCard, TierGoalStrip, nextTierProgress, type ClientTierData } from "@/components/client-tier-card";
 import { TierSettingsDialog } from "@/components/client-tier-settings";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -366,43 +366,9 @@ export default function CommercialClientDetailPage() {
     staleTime: 30_000,
   });
 
-  // التارجت الشهري للعميل — الأدمن بس هو اللي بيحدده (الـ API كمان بيتحقق من الصلاحية)
+  // الأدمن بس هو اللي بيشوف زرار إعدادات المستويات (الـ API كمان بيتحقق من الصلاحية)
   const { isAdmin } = useAuth();
-  const saveTargetMut = useMutation({
-    mutationFn: (target: number) =>
-      apiFetch<ClientTierData>(`/finance/clients/${clientId}/tier-target`, { method: "PATCH", body: JSON.stringify({ target }) }),
-    onSuccess: (_d, target) => {
-      qc.invalidateQueries({ queryKey: ["client-tier", clientId] });
-      qc.invalidateQueries({ queryKey: ["finance-clients-tiers"] });
-      toast({ title: target > 0 ? "تم حفظ التارجت الشهري" : "تم إلغاء التارجت الشهري" });
-    },
-    onError: (err: any) => toast({ title: "فشل حفظ التارجت", description: err?.message, variant: "destructive" }),
-  });
-
-  // صورة كل مستوى (رفع/حذف مباشرة من سلّم المستويات) — بنقرأ الإعدادات المحفوظة ونبدّل صورة المستوى ده بس ونحفظ
-  const saveTierImageMut = useMutation({
-    mutationFn: async ({ tierKey, image }: { tierKey: string; image: string | null }) => {
-      const cur = await apiFetch<{ ladder: { key: string; name: string; min: number; max?: number | null; color: string; image?: string | null }[] }>(
-        "/finance/clients/tier-settings",
-      );
-      return apiFetch("/finance/clients/tier-settings", {
-        method: "PUT",
-        body: JSON.stringify({
-          tiers: cur.ladder.map(t => ({
-            key: t.key, name: t.name, min: t.min, max: t.max ?? null, color: t.color,
-            image: t.key === tierKey ? image : (t.image ?? null),
-          })),
-        }),
-      });
-    },
-    onSuccess: (_d, v) => {
-      qc.invalidateQueries({ queryKey: ["client-tier"] });
-      qc.invalidateQueries({ queryKey: ["client-tier-settings"] });
-      qc.invalidateQueries({ queryKey: ["finance-clients-tiers"] });
-      qc.invalidateQueries({ queryKey: ["client-portal-tier"] });
-      toast({ title: v.image ? "تم حفظ صورة المستوى" : "تم حذف صورة المستوى" });
-    },
-  });
+  const nextP = nextTierProgress(tierData);
 
   // ── بيانات حساب العميل (Client Account Manifests — شحنات) ──────────────────
   const { data: manifests, isLoading: manifestsLoading } = useQuery<ClientAccountManifestListItem[]>({
@@ -1047,8 +1013,15 @@ export default function CommercialClientDetailPage() {
               </button>
             </p>
             <p className={`text-2xl font-black ${salesPct >= 75 ? "text-emerald-400" : salesPct >= 50 ? "text-amber-400" : "text-primary"}`}>
-              {salesPct.toFixed(1)}%
+              {(nextP ? nextP.pct : salesPct).toFixed(1)}%
             </p>
+            {nextP && (
+              <p className="text-[10px] text-muted-foreground mt-0.5">
+                {nextP.nextName
+                  ? <>للوصول إلى <b style={{ color: nextP.nextColor ?? undefined }}>{nextP.nextName}</b></>
+                  : "وصلت لأعلى مستوى 🎉"}
+              </p>
+            )}
             {/* شريط ملوّن بألوان مستويات الشحنات الشهرية + دبوس "أنت هنا" (للعرض فقط) */}
             {tierData ? (
               <div className="mt-1.5">
@@ -1109,8 +1082,6 @@ export default function CommercialClientDetailPage() {
 
           {/* مستوى العميل الشهري — بديل مقياس الهدف القديم (الدايرة + المستوى + النصائح) */}
           <ClientTierCard data={tierData} isLoading={tierLoading} variant="admin" className="sm:col-span-2"
-          onSaveTarget={isAdmin ? async (v) => { await saveTargetMut.mutateAsync(v); } : undefined}
-          onSaveTierImage={isAdmin ? async (tierKey, image) => { await saveTierImageMut.mutateAsync({ tierKey, image }); } : undefined}
           onEditTiers={isAdmin ? () => setShowTierSettings(true) : undefined} />
           {isAdmin && <TierSettingsDialog open={showTierSettings} onOpenChange={setShowTierSettings} />}
 
