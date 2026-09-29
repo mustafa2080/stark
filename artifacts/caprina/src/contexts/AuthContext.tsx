@@ -210,6 +210,9 @@ export const ALL_PERMISSIONS = {
     { key: "finance_clients.edit_client_btn",        label: "زرار: تعديل عميل (بالجدول)",      desc: "إخفاء إذا لم يُمنح" },
     { key: "finance_clients.delete_client_btn",      label: "زرار: حذف عميل (بالجدول)",        desc: "إخفاء إذا لم يُمنح" },
     { key: "finance_clients.view_all_clients_btn",   label: "زرار: عرض جميع العملاء",         desc: "إخفاء إذا لم يُمنح" },
+    { key: "finance_clients.tier_settings",          label: "زرار: إعدادات مستويات العميل الشهري", desc: "فتح وعرض إعدادات المستويات" },
+    { key: "finance_clients.tier_settings_edit",     label: "تعديل الأسماء والحدود والألوان",  desc: "تعديل اسم/بداية/نهاية/لون كل مستوى" },
+    { key: "finance_clients.tier_settings_images",   label: "رفع وحذف صور المستويات",          desc: "تغيير شعار كل مستوى" },
   ],
   // 6.6. لوحة الماليات الرئيسية (حاويات داخلية)
   finance_hub_page: [
@@ -358,7 +361,12 @@ const ROLE_DEFAULT_PERMISSIONS: Record<string, string[]> = {
     "shipping_followup_page.open_shipment_btn","shipping_followup_page.tip_banner",
     "orders.view","orders.create","orders.edit","orders.delete","orders.financials","orders.export","orders.profitability",
     "shipments.view","shipments.create","shipments.invoices_btn","shipments.tracking_btn","shipments.analytics","shipments.profitability",
-    "reps.view","reps.analytics",
+    // الإجرائية — لازم تكون في default الأدمن، لأن الأزرار بقت تتحكم فيها checkboxes لكل الحسابات (مش بس custom).
+    // من غيرها الأدمن القديم (permissions فاضية) كان هيفقد حذف/إغلاق/استعجال/تعديل/تصدير الشحنات.
+    "shipments.edit_status","shipments.edit_data","shipments.delete","shipments.close","shipments.urgent","shipments.export",
+    "reps.view","reps.create","reps.analytics","reps.card_total_revenue",
+    "reps.manifest_add_shipments","reps.manifest_close","reps.manifest_delete",
+    "reps.manifest_remove_order","reps.manifest_net_revenue","reps.login_account",
     "zones.view",
     "inventory.view","inventory.edit","inventory.delete","inventory.cost","inventory.movements","inventory.warehouses",
     "shipping.view","shipping.edit","shipping.financials","shipping.manifests",
@@ -372,6 +380,7 @@ const ROLE_DEFAULT_PERMISSIONS: Record<string, string[]> = {
     "finance_clients.kpi_total_shipments","finance_clients.top_clients","finance_clients.shipments_chart",
     "finance_clients.sales_report_link","finance_clients.clients_table","finance_clients.add_client_btn",
     "finance_clients.edit_client_btn","finance_clients.delete_client_btn","finance_clients.view_all_clients_btn",
+    "finance_clients.tier_settings","finance_clients.tier_settings_edit","finance_clients.tier_settings_images",
     "finance_hub.smart_alerts","finance_hub.kpi_cash","finance_hub.kpi_revenue","finance_hub.kpi_net_profit",
     "finance_hub.kpi_expenses","finance_hub.monthly_chart","finance_hub.daily_cashflow","finance_hub.cash_map",
     "finance_hub.pnl_statement","finance_hub.order_metrics","finance_hub.expense_pie","finance_hub.recent_transactions",
@@ -711,16 +720,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const isAdmin = user?.role === "admin" || user?.role === "super_admin" || user?.role === ("super-admin" as any);
+  const isSuperAdmin = user?.role === "super_admin" || user?.role === ("super-admin" as any);
   const isRepresentative = user?.role === "representative";
   const isClient = user?.role === "client";
 
   const canViewFinancials = isAdmin || can("orders.financials");
-  const canViewProfitability = isAdmin || can("shipments.profitability");
+  // الربحية بتتحكم فيها checkbox "رؤية تحليل الربحية" لكل الحسابات (الأدمن العادي كمان)، والـ super_admin بس هو اللي يتجاوز.
+  const canViewProfitability = isSuperAdmin || can("shipments.profitability");
 
   return (
     <AuthContext.Provider value={{
       user, token, sessionId, login, logout, refreshUser,
-      isSuperAdmin: user?.role === "super_admin" || user?.role === ("super-admin" as any),
+      isSuperAdmin,
       isAdmin,
       isEmployee: user?.role === "employee",
       isWarehouse: user?.role === "warehouse",

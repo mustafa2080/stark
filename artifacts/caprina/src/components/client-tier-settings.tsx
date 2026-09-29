@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch } from "@/lib/api";
 import { TierEmblem, tierLook, alpha, fileToTierImage, type TierBrand, type TierIconKey } from "@/components/client-tier-card";
 
@@ -31,6 +32,12 @@ export function TierSettingsDialog({ open, onOpenChange }: { open: boolean; onOp
   const fileRef = useRef<HTMLInputElement>(null);
   const pickIdx = useRef<number>(-1);
   const [rows, setRows] = useState<Row[]>([]);
+
+  // صلاحيات من إدارة المستخدمين (الـ super_admin بيتجاوز) — والـ API بيتحقق منها كمان
+  const { isSuperAdmin, can } = useAuth();
+  const canEditFields = isSuperAdmin || can("finance_clients.tier_settings_edit");
+  const canEditImages = isSuperAdmin || can("finance_clients.tier_settings_images");
+  const canSave = canEditFields || canEditImages;
 
   const { data, isLoading } = useQuery<SettingsResponse>({
     queryKey: ["client-tier-settings"],
@@ -118,6 +125,9 @@ export function TierSettingsDialog({ open, onOpenChange }: { open: boolean; onOp
           لو سبت فجوة بين فئتين، العميل اللي شحناته جوه الفجوة مش هيدخل أي فئة. تقدر كمان تغيّر الاسم واللون وترفع صورة/شعار لكل فئة.
           التغيير بيتطبق على كل العملاء.
         </p>
+        {!canSave && (
+          <p className="text-xs text-amber-500 font-bold">عرض فقط — مفيش عندك صلاحية تعديل إعدادات المستويات.</p>
+        )}
 
         {isLoading || rows.length === 0 ? (
           <div className="py-10 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
@@ -140,7 +150,7 @@ export function TierSettingsDialog({ open, onOpenChange }: { open: boolean; onOp
                   {/* الشعار */}
                   <div className="flex items-center gap-2">
                     <TierEmblem look={look} size={52} />
-                    <div className="flex flex-col gap-1">
+                    <div className={`flex flex-col gap-1 ${canEditImages ? "" : "hidden"}`}>
                       <button
                         type="button"
                         onClick={() => { pickIdx.current = i; fileRef.current?.click(); }}
@@ -162,7 +172,7 @@ export function TierSettingsDialog({ open, onOpenChange }: { open: boolean; onOp
                   {/* الاسم */}
                   <div>
                     <p className="text-[10px] text-muted-foreground mb-1">اسم المستوى {i + 1}</p>
-                    <Input value={r.name} maxLength={30} onChange={e => patch(i, { name: e.target.value })} className="h-8 text-sm" />
+                    <Input value={r.name} maxLength={30} disabled={!canEditFields} onChange={e => patch(i, { name: e.target.value })} className="h-8 text-sm" />
                   </div>
 
                   {/* من */}
@@ -170,7 +180,7 @@ export function TierSettingsDialog({ open, onOpenChange }: { open: boolean; onOp
                     <p className="text-[10px] text-muted-foreground mb-1">من (شحنة)</p>
                     <Input
                       type="number" min={0} step={1} inputMode="numeric"
-                      value={r.min}
+                      value={r.min} disabled={!canEditFields}
                       onChange={e => patch(i, { min: e.target.value })}
                       className="h-8 w-24 text-sm"
                     />
@@ -181,7 +191,7 @@ export function TierSettingsDialog({ open, onOpenChange }: { open: boolean; onOp
                     <p className="text-[10px] text-muted-foreground mb-1">إلى (شحنة)</p>
                     <Input
                       type="number" min={0} step={1} inputMode="numeric"
-                      value={r.max} placeholder={isLast ? "∞ مفتوحة" : ""}
+                      value={r.max} disabled={!canEditFields} placeholder={isLast ? "∞ مفتوحة" : ""}
                       onChange={e => patch(i, { max: e.target.value })}
                       className="h-8 w-24 text-sm"
                     />
@@ -191,8 +201,8 @@ export function TierSettingsDialog({ open, onOpenChange }: { open: boolean; onOp
                   <div>
                     <p className="text-[10px] text-muted-foreground mb-1">اللون</p>
                     <input
-                      type="color" value={r.color} onChange={e => patch(i, { color: e.target.value })}
-                      className="h-8 w-12 rounded-md border border-border bg-transparent cursor-pointer p-0.5"
+                      type="color" value={r.color} disabled={!canEditFields} onChange={e => patch(i, { color: e.target.value })}
+                      className="h-8 w-12 rounded-md border border-border bg-transparent cursor-pointer p-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
                     />
                   </div>
 
@@ -212,14 +222,14 @@ export function TierSettingsDialog({ open, onOpenChange }: { open: boolean; onOp
 
         <DialogFooter className="gap-2 sm:justify-between">
           <Button
-            type="button" variant="outline" size="sm" disabled={!data || save.isPending}
+            type="button" variant="outline" size="sm" disabled={!data || save.isPending || !canEditFields || !canEditImages}
             onClick={() => data && setRows(toRows(data.defaults))}
           >
             <RotateCcw className="w-3.5 h-3.5 ml-1.5" /> استرجاع الافتراضي
           </Button>
           <div className="flex gap-2">
             <Button type="button" variant="ghost" size="sm" onClick={() => onOpenChange(false)} disabled={save.isPending}>إلغاء</Button>
-            <Button type="button" size="sm" disabled={hasErrors || save.isPending || rows.length === 0} onClick={() => save.mutate()}>
+            <Button type="button" size="sm" disabled={!canSave || hasErrors || save.isPending || rows.length === 0} onClick={() => save.mutate()}>
               {save.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin ml-1.5" />} حفظ
             </Button>
           </div>

@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db, clientsTable, saleOrdersTable, saleOrderItemsTable, shipmentsTable, warehousesTable, usersTable, clientAccountManifestItemsTable, clientAccountManifestsTable, pickupRequestsTable, shipmentZonesTable, shipmentManifestsTable, shipmentManifestItemsTable, shippingCompaniesTable, clientReturnManifestsTable, clientReturnManifestItemsTable } from "@workspace/db";
 import { eq, desc, and, sql, or, like, isNull, inArray, notInArray, ne } from "drizzle-orm";
 import { getTenantId } from "../middlewares/requireTenant.js";
-import { requireAdmin } from "../middlewares/requireRole.js";
+import { requireAdmin, requireFreshPermission, type PermissionChecker } from "../middlewares/requireRole.js";
 import { hashPassword } from "../lib/auth.js";
 import { computeClosedManifestsForClient, computeClientBalancesForAllClients, computeNetRevenueDueForAllClients } from "../lib/clientAccountBalance.js";
 // قيمة البيان المفتوح لكل عميل — لفلتر "عميل غير صفري" (لازم نحسب قيمة
@@ -13,6 +13,11 @@ import {
   getTierLadder, saveTierConfig, validateTierConfig, buildTierLadder, DEFAULT_TIER_CONFIG,
 } from "../lib/clientTier.js";
 import { z } from "zod";
+
+// مفاتيح صلاحيات إعدادات مستويات العميل الشهري (متسجّلة في إدارة المستخدمين)
+const TIER_PERM_VIEW = "finance_clients.tier_settings";
+const TIER_PERM_EDIT = "finance_clients.tier_settings_edit";
+const TIER_PERM_IMAGES = "finance_clients.tier_settings_images";
 
 const router = Router();
 
@@ -481,7 +486,8 @@ router.get("/finance/clients/tiers", async (req, res): Promise<void> => {
 });
 
 // ── GET /finance/clients/tier-settings — إعدادات مستويات العملاء (الاسم + بداية المستوى + اللون + الصورة) ──
-router.get("/finance/clients/tier-settings", async (req, res): Promise<void> => {
+// الصلاحيات: أي واحدة من tier_settings / tier_settings_edit / tier_settings_images (تتقرا طازة من الداتابيز).
+router.get("/finance/clients/tier-settings", requireFreshPermission(TIER_PERM_VIEW, TIER_PERM_EDIT, TIER_PERM_IMAGES), async (req, res): Promise<void> => {
   try {
     const ladder = await getTierLadder(getTenantId(req));
     res.json({ ladder, defaults: buildTierLadder(DEFAULT_TIER_CONFIG) });
@@ -492,11 +498,35 @@ router.get("/finance/clients/tier-settings", async (req, res): Promise<void> => 
 
 // ── PUT /finance/clients/tier-settings — الأدمن بيعدّل حدود المستويات وصورها ──
 // الـ body: { tiers: [{ key, name, min, max, color, image }] } — 8 مستويات بالترتيب (max = null لآخر مستوى المفتوح).
-router.put("/finance/clients/tier-settings", requireAdmin, async (req, res): Promise<void> => {
+// الصلاحيات: tier_settings_edit لتعديل (الاسم/البداية/النهاية/اللون)، و tier_settings_images لتغيير الصور.
+// السيرفر بيقارن اللي اتبعت بالمحفوظ ويطلب الصلاحية المناسبة لكل تغيير فعلي (مش بس اللي الفرونت بيعرضه).
+router.put("/finance/clients/tier-settings", requireFreshPermission(TIER_PERM_EDIT, TIER_PERM_IMAGES), async (req, res): Promise<void> => {
   try {
     const parsed = validateTierConfig(req.body?.tiers);
     if (!parsed.ok) { res.status(400).json({ error: parsed.error }); return; }
     const tenantId = getTenantId(req);
+
+    const can = res.locals.can as PermissionChecker;
+    const current = await getTierLadder(tenantId);
+    let fieldsChanged = false;
+    let imagesChanged = false;
+    for (const next of parsed.config) {
+      const cur = current.find(c => c.key === next.key);
+      if (!cur) { fieldsChanged = true; continue; }
+      if (
+        cur.name !== next.name || cur.min !== next.min || (cur.max ?? null) !== (next.max ?? null) || cur.color !== next.color
+      ) fieldsChanged = true;
+      if ((cur.image ?? null) !== (next.image ?? null)) imagesChanged = true;
+    }
+    if (fieldsChanged && !can(TIER_PERM_EDIT)) {
+      res.status(403).json({ error: "ليس لديك صلاحية تعديل أسماء وحدود وألوان المستويات" });
+      return;
+    }
+    if (imagesChanged && !can(TIER_PERM_IMAGES)) {
+      res.status(403).json({ error: "ليس لديك صلاحية رفع أو حذف صور المستويات" });
+      return;
+    }
+
     await saveTierConfig(tenantId, parsed.config);
     res.json({ ladder: await getTierLadder(tenantId), defaults: buildTierLadder(DEFAULT_TIER_CONFIG) });
   } catch (err: any) {

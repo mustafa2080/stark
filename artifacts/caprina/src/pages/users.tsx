@@ -298,6 +298,9 @@ const PERM_TO_SECTION: Record<string, string> = {
   "finance_clients.edit_client_btn":       "section_finance",
   "finance_clients.delete_client_btn":     "section_finance",
   "finance_clients.view_all_clients_btn":  "section_finance",
+  "finance_clients.tier_settings":         "section_finance",
+  "finance_clients.tier_settings_edit":    "section_finance",
+  "finance_clients.tier_settings_images":  "section_finance",
   // لوحة الماليات الرئيسية
   "finance_hub.smart_alerts":         "section_finance",
   "finance_hub.kpi_cash":             "section_finance",
@@ -627,6 +630,9 @@ const SECTION_GROUPS: Array<{
       { key: "finance_clients.edit_client_btn",       label: "زرار: تعديل عميل",           desc: "إخفاء إذا لم يُمنح" },
       { key: "finance_clients.delete_client_btn",     label: "زرار: حذف عميل",             desc: "إخفاء إذا لم يُمنح" },
       { key: "finance_clients.view_all_clients_btn",  label: "زرار: عرض جميع العملاء",     desc: "إخفاء إذا لم يُمنح" },
+      { key: "finance_clients.tier_settings",         label: "زرار: إعدادات مستويات العميل الشهري", desc: "فتح وعرض إعدادات المستويات — لازمة لظهور الزرار" },
+      { key: "finance_clients.tier_settings_edit",    label: "إعدادات المستويات: تعديل الأسماء والحدود والألوان", desc: "تغيير اسم/بداية/نهاية/لون كل مستوى — بيتطبق على كل العملاء", sensitive: true },
+      { key: "finance_clients.tier_settings_images",  label: "إعدادات المستويات: رفع وحذف الصور", desc: "تغيير شعار كل مستوى — بيظهر للعملاء في بوابتهم" },
     ],
   },
   {

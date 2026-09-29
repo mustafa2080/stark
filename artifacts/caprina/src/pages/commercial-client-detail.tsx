@@ -29,18 +29,16 @@ import {
   Hourglass, RotateCcw, PackageX, PackageCheck, AlertCircle, ChevronDown,
   Printer, ClipboardList,
 } from "lucide-react";
-import { format, formatDistanceToNow, subMonths, startOfMonth, endOfMonth } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
 import { ar } from "date-fns/locale";
 import { apiFetch, clientAccountManifestsApi, clientReturnManifestsApi, shipmentsApi, type ClientAccountManifestListItem, type ClientReturnManifestListItem, type ClientReturnManifestItem } from "@/lib/api";
 import { cn, formatCurrency } from "@/lib/utils";
 import { returnReasonLabel } from "@/lib/order-constants";
 import { ClientTierCard, TierGoalStrip, nextTierProgress, type ClientTierData } from "@/components/client-tier-card";
 import { TierSettingsDialog } from "@/components/client-tier-settings";
+import { ClientGrowthCard } from "@/components/client-growth-card";
 import { useAuth } from "@/contexts/AuthContext";
-import {
-  LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  ReferenceLine, CartesianGrid, PieChart, Pie, Cell,
-} from "recharts";
+import { PieChart, Pie, Cell } from "recharts";
 
 // ── Glow style helpers ──────────────────────────────────────────────────────
 const GLOW = {
@@ -366,8 +364,13 @@ export default function CommercialClientDetailPage() {
     staleTime: 30_000,
   });
 
-  // الأدمن بس هو اللي بيشوف زرار إعدادات المستويات (الـ API كمان بيتحقق من الصلاحية)
-  const { isAdmin } = useAuth();
+  // زرار إعدادات المستويات بيتحكم فيه من إدارة المستخدمين (الـ super_admin بس بيتجاوز) — والـ API كمان بيتحقق
+  const { isSuperAdmin, can } = useAuth();
+  const canOpenTierSettings =
+    isSuperAdmin ||
+    can("finance_clients.tier_settings") ||
+    can("finance_clients.tier_settings_edit") ||
+    can("finance_clients.tier_settings_images");
   const nextP = nextTierProgress(tierData);
 
   // ── بيانات حساب العميل (Client Account Manifests — شحنات) ──────────────────
@@ -675,7 +678,6 @@ export default function CommercialClientDetailPage() {
   const latestProcessingId = processingOrders[0]?.id;
 
   const TARGET = creditLimit > 0 ? creditLimit : 100;
-  const monthlyTarget = Math.round(TARGET / 12);
 
   // ── مؤشر الخطر 0–100 (كلما قل كان أأمن) ────────────────────────────────
   const riskScore = useMemo(() => {
@@ -721,26 +723,6 @@ export default function CommercialClientDetailPage() {
     { name: "المتبقي للهدف",     value: Math.max(0, TARGET - totalOrdersCount) },
   ], [totalOrdersCount, TARGET]);
 
-  // ── بيانات الـ Line chart — آخر 6 أشهر ─────────────────────────────────
-  const monthlyData = useMemo(() => {
-    const months: { label: string; sales: number; target: number }[] = [];
-    for (let i = 5; i >= 0; i--) {
-      const d     = subMonths(new Date(), i);
-      const start = startOfMonth(d);
-      const end   = endOfMonth(d);
-      // عدد الأوردرات في الشهر
-      const ordersCount = allOrders.filter(o => {
-          const cd = new Date(o.createdAt);
-          return cd >= start && cd <= end;
-        }).length;
-      months.push({
-        label: format(d, "MMM", { locale: ar }),
-        sales: ordersCount,
-        target: monthlyTarget,
-      });
-    }
-    return months;
-  }, [allOrders, monthlyTarget]);
 
   // ── أكثر المنتجات شراءً ──────────────────────────────────────────────────
   const { data: topProductsData } = useQuery<{
@@ -1082,44 +1064,17 @@ export default function CommercialClientDetailPage() {
 
           {/* مستوى العميل الشهري — بديل مقياس الهدف القديم (الدايرة + المستوى + النصائح) */}
           <ClientTierCard data={tierData} isLoading={tierLoading} variant="admin" className="sm:col-span-2"
-          onEditTiers={isAdmin ? () => setShowTierSettings(true) : undefined} />
-          {isAdmin && <TierSettingsDialog open={showTierSettings} onOpenChange={setShowTierSettings} />}
+          onEditTiers={canOpenTierSettings ? () => setShowTierSettings(true) : undefined} />
+          {canOpenTierSettings && <TierSettingsDialog open={showTierSettings} onOpenChange={setShowTierSettings} />}
 
-          {/* Line chart — النمو الشهري */}
-          <Card className="card-glow border-border p-4 sm:col-span-2" style={GLOW.neutral.style}>
-            <p className="text-xs font-bold mb-1 flex items-center gap-2">
-              <TrendingUp className="w-3.5 h-3.5 text-muted-foreground" />
-              النمو الشهري
-            </p>
-            <div className="flex items-center gap-3 mb-3 text-[10px]">
-              <span className="flex items-center gap-1">
-                <span className="w-5 h-0.5 bg-blue-400 inline-block rounded" />المبيعات
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="w-5 h-0.5 border-t border-dashed border-amber-400 inline-block" />الهدف الشهري
-              </span>
-            </div>
-            <ResponsiveContainer width="100%" height={130}>
-              <LineChart data={monthlyData} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                <XAxis dataKey="label" tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false}
-                  tickFormatter={v => v >= 1000 ? `${Math.round(v / 1000)}K` : String(v)} />
-                <Tooltip
-                  contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 11, direction: "rtl" }}
-                  formatter={(v: any, name: string) => [`${v} أوردر`, name === "sales" ? "الأوردرات" : "الهدف"]}
-                  labelFormatter={(l) => `شهر ${l}`}
-                />
-                <ReferenceLine y={monthlyTarget} stroke="#f59e0b" strokeDasharray="4 3" strokeWidth={1.5} />
-                <Line type="monotone" dataKey="sales" stroke="#3b82f6" strokeWidth={2}
-                  dot={{ fill: "#3b82f6", r: 3, strokeWidth: 0 }}
-                  activeDot={{ r: 5, fill: "#3b82f6" }} />
-              </LineChart>
-            </ResponsiveContainer>
-            <p className="text-[9px] text-muted-foreground text-center mt-1">
-              الهدف الشهري: {monthlyTarget} أوردر
-            </p>
-          </Card>
+          {/* النمو الشهري — شحنات آخر 6 شهور من الداتا الفعلية (مسلّمة/مرتجع/أخرى + التارجت) */}
+          <ClientGrowthCard
+            shipments={clientShipments}
+            tier={tierData}
+            isLoading={isLoading}
+            className="card-glow border-border sm:col-span-2"
+            style={GLOW.neutral.style}
+          />
         </div>
       )}
 
