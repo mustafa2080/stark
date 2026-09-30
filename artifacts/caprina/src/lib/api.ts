@@ -1191,8 +1191,12 @@ export interface RepRankingRow {
 export interface RepCostVsPerformanceRow {
   id: number;
   name: string;
-  shippingCost: number;
-  costPerDelivery: number | null;
+  shippingCost: number;              // إجمالي التكلفة الفعلية (مسلَّم + مرتجع مالي)
+  avgShipmentCost: number | null;    // تكلفة الشحنة الأساسية (متوسط)
+  baseCostPerDelivery: number | null; // تكلفة التسليم قبل إضافة المرتجعات
+  costPerDelivery: number | null;    // تكلفة التسليم الفعلية بعد إضافة المرتجعات
+  returnCost: number;                // تكلفة المرتجعات المالية
+  successfulDeliveries: number;
   deliveryRate: number;
   avgDeliveryHours: number;
   rankingScore: number;
@@ -1202,9 +1206,11 @@ export interface RepCostVsPerformanceRow {
 export interface RepCodAnalysisRow {
   id: number;
   name: string;
-  codExpected: number;
-  codCollected: number;
-  collectionRate: number;
+  codExpected: number;       // المتوقع تحصيله من الشحنات المُسلَّمة فقط
+  codCollected: number;      // المحصّل فعليًا منها
+  collectionRate: number | null; // null = كل شحنات المندوب لسه جارية (مفيش تحصيل يتحسب)
+  shortfall: number;         // موجب = عجز، سالب = زيادة
+  settledCount: number;
   shippingFeesTotal: number;
   ongoingCodAmount: number;
   projectedCollection: number;

@@ -5594,6 +5594,9 @@ router.get("/analytics/representatives-intelligence", requireAuth, async (req, r
         estimatedDelivery: shipmentsTable.estimatedDelivery,
         actualDelivery: shipmentsTable.actualDelivery,
         zoneId: shipmentsTable.zoneId,
+        parcelType: shipmentsTable.parcelType,
+        returnReason: shipmentsTable.returnReason,
+        totalAmount: shipmentsTable.totalAmount,
       })
       .from(shipmentsTable)
       .where(baseCond);
@@ -5613,22 +5616,18 @@ router.get("/analytics/representatives-intelligence", requireAuth, async (req, r
       deliveryRate: number; returnRate: number;
       onTime: number; deliveredWithEta: number; onTimeRate: number;
       deliveryHoursSum: number; deliveryHoursCount: number; avgDeliveryHours: number;
-      codExpected: number; codCollected: number; collectionRate: number;
-      shippingFeesTotal: number;
-      ongoingCodAmount: number; // إجمالي قيمة COD للشحنات المفتوحة (لسه جارية) حاليًا مع المندوب
     };
+    // ⚠️ إصلاح (2026-09-30، طلب المدير): مقاييس الفلوس (التكلفة الفعلية + التحصيل COD) اتشالت من هنا
+    // واتنقلت لـ computeRepFinance تحت. السبب: النسخة القديمة كانت بتجمع codAmount لكل الشحنات (حتى
+    // الجارية والمرتجعة) وبتقارنه بـ shipments.collectedAmount — وده عمود مبيتسجّلش أصلًا في الشحنات
+    // المسلَّمة (القيمة الفعلية المُحصَّلة بتتسجّل في shipment_manifest_items.delivered_value_received).
     function computeRepMetrics(repRows: typeof rows): RepMetrics {
       let total = 0, delivered = 0, returned = 0, ongoing = 0;
       let onTime = 0, deliveredWithEta = 0;
       let deliveryHoursSum = 0, deliveryHoursCount = 0;
-      let codExpected = 0, codCollected = 0, shippingFeesTotal = 0;
-      let ongoingCodAmount = 0;
       for (const r of repRows) {
         total++;
         const status = SI_normalize(r.status);
-        codExpected += Number(r.codAmount ?? 0);
-        codCollected += Number(r.collectedAmount ?? 0);
-        shippingFeesTotal += Number(r.shippingFee ?? 0);
         if (status === "received") {
           delivered++;
           const created = new Date(r.createdAt).getTime();
@@ -5643,20 +5642,16 @@ router.get("/analytics/representatives-intelligence", requireAuth, async (req, r
           returned++;
         } else {
           ongoing++;
-          ongoingCodAmount += Number(r.codAmount ?? 0);
         }
       }
       const deliveryRate = total > 0 ? (delivered / total) * 100 : 0;
       const returnRate = total > 0 ? (returned / total) * 100 : 0;
       const onTimeRate = deliveredWithEta > 0 ? (onTime / deliveredWithEta) * 100 : (delivered > 0 ? 100 : 0);
       const avgDeliveryHours = deliveryHoursCount > 0 ? deliveryHoursSum / deliveryHoursCount : 0;
-      const collectionRate = codExpected > 0 ? (codCollected / codExpected) * 100 : 0;
       return {
         total, delivered, returned, ongoing,
         deliveryRate, returnRate, onTime, deliveredWithEta, onTimeRate,
-        ongoingCodAmount,
         deliveryHoursSum, deliveryHoursCount, avgDeliveryHours,
-        codExpected, codCollected, collectionRate, shippingFeesTotal,
       };
     }
 
@@ -5696,11 +5691,37 @@ router.get("/analytics/representatives-intelligence", requireAuth, async (req, r
       return { direction: delta > 0 ? "up" : "down", delta };
     };
 
-    // ── حساب تكلفة الشحن الفعلية لكل مندوب ──
-    // costMode = "rep": سعر ثابت من shippingCompaniesTable.shippingCost لكل شحنة
-    // costMode = "zone": التكلفة بتختلف حسب منطقة كل شحنة — بنجيبها من zoneCostsTable.deliveryCost
-    // نفس المنطق المستخدم في حساب صافي أرباح المناديب (courierCostClosed) أعلى في الملف، عشان الرقمين يفضلوا متسقين
-    const zoneIdsForCost = [...new Set(inRange.map(r => r.zoneId).filter((id): id is number => id != null))];
+    // ══════════════════════════════════════════════════════════════════════════
+    // حساب مالي موحّد لكل مندوب: التكلفة الفعلية + التحصيل (COD)
+    // (إصلاح 2026-09-30، طلب المدير) — نفس قواعد computeManifestNetDue (manifestFinance.ts) ولوحة
+    // الأرباح (courierCostClosed) بالظبط، عشان أرقام الصفحة دي تبقى = أرقام بيان المندوب والخزنة:
+    //   • تكلفة الشحن بتتحسب بس للشحنات اللي بتستوجب شحن: مسلَّمة / تسليم جزئي / مرتجع بسبب مالي
+    //     (refused_paid | refused_unpaid | quality). الجارية والمرتجع بأسباب تانية = صفر تكلفة.
+    //   • تكلفة الشحنة الواحدة = الأساسي (rep ثابت أو zone) + repExtraCost لنوع الطرد.
+    //   • في وضع zone: تكلفة المنطقة ← سعر المنطقة ← المنطقة الافتراضية للمندوب (نفس سلسلة fallback).
+    //   • التحصيل: المتوقع = إجمالي سعر الشحنات المُسلَّمة فقط، والمحصّل = القيمة الفعلية المسجّلة
+    //     من المندوب (delivered_value_received) وإلا نفس افتراض البيان (السعر الكامل).
+    // ══════════════════════════════════════════════════════════════════════════
+    const REP_FINANCIAL_RETURN_REASONS = ["refused_paid", "refused_unpaid", "quality"];
+    const repById = new Map(reps.map(r => [r.id, r]));
+
+    // المنطقة الافتراضية لكل مندوب (zoneIds[0] أو zoneId) — بتُستخدم لما الشحنة مالهاش منطقة مسعّرة
+    const defaultZoneOfRep = new Map<number, number>();
+    for (const rep of reps) {
+      let dz: number | null = null;
+      const zi = (rep as any).zoneIds;
+      if (zi) {
+        try { const p = JSON.parse(zi); if (Array.isArray(p) && p.length) dz = Number(p[0]); } catch {}
+      } else if ((rep as any).zoneId != null) {
+        dz = Number((rep as any).zoneId);
+      }
+      if (dz != null && Number.isFinite(dz)) defaultZoneOfRep.set(rep.id, dz);
+    }
+
+    const zoneIdsForCost = [...new Set([
+      ...inRange.map(r => r.zoneId).filter((id): id is number => id != null),
+      ...defaultZoneOfRep.values(),
+    ])];
     const zoneCostsForReps = zoneIdsForCost.length
       ? await db.select({ zoneId: zoneCostsTable.zoneId, deliveryCost: zoneCostsTable.deliveryCost })
           .from(zoneCostsTable)
@@ -5711,28 +5732,143 @@ router.get("/analytics/representatives-intelligence", requireAuth, async (req, r
               : undefined,
           ))
       : [];
-    const zoneCostMapForReps = new Map(zoneCostsForReps.map(z => [z.zoneId, Number(z.deliveryCost ?? 0)]));
-    const repById = new Map(reps.map(r => [r.id, r]));
+    const zonePricesForReps = zoneIdsForCost.length
+      ? await db.select({ id: shipmentZonesTable.id, price: shipmentZonesTable.price })
+          .from(shipmentZonesTable)
+          .where(inArray(shipmentZonesTable.id, zoneIdsForCost))
+      : [];
+    const zoneCostMapForReps = new Map(zoneCostsForReps.map(z => [z.zoneId as number, Number(z.deliveryCost ?? 0)]));
+    const zonePriceMapForReps = new Map(zonePricesForReps.map(z => [z.id as number, Number(z.price ?? 0)]));
 
-    // تكلفة شحنة واحدة، حسب نمط تسعير مندوبها
-    function shipmentCourierCost(r: { shippingCompanyId: number | null; zoneId: number | null }): number {
+    // repExtraCost لكل نوع طرد (صف الـtenant له أولوية) — نفس منطق لوحة الأرباح
+    const parcelTypesInRange = [...new Set(inRange.map(r => r.parcelType).filter((v): v is string => !!v))];
+    const repExtraCostMapForReps = new Map<string, number>();
+    if (parcelTypesInRange.length) {
+      const pricingRows = await db.select({
+        tenantId: parcelTypePricingTable.tenantId,
+        parcelType: parcelTypePricingTable.parcelType,
+        repExtraCost: parcelTypePricingTable.repExtraCost,
+      }).from(parcelTypePricingTable).where(inArray(parcelTypePricingTable.parcelType, parcelTypesInRange));
+      for (const row of pricingRows) {
+        const isTenantRow = row.tenantId != null && row.tenantId === tenantId;
+        if (!repExtraCostMapForReps.has(row.parcelType) || isTenantRow) {
+          repExtraCostMapForReps.set(row.parcelType, Number(row.repExtraCost ?? 0));
+        }
+      }
+    }
+
+    // تكلفة شحنة واحدة (الأساسي + إضافة نوع الطرد) حسب نمط تسعير مندوبها
+    function shipmentCourierCost(r: { shippingCompanyId: number | null; zoneId: number | null; parcelType: string | null }): number {
       if (r.shippingCompanyId == null) return 0;
       const rep = repById.get(r.shippingCompanyId);
       if (!rep) return 0;
-      const isZoneMode = (rep as any).costMode === "zone";
-      return isZoneMode
-        ? Number(zoneCostMapForReps.get(r.zoneId ?? -1) ?? 0)
-        : Math.abs(Number(rep.shippingCost ?? 0));
+      let base: number;
+      if ((rep as any).costMode === "zone") {
+        const costForZone = (zId: number | null): number => {
+          if (zId == null) return 0;
+          if (zoneCostMapForReps.has(zId)) return zoneCostMapForReps.get(zId)!;
+          return zonePriceMapForReps.get(zId) ?? 0;
+        };
+        const hasOwnZone = r.zoneId != null && (zoneCostMapForReps.has(r.zoneId) || zonePriceMapForReps.has(r.zoneId));
+        const dz = defaultZoneOfRep.get(rep.id) ?? null;
+        base = hasOwnZone ? costForZone(r.zoneId) : (dz != null ? costForZone(dz) : 0);
+      } else {
+        base = Math.abs(Number(rep.shippingCost ?? 0));
+      }
+      const extra = r.parcelType ? (repExtraCostMapForReps.get(r.parcelType) ?? 0) : 0;
+      return base + extra;
+    }
+
+    // القيمة الفعلية المُحصَّلة بتتسجّل في بند البيان (delivered_value_received) مش في shipments.collected_amount
+    const settledShipmentIds = inRange
+      .filter(r => r.shippingCompanyId != null && ["received", "partial_received"].includes(SI_normalize(r.status)))
+      .map(r => r.id);
+    type SettledItem = { id: number; shipmentId: number; isRolledOver: number; deliveredValueReceived: string | null; partialQuantity: number | null };
+    const itemByShipment = new Map<number, SettledItem>();
+    for (let i = 0; i < settledShipmentIds.length; i += 1000) {
+      const chunk = settledShipmentIds.slice(i, i + 1000);
+      const items = await db.select({
+        id: shipmentManifestItemsTable.id,
+        shipmentId: shipmentManifestItemsTable.shipmentId,
+        isRolledOver: shipmentManifestItemsTable.isRolledOver,
+        deliveredValueReceived: shipmentManifestItemsTable.deliveredValueReceived,
+        partialQuantity: shipmentManifestItemsTable.partialQuantity,
+      }).from(shipmentManifestItemsTable).where(inArray(shipmentManifestItemsTable.shipmentId, chunk));
+      for (const it of items) {
+        const prev = itemByShipment.get(it.shipmentId);
+        // نفضّل البند الأصلي (مش المُرحَّل)، وبعدين الأحدث
+        const better = !prev
+          || (prev.isRolledOver === 1 && it.isRolledOver !== 1)
+          || (prev.isRolledOver === it.isRolledOver && it.id > prev.id);
+        if (better) itemByShipment.set(it.shipmentId, it as SettledItem);
+      }
+    }
+
+    type RepFinance = {
+      successfulDeliveries: number;  // مسلَّمة + تسليم جزئي (مقام تكلفة التسليم)
+      costBearingShipments: number;  // شحنات عليها تكلفة شحن فعلية (مسلَّمة/جزئي/مرتجع مالي)
+      deliveredCost: number;         // تكلفة الشحن على المسلَّم فقط = التكلفة الأساسية للتسليم
+      returnCost: number;            // تكلفة الشحن على المرتجعات المالية = خسارة بدون إيراد
+      chargeableReturns: number;
+      totalCost: number;             // deliveredCost + returnCost = التكلفة الفعلية
+      settledCount: number;          // عدد الشحنات المُسلَّمة اللي دخلت حساب التحصيل
+      expected: number;              // المتوقع تحصيله من المُسلَّم فقط
+      collected: number;             // المحصّل فعليًا من المُسلَّم
+      shippingFees: number;          // رسوم الشحن المتضمّنة في المتوقع
+      ongoingAmount: number;         // قيمة الشحنات الجارية (لسه مفتوحة مع المندوب)
+    };
+    function computeRepFinance(repRows: typeof rows): RepFinance {
+      const f: RepFinance = {
+        successfulDeliveries: 0, costBearingShipments: 0, deliveredCost: 0, returnCost: 0,
+        chargeableReturns: 0, totalCost: 0, settledCount: 0, expected: 0, collected: 0,
+        shippingFees: 0, ongoingAmount: 0,
+      };
+      for (const r of repRows) {
+        const status = SI_normalize(r.status);
+        const fee = Number(r.shippingFee ?? 0);
+        const totalAmount = Number(r.totalAmount ?? 0);
+        const price = totalAmount > 0 ? totalAmount : Number(r.codAmount ?? 0) + fee; // السعر الكامل اللي بيدفعه المستلم
+        if (status === "received") {
+          const cost = shipmentCourierCost(r);
+          f.successfulDeliveries++; f.costBearingShipments++; f.deliveredCost += cost;
+          const item = itemByShipment.get(r.id);
+          const actual = item?.deliveredValueReceived;
+          const collectedFallback = Number(r.collectedAmount ?? 0) > 0 ? Number(r.collectedAmount) : price;
+          f.settledCount++;
+          f.expected += price;
+          f.collected += actual != null ? Number(actual) : collectedFallback;
+          f.shippingFees += fee;
+        } else if (status === "partial_received") {
+          const cost = shipmentCourierCost(r);
+          f.successfulDeliveries++; f.costBearingShipments++; f.deliveredCost += cost;
+          // التسليم الجزئي: القيمة المالية اللي دخلها المندوب هي المتوقع والمحصّل (مفيش فرق يتحاسب عليه)
+          const pv = itemByShipment.get(r.id)?.partialQuantity;
+          if (pv != null) { f.settledCount++; f.expected += Number(pv); f.collected += Number(pv); }
+        } else if (status === "returned") {
+          if (REP_FINANCIAL_RETURN_REASONS.includes(r.returnReason ?? "")) {
+            f.chargeableReturns++; f.costBearingShipments++; f.returnCost += shipmentCourierCost(r);
+          }
+        } else {
+          f.ongoingAmount += price;
+        }
+      }
+      f.totalCost = f.deliveredCost + f.returnCost;
+      return f;
     }
 
     // ── بناء صف تحليل كامل لكل مندوب ─────────────────────────────────────────
+    const round2 = (n: number) => Math.round(n * 100) / 100;
     type RepInsight = {
       id: number; name: string; logo: string | null; isActive: boolean;
       metrics: RepMetrics;
+      finance: RepFinance;
       rankingScore: number;
       trend: { direction: "up" | "down" | "flat" | "new"; delta: number | null };
-      shippingCost: number;
-      costPerDelivery: number | null; // تكلفة الشحن / عدد الشحنات المُسلَّمة — كل ما قلّت كل ما كان أفضل
+      shippingCost: number;                // إجمالي التكلفة الفعلية (مسلَّم + مرتجع مالي)
+      avgShipmentCost: number | null;      // تكلفة الشحنة الأساسية = التكلفة ÷ عدد الشحنات المحمّلة بتكلفة
+      baseCostPerDelivery: number | null;  // تكلفة المسلَّم فقط ÷ عدد التسليمات (قبل المرتجعات)
+      costPerDelivery: number | null;      // التكلفة الفعلية ÷ عدد التسليمات (بعد إضافة المرتجعات)
+      returnCost: number;                  // تكلفة المرتجعات المالية (سبب الفرق بين الرقمين اللي فوق)
       loadSharePct: number; // نسبة الشحنات اللي شايلها المندوب من إجمالي شحنات الفترة
     };
 
@@ -5740,18 +5876,22 @@ router.get("/analytics/representatives-intelligence", requireAuth, async (req, r
     const repInsights: RepInsight[] = reps.map(rep => {
       const repRows = rangeByRep.get(rep.id) ?? [];
       const metrics = computeRepMetrics(repRows);
+      const finance = computeRepFinance(repRows);
       const prevMetrics = prevRangeByRep.has(rep.id) ? computeRepMetrics(prevRangeByRep.get(rep.id)!) : null;
       const rankingScore = rankingScoreOf(metrics);
       const trend = trendOf(rankingScore, prevMetrics);
-      // إجمالي تكلفة الشحن الفعلية = مجموع تكلفة كل شحنة حقيقية للمندوب في الفترة (zone أو rep حسب costMode)
-      const shippingCost = Math.round(repRows.reduce((sum, r) => sum + shipmentCourierCost(r), 0) * 100) / 100;
-      const costPerDelivery = metrics.delivered > 0 && shippingCost > 0
-        ? Math.round((shippingCost / metrics.delivered) * 100) / 100
-        : null;
+      const shippingCost = round2(finance.totalCost);
+      const deliveries = finance.successfulDeliveries;
+      const costPerDelivery = deliveries > 0 && finance.totalCost > 0 ? round2(finance.totalCost / deliveries) : null;
+      const baseCostPerDelivery = deliveries > 0 && finance.deliveredCost > 0 ? round2(finance.deliveredCost / deliveries) : null;
+      const avgShipmentCost = finance.costBearingShipments > 0 && finance.totalCost > 0
+        ? round2(finance.totalCost / finance.costBearingShipments) : null;
       const loadSharePct = totalShipmentsInRange > 0 ? Math.round((metrics.total / totalShipmentsInRange) * 1000) / 10 : 0;
       return {
         id: rep.id, name: rep.name, logo: rep.logo ?? null, isActive: rep.isActive,
-        metrics, rankingScore, trend, shippingCost, costPerDelivery, loadSharePct,
+        metrics, finance, rankingScore, trend, shippingCost,
+        avgShipmentCost, baseCostPerDelivery, costPerDelivery,
+        returnCost: round2(finance.returnCost), loadSharePct,
       };
     });
 
@@ -5772,24 +5912,30 @@ router.get("/analytics/representatives-intelligence", requireAuth, async (req, r
         avgDeliveryHours: Math.round(r.metrics.avgDeliveryHours * 10) / 10,
       }));
 
-    // ── 3) تحليل التكلفة مقابل الأداء — بس للمناديب اللي عندها تكلفة مسجّلة وشحنات فعلية ──
+    // ── 3) تحليل التكلفة مقابل الأداء — بس للمناديب اللي عندها تكلفة فعلية وشحنات ──
     const costVsPerformance = repInsights
       .filter(r => r.shippingCost > 0 && r.metrics.total > 0)
       .map(r => ({
         id: r.id, name: r.name,
         shippingCost: r.shippingCost,
+        avgShipmentCost: r.avgShipmentCost,
+        baseCostPerDelivery: r.baseCostPerDelivery,
         costPerDelivery: r.costPerDelivery,
+        returnCost: r.returnCost,
+        successfulDeliveries: r.finance.successfulDeliveries,
         deliveryRate: Math.round(r.metrics.deliveryRate * 10) / 10,
         avgDeliveryHours: Math.round(r.metrics.avgDeliveryHours * 10) / 10,
         rankingScore: r.rankingScore,
-        // تصنيف سريع: "قيمة ممتازة" = تكلفة أقل من المتوسط + أداء أعلى من المتوسط
         total: r.metrics.total,
       }))
       .sort((a, b) => (a.costPerDelivery ?? Infinity) - (b.costPerDelivery ?? Infinity));
 
-    // تصنيف كل مندوب بالنسبة لمتوسط التكلفة ومتوسط الأداء في نفس المجموعة
-    const avgCostPerDelivery = costVsPerformance.length > 0
-      ? costVsPerformance.reduce((s, r) => s + (r.costPerDelivery ?? 0), 0) / costVsPerformance.length
+    // متوسط تكلفة التسليم للمجموعة = إجمالي التكلفة ÷ إجمالي التسليمات (موزون بحجم كل مندوب) —
+    // بدل متوسط النسب القديم اللي كان بيعدّ المندوب اللي معندوش تسليمات كأن تكلفته صفر فيقلّل المتوسط.
+    const comparableReps = costVsPerformance.filter(r => r.costPerDelivery !== null);
+    const comparableDeliveries = comparableReps.reduce((s, r) => s + r.successfulDeliveries, 0);
+    const avgCostPerDelivery = comparableDeliveries > 0
+      ? comparableReps.reduce((s, r) => s + r.shippingCost, 0) / comparableDeliveries
       : 0;
     const avgRankingScore = costVsPerformance.length > 0
       ? costVsPerformance.reduce((s, r) => s + r.rankingScore, 0) / costVsPerformance.length
@@ -5801,21 +5947,33 @@ router.get("/analytics/representatives-intelligence", requireAuth, async (req, r
       return { ...r, quadrant };
     });
 
-    // ── 4) تحليل COD (نسبة التحصيل الفعلي لكل مندوب) — بس للي عندهم COD في الفترة ──
+    // ── 4) تحليل التحصيل (COD): المحصّل فعليًا مقابل المتوقع — على الشحنات المُسلَّمة فقط ──
+    // معدل نجاح المندوب في الشحنات المنتهية (مسلَّم ÷ مسلَّم+مرتجع) — بدل deliveryRate القديم اللي كان
+    // بيقسم على كل الشحنات (بما فيها الجارية) فيقلّل التوقّع بلا سبب. لو مفيش شحنات منتهية نستخدم متوسط الكل.
+    const allFinished = repInsights.reduce((s, r) => s + r.metrics.delivered + r.metrics.returned, 0);
+    const allDelivered = repInsights.reduce((s, r) => s + r.metrics.delivered, 0);
+    const globalSuccessRate = allFinished > 0 ? allDelivered / allFinished : 0;
+    const finishedSuccessRateOf = (m: RepMetrics) =>
+      (m.delivered + m.returned) > 0 ? m.delivered / (m.delivered + m.returned) : globalSuccessRate;
     const codAnalysis = repInsights
-      .filter(r => r.metrics.codExpected > 0 || r.metrics.ongoingCodAmount > 0)
-      .map(r => ({
-        id: r.id, name: r.name,
-        codExpected: Math.round(r.metrics.codExpected),
-        codCollected: Math.round(r.metrics.codCollected),
-        collectionRate: Math.round(r.metrics.collectionRate * 10) / 10,
-        shippingFeesTotal: Math.round(r.metrics.shippingFeesTotal),
-        // المبلغ المتوقع تحصيله من الشحنات المفتوحة حاليًا (لسه جارية) = نسبة تسليم المندوب الفعلية × إجمالي COD الجاري معاه
-        // (مش مبني على COD اللي خلص فعلاً — ده تنبؤ بالمستقبل، مختلف عن codExpected/codCollected اللي بيعكسوا التاريخ الفعلي)
-        ongoingCodAmount: Math.round(r.metrics.ongoingCodAmount),
-        projectedCollection: Math.round((r.metrics.deliveryRate / 100) * r.metrics.ongoingCodAmount),
-      }))
-      .sort((a, b) => a.collectionRate - b.collectionRate); // الأسوأ تحصيلاً أولاً — يحتاج انتباه
+      .filter(r => r.finance.expected > 0 || r.finance.ongoingAmount > 0)
+      .map(r => {
+        const f = r.finance;
+        return {
+          id: r.id, name: r.name,
+          codExpected: Math.round(f.expected),
+          codCollected: Math.round(f.collected),
+          // null = مفيش شحنات مُسلَّمة لسه (كله جاري) → مفيش نسبة تحصيل تتحسب
+          collectionRate: f.expected > 0 ? Math.round((f.collected / f.expected) * 1000) / 10 : null,
+          shortfall: Math.round(f.expected - f.collected), // موجب = عجز، سالب = زيادة
+          settledCount: f.settledCount,
+          shippingFeesTotal: Math.round(f.shippingFees),
+          // الجاري = قيمة الشحنات المفتوحة حاليًا مع المندوب؛ المتوقع منها = معدل نجاحه في المنتهي × قيمتها
+          ongoingCodAmount: Math.round(f.ongoingAmount),
+          projectedCollection: Math.round(finishedSuccessRateOf(r.metrics) * f.ongoingAmount),
+        };
+      })
+      .sort((a, b) => (a.collectionRate ?? Infinity) - (b.collectionRate ?? Infinity)); // الأسوأ تحصيلاً أولاً
 
     // ── 5) توزيع الحمل (Load Balance) — هل الشحنات موزّعة بعدل ولا مندوب واحد شايل كل الحمل؟ ──
     const activeReps = repInsights.filter(r => r.metrics.total > 0);
@@ -5854,10 +6012,11 @@ router.get("/analytics/representatives-intelligence", requireAuth, async (req, r
         });
       }
       // مندوب نسبة تحصيله للـ COD منخفضة
-      if (r.metrics.codExpected > 0 && r.metrics.collectionRate < 70) {
+      if (r.finance.expected > 0 && (r.finance.collected / r.finance.expected) * 100 < 70) {
+        const rate = Math.round((r.finance.collected / r.finance.expected) * 100);
         alerts.push({
           type: "low_collection_rate", severity: "warning", repId: r.id, repName: r.name,
-          message: `نسبة تحصيل COD عند "${r.name}" ${Math.round(r.metrics.collectionRate)}% فقط`,
+          message: `نسبة تحصيل COD عند "${r.name}" ${rate}% فقط (محصّل ${Math.round(r.finance.collected)} من ${Math.round(r.finance.expected)} ج.م)`,
         });
       }
       // مندوب التزامه بالمواعيد ضعيف رغم إنه بيسلّم

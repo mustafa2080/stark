@@ -200,12 +200,14 @@ function CostVsPerformanceTable({ data }: { data: RepresentativesIntelligenceRes
   }
   return (
     <div className="overflow-x-auto -mx-1">
-      <table className="w-full text-sm min-w-[640px]">
+      <table className="w-full text-sm min-w-[860px]">
         <thead>
           <tr className="border-b border-white/10">
             <th className="py-2 px-2 text-xs font-bold text-white/40 whitespace-nowrap text-right">المندوب</th>
-            <th className="py-2 px-2 text-xs font-bold text-white/40 whitespace-nowrap text-left">تكلفة الشحنة</th>
-            <th className="py-2 px-2 text-xs font-bold text-white/40 whitespace-nowrap text-left">تكلفة لكل تسليم</th>
+            <th className="py-2 px-2 text-xs font-bold text-white/40 whitespace-nowrap text-left" title="متوسط تكلفة شحنة واحدة (الأساسي + إضافة نوع الطرد) على الشحنات اللي عليها تكلفة فعلية">تكلفة الشحنة الأساسية</th>
+            <th className="py-2 px-2 text-xs font-bold text-white/40 whitespace-nowrap text-left" title="تكلفة الشحن على الشحنات المُسلَّمة فقط ÷ عدد التسليمات">تكلفة التسليم الأساسية</th>
+            <th className="py-2 px-2 text-xs font-bold text-white/40 whitespace-nowrap text-left" title="تكلفة الشحن على المرتجعات اللي بتتحمّل شحن (رفض بعد معاينة / جودة) — خسارة بدون إيراد">تكلفة المرتجعات</th>
+            <th className="py-2 px-2 text-xs font-bold text-white/40 whitespace-nowrap text-left" title="(تكلفة المُسلَّم + تكلفة المرتجعات) ÷ عدد التسليمات">تكلفة التسليم الفعلية</th>
             <th className="py-2 px-2 text-xs font-bold text-white/40 whitespace-nowrap text-left">معدل النجاح</th>
             <th className="py-2 px-2 text-xs font-bold text-white/40 whitespace-nowrap text-left">التصنيف</th>
           </tr>
@@ -222,14 +224,24 @@ function CostVsPerformanceTable({ data }: { data: RepresentativesIntelligenceRes
                 className="border-b border-white/5 last:border-0 transition-colors duration-200 hover:bg-white/[0.02]"
               >
                 <td className="py-2.5 px-2 whitespace-nowrap text-right font-medium text-white">{r.name}</td>
-                <td className="py-2.5 px-2 whitespace-nowrap text-left tabular-nums text-white/70">{fmtMoney(r.shippingCost)} ج.م</td>
-                <td className="py-2.5 px-2 whitespace-nowrap text-left tabular-nums text-white/70">{r.costPerDelivery !== null ? `${fmtMoney(r.costPerDelivery)} ج.م` : "—"}</td>
+                <td className="py-2.5 px-2 whitespace-nowrap text-left tabular-nums text-white/70">{r.avgShipmentCost !== null ? `${fmtMoney(r.avgShipmentCost)} ج.م` : "—"}</td>
+                <td className="py-2.5 px-2 whitespace-nowrap text-left tabular-nums text-white/70">{r.baseCostPerDelivery !== null ? `${fmtMoney(r.baseCostPerDelivery)} ج.م` : "—"}</td>
+                <td className={`py-2.5 px-2 whitespace-nowrap text-left tabular-nums ${r.returnCost > 0 ? "text-rose-300/80" : "text-white/40"}`}>{r.returnCost > 0 ? `${fmtMoney(r.returnCost)} ج.م` : "—"}</td>
+                <td className="py-2.5 px-2 whitespace-nowrap text-left tabular-nums font-semibold text-white/85">{r.costPerDelivery !== null ? `${fmtMoney(r.costPerDelivery)} ج.م` : "—"}</td>
                 <td className="py-2.5 px-2 whitespace-nowrap text-left"><Pill color={rateColor(r.deliveryRate)}>{r.deliveryRate}%</Pill></td>
                 <td className="py-2.5 px-2 whitespace-nowrap text-left"><Pill color={q.color}>{q.label}</Pill></td>
               </motion.tr>
             );
           })}
         </tbody>
+        <tfoot>
+          <tr>
+            <td colSpan={7} className="pt-3 px-2 text-[11px] leading-relaxed text-white/35 text-right">
+              الفرق بين التكلفة الأساسية والفعلية = تكلفة المرتجعات المتحمَّلة (رفض بعد معاينة / جودة) موزّعة على عدد التسليمات.
+              التكلفة بتتحسب فقط على الشحنات المُسلَّمة والجزئية والمرتجعات المالية (شاملة إضافة نوع الطرد) — نفس منطق بيان المندوب.
+            </td>
+          </tr>
+        </tfoot>
       </table>
     </div>
   );
@@ -255,7 +267,13 @@ function CodAnalysisPanel({ data }: { data: RepresentativesIntelligenceResponse[
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-white truncate">{r.name}</p>
             <p className="text-xs text-white/45 mt-0.5">
-              {fmtMoney(r.codCollected)} من {fmtMoney(r.codExpected)} ج.م محصّلة
+              {r.collectionRate === null
+                ? "لا توجد شحنات مُسلَّمة بعد — لسه كلها جارية"
+                : <>
+                    {fmtMoney(r.codCollected)} من {fmtMoney(r.codExpected)} ج.م محصّلة
+                    {r.shortfall > 0 && <span className="text-rose-300/80"> · عجز {fmtMoney(r.shortfall)} ج.م</span>}
+                    {r.shortfall < 0 && <span className="text-emerald-300/80"> · زيادة {fmtMoney(Math.abs(r.shortfall))} ج.م</span>}
+                  </>}
             </p>
             {r.ongoingCodAmount > 0 && (
               <p className="text-[11px] text-white/35 mt-0.5">
@@ -264,7 +282,9 @@ function CodAnalysisPanel({ data }: { data: RepresentativesIntelligenceResponse[
               </p>
             )}
           </div>
-          <MiniRing pct={r.collectionRate} color={rateColor(r.collectionRate)} />
+          {r.collectionRate !== null
+            ? <MiniRing pct={r.collectionRate} color={rateColor(r.collectionRate)} />
+            : <span className="w-11 shrink-0 text-center text-sm text-white/30">—</span>}
         </motion.div>
       ))}
     </div>
