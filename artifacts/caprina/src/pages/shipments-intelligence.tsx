@@ -136,7 +136,16 @@ function RingGauge({
 // لو مفيش هدف محدد → دعوة لتحديده (أدمن) أو رسالة انتظار (موظف)
 // لو محدد → دايرة تقدّم (عدد الشحنات الفعلي ÷ الهدف) بنفس ستايل RingGauge
 // ═══════════════════════════════════════════════════════════════════════════
-function MonthlyGoalCard({ actualCount }: { actualCount: number }) {
+type GoalBlock = NonNullable<ShipmentsIntelligenceResponse["goal"]>;
+
+const siMonthLabel = (ym: string) => {
+  const [y, m] = ym.split("-").map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString("ar-EG", { month: "long", year: "numeric" });
+};
+
+// الهدف بييجي من الباك إند محسوب حسب الفترة المختارة (شهر واحد / سنة / كل الفترات / مدى مخصص)،
+// فالدايرة دايمًا بتقارن الشحنات المحققة بهدف نفس الفترة بالظبط.
+function MonthlyGoalCard({ goal }: { goal: GoalBlock | undefined }) {
   const { isAdmin } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -144,19 +153,21 @@ function MonthlyGoalCard({ actualCount }: { actualCount: number }) {
   const [inputValue, setInputValue] = useState("");
 
   const now = new Date();
-  const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  const monthLabel = now.toLocaleDateString("ar-EG", { month: "long", year: "numeric" });
-
-  const { data: goalData, isLoading } = useQuery({
-    queryKey: ["analytics", "shipments-monthly-goal", yearMonth],
-    queryFn: () => analyticsApi.shipmentsMonthlyGoal(yearMonth),
-    staleTime: 60_000,
-  });
+  const nowYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const months = goal?.months?.length ? goal.months : [nowYm];
+  const isSingleMonth = months.length === 1;
+  // تعديل الهدف من الدايرة بيبقى على شهر واحد بس: الشهر المعروض لو واحد، وإلا الشهر الحالي
+  const editYm = isSingleMonth ? months[0] : nowYm;
+  const editMonthLabel = siMonthLabel(editYm);
+  const title =
+    goal?.scope === "all" ? "هدف كل الفترات"
+    : goal?.scope === "year" ? `هدف سنة ${months[0].slice(0, 4)}`
+    : isSingleMonth ? `هدف ${siMonthLabel(months[0])}`
+    : `هدف ${siMonthLabel(months[0])} – ${siMonthLabel(months[months.length - 1])}`;
 
   const mutation = useMutation({
-    mutationFn: (target: number) => analyticsApi.setShipmentsMonthlyGoal({ month: yearMonth, target }),
-    onSuccess: (res) => {
-      queryClient.setQueryData(["analytics", "shipments-monthly-goal", yearMonth], res);
+    mutationFn: (target: number) => analyticsApi.setShipmentsMonthlyGoal({ month: editYm, target }),
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["analytics", "shipments-intelligence"] });
       toast({ title: "تم تحديد هدف الشهر بنجاح" });
       setDialogOpen(false);
@@ -167,7 +178,8 @@ function MonthlyGoalCard({ actualCount }: { actualCount: number }) {
     },
   });
 
-  const target = goalData?.target ?? null;
+  const target = goal?.target ?? null;
+  const actualCount = goal?.achieved ?? 0;
 
   const handleSubmit = () => {
     const n = Number(inputValue);
@@ -178,15 +190,7 @@ function MonthlyGoalCard({ actualCount }: { actualCount: number }) {
     mutation.mutate(Math.round(n));
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center py-2" style={{ width: 220, height: 220 }}>
-        <div className="w-8 h-8 rounded-full border-2 border-white/10 border-t-white/40 animate-spin" />
-      </div>
-    );
-  }
-
-  // لا يوجد هدف محدد بعد
+  // لا يوجد هدف محدد للفترة دي
   if (!target) {
     return (
       <>
@@ -195,12 +199,14 @@ function MonthlyGoalCard({ actualCount }: { actualCount: number }) {
             <Target className="w-6 h-6 text-white/30" />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-white">هدف {monthLabel}</h3>
+            <h3 className="text-sm font-bold text-white">{title}</h3>
             <p className="text-xs text-white/40 mt-1">
-              {isAdmin ? "لسه مفيش هدف شحنات محدد للشهر ده" : "لسه المدير محددش هدف للشهر ده"}
+              {!isSingleMonth
+                ? "لسه مفيش أهداف شحنات محددة للفترة دي"
+                : isAdmin ? "لسه مفيش هدف شحنات محدد للشهر ده" : "لسه المدير محددش هدف للشهر ده"}
             </p>
           </div>
-          {isAdmin && (
+          {isAdmin && isSingleMonth && (
             <Button size="sm" variant="outline" className="border-white/15 text-white/80 hover:text-white" onClick={() => setDialogOpen(true)}>
               <Target className="w-3.5 h-3.5 ml-1.5" />
               حدد هدف الشهر
@@ -209,7 +215,7 @@ function MonthlyGoalCard({ actualCount }: { actualCount: number }) {
         </div>
         <GoalDialog
           open={dialogOpen} onOpenChange={setDialogOpen}
-          monthLabel={monthLabel} inputValue={inputValue} setInputValue={setInputValue}
+          monthLabel={editMonthLabel} inputValue={inputValue} setInputValue={setInputValue}
           onSubmit={handleSubmit} isPending={mutation.isPending}
         />
       </>
@@ -219,6 +225,7 @@ function MonthlyGoalCard({ actualCount }: { actualCount: number }) {
   // هدف محدد — اعرض دايرة التقدّم
   const pct = target > 0 ? (actualCount / target) * 100 : 0;
   const color = pct >= 100 ? "#22c55e" : pct >= 60 ? "#e8b93f" : "#f97316";
+  const countedMonthsN = goal?.countedMonths?.length ?? months.length;
 
   return (
     <>
@@ -233,11 +240,13 @@ function MonthlyGoalCard({ actualCount }: { actualCount: number }) {
           <div>
             <h2 className="text-lg font-bold text-white flex items-center gap-2 justify-center">
               <Target className="w-5 h-5" style={{ color: "#e8b93f" }} />
-              هدف {monthLabel}
+              {title}
             </h2>
-            <p className="text-xs text-white/40 mt-1">نسبة إنجاز عدد الشحنات من الهدف المحدد</p>
+            <p className="text-xs text-white/40 mt-1">
+              نسبة إنجاز عدد الشحنات من الهدف المحدد{!isSingleMonth ? ` (مجموع أهداف ${countedMonthsN} شهر)` : ""}
+            </p>
           </div>
-          {isAdmin && (
+          {isAdmin && isSingleMonth && (
             <button
               onClick={() => { setInputValue(String(target)); setDialogOpen(true); }}
               className="w-7 h-7 rounded-lg bg-white/[0.04] border border-white/10 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/[0.08] transition-colors"
@@ -250,7 +259,7 @@ function MonthlyGoalCard({ actualCount }: { actualCount: number }) {
       </div>
       <GoalDialog
         open={dialogOpen} onOpenChange={setDialogOpen}
-        monthLabel={monthLabel} inputValue={inputValue} setInputValue={setInputValue}
+        monthLabel={editMonthLabel} inputValue={inputValue} setInputValue={setInputValue}
         onSubmit={handleSubmit} isPending={mutation.isPending}
       />
     </>
@@ -1160,7 +1169,7 @@ export default function ShipmentsIntelligencePage() {
       <SectionCard>
         <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-6 items-center">
           <div>
-            <MonthlyGoalCard actualCount={kpis.achieved} />
+            <MonthlyGoalCard goal={data?.goal} />
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 lg:border-r lg:border-white/10 lg:pr-6">
             <KpiTile icon={Package} label="إجمالي الشحنات" value={fmt(kpis.total)} color="#e8b93f" trend={normalTrend(kpiTrends.total)} />

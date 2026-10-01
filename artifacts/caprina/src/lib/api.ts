@@ -1094,6 +1094,7 @@ export interface ShipmentsIntelligenceResponse {
   healthScore: number;
   healthGrade: "excellent" | "good" | "warning" | "critical";
   healthScoreBreakdown: { key: string; label: string; value: number; weight: number; points: number; unit: string; invert?: boolean }[];
+  goal?: { scope: "month" | "year" | "all" | "custom"; months: string[]; countedMonths: string[]; target: number | null; achieved: number };
   kpis: {
     total: number;
     achieved: number;

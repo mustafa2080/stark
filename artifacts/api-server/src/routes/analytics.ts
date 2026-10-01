@@ -5467,9 +5467,65 @@ router.get("/analytics/shipments-intelligence", requireAuth, async (req, res): P
       alerts.push({ level: "info", message: "كل المؤشرات ضمن النطاق الصحي — أداء ممتاز 👌" });
     }
 
+    // ── هدف الشحنات: بيتحسب حسب الفترة المختارة على أساس شهور تقويمية كاملة ──
+    // today/week/month(آخر 30 يوم) → الشهر الحالي | year → من يناير للشهر الحالي |
+    // all → كل الشهور اللي ليها هدف | custom → الشهور اللي المدى بيلمسها.
+    // الإنجاز = شحنات (غير معلّقة) اتسجّلت بالـ createdAt جوه نفس الشهور بالظبط، فالشحنات
+    // القديمة المرحّلة من شهور سابقة ماتتحسبش على هدف الشهر الجديد. وفي الفترات متعددة
+    // الشهور بنعدّ بس شحنات الشهور اللي ليها هدف عشان المقارنة تبقى عادلة.
+    const SI_ym = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const goalKeyPrefix = `shipments_monthly_goal:${tenantId ?? "global"}:`;
+    const [goalSettingRows] = await db.execute(
+      sql`SELECT \`key\` AS k, \`value\` AS v FROM app_settings WHERE \`key\` LIKE ${goalKeyPrefix + "%"}`
+    ) as any;
+    const goalByMonth = new Map<string, number>();
+    for (const r of ((goalSettingRows as any[]) ?? [])) {
+      const k = String(r.k);
+      if (!k.startsWith(goalKeyPrefix)) continue;
+      const ym = k.slice(goalKeyPrefix.length);
+      const n = Number(r.v);
+      if (/^\d{4}-\d{2}$/.test(ym) && Number.isFinite(n) && n > 0) goalByMonth.set(ym, n);
+    }
+    const goalCurYm = SI_ym(now);
+    const goalMonthsRange = (from: Date, to: Date): string[] => {
+      const out: string[] = [];
+      const cur = new Date(from.getFullYear(), from.getMonth(), 1);
+      const end = new Date(to.getFullYear(), to.getMonth(), 1);
+      while (cur <= end && out.length < 600) { out.push(SI_ym(cur)); cur.setMonth(cur.getMonth() + 1); }
+      return out;
+    };
+    let goalScope: "month" | "year" | "all" | "custom" = "month";
+    let goalMonths: string[] = [goalCurYm];
+    if (period === "all") {
+      goalScope = "all";
+      const withGoal = [...goalByMonth.keys()].filter(m => m <= goalCurYm).sort();
+      goalMonths = withGoal.length ? withGoal : [goalCurYm];
+    } else if (period === "year") {
+      goalScope = "year";
+      goalMonths = goalMonthsRange(new Date(now.getFullYear(), 0, 1), now);
+    } else if (period === "custom" && customFrom) {
+      goalScope = "custom";
+      goalMonths = goalMonthsRange(rangeFrom, rangeTo);
+    }
+    const goalCountedMonths = goalMonths.length > 1 ? goalMonths.filter(m => goalByMonth.has(m)) : goalMonths;
+    const goalCountedSet = new Set(goalCountedMonths.length ? goalCountedMonths : goalMonths);
+    const goalAchieved = allActiveRows.filter(r =>
+      goalCountedSet.has(SI_ym(new Date(r.createdAt))) &&
+      !["pending", "waiting"].includes(SI_normalize(r.status))
+    ).length;
+    const goalTargetSum = [...goalCountedSet].reduce((s, m) => s + (goalByMonth.get(m) ?? 0), 0);
+    const goal = {
+      scope: goalScope,
+      months: goalMonths,
+      countedMonths: [...goalCountedSet],
+      target: goalTargetSum > 0 ? goalTargetSum : null,
+      achieved: goalAchieved,
+    };
+
     const result = {
       period, rangeFrom: rangeFrom.toISOString(), rangeTo: rangeTo.toISOString(),
       healthScore, healthGrade, healthScoreBreakdown,
+      goal,
       kpis: {
         total: totalInRange,
         // achieved: نفس total لكن مستبعد منه الشحنات "قيد الانتظار" (waiting/pending) —
