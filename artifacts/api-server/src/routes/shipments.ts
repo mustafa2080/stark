@@ -1109,7 +1109,16 @@ router.get("/shipments/:id", async (req, res): Promise<void> => {
         assignedUserAvatar: usersTable.avatar,
         shippingCompanyName: sql<string>`COALESCE(${shippingCompaniesTable.name}, ${manifestShippingCompanyTable.name})`,
         // تواصل شركة الشحن/المندوب الخارجي — fallback لحاوية المندوب لما مفيش assignedUser (نفس منطق الاسم)
-        shippingCompanyPhone: sql<string | null>`COALESCE(${shippingCompaniesTable.phone}, ${manifestShippingCompanyTable.phone})`,
+        // NULLIF(TRIM(..),'') عشان الرقم الفاضي ("") مايكسبش على الرقم البديل (COALESCE بيتخطى NULL بس)
+        // وآخر fallback: رقم حساب المندوب (users.phone) المربوط بشركة الشحن
+        shippingCompanyPhone: sql<string | null>`COALESCE(
+          NULLIF(TRIM(${shippingCompaniesTable.phone}), ''),
+          NULLIF(TRIM(${manifestShippingCompanyTable.phone}), ''),
+          (SELECT u2.phone FROM users u2
+             WHERE u2.shipping_company_id = COALESCE(${shipmentsTable.shippingCompanyId}, ${shipmentManifestsTable.shippingCompanyId})
+               AND u2.phone IS NOT NULL AND TRIM(u2.phone) <> ''
+             LIMIT 1)
+        )`,
         shippingCompanyLogo: sql<string | null>`COALESCE(${shippingCompaniesTable.logo}, ${manifestShippingCompanyTable.logo})`,
         // ── تكلفة شركة الشحن الفعلية: من الشحنة مباشرة، أو من المندوب المرتبط ببيان الشحن (fallback) ──
         // بيان الشحن هو المصدر الحقيقي غالبًا لأن shipping_company_id بيفضل فاضي على مستوى الشحنة نفسها

@@ -53,7 +53,13 @@ export function ShipmentCourierCard({
   // الأولوية للمستخدم المندوب المعيّن؛ لو مفيش → شركة الشحن/المندوب الخارجي (نفس ترتيب "🚚 مع ..." في الهيدر)
   const hasAssignedUser = (name ?? "").trim().length > 0;
   const cleanName = ((hasAssignedUser ? name : fallbackName) ?? "").trim();
-  const cleanPhone = ((hasAssignedUser ? phone : fallbackPhone) ?? "").trim();
+  const assignedPhone = (phone ?? "").trim();
+  const companyPhone = (fallbackPhone ?? "").trim();
+  const isValidPhone = (p: string) => p.replace(/\D/g, "").length >= 8;
+  // رقم المستخدم المعيّن أولاً؛ لو فاضي/غير صالح نرجع لرقم شركة الشحن/المندوب بدل ما نعرض "لا يوجد رقم"
+  const cleanPhone = hasAssignedUser
+    ? (isValidPhone(assignedPhone) ? assignedPhone : companyPhone)
+    : companyPhone;
   avatar = hasAssignedUser ? avatar : fallbackAvatar;
   const hasCourier = cleanName.length > 0;
   const hasPhone = cleanPhone.replace(/\D/g, "").length >= 8;
