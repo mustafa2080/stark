@@ -762,15 +762,29 @@ export function CreateManifestDialog({
     return null;
   }, [company.zoneIds]);
 
+  const { data: allZonesForFilter = [] } = useQuery<{ id: number; name: string; fromGovernorate?: string | null; toGovernorate?: string | null }[]>({
+    queryKey: ["shipment-zones"],
+    queryFn: () => apiFetch("/shipments/zones"),
+  });
+
   const availableShipments = useMemo(() => {
     if (!companyZoneIds || companyZoneIds.size === 0) return availableShipmentsAllZones;
-    // الشحنات اللي معاها zoneId بنفلترها على مناطق المندوب.
-    // الشحنات اللي مفيش zoneId مسجل ليها (قديمة أو اتعملت من غير تحديد منطقة)
-    // بنسيبها تظهر برضو مؤقتاً — عشان ما تختفيش شحنات فعلية من البيان.
-    return availableShipmentsAllZones.filter(
-      (s) => s.zoneId == null || companyZoneIds.has(Number(s.zoneId))
-    );
-  }, [availableShipmentsAllZones, companyZoneIds]);
+    // فلتر صارم على مناطق المندوب: بنوسّع الـ ids لتشمل أي زون مكرر (نفس الاسم + نفس المحافظتين)
+    // لأن قائمة الاختيار بتشيل التكرار وممكن الشحنة تكون على id التاني.
+    const keyOf = (z: { name: string; fromGovernorate?: string | null; toGovernorate?: string | null }) =>
+      `${z.name}|${z.fromGovernorate ?? ""}|${z.toGovernorate ?? ""}`;
+    const selectedZones = allZonesForFilter.filter((z) => companyZoneIds.has(Number(z.id)));
+    const selectedKeys = new Set(selectedZones.map(keyOf));
+    const allowedIds = new Set<number>(companyZoneIds);
+    for (const z of allZonesForFilter) if (selectedKeys.has(keyOf(z))) allowedIds.add(Number(z.id));
+    const allowedCities = new Set(selectedZones.map((z) => (z.toGovernorate ?? "").trim()).filter(Boolean));
+    return availableShipmentsAllZones.filter((s) => {
+      if (s.zoneId != null) return allowedIds.has(Number(s.zoneId));
+      // شحنة بدون zoneId: تظهر بس لو مدينة المستلم من محافظات مناطق المندوب
+      const city = (s.receiverCity ?? "").trim();
+      return !!city && allowedCities.has(city);
+    });
+  }, [availableShipmentsAllZones, companyZoneIds, allZonesForFilter]);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return availableShipments;

@@ -37,6 +37,23 @@ router.get("/shipping-companies", async (req, res): Promise<void> => {
   const companies = where
     ? await query.where(where).orderBy(desc(shippingCompaniesTable.createdAt))
     : await query.orderBy(desc(shippingCompaniesTable.createdAt));
+
+  // fallback للتليفون: لو رقم المندوب فاضي في shipping_companies نرجّع رقم حساب المندوب (users.phone)
+  const missingPhoneIds = companies.filter(c => !c.phone || !String(c.phone).trim()).map(c => c.id);
+  if (missingPhoneIds.length) {
+    const repUsers = await db
+      .select({ shippingCompanyId: (usersTable as any).shippingCompanyId, phone: (usersTable as any).phone })
+      .from(usersTable)
+      .where(inArray((usersTable as any).shippingCompanyId, missingPhoneIds));
+    const repPhoneMap = new Map<number, string>();
+    for (const u of repUsers as any[]) {
+      if (u.shippingCompanyId != null && u.phone && String(u.phone).trim() && !repPhoneMap.has(u.shippingCompanyId)) {
+        repPhoneMap.set(u.shippingCompanyId, String(u.phone).trim());
+      }
+    }
+    res.json(companies.map(c => (!c.phone || !String(c.phone).trim()) && repPhoneMap.has(c.id) ? { ...c, phone: repPhoneMap.get(c.id)! } : c));
+    return;
+  }
   res.json(companies);
 });
 
