@@ -13,11 +13,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CreateManifestDialog } from "./shipping-companies";
+import { RepWalletPanel } from "@/components/rep-wallet-panel";
 import {
   ArrowRight, Truck, PackagePlus, FileText, Lock,
   CheckCircle2, RotateCcw, Clock, TrendingUp, TrendingDown,
   ChevronRight, Calendar, Package, Phone, Globe, X, Send,
-  MapPin, User, Search, UserPlus, KeyRound,
+  MapPin, User, Search, UserPlus, KeyRound, Wallet,
 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { ar } from "date-fns/locale";
@@ -235,7 +236,7 @@ export default function ShippingCompanyDetailPage() {
   const [expandedShipmentManifests, setExpandedShipmentManifests] = useState(false);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo]     = useState("");
-  const [activeTab, setActiveTab] = useState<"manifests" | "shipments">("manifests");
+  const [activeTab, setActiveTab] = useState<"manifests" | "shipments" | "wallet">("manifests");
   const [showRepDialog, setShowRepDialog] = useState(false);
   const { can, isAdmin } = useAuth();
   const canFinancials = isAdmin || can("shipping.financials");
@@ -415,6 +416,19 @@ export default function ShippingCompanyDetailPage() {
           الشحنات
           {shipmentsData && <Badge variant="outline" className="text-[9px] ml-1">{shipmentsData.total}</Badge>}
         </button>
+        {canFinancials && (
+          <button
+            onClick={() => setActiveTab("wallet")}
+            className={`flex items-center gap-1.5 px-4 py-2 text-xs font-semibold border-b-2 transition-colors -mb-px ${
+              activeTab === "wallet"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Wallet className="w-3.5 h-3.5" />
+            ???????
+          </button>
+        )}
       </div>
 
       {/* ─── Tab: Manifests ─── */}
@@ -626,6 +640,9 @@ export default function ShippingCompanyDetailPage() {
           )}
         </div>
       )}
+
+      {/* ??? Tab: Wallet (????? ??????? ? ?????? ??????? ????????) ??? */}
+      {activeTab === "wallet" && canFinancials && <RepWalletPanel companyId={companyId} />}
 
       {/* New manifest dialog (orders) */}
       {showNewManifest && company && companies && (

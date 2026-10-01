@@ -1664,7 +1664,7 @@ export default function ShippingCompanies() {
               <button
                 key={company.id}
                 type="button"
-                onClick={() => navigate(`/shipping/representative/${company.id}`)}
+                onClick={() => navigate(`/shipping/company/${company.id}`)}
                 className="profile-card-enter profile-card-hover flex flex-col items-center gap-2 p-3 rounded-2xl hover:bg-white/5 transition-colors text-center"
                 style={{ animationDelay: `${Math.min(idx, 24) * 30}ms` }}
               >
@@ -1742,7 +1742,7 @@ export default function ShippingCompanies() {
                     <CompanyAvatar logo={company.logo} name={company.name} size={viewMode === "list" ? "sm" : "md"} />
                   </div>
                   <div>
-                    <Link href={`/shipping/representative/${company.id}`}>
+                    <Link href={`/shipping/company/${company.id}`}>
                       <h3 className="font-bold text-sm hover:underline cursor-pointer transition-colors"
                         style={isActive ? { color: `rgba(${p.rgb},1)` } : {}}>
                         {company.name}
