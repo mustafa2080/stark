@@ -5679,7 +5679,7 @@ router.get("/analytics/representatives-intelligence", requireAuth, async (req, r
       ? await db.select().from(shippingCompaniesTable).where(eq(shippingCompaniesTable.tenantId, tenantId))
       : await db.select().from(shippingCompaniesTable);
 
-    const rows = await db
+    const rawRows = await db
       .select({
         id: shipmentsTable.id,
         status: shipmentsTable.status,
@@ -5699,14 +5699,30 @@ router.get("/analytics/representatives-intelligence", requireAuth, async (req, r
       .from(shipmentsTable)
       .where(baseCond);
 
-    const inRange = rows.filter(r => {
-      const t = new Date(r.createdAt).getTime();
-      return t >= rangeFrom.getTime() && t <= rangeTo.getTime();
-    });
-    const inPrevRange = rows.filter(r => {
-      const t = new Date(r.createdAt).getTime();
-      return t >= prevRangeFrom.getTime() && t <= prevRangeTo.getTime();
-    });
+    // ── ربط الشحنة بالمندوب: نفس منطق الداشبورد (/analytics/top-performers) ──
+    // shipping_company_id أولاً، ولو فاضي نرجع لآخر بيان مرتبطة بيه. من غير كده الشحنات دي
+    // كانت بتتشال من حساب المندوب بالكامل (وده سبب فرق الأرقام مع الداشبورد).
+    const repFallbackMap = await getManifestRepFallbackMap(
+      rawRows.filter(r => !r.shippingCompanyId).map(r => r.id),
+    );
+    const rows = rawRows.map(r => ({
+      ...r,
+      shippingCompanyId: r.shippingCompanyId ?? repFallbackMap.get(r.id) ?? null,
+    }));
+
+    // ── "الشحنة تخص الفترة" — نفس تعريف الداشبورد/reps-daily ──
+    // اتعملت جوه الفترة، أو اتسلّمت/خلّصت فعليًا جواها، أو اترجعت جواها (حسب آخر تحديث للحالة).
+    // لو اعتمدنا على تاريخ الإنشاء بس، شحنة قديمة سلّمها المندوب النهارده بتضيع من حسابه.
+    const inPeriod = (r: { createdAt: Date | string; updatedAt: Date | string; actualDelivery: Date | string | null; status: string | null }, from: Date, to: Date): boolean => {
+      const f = from.getTime(), t = to.getTime();
+      const inside = (d: Date | string) => { const x = new Date(d).getTime(); return x >= f && x <= t; };
+      if (inside(r.createdAt)) return true;
+      if (r.actualDelivery && inside(r.actualDelivery)) return true;
+      const s = SI_normalize(r.status);
+      return (s === "returned" || isRepDone(s)) && inside(r.updatedAt);
+    };
+    const inRange = rows.filter(r => inPeriod(r, rangeFrom, rangeTo));
+    const inPrevRange = rows.filter(r => inPeriod(r, prevRangeFrom, prevRangeTo));
 
     // ── دالة حساب مجموعة كاملة من المقاييس لمندوب واحد في نطاق زمني معيّن ──
     type RepMetrics = {
@@ -5726,7 +5742,7 @@ router.get("/analytics/representatives-intelligence", requireAuth, async (req, r
       for (const r of repRows) {
         total++;
         const status = SI_normalize(r.status);
-        if (status === "received") {
+        if (isRepDone(status)) {
           delivered++;
           const created = new Date(r.createdAt).getTime();
           const finished = r.actualDelivery ? new Date(r.actualDelivery).getTime() : new Date(r.updatedAt).getTime();
