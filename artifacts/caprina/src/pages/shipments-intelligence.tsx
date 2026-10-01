@@ -14,6 +14,7 @@ import {
 import { analyticsApi, ShipmentsIntelligenceResponse } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { SegDonut, DonutLegend, type DonutSegment } from "@/components/seg-donut";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Calendar } from "@/components/ui/calendar";
@@ -51,83 +52,41 @@ const ALERT_META: Record<string, { icon: typeof AlertTriangle; color: string; bg
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Ring Gauge — دائرة تقدّم موحّدة (نفس ستايل التطبيق: فجوة علوية + حواف مدورة)
-// تُستخدم لأي مؤشر دائري في الصفحة (Health Score، نسب النجاح، إلخ)
+// Ring Gauge — دائرة تقدّم بنفس شكل دايرة إجمالي الشحنات في لوحة التحكم
+// (حلقة سميكة بشرايح مدوّرة: الجزء المحقق + المتبقي). بتتستخدم لأي مؤشر نسبة في الصفحة.
 // ═══════════════════════════════════════════════════════════════════════════
 function RingGauge({
-  value, max = 100, size = 220, strokeWidth = 20, color, label, sub,
-  gapDeg = 26,
+  value, max = 100, size = 220, color, label, sub,
 }: {
-  value: number; max?: number; size?: number; strokeWidth?: number; color: string;
-  label: string; sub?: string; gapDeg?: number;
+  value: number; max?: number; size?: number; color: string; label: string; sub?: string;
 }) {
-  const [hovered, setHovered] = useState(false);
-  const radius = (size - strokeWidth) / 2;
-  const circumference = 2 * Math.PI * radius;
-  // فجوة علوية بمقدار gapDeg درجة، مقسومة على جانبين حول أعلى الدائرة (12 o'clock)
-  const gapLen = (gapDeg / 360) * circumference;
-  const arcLen = circumference - gapLen;
-  const pct = Math.max(0, Math.min(100, (value / max) * 100));
-  const filledLen = (pct / 100) * arcLen;
-
+  const done = Math.max(0, Math.min(value, max));
+  const segments: DonutSegment[] = [
+    { key: "done", label: "", value: done, color },
+    { key: "rest", label: "", value: Math.max(0, max - done), color: "#ffffff14", track: true },
+  ];
   return (
-    <div
-      className="relative inline-flex items-center justify-center transition-transform duration-300 outline-none focus:outline-none focus-visible:outline-none border-0 select-none"
-      style={{ width: size, height: size, WebkitTapHighlightColor: "transparent" }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      tabIndex={-1}
-    >
-      <svg
-        width={size} height={size} viewBox={`0 0 ${size} ${size}`}
-        style={{
-          transform: `rotate(${90 + gapDeg / 2}deg)`,
-          outline: "none", display: "block", overflow: "visible", pointerEvents: "none",
-        }}
+    <SegDonut segments={segments} size={size}>
+      <motion.span
+        initial={{ opacity: 0, scale: 0.7 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.5, delay: 0.3 }}
+        className="font-black text-white tabular-nums text-center"
+        dir="ltr"
+        style={{ fontSize: size * 0.17, lineHeight: 1 }}
       >
-        {/* المسار الخلفي (الفاضي) */}
-        <circle
-          cx={size / 2} cy={size / 2} r={radius} fill="none"
-          stroke="#ffffff12" strokeWidth={strokeWidth} strokeLinecap="round"
-          strokeDasharray={`${arcLen} ${circumference}`}
-        />
-        {/* المسار الممتلئ */}
-        <motion.circle
-          cx={size / 2} cy={size / 2} r={radius} fill="none"
-          stroke={color} strokeWidth={strokeWidth} strokeLinecap="round"
-          strokeDasharray={`${arcLen} ${circumference}`}
-          initial={{ strokeDashoffset: arcLen }}
-          animate={{
-            strokeDashoffset: arcLen - filledLen,
-            filter: hovered
-              ? `drop-shadow(0 0 16px ${color}) drop-shadow(0 0 4px ${color})`
-              : `drop-shadow(0 0 8px ${color}88)`,
-          }}
-          transition={{ strokeDashoffset: { duration: 1.2, ease: "easeOut" }, filter: { duration: 0.35, ease: "easeInOut" } }}
-        />
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
-        <motion.span
-          initial={{ opacity: 0, scale: 0.7 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5, delay: 0.3 }}
-          className="font-black text-white tabular-nums text-center"
-          dir="ltr"
-          style={{ fontSize: size * 0.19, lineHeight: 1 }}
+        {fmt(value)}
+      </motion.span>
+      <span className="text-white/45 mt-1 text-center" style={{ fontSize: Math.max(9, size * 0.055) }}>{label}</span>
+      {sub && (
+        <span
+          className="mt-1.5 px-2 py-0.5 rounded-full font-bold border text-center"
+          style={{ color, borderColor: `${color}55`, background: `${color}15`, fontSize: Math.max(9, size * 0.05) }}
         >
-          {fmt(value)}
-        </motion.span>
-        <span className="text-white/45 mt-0.5 text-center" style={{ fontSize: size * 0.055 }}>{label}</span>
-        {sub && (
-          <span
-            className="mt-2 px-2.5 py-0.5 rounded-full font-bold border transition-opacity duration-300 text-center"
-            style={{ color, borderColor: `${color}55`, background: `${color}15`, fontSize: size * 0.05, opacity: hovered ? 1 : 0.85 }}
-          >
-            {sub}
-          </span>
-        )}
-      </div>
-    </div>
+          {sub}
+        </span>
+      )}
+    </SegDonut>
   );
 }
 
@@ -232,10 +191,17 @@ function MonthlyGoalCard({ goal }: { goal: GoalBlock | undefined }) {
       <div className="flex flex-col items-center justify-center py-2">
         <div className="relative">
           <RingGauge
-            value={actualCount} max={target} size={220} strokeWidth={18}
+            value={actualCount} max={target} size={220}
             color={color} label={`من ${fmt(target)}`} sub={`${Math.round(pct)}%`}
           />
         </div>
+        <DonutLegend
+          className="w-full mt-3" showPct={false} format={fmt}
+          items={[
+            { key: "done", label: "محقق", value: actualCount, color },
+            { key: "rest", label: "المتبقي", value: Math.max(0, target - actualCount), color: "#94a3b8" },
+          ]}
+        />
         <div className="mt-2 text-center flex items-center gap-2 justify-center">
           <div>
             <h2 className="text-lg font-bold text-white flex items-center gap-2 justify-center">
@@ -384,46 +350,34 @@ function ChartTooltip({ active, payload, label }: any) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Status Distribution — دائرة رئيسية (إجمالي الشحنات) + تفصيل كل حالة بشريط
-// نفس ستايل الصورة المرجعية بالظبط
+// Status Distribution — دايرة إجمالي الشحنات بشرايح الحالات + كبسولات الشرح تحتها
+// نفس شكل دايرة لوحة التحكم بالظبط
 // ═══════════════════════════════════════════════════════════════════════════
 function StatusDonut({ data, total }: { data: ShipmentsIntelligenceResponse["statusDistribution"]; total: number }) {
-  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
-  const top = hoveredIdx !== null ? data[hoveredIdx] : data[0];
+  const [activeKey, setActiveKey] = useState<string | null>(null);
+  const segments: DonutSegment[] = useMemo(
+    () => [...data]
+      .sort((a, b) => b.value - a.value)
+      .map((d) => ({ key: d.status, label: d.label, value: d.value, color: d.color })),
+    [data],
+  );
+  const active = activeKey ? segments.find((d) => d.key === activeKey) : undefined;
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
-      <div className="flex justify-center">
-        <RingGauge
-          value={total} max={total} size={210} strokeWidth={20}
-          color={top?.color ?? "#e8b93f"} label="إجمالي الشحنات"
-        />
-      </div>
-      <div className="space-y-1.5">
-        {data.map((d, i) => (
-          <motion.div
-            key={d.status}
-            onMouseEnter={() => setHoveredIdx(i)}
-            onMouseLeave={() => setHoveredIdx(null)}
-            initial={{ opacity: 0, x: -6 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.3, delay: i * 0.04 }}
-            className="flex items-center justify-between text-sm rounded-lg px-2 py-1.5 transition-colors duration-200 cursor-default hover:bg-white/[0.04]"
-          >
-            <div className="flex items-center gap-2">
-              <span
-                className="w-2.5 h-2.5 rounded-full transition-transform duration-200"
-                style={{ background: d.color, transform: hoveredIdx === i ? "scale(1.3)" : "scale(1)" }}
-              />
-              <span className="text-white/70">{d.label}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-white font-bold tabular-nums">{fmt(d.value)}</span>
-              <span className="text-white/40 text-xs w-9 text-left">{d.pct}%</span>
-            </div>
-          </motion.div>
-        ))}
-      </div>
+    <div className="flex flex-col items-center gap-4">
+      <SegDonut segments={segments} size={220} activeKey={activeKey} onHover={setActiveKey}>
+        <span
+          className="text-4xl font-black text-white tabular-nums leading-none transition-colors"
+          style={active ? { color: active.color } : undefined}
+        >
+          {fmt(active ? active.value : total)}
+        </span>
+        <span className="text-xs text-white/45 mt-1">{active ? active.label : "إجمالي الشحنات"}</span>
+      </SegDonut>
+      <DonutLegend
+        className="w-full" items={segments} total={total} format={fmt}
+        activeKey={activeKey} onHover={setActiveKey}
+      />
     </div>
   );
 }
@@ -493,41 +447,21 @@ function AgingLine({ data }: { data: ShipmentsIntelligenceResponse["agingAnalysi
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Mini Ring — دائرة صغيرة بنفس ستايل RingGauge، تُستخدم داخل الصفوف المرتّبة
+// Mini Ring — دايرة صغيرة بنفس شكل الدايرة الرئيسية، تُستخدم داخل الصفوف المرتّبة
 // ═══════════════════════════════════════════════════════════════════════════
-function MiniRing({ pct, color, size = 44 }: { pct: number; color: string; size?: number }) {
-  const [hovered, setHovered] = useState(false);
-  const strokeWidth = 5;
-  const radius = (size - strokeWidth) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const gapLen = (22 / 360) * circumference;
-  const arcLen = circumference - gapLen;
-  const filledLen = (Math.max(0, Math.min(100, pct)) / 100) * arcLen;
+function MiniRing({ pct, color, size = 48 }: { pct: number; color: string; size?: number }) {
+  const p = Math.max(0, Math.min(100, pct));
+  const segments: DonutSegment[] = [
+    { key: "v", label: "", value: p, color },
+    { key: "r", label: "", value: 100 - p, color: "#ffffff14", track: true },
+  ];
   return (
-    <div
-      className="relative shrink-0 outline-none focus:outline-none border-0 select-none"
-      style={{ width: size, height: size, WebkitTapHighlightColor: "transparent" }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      tabIndex={-1}
+    <SegDonut
+      segments={segments} size={size} inner={60} outer={92}
+      padding={p > 0 && p < 100 ? 8 : 0} corner={2}
     >
-      <svg
-        width={size} height={size} viewBox={`0 0 ${size} ${size}`}
-        style={{ transform: "rotate(101deg)", outline: "none", display: "block", overflow: "visible", pointerEvents: "none" }}
-      >
-        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#ffffff12" strokeWidth={strokeWidth} strokeLinecap="round" strokeDasharray={`${arcLen} ${circumference}`} />
-        <motion.circle
-          cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round"
-          strokeDasharray={`${arcLen} ${circumference}`}
-          initial={{ strokeDashoffset: arcLen }}
-          animate={{ strokeDashoffset: arcLen - filledLen, filter: hovered ? `drop-shadow(0 0 6px ${color})` : "none" }}
-          transition={{ strokeDashoffset: { duration: 0.8, ease: "easeOut" }, filter: { duration: 0.25 } }}
-        />
-      </svg>
-      <div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold tabular-nums pointer-events-none" style={{ color }}>
-        {Math.round(pct)}%
-      </div>
-    </div>
+      <span className="text-[9px] font-bold tabular-nums" style={{ color }}>{Math.round(p)}%</span>
+    </SegDonut>
   );
 }
 
@@ -874,7 +808,7 @@ function DeliveryIntelligencePanel({ data }: { data: ShipmentsIntelligenceRespon
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
         <div className="flex justify-center">
           {hasOnTimeData ? (
-            <RingGauge value={kpis.onTimeRate!} max={100} size={150} strokeWidth={13} color={rateColor(kpis.onTimeRate!)} label="الالتزام بالمواعيد" sub={`${kpis.avgDeliveryHours} ساعة متوسط`} />
+            <RingGauge value={kpis.onTimeRate!} max={100} size={176} color={rateColor(kpis.onTimeRate!)} label="الالتزام بالمواعيد" sub={`${kpis.avgDeliveryHours} ساعة متوسط`} />
           ) : (
             <div className="flex flex-col items-center justify-center gap-1.5 text-center" style={{ width: 150, height: 150 }}>
               <p className="text-xs text-white/40">لا توجد شحنات بموعد تسليم متوقع في هذه الفترة</p>
