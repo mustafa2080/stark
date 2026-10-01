@@ -5022,6 +5022,23 @@ router.get("/analytics/shipments-intelligence", requireAuth, async (req, res): P
       const t = new Date(r.updatedAt).getTime();
       return t >= rangeFrom.getTime() && t <= rangeTo.getTime();
     });
+    // ── "المنجَز داخل الفترة" لجداول المندوبين/الشركات ──
+    // نفس تعريف REP_DONE_STATUSES المستخدم في باقي جداول المناديب: received + partial_received
+    // + replaced + parcel_picked. الاعتماد على "received" لوحدها كان بيضيّع شحنات المندوب
+    // اللي خلّصها فعلاً (استبدال/إحضار طرد/استلام جزئي) من العدّاد.
+    const repDoneRangeRows = allActiveRows.filter(r => {
+      if (!isRepDone(SI_normalize(r.status))) return false;
+      const { time } = SI_deliveryFinishTime(r);
+      return time >= rangeFrom.getTime() && time <= rangeTo.getTime();
+    });
+    // ── ربط الشحنة بالمندوب: shipments.shipping_company_id أولاً، ولو null نرجع لآخر بيان مرتبطة بيه ──
+    // (كتير من الشحنات بتفضل shipping_company_id فيها null رغم إنها في بيان مندوب — فكانت
+    // بتتعدّ تحت "شحنة بدون مندوب شحن" وبتنقص من عدد المندوب الحقيقي.)
+    const repFallbackMap = await getManifestRepFallbackMap(
+      allActiveRows.filter(r => !r.shippingCompanyId).map(r => r.id),
+    );
+    const effectiveCompanyId = (r: { id: number; shippingCompanyId: number | null }): number | null =>
+      r.shippingCompanyId ?? repFallbackMap.get(r.id) ?? null;
     const prevDeliveredRangeRows = allActiveRows.filter(r => {
       if (SI_normalize(r.status) !== "received") return false;
       const { time } = SI_deliveryFinishTime(r);
@@ -5179,18 +5196,18 @@ router.get("/analytics/shipments-intelligence", requireAuth, async (req, res): P
     // وإلا شحنة اتعملت الشهر اللي فات مع شركة X واتسلمت النهارده مش هتدخل في متوسط اليوم بتاعها.
     const companyStatsMap = new Map<number | "none", { total: number; delivered: number; returned: number; fee: number }>();
     for (const r of rangeRows) {
-      const key = r.shippingCompanyId ?? "none";
+      const key = effectiveCompanyId(r) ?? "none";
       if (!companyStatsMap.has(key)) companyStatsMap.set(key, { total: 0, delivered: 0, returned: 0, fee: 0 });
       const c = companyStatsMap.get(key)!;
       c.total++;
       c.fee += Number(r.shippingFee ?? 0);
       const status = SI_normalize(r.status);
-      if (status === "received") c.delivered++;
+      if (isRepDone(status)) c.delivered++;
       if (status === "returned") c.returned++;
     }
     const companyHoursMap = new Map<number | "none", { hoursSum: number; hoursCount: number; deliveredCount: number }>();
-    for (const r of deliveredRangeRows) {
-      const key = r.shippingCompanyId ?? "none";
+    for (const r of repDoneRangeRows) {
+      const key = effectiveCompanyId(r) ?? "none";
       if (!companyHoursMap.has(key)) companyHoursMap.set(key, { hoursSum: 0, hoursCount: 0, deliveredCount: 0 });
       const h = companyHoursMap.get(key)!;
       h.deliveredCount++;

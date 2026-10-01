@@ -848,8 +848,8 @@ function DeliveryIntelligencePanel({ data }: { data: ShipmentsIntelligenceRespon
             <p className="text-[10px] text-white/30">بعض الأرقام تقريبية (تعتمد على آخر تحديث للشحنة)</p>
           )}
         </div>
-        <div className="space-y-1">
-          {companyPerformance.filter(c => c.avgDeliveryHours > 0).sort((a, b) => a.avgDeliveryHours - b.avgDeliveryHours).slice(0, 6).map((c, i) => (
+        <div className="space-y-1 max-h-[480px] overflow-y-auto">
+          {companyPerformance.filter(c => c.avgDeliveryHours > 0 || c.deliveredInPeriod > 0).sort((a, b) => b.deliveredInPeriod - a.deliveredInPeriod).map((c, i) => (
             <div key={String(c.companyId)} className="flex items-center gap-3 py-2.5 border-b border-white/5 last:border-0 transition-colors duration-200 hover:bg-white/[0.02] rounded-lg px-1">
               <span className="w-6 text-center text-xs font-bold text-white/30">{i + 1}</span>
               <div className="flex-1 min-w-0">
@@ -859,7 +859,7 @@ function DeliveryIntelligencePanel({ data }: { data: ShipmentsIntelligenceRespon
                 </p>
                 <p className="text-xs text-white/45 mt-0.5">{fmt(c.deliveredInPeriod ?? 0)} شحنة مسلَّمة · نجاح {c.successRate}%</p>
               </div>
-              <span className="text-sm font-bold tabular-nums text-[#06b6d4] shrink-0">{c.avgDeliveryHours} س</span>
+              <span className="text-sm font-bold tabular-nums text-[#06b6d4] shrink-0">{c.avgDeliveryHours > 0 ? `${c.avgDeliveryHours} س` : "—"}</span>
             </div>
           ))}
         </div>
