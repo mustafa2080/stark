@@ -5660,6 +5660,9 @@ router.get("/analytics/representatives-intelligence", requireAuth, async (req, r
       rangeFrom = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
     } else if (period === "year") {
       rangeFrom = new Date(now.getFullYear(), 0, 1);
+    } else if (period === "all") {
+      // كل الفترات: من غير أي فلتر تاريخ (نفس منطق shipments-intelligence)
+      rangeFrom = new Date(2000, 0, 1);
     } else if (period === "custom" && customFrom) {
       rangeFrom = new Date(customFrom + "T00:00:00");
       rangeTo = customTo ? new Date(customTo + "T23:59:59") : now;
