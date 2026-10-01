@@ -4847,6 +4847,16 @@ const SI_RETURN_REASON_LABELS: Record<string, string> = {
   no_answer:        "لا يوجد رد",
   out_of_coverage:  "خارج نطاق التغطية",
   closed:           "مغلق",
+  postponed_by_client: "العميل طلب التأجيل",
+  damaged:          "الشحنة تالفة",
+  unclear_address:  "العنوان غير واضح",
+  bad_timing:       "وقت العميل غير مناسب مع وقت المندوب",
+  other:            "سبب آخر",
+  // أسباب قديمة لسه ممكن تكون متسجلة على شحنات سابقة
+  size_mismatch:    "مقاس غير مناسب",
+  customer_refused: "عميل غير جاد",
+  customer_requested_return: "طلب العميل مرتجع",
+  delay:            "التأخير على العميل",
 };
 
 // ── هدف الشحنات الشهري (يُخزَّن في app_settings بمفتاح ديناميكي لكل tenant/شهر) ──
