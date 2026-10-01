@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Phone, MessageCircle, UserCheck, UserX } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { buildWhatsAppLink } from "@/lib/whatsapp";
@@ -60,7 +61,13 @@ export function ShipmentCourierCard({
   const cleanPhone = hasAssignedUser
     ? (isValidPhone(assignedPhone) ? assignedPhone : companyPhone)
     : companyPhone;
-  avatar = hasAssignedUser ? avatar : fallbackAvatar;
+  // ??????: ???? ???? ??????? ??????? ?????? ??? ???? (?? ?????? ?????????) ???? ?????/????
+  // ???? ????? ???? ?????? ?? ????? ???????? ? ??? ?? ???? ?????? ?????? ??????? ??????.
+  const [failedImgs, setFailedImgs] = useState<string[]>([]);
+  const shownAvatar =
+    [hasAssignedUser ? avatar : null, fallbackAvatar]
+      .map((s) => (s ?? "").trim())
+      .find((s) => s.length > 0 && !failedImgs.includes(s)) ?? null;
   const hasCourier = cleanName.length > 0;
   const hasPhone = cleanPhone.replace(/\D/g, "").length >= 8;
 
@@ -97,10 +104,11 @@ export function ShipmentCourierCard({
           <>
             {/* ── هوية المندوب ── */}
             <div className="flex items-center gap-3">
-              {avatar ? (
+              {shownAvatar ? (
                 <img
-                  src={avatar}
+                  src={shownAvatar}
                   alt={cleanName}
+                  onError={() => setFailedImgs((prev) => [...prev, shownAvatar])}
                   className="w-11 h-11 rounded-full object-cover border border-border shrink-0"
                 />
               ) : (
