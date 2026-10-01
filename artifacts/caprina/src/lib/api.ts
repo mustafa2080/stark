@@ -1137,7 +1137,7 @@ export interface ShipmentsIntelligenceResponse {
   };
   statusDistribution: { status: string; label: string; color: string; value: number; pct: number }[];
   cityPerformance: { city: string; total: number; delivered: number; returned: number; codValue: number; successRate: number; returnRate: number }[];
-  companyPerformance: { companyId: number | null; companyName: string; total: number; delivered: number; returned: number; successRate: number; returnRate: number; avgDeliveryHours: number; avgDeliveryHoursSampleSize: number; isLowSample: boolean; totalFees: number }[];
+  companyPerformance: { companyId: number | null; companyName: string; total: number; delivered: number; returned: number; successRate: number; returnRate: number; avgDeliveryHours: number; avgDeliveryHoursSampleSize: number; deliveredInPeriod: number; isLowSample: boolean; totalFees: number }[];
   weightAnalysis: { key: string; label: string; total: number; delivered: number; returned: number; successRate: number; returnRate: number }[];
   piecesAnalysis: { key: string; label: string; total: number; delivered: number; returned: number; successRate: number; returnRate: number }[];
   routeAnalysis: { from: string; to: string; total: number; delivered: number; returned: number; successRate: number; returnRate: number; avgDeliveryHours: number }[];

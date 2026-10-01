@@ -5013,6 +5013,15 @@ router.get("/analytics/shipments-intelligence", requireAuth, async (req, res): P
       const { time } = SI_deliveryFinishTime(r);
       return time >= rangeFrom.getTime() && time <= rangeTo.getTime();
     });
+    // ── المرتجعات "اللي حصلت داخل الفترة" — بمعيار وقت الإرجاع مش وقت الإنشاء ──
+    // نفس فكرة deliveredRangeRows: شحنة اتعملت من شهرين وارتجعت النهارده لازم تدخل في
+    // تحليل أسباب المرتجعات بتاع "اليوم". مفيش عمود returnedAt في الجدول، فبنستخدم
+    // updatedAt كتقريب لوقت الإرجاع (نفس معيار /analytics/recent-events).
+    const returnedRangeRows = allActiveRows.filter(r => {
+      if (SI_normalize(r.status) !== "returned") return false;
+      const t = new Date(r.updatedAt).getTime();
+      return t >= rangeFrom.getTime() && t <= rangeTo.getTime();
+    });
     const prevDeliveredRangeRows = allActiveRows.filter(r => {
       if (SI_normalize(r.status) !== "received") return false;
       const { time } = SI_deliveryFinishTime(r);
@@ -5179,11 +5188,12 @@ router.get("/analytics/shipments-intelligence", requireAuth, async (req, res): P
       if (status === "received") c.delivered++;
       if (status === "returned") c.returned++;
     }
-    const companyHoursMap = new Map<number | "none", { hoursSum: number; hoursCount: number }>();
+    const companyHoursMap = new Map<number | "none", { hoursSum: number; hoursCount: number; deliveredCount: number }>();
     for (const r of deliveredRangeRows) {
       const key = r.shippingCompanyId ?? "none";
-      if (!companyHoursMap.has(key)) companyHoursMap.set(key, { hoursSum: 0, hoursCount: 0 });
+      if (!companyHoursMap.has(key)) companyHoursMap.set(key, { hoursSum: 0, hoursCount: 0, deliveredCount: 0 });
       const h = companyHoursMap.get(key)!;
+      h.deliveredCount++;
       const created = new Date(r.createdAt).getTime();
       const { time: finished } = SI_deliveryFinishTime(r);
       const hours = (finished - created) / (1000 * 60 * 60);
@@ -5193,8 +5203,12 @@ router.get("/analytics/shipments-intelligence", requireAuth, async (req, res): P
     // شركة عندها شحنة واحدة أو اتنين بس مش المفروض تتصنف "الأسرع/الأبطأ" بنفس ثقة شركة
     // عندها مئات الشحنات. الواجهة تقدر تستخدم sampleSize دي لإخفاء أو تعتيم الشركات الصغيرة.
     const COMPANY_MIN_SAMPLE_SIZE = 5;
-    const companyPerformance = Array.from(companyStatsMap.entries())
-      .map(([key, d]) => {
+    // شركة ممكن تسلّم النهارده شحنات اتعملت قبل الفترة (فمش في companyStatsMap)، فبناخد
+    // اتحاد المفاتيح عشان ماتختفيش من تحليل زمن التسليم.
+    const companyKeys = new Set<number | "none">([...companyStatsMap.keys(), ...companyHoursMap.keys()]);
+    const companyPerformance = Array.from(companyKeys)
+      .map((key) => {
+        const d = companyStatsMap.get(key) ?? { total: 0, delivered: 0, returned: 0, fee: 0 };
         const h = companyHoursMap.get(key);
         const hoursCount = h?.hoursCount ?? 0;
         return {
@@ -5206,6 +5220,8 @@ router.get("/analytics/shipments-intelligence", requireAuth, async (req, res): P
           avgDeliveryHours: hoursCount > 0 ? Math.round((h!.hoursSum / hoursCount)) : 0,
           // عدد الشحنات اللي فعلاً بنى عليها متوسط الساعات — استخدمها قبل ما تعتمد على avgDeliveryHours
           avgDeliveryHoursSampleSize: hoursCount,
+          // عدد الشحنات اللي اتسلّمت فعلاً داخل الفترة (بوقت التسليم مش الإنشاء) — ده الرقم اللي بيتعرض جنب كل شركة
+          deliveredInPeriod: h?.deliveredCount ?? 0,
           isLowSample: hoursCount < COMPANY_MIN_SAMPLE_SIZE,
           totalFees: Math.round(d.fee),
         };
@@ -5377,8 +5393,7 @@ router.get("/analytics/shipments-intelligence", requireAuth, async (req, res): P
     // ── 6) أسباب المرتجعات ──────────────────────────────────────────────────
     const returnReasonCounts: Record<string, number> = {};
     let returnedTotalInRange = 0;
-    for (const r of rangeRows) {
-      if (SI_normalize(r.status) !== "returned") continue;
+    for (const r of returnedRangeRows) {
       returnedTotalInRange++;
       const reason = r.returnReason || "غير محدد";
       returnReasonCounts[reason] = (returnReasonCounts[reason] ?? 0) + 1;

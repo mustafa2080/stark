@@ -857,7 +857,7 @@ function DeliveryIntelligencePanel({ data }: { data: ShipmentsIntelligenceRespon
                   {c.companyName}
                   {c.isLowSample && <span className="text-[10px] font-normal text-white/30">(عينة صغيرة)</span>}
                 </p>
-                <p className="text-xs text-white/45 mt-0.5">{fmt(c.total)} شحنة · نجاح {c.successRate}%</p>
+                <p className="text-xs text-white/45 mt-0.5">{fmt(c.deliveredInPeriod ?? 0)} شحنة مسلَّمة · نجاح {c.successRate}%</p>
               </div>
               <span className="text-sm font-bold tabular-nums text-[#06b6d4] shrink-0">{c.avgDeliveryHours} س</span>
             </div>
@@ -1181,7 +1181,7 @@ export default function ShipmentsIntelligencePage() {
       {/* أسباب المرتجعات + تحليل زمن التسليم الذكي (بديل القسم المالي) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <SectionCard>
-          <SectionHeader icon={RotateCcw} title="تحليل أسباب المرتجعات" subtitle="تفصيل كل سبب بالعدد والنسبة" />
+          <SectionHeader icon={RotateCcw} title="تحليل أسباب المرتجعات" subtitle="تفصيل كل سبب بالعدد والنسبة (المرتجعات اللي حصلت خلال الفترة)" />
           <ReturnReasonsBreakdown data={data.returnReasons} />
         </SectionCard>
         <SectionCard>
