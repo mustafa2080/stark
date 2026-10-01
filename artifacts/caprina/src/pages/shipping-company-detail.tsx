@@ -426,7 +426,7 @@ export default function ShippingCompanyDetailPage() {
             }`}
           >
             <Wallet className="w-3.5 h-3.5" />
-            ???????
+            المحفظة
           </button>
         )}
       </div>
@@ -641,7 +641,7 @@ export default function ShippingCompanyDetailPage() {
         </div>
       )}
 
-      {/* ??? Tab: Wallet (????? ??????? ? ?????? ??????? ????????) ??? */}
+      {/* ─── Tab: Wallet (محفظة المندوب — للأدمن بصلاحية الماليات) ─── */}
       {activeTab === "wallet" && canFinancials && <RepWalletPanel companyId={companyId} />}
 
       {/* New manifest dialog (orders) */}
