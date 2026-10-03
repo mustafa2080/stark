@@ -21,7 +21,7 @@ import { returnReasonLabel } from "@/lib/order-constants";
 import { type WhatsAppOrderData, type WaSettings, applyTemplate, applyShippingTemplate, buildWhatsAppLink } from "@/lib/whatsapp";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { ordersApi, shippingApi, apiFetch } from "@/lib/api";
+import { ordersApi, shippingApi, warehousesApi, apiFetch } from "@/lib/api";
 
 const AD_SOURCES = [
   { value: "facebook",  label: "فيسبوك" },
@@ -1122,8 +1122,14 @@ export default function Orders() {
     // (100 → 200) وهو واقف في نفس رقم الصفحة (1)، الـ queryKey مش بيتغيّر فـ react-query
     // بيرجّع الداتا المخزّنة (cached) القديمة اللي كانت بـ limit=100 القديم بدل ما يعمل
     // fetch جديد بالـ limit الجديد — ده كان السبب الحقيقي وراء "اختيار 200 بيفضل يعرض 100"
-    queryKey: ["shipments-list", debouncedSearch, debouncedCustomerSearch, status, dateFrom, dateTo, senderNamesFilterKey, receiverNamesFilterKey, creatorNamesFilterKey, statusesFilterKey, phonesFilterKey, PAGE_SIZE, page],
+    queryKey: ["shipments-list", debouncedSearch, debouncedCustomerSearch, status, dateFrom, dateTo, senderNamesFilterKey, receiverNamesFilterKey, creatorNamesFilterKey, statusesFilterKey, phonesFilterKey, kindFilter, returnLoc, PAGE_SIZE, page],
     queryFn: () => apiFetch<any>(`/shipments?${new URLSearchParams({
+  // فلتر نوع الطلب (الكل / شحنة جديدة / استبدال / إحضار طرد)
+  const [kindFilter, setKindFilter] = useState<string>("all");
+  // فلتر "مكان المرتجع": all | courier | client | wh:all | wh:<warehouseId>
+  const [returnLoc, setReturnLoc] = useState<string>("all");
+  const { data: whList } = useQuery({ queryKey: ["warehouses-for-filter"], queryFn: () => warehousesApi.list() });
+
       ...(debouncedSearch ? { search: debouncedSearch } : {}),
       ...(debouncedCustomerSearch ? { customerName: debouncedCustomerSearch } : {}),
       ...(senderNamesFilterKey ? { senderNames: senderNamesFilterKey } : {}),
@@ -1132,6 +1138,10 @@ export default function Orders() {
       ...(statusesFilterKey ? { statuses: statusesFilterKey } : {}),
       ...(phonesFilterKey ? { phones: phonesFilterKey } : {}),
       ...(status !== "all" ? { status } : {}),
+      ...(kindFilter !== "all" ? { shipmentKind: kindFilter } : {}),
+      ...(returnLoc === "courier" ? { returnLocation: "courier" } : {}),
+      ...(returnLoc === "client" ? { returnLocation: "client" } : {}),
+      ...(returnLoc.startsWith("wh:") ? { returnLocation: "warehouse", ...(returnLoc !== "wh:all" ? { warehouseId: returnLoc.slice(3) } : {}) } : {}),
       ...(dateFrom ? { dateFrom } : {}),
       ...(dateTo ? { dateTo } : {}),
       limit: String(PAGE_SIZE),
@@ -1249,7 +1259,7 @@ export default function Orders() {
   // أي تغيير في الفلاتر أو الحالة أو حجم الصفحة يرجّع للصفحة الأولى (السيرفر هيجيب من جديد)
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, status, dateFrom, dateTo, pageSize]);
+  }, [debouncedSearch, status, dateFrom, dateTo, pageSize, kindFilter, returnLoc]);
 
   // لما اليوزر يغيّر الصفحة، اسكرول لفوق تلقائيًا عشان يبدأ من أول صف بدل ما يفضل تحت
   // ملاحظة: الـ scroll الفعلي بيحصل جوه container داخلي (#main-scroll-area) مش على الـ window نفسه
@@ -1283,10 +1293,10 @@ export default function Orders() {
   // مفتاح صغير بيتغيّر مع كل صفحة عشان يشغّل انيميشن fade/slide على صفوف الجدول
   const pageTransitionKey = `${page}-${pageSize}-${debouncedSearch}-${status}-${dateFrom}-${dateTo}`;
 
-  const hasActiveFilter = search || customerSearch || status !== "all" || dateFrom || dateTo;
+  const hasActiveFilter = search || customerSearch || status !== "all" || dateFrom || dateTo || kindFilter !== "all" || returnLoc !== "all";
 
   const clearFilters = () => {
-    setSearch(""); setCustomerSearch(""); setStatus("all"); setDateFrom(""); setDateTo("");
+    setSearch(""); setCustomerSearch(""); setStatus("all"); setDateFrom(""); setDateTo(""); setKindFilter("all"); setReturnLoc("all");
     setFilterShippingCo("all");
   };
 
@@ -1968,6 +1978,33 @@ export default function Orders() {
           <>
             {/* ── Mobile ── */}
             {/* بنعرض الشجرة دي بس لو فعلاً موبايل — قبل كده كانت بتتعمل mount دايمًا (مخفية بـ CSS بس)
+            <Select value={kindFilter} onValueChange={setKindFilter}>
+              <SelectTrigger className="h-8 w-36 bg-card text-xs" title="نوع الطلب">
+                <SelectValue placeholder="نوع الطلب" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">كل الأنواع</SelectItem>
+                <SelectItem value="new">شحنة جديدة</SelectItem>
+                <SelectItem value="replacement">استبدال</SelectItem>
+                <SelectItem value="pickup">إحضار طرد</SelectItem>
+              </SelectContent>
+            </Select>
+            {/* مكان المرتجع: مع المندوب / في مخزن (كل المخازن أو مخزن بعينه) / اتسلّم للعميل.
+                بيتدمج مع فلتر الحالة (مرتجع/جزئي...) ومع فلتر النوع (استبدال/إحضار طرد). */}
+            <Select value={returnLoc} onValueChange={setReturnLoc}>
+              <SelectTrigger className="h-8 w-44 bg-card text-xs" title="مكان المرتجع">
+                <SelectValue placeholder="مكان المرتجع" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">كل الأماكن</SelectItem>
+                <SelectItem value="courier">مرتجع مع المندوب</SelectItem>
+                <SelectItem value="wh:all">مرتجع في أي مخزن</SelectItem>
+                {(whList ?? []).map((w: any) => (
+                  <SelectItem key={w.id} value={`wh:${w.id}`}>مرتجع في {w.name}</SelectItem>
+                ))}
+                <SelectItem value="client">مرتجع اتسلّم للعميل</SelectItem>
+              </SelectContent>
+            </Select>
                 فكان كل صف بيتعمل له render مرتين (موبايل + ديسكتوب) حتى لو مش ظاهر، وده كان أكبر
                 سبب للتهنيج مع 200 صف. */}
             {false && (

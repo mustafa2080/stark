@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
-import { eq, and, or, desc, count, isNull, inArray, sql } from "drizzle-orm";
+import { eq, ne, and, or, desc, count, isNull, inArray, sql } from "drizzle-orm";
 import {
   db,
   warehousesTable,
@@ -114,6 +114,17 @@ async function recordAdjustmentMovement(
   });
 }
 
+// ── المرتجع "موجود فعلاً في المخزن" ──
+// returnReceived=1 لوحدها مش كفاية: لما المرتجع يتسلّم للعميل (بيان مرتجعات العميل) بيتحط
+// returnReceived=1 + returnReceivedBy="sender" — يعني البضاعة خرجت من المخزن وراحت للمرسل.
+// فنعتبر المرتجع في المخزن بس لو استُلم ومش اتسلّم للمرسل (null = بيانات قديمة = مخزن).
+const receivedInWarehouse = and(
+  eq(shipmentsTable.returnReceived, 1),
+  or(isNull(shipmentsTable.returnReceivedBy), ne(shipmentsTable.returnReceivedBy, "sender")),
+)!;
+const isReceivedInWarehouse = (s: { returnReceived: number | null; returnReceivedBy?: string | null }): boolean =>
+  (s.returnReceived === 1 || (s.returnReceived as any) === true) && s.returnReceivedBy !== "sender";
+
 const router: IRouter = Router();
 router.use(requireAuth);
 
@@ -204,13 +215,8 @@ router.get("/warehouses", async (req, res): Promise<void> => {
         .where(and(
           eq(shipmentsTable.warehouseId, w.id),
           isNull(shipmentsTable.deletedAt),
-          or(
-            and(
-              inArray(shipmentsTable.status, ["returned", "partial_received", "replaced", "parcel_picked"]),
-              eq(shipmentsTable.returnReceived, 1),
-            ),
-            eq(shipmentsTable.status, "cancelled"),
-          ),
+          inArray(shipmentsTable.status, ["returned", "partial_received", "replaced", "parcel_picked"]),
+          receivedInWarehouse,
         ));
 
       return { ...w, totalUnits, skuCount, orderCount: Number(orderCountRow?.cnt ?? 0), shipmentCount: Number(shipmentCountRow?.cnt ?? 0), returnsCount: Number(returnsCountRow?.cnt ?? 0) };
@@ -328,7 +334,7 @@ router.get("/warehouses/:id/shipments", async (req, res): Promise<void> => {
   // delivered / received / delayed) مش بضاعة في المخزن، فمايظهرش هنا ولا في الطباعة/الجرد.
   const VISIBLE_IN_WAREHOUSE = [
     "warehouse_ready",
-    "returned", "partial_received", "replaced", "parcel_picked", "cancelled",
+    "returned", "partial_received", "replaced", "parcel_picked",
   ];
 
   const conditions: any[] = [
@@ -350,23 +356,20 @@ router.get("/warehouses/:id/shipments", async (req, res): Promise<void> => {
     // "replaced"/"parcel_picked" مع returnReceived=1 نفس المعاملة بالظبط — دي رجلة
     // المرتجع بتاعتهم (المنتج القديم/الطرد) اللي فعليًا رجعت المخزن، فلازم تاخد
     // مسارها الطبيعي كمرتجع هنا بدل ما تفضل مختفية جوه حالة "تم الاستبدال".
-    conditions.push(or(
-      and(eq(shipmentsTable.status, "returned"), eq(shipmentsTable.returnReceived, 1)),
-      eq(shipmentsTable.status, "cancelled"),
-    ));
+    conditions.push(and(eq(shipmentsTable.status, "returned"), receivedInWarehouse)!);
   } else if (statusFilter === "replacement") {
     // استبدال: رجلة المرتجع بتاعت المنتج القديم — بس بعد ما رجع فعليًا للمخزن (returnReceived=1)
     conditions.push(eq(shipmentsTable.status, "replaced"));
-    conditions.push(eq(shipmentsTable.returnReceived, 1));
+    conditions.push(receivedInWarehouse);
   } else if (statusFilter === "pickup") {
     // إحضار طرد: الطرد اللي المندوب جابه — بس بعد ما دخل المخزن فعليًا (returnReceived=1)
     conditions.push(eq(shipmentsTable.status, "parcel_picked"));
-    conditions.push(eq(shipmentsTable.returnReceived, 1));
+    conditions.push(receivedInWarehouse);
   } else if (statusFilter === "returned_partial") {
     // مرتجع عن استلام جزئي فقط، وبس اللي رجع فعليًا للمخزون (returnReceived=true) —
     // نفس شرط الـ stats بالظبط.
     conditions.push(eq(shipmentsTable.status, "partial_received"));
-    conditions.push(eq(shipmentsTable.returnReceived, 1));
+    conditions.push(receivedInWarehouse);
   } else if (statusFilter === "delayed") {
     conditions.push(eq(shipmentsTable.status, "delayed"));
   } else {
@@ -377,7 +380,7 @@ router.get("/warehouses/:id/shipments", async (req, res): Promise<void> => {
     // ينطبق على "replaced"/"parcel_picked" — لسه مع المندوب لحد ما returnReceived=1.
     conditions.push(or(
       sql`${shipmentsTable.status} NOT IN ('returned', 'partial_received', 'replaced', 'parcel_picked')`,
-      eq(shipmentsTable.returnReceived, 1),
+      receivedInWarehouse,
     ));
   }
 
@@ -451,7 +454,7 @@ router.get("/warehouses/:id/shipments", async (req, res): Promise<void> => {
 
   // إحصائيات سريعة — بنفس قيد VISIBLE_IN_WAREHOUSE (مفيش عد للشحنات اللي لسه قبل warehouse_ready)
   const allForStats = await db
-    .select({ status: shipmentsTable.status, returnReceived: shipmentsTable.returnReceived })
+    .select({ status: shipmentsTable.status, returnReceived: shipmentsTable.returnReceived, returnReceivedBy: shipmentsTable.returnReceivedBy })
     .from(shipmentsTable)
     .where(and(
       eq(shipmentsTable.warehouseId, id),
@@ -464,7 +467,7 @@ router.get("/warehouses/:id/shipments", async (req, res): Promise<void> => {
   // (returnReceived غير true) متتحسبش ضمن "الكل" لأنها مش موجودة فعليًا في المخزون.
   const totalVisible = allForStats.filter(s =>
     !["returned", "partial_received", "replaced", "parcel_picked"].includes(s.status)
-    || (s.returnReceived === 1 || (s.returnReceived as any) === true)
+    || isReceivedInWarehouse(s)
   ).length;
 
   const stats = {
@@ -475,21 +478,20 @@ router.get("/warehouses/:id/shipments", async (req, res): Promise<void> => {
     // (returnReceived=true) — لسه مع المندوب/شركة الشحن (returnReceived غير true)
     // متحسبش في أي منهم، نفس منطق تاب "مرتجع" في صفحة المخزون (inventory.tsx / tabMap).
     // مفصولين بقى عن بعض بناءً على طلب صاحب المشروع: مرتجع كامل، ومرتجع جزئي.
-    // "replaced"/"parcel_picked" مع returnReceived=1 بيتحسبوا ضمن "مرتجع" الكامل —
-    // نفس رجلة المرتجع بتاعت returned بالظبط، فلازم ياخدوا نفس العداد.
+    // مرتجع كامل: status=returned واستُلم في المخزن (مش اتسلّم للمرسل). الاستبدال وإحضار الطرد
+    // ليهم عدّادات منفصلة تحت.
     returned:  allForStats.filter(s =>
-      (s.status === "returned" && (s.returnReceived === 1 || (s.returnReceived as any) === true))
-      || s.status === "cancelled"
+      s.status === "returned" && isReceivedInWarehouse(s)
     ).length,
     // استبدال / إحضار طرد: عدّادات منفصلة (رجعوا المخزن فعليًا بس)
     replacement: allForStats.filter(s =>
-      s.status === "replaced" && (s.returnReceived === 1 || (s.returnReceived as any) === true)
+      s.status === "replaced" && isReceivedInWarehouse(s)
     ).length,
     pickup: allForStats.filter(s =>
-      s.status === "parcel_picked" && (s.returnReceived === 1 || (s.returnReceived as any) === true)
+      s.status === "parcel_picked" && isReceivedInWarehouse(s)
     ).length,
     returnedPartial: allForStats.filter(s =>
-      s.status === "partial_received" && (s.returnReceived === 1 || (s.returnReceived as any) === true)
+      s.status === "partial_received" && isReceivedInWarehouse(s)
     ).length,
     delayed:   allForStats.filter(s => s.status === "delayed").length,
   };

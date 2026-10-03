@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import rateLimit from "express-rate-limit";
-import { eq, desc, and, like, or, inArray, sql, isNull, isNotNull, gte, getTableColumns } from "drizzle-orm";
+import { eq, ne, desc, and, like, or, inArray, sql, isNull, isNotNull, gte, getTableColumns } from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
 import { db, shipmentsTable, shipmentItemsTable, shipmentZonesTable, zoneCostsTable, parcelTypePricingTable, clientsTable, shippingCompaniesTable, usersTable, warehousesTable, shipmentManifestsTable, shipmentManifestItemsTable, shipmentRatingsTable, clientAccountManifestItemsTable, SHIPMENT_STATUS_LABELS, getShipmentLocationNote, getCompletionStatusForKind, hasReturnLeg, COMPLETION_STATUSES } from "@workspace/db";
 import { z } from "zod";
@@ -663,7 +663,7 @@ router.post("/shipments/track/:number/rating", async (req, res): Promise<void> =
 router.get("/shipments", async (req, res): Promise<void> => {
   try {
     const tenantId = getTenantId(req);
-    const { status, search, customerName, senderNames, receiverNames, creatorNames, statuses, phones, limit = "50", offset = "0", shippingCompanyId, clientId } = req.query as Record<string, string>;
+    const { status, search, customerName, senderNames, receiverNames, creatorNames, statuses, phones, limit = "50", offset = "0", shippingCompanyId, clientId, shipmentKind: kindFilter, returnLocation, warehouseId: warehouseIdFilter } = req.query as Record<string, string>;
 
     const conditions: any[] = [];
     if (tenantId !== null) conditions.push(eq(shipmentsTable.tenantId, tenantId));
@@ -671,6 +671,13 @@ router.get("/shipments", async (req, res): Promise<void> => {
     // حالات مترادفة — الداتابيز قد تحتوي أسماء قديمة وجديدة للنفس الحالة
     // كل مجموعة = حالة واحدة منطقياً، الأول في المصفوفة هو الاسم الجديد المعتمد
     const STATUS_GROUPS: Record<string, string[]> = {
+    // فلتر نوع الطلب (شحنة جديدة / استبدال / إحضار طرد). "new" بيشمل الصفوف
+    // القديمة اللي shipment_kind فيها NULL (قبل إضافة العمود) عشان ماتضيعش من الفلتر.
+    if (kindFilter === "new") {
+      conditions.push(or(eq(shipmentsTable.shipmentKind, "new"), isNull(shipmentsTable.shipmentKind)));
+    } else if (kindFilter === "replacement" || kindFilter === "pickup") {
+      conditions.push(eq(shipmentsTable.shipmentKind, kindFilter));
+    }
       pending:          ["pending", "waiting"],
       waiting:          ["waiting", "pending"],
       confirmed:        ["confirmed"],
@@ -708,6 +715,26 @@ router.get("/shipments", async (req, res): Promise<void> => {
     if (customerName) {
       // مربع "ابحث باسم العميل" المنفصل — بيدور على اسم المستلم بس (العميل النهائي)
       // بحث بكل الشحنات في السيرفر مش بس الصفحة الحالية المحمّلة في الفرونت
+    // فلتر "مكان المرتجع" — بيوضّح المرتجعات (مرتجع/جزئي/استبدال/إحضار طرد) فين دلوقتي:
+    //   courier   = لسه مع المندوب/شركة الشحن (returnReceived مش 1)
+    //   warehouse = استُلم في المخزن (ولو warehouseId جه، في المخزن ده بالذات)
+    //   client    = اتسلّم للعميل/المرسل (returnReceivedBy = "sender")
+    // نفس التعريف اللي شاشة المخازن بتعدّ بيه — عشان الرقمين يطلعوا متساويين.
+    if (returnLocation === "courier" || returnLocation === "warehouse" || returnLocation === "client") {
+      conditions.push(inArray(shipmentsTable.status, ["returned", "partial_received", "replaced", "parcel_picked"]));
+      if (returnLocation === "courier") {
+        conditions.push(or(isNull(shipmentsTable.returnReceived), ne(shipmentsTable.returnReceived, 1)));
+      } else if (returnLocation === "client") {
+        conditions.push(eq(shipmentsTable.returnReceived, 1));
+        conditions.push(eq(shipmentsTable.returnReceivedBy, "sender"));
+      } else {
+        conditions.push(eq(shipmentsTable.returnReceived, 1));
+        conditions.push(or(isNull(shipmentsTable.returnReceivedBy), ne(shipmentsTable.returnReceivedBy, "sender")));
+        if (warehouseIdFilter && !Number.isNaN(parseInt(warehouseIdFilter))) {
+          conditions.push(eq(shipmentsTable.warehouseId, parseInt(warehouseIdFilter)));
+        }
+      }
+    }
       const nameWords = customerName.trim().split(/\s+/).filter(Boolean);
       if (nameWords.length) {
         conditions.push(and(...nameWords.map((w: string) => like(shipmentsTable.receiverName, `%${w}%`))));
