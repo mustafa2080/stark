@@ -1715,7 +1715,7 @@ export default function Orders() {
               {/* زر شحنة جديدة — فقط لو عنده canCreate */}
               {canCreate && (
               <Button
-                className="gap-2 font-bold text-sm border-0 relative overflow-hidden"
+                className="group relative overflow-hidden gap-2.5 h-9 pl-3 pr-5 rounded-full font-extrabold text-sm border-0 transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.97] hover:brightness-110"
                 style={{
                   background: "linear-gradient(135deg, #8a6512 0%, #f9d976 35%, #e8b93f 65%, #b8860b 100%)",
                   color: "#1a1206",
@@ -1732,13 +1732,20 @@ export default function Orders() {
                   }
                 `}</style>
                 <span
-                  className="absolute inset-0 rounded-md pointer-events-none"
-                  style={{
-                    background: "linear-gradient(180deg, rgba(255,255,255,0.28) 0%, transparent 60%)",
-                  }}
+                  className="absolute inset-0 rounded-full pointer-events-none"
+                  style={{ background: "linear-gradient(180deg, rgba(255,255,255,0.3) 0%, transparent 60%)" }}
                 />
-                <Plus className="w-4 h-4 relative z-10" />
-                <span className="relative z-10">شحنة جديدة</span>
+                <span
+                  className="absolute inset-y-0 w-1/3 -skew-x-12 pointer-events-none -translate-x-[250%] group-hover:translate-x-[450%] transition-transform duration-700 ease-out"
+                  style={{ background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.45), transparent)" }}
+                />
+                <span
+                  className="relative z-10 flex items-center justify-center w-6 h-6 rounded-full"
+                  style={{ background: "rgba(26,18,6,0.85)", boxShadow: "inset 0 0 0 1px rgba(249,217,118,0.6)" }}
+                >
+                  <Plus className="w-3.5 h-3.5 transition-transform duration-300 group-hover:rotate-90" style={{ color: "#f9d976" }} />
+                </span>
+                <span className="relative z-10 tracking-wide">شحنة جديدة</span>
               </Button>
               )}
               {/* طلب استبدال / إحضار طرد — بيفتحوا نفس فورمة الإنشاء بنوع الطلب المحدد */}
@@ -1746,19 +1753,63 @@ export default function Orders() {
                 <>
                   <Button
                     variant="outline"
-                    className="gap-2 font-bold text-sm border-violet-500/50 text-violet-500 hover:bg-violet-500/10"
+                    className="group relative overflow-hidden gap-2.5 h-9 pl-3 pr-4 rounded-full font-bold text-sm transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.97] hover:brightness-125 shadow-[0_2px_10px_rgba(139,92,246,0.22),inset_0_1px_0_rgba(255,255,255,0.14)] hover:shadow-[0_6px_20px_rgba(139,92,246,0.45),inset_0_1px_0_rgba(255,255,255,0.2)]"
+                    style={{
+                      background: "linear-gradient(135deg, rgba(139,92,246,0.24) 0%, rgba(139,92,246,0.08) 100%)",
+                      border: "1px solid rgba(139,92,246,0.55)",
+                      color: "#c4b5fd",
+                      backdropFilter: "blur(6px)",
+                      animation: "replaceBtnGlow 2.4s ease-in-out 0s infinite",
+                    }}
                     onClick={() => navigate("/shipments/new?kind=replacement")}
                   >
-                    <RotateCw className="w-4 h-4" />
-                    <span>طلب استبدال</span>
+                <style>{`
+                  @keyframes replaceBtnGlow {
+                    0%, 100% { box-shadow: 0 3px 14px rgba(139,92,246,0.35), 0 0 20px rgba(139,92,246,0.2), inset 0 1px 0 rgba(255,255,255,0.14); }
+                    50%      { box-shadow: 0 4px 20px rgba(139,92,246,0.65), 0 0 36px rgba(139,92,246,0.42), inset 0 1px 0 rgba(255,255,255,0.22); }
+                  }
+                `}</style>
+                    <span
+                      className="absolute inset-0 pointer-events-none rounded-full"
+                      style={{ background: "linear-gradient(180deg, rgba(255,255,255,0.14) 0%, transparent 55%)" }}
+                    />
+                    <span
+                      className="relative z-10 flex items-center justify-center w-6 h-6 rounded-full"
+                      style={{ background: "rgba(139,92,246,0.25)", boxShadow: "inset 0 0 0 1px rgba(139,92,246,0.5)" }}
+                    >
+                      <RotateCw className="w-3.5 h-3.5 transition-transform duration-500 group-hover:rotate-180" />
+                    </span>
+                    <span className="relative z-10 tracking-wide">استبدال</span>
                   </Button>
                   <Button
                     variant="outline"
-                    className="gap-2 font-bold text-sm border-cyan-500/50 text-cyan-500 hover:bg-cyan-500/10"
+                    className="group relative overflow-hidden gap-2.5 h-9 pl-3 pr-4 rounded-full font-bold text-sm transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.97] hover:brightness-125 shadow-[0_2px_10px_rgba(6,182,212,0.22),inset_0_1px_0_rgba(255,255,255,0.14)] hover:shadow-[0_6px_20px_rgba(6,182,212,0.45),inset_0_1px_0_rgba(255,255,255,0.2)]"
+                    style={{
+                      background: "linear-gradient(135deg, rgba(6,182,212,0.24) 0%, rgba(6,182,212,0.08) 100%)",
+                      border: "1px solid rgba(6,182,212,0.55)",
+                      color: "#67e8f9",
+                      backdropFilter: "blur(6px)",
+                      animation: "pickupBtnGlow 2.4s ease-in-out 0.5s infinite",
+                    }}
                     onClick={() => navigate("/shipments/new?kind=pickup")}
                   >
-                    <PackagePlus className="w-4 h-4" />
-                    <span>إحضار طرد</span>
+                <style>{`
+                  @keyframes pickupBtnGlow {
+                    0%, 100% { box-shadow: 0 3px 14px rgba(6,182,212,0.35), 0 0 20px rgba(6,182,212,0.2), inset 0 1px 0 rgba(255,255,255,0.14); }
+                    50%      { box-shadow: 0 4px 20px rgba(6,182,212,0.65), 0 0 36px rgba(6,182,212,0.42), inset 0 1px 0 rgba(255,255,255,0.22); }
+                  }
+                `}</style>
+                    <span
+                      className="absolute inset-0 pointer-events-none rounded-full"
+                      style={{ background: "linear-gradient(180deg, rgba(255,255,255,0.14) 0%, transparent 55%)" }}
+                    />
+                    <span
+                      className="relative z-10 flex items-center justify-center w-6 h-6 rounded-full"
+                      style={{ background: "rgba(6,182,212,0.25)", boxShadow: "inset 0 0 0 1px rgba(6,182,212,0.5)" }}
+                    >
+                      <PackagePlus className="w-3.5 h-3.5 transition-transform duration-500 group-hover:scale-110 group-hover:-rotate-6" />
+                    </span>
+                    <span className="relative z-10 tracking-wide">إحضار طرد</span>
                   </Button>
                 </>
               )}
