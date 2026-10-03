@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { useLocation, useParams } from "wouter";
-import { Plus, Package, User, MapPin, Boxes, CreditCard, RefreshCw, ArrowRight, Megaphone, Warehouse, UserCheck, Check, ChevronsUpDown, Save } from "lucide-react";
+import { useLocation, useParams, useSearch, Link } from "wouter";
+import { Plus, Package, User, MapPin, Boxes, CreditCard, RefreshCw, ArrowRight, Megaphone, Warehouse, UserCheck, Check, ChevronsUpDown, Save, Search, X, RotateCw, PackagePlus } from "lucide-react";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,22 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch, warehousesApi, usersApi, shipmentsApi } from "@/lib/api";
 import { BulkShipmentCards, emptyDraft, validateDraft, type BulkShipmentDraft, type DraftErrors } from "@/components/bulk-shipment-cards";
+import { STATUS_LABELS } from "@/lib/order-constants";
+import {
+  SHIPMENT_KINDS,
+  SHIPMENT_KIND_LABELS,
+  SHIPMENT_KIND_HINTS,
+  SHIPMENT_KIND_COLORS,
+  type ShipmentKind,
+} from "@/lib/shipment-kind";
+
+// إعدادات العرض لكل نوع شحنة — بتتحكم في العنوان/الأيقونة/زرار الحفظ بس،
+// الفورمة والحقول والمنطق نفسه واحد للأنواع التلاتة (شحنة جديدة/استبدال/إحضار طرد).
+const KIND_UI: Record<ShipmentKind, { icon: typeof Package; iconClass: string; submitLabel: string }> = {
+  new:         { icon: Package,     iconClass: "text-primary",       submitLabel: "إنشاء الشحنة" },
+  replacement: { icon: RotateCw,    iconClass: "text-violet-500",    submitLabel: "إنشاء طلب الاستبدال" },
+  pickup:      { icon: PackagePlus, iconClass: "text-cyan-500",      submitLabel: "إنشاء طلب إحضار الطرد" },
+};
 
 type PaymentMethod = "cod" | "prepaid" | "deferred";
 type ParcelType    = "document" | "normal" | "fragile" | "heavy" | "electronics" | "clothing" | "food" | "other";
@@ -79,11 +95,19 @@ function ClientAvatar({ avatar, name, className = "w-6 h-6 text-[10px]" }: { ava
 export default function NewShipmentPage() {
   const [, navigate] = useLocation();
   const params = useParams();
+  const search = useSearch();
   const editId = params.id ? Number(params.id) : null;
   const isEditMode = !!editId;
   const qc = useQueryClient();
   const { toast } = useToast();
   const { isAdmin } = useAuth();
+
+  // نوع الشحنة الابتدائي من الـ URL: /shipments/new?kind=replacement أو ?kind=pickup
+  // في وضع التعديل، النوع بييجي من الشحنة نفسها (تحت) مش من الـ URL.
+  const initialKind: ShipmentKind = (() => {
+    const k = new URLSearchParams(search).get("kind");
+    return k === "replacement" || k === "pickup" ? k : "new";
+  })();
 
   // ── الشحنة الحالية (وضع التعديل فقط) ──
   const { data: existingShipment, isLoading: isLoadingShipment } = useQuery({
@@ -97,6 +121,10 @@ export default function NewShipmentPage() {
     clientId: "",
     senderName: "", senderPhone: "", senderPhone2: "", senderCity: "",
     receiverName: "", receiverPhone: "", receiverPhone2: "", receiverAddress: "", receiverCity: "",
+    shipmentKind: initialKind as ShipmentKind,
+    originalShipmentId: "",
+    // المنتج القديم (للاستبدال): بيتنسخ من الشحنة الأصلية عشان المرتجع يرجع للمخزون
+    originalProductId: "", originalVariantId: "", originalQuantity: "",
     zoneId: "", parcelType: "" as ParcelType | "",
     weight: "", pieces: "1", description: "",
     paymentMethod: "cod" as PaymentMethod,
@@ -116,6 +144,11 @@ export default function NewShipmentPage() {
   const [showDraftErrors, setShowDraftErrors] = useState(false);
 
   const set = (k: keyof typeof form, v: string) => setForm(f => ({ ...f, [k]: v }));
+
+  // إعدادات العرض حسب نوع الشحنة الحالي (مش الابتدائي بس — عشان لو المستخدم غيّر
+  // النوع يدويًا بعدين تتحدث الواجهة معاه). في وضع التعديل بنثبّته على "new" دايمًا
+  // في الهيدر لأن تغيير النوع بعد الإنشاء مش مدعوم من الفورمة.
+  const cfg = KIND_UI[isEditMode ? "new" : form.shipmentKind];
 
   // لما يتم اختيار "الموظف المسؤول"، يتم تعبئة "مصدر الطلب" تلقائياً حسب المصدر الافتراضي المرتبط بالموظف
   const handleAssignedUserChange = (userId: string) => {
@@ -150,6 +183,11 @@ export default function NewShipmentPage() {
         receiverPhone2:  s.receiverPhone2 ?? "",
         receiverAddress: s.receiverAddress ?? "",
         receiverCity:    s.receiverCity ?? "",
+        shipmentKind:    (s.shipmentKind ?? "new") as ShipmentKind,
+        originalShipmentId: s.originalShipmentId != null ? String(s.originalShipmentId) : "",
+        originalProductId:  s.originalProductId != null ? String(s.originalProductId) : "",
+        originalVariantId:  s.originalVariantId != null ? String(s.originalVariantId) : "",
+        originalQuantity:   s.originalQuantity != null ? String(s.originalQuantity) : "",
         zoneId:          s.zoneId != null ? String(s.zoneId) : "",
         parcelType:      (s.parcelType ?? "") as ParcelType | "",
         weight:          s.weight != null ? String(s.weight) : "",
@@ -170,6 +208,74 @@ export default function NewShipmentPage() {
       prefilledRef.current = true;
     }
   }, [isEditMode, existingShipment]);
+
+  // ── إنشاء طلب استبدال من شحنة موجودة: /shipments/new?kind=replacement&from=123 ──
+  // بنملّا بيانات الراسل/المستلم/المنطقة من الشحنة الأصلية ونربط الطلب بيها
+  // (originalShipmentId). السعر والدفع بيفضلوا فاضيين عن قصد — الاستبدال ممكن
+  // يبقى بفرق سعر أو من غير تحصيل، والمستخدم هو اللي يحدد.
+  const fromId = (() => {
+    const v = Number(new URLSearchParams(search).get("from"));
+    return Number.isInteger(v) && v > 0 ? v : null;
+  })();
+  // الشحنة الأصلية: يا من الـ URL (?from=) يا من الـ picker اللي في الفورمة
+  const [pickedFromId, setPickedFromId] = useState<number | null>(null);
+  const effectiveFromId = fromId ?? pickedFromId;
+  const { data: sourceShipment } = useQuery({
+    queryKey: ["shipment-detail", effectiveFromId],
+    queryFn: () => apiFetch<any>(`/shipments/${effectiveFromId}`),
+    enabled: !isEditMode && form.shipmentKind === "replacement" && !!effectiveFromId,
+  });
+  const prefilledFromRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (isEditMode || !sourceShipment || prefilledFromRef.current === (sourceShipment as any).id) return;
+    const s = sourceShipment as any;
+    setForm(f => ({
+      ...f,
+      shipmentKind:    "replacement",
+      originalShipmentId: String(s.id),
+      // المنتج اللي راجع من العميل = منتج الشحنة الأصلية. من غيره مرتجع الاستبدال مابيرجعش للمخزون.
+      originalProductId: s.productId != null ? String(s.productId) : f.originalProductId,
+      originalVariantId: s.variantId != null ? String(s.variantId) : f.originalVariantId,
+      originalQuantity:  s.pieces != null ? String(s.pieces) : f.originalQuantity,
+      clientId:        s.clientId != null ? String(s.clientId) : f.clientId,
+      senderName:      s.senderName ?? f.senderName,
+      senderPhone:     s.senderPhone ?? f.senderPhone,
+      senderPhone2:    s.senderPhone2 ?? f.senderPhone2,
+      senderCity:      s.senderCity ?? f.senderCity,
+      receiverName:    s.receiverName ?? f.receiverName,
+      receiverPhone:   s.receiverPhone ?? f.receiverPhone,
+      receiverPhone2:  s.receiverPhone2 ?? f.receiverPhone2,
+      receiverAddress: s.receiverAddress ?? f.receiverAddress,
+      receiverCity:    s.receiverCity ?? f.receiverCity,
+      zoneId:          s.zoneId != null ? String(s.zoneId) : f.zoneId,
+      parcelType:      (s.parcelType ?? f.parcelType) as ParcelType | "",
+      weight:          s.weight != null ? String(s.weight) : f.weight,
+      warehouseId:     s.warehouseId != null ? String(s.warehouseId) : f.warehouseId,
+    }));
+    prefilledFromRef.current = s.id;
+  }, [isEditMode, sourceShipment, effectiveFromId]);
+
+  // ── اختيار الشحنة الأصلية من جوه الفورمة (لو الطلب اتفتح من غير ?from=) ──
+  // بنعرض الشحنات المسلّمة (من نوع "شحنة جديدة") مع بحث، والاختيار بيملّا الفورمة زي زرار "إنشاء استبدال".
+  const showOriginalPicker = !isEditMode && form.shipmentKind === "replacement";
+  const [origOpen, setOrigOpen] = useState(false);
+  const [origSearch, setOrigSearch] = useState("");
+  const [origSearchDebounced, setOrigSearchDebounced] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setOrigSearchDebounced(origSearch.trim()), 300);
+    return () => clearTimeout(t);
+  }, [origSearch]);
+  const { data: originalCandidates, isFetching: origLoading } = useQuery({
+    queryKey: ["replacement-original-candidates", origSearchDebounced],
+    queryFn: () => apiFetch<any>(`/shipments?${new URLSearchParams({
+      shipmentKind: "new",
+      statuses: "delivered||received||partial_received",
+      ...(origSearchDebounced ? { search: origSearchDebounced } : {}),
+      limit: "20",
+    }).toString()}`).then((r: any) => (r.data ?? r) as any[]),
+    enabled: showOriginalPicker && origOpen,
+    staleTime: 15_000,
+  });
 
   // كل مناطق التوصيل — محافظة - منطقة (فلترة حسب محافظة الراسل "من"، بدون تكرار لنفس الاسم)
   // ملحوظة مهمة: ممكن يكون فيه أكتر من zone بنفس toGovernorate/name لكن fromGovernorate
@@ -233,7 +339,10 @@ export default function NewShipmentPage() {
   const total           = Number(form.codAmount) || 0;
   const cod             = form.paymentMethod === "cod" ? (total - shippingFee) : total;
 
-  const isBulkMode = !isEditMode && !!form.clientId;
+  // الإنشاء الجماعي مش مناسب لطلب الاستبدال: كل استبدال مربوط بشحنة أصلية مختلفة.
+  // (وقبل كده الـ bulk payload ماكانش بيبعت shipmentKind فكان الاستبدال/الإحضار
+  // بيتحفظوا "شحنة جديدة" بصمت لما يتختار عميل تجاري.)
+  const isBulkMode = !isEditMode && !!form.clientId && form.shipmentKind !== "replacement";
   const draftErrors: DraftErrors[] = useMemo(() => drafts.map(validateDraft), [drafts]);
   const getZonePriceById = (zoneId: string) => {
     const z = zones.find(x => String(x.id) === zoneId);
@@ -312,6 +421,7 @@ export default function NewShipmentPage() {
       const tot = Number(d.codAmount) || 0;
       const codAmt = d.paymentMethod === "cod" ? tot - fee : tot;
       return {
+        shipmentKind:    form.shipmentKind,
         clientId:        form.clientId ? Number(form.clientId) : undefined,
         senderName:      form.senderName,
         senderPhone:     form.senderPhone || undefined,
@@ -366,6 +476,13 @@ export default function NewShipmentPage() {
       receiverPhone2:  form.receiverPhone2 || undefined,
       receiverAddress: form.receiverAddress || undefined,
       receiverCity:    form.receiverCity || undefined,
+      shipmentKind:    isEditMode ? undefined : form.shipmentKind,
+      originalShipmentId: form.shipmentKind !== "new" && form.originalShipmentId
+        ? Number(form.originalShipmentId)
+        : undefined,
+      originalProductId: form.shipmentKind === "replacement" && form.originalProductId ? Number(form.originalProductId) : undefined,
+      originalVariantId: form.shipmentKind === "replacement" && form.originalVariantId ? Number(form.originalVariantId) : undefined,
+      originalQuantity:  form.shipmentKind === "replacement" && form.originalQuantity  ? Number(form.originalQuantity)  : undefined,
       zoneId:          form.zoneId    ? Number(form.zoneId)    : undefined,
       zonePrice:       Number.isFinite(zonePrice)   ? zonePrice   : undefined,
       parcelType:      form.parcelType || undefined,
@@ -405,8 +522,10 @@ export default function NewShipmentPage() {
         <button onClick={() => navigate(isEditMode ? `/shipments/${editId}` : "/shipments-list")} className="p-2 rounded-lg hover:bg-muted/60 transition-colors">
           <ArrowRight className="w-4 h-4" />
         </button>
-        <Package className="w-5 h-5 text-primary" />
-        <h1 className="text-base font-black">{isEditMode ? "تعديل الشحنة" : "شحنة جديدة"}</h1>
+        <cfg.icon className={`w-5 h-5 ${cfg.iconClass}`} />
+        <h1 className="text-base font-black">
+          {isEditMode ? "تعديل الشحنة" : SHIPMENT_KIND_LABELS[form.shipmentKind]}
+        </h1>
       </div>
 
       {/* Form + Sidebar */}
@@ -415,6 +534,106 @@ export default function NewShipmentPage() {
 
           {/* ── يمين: الفورم ── */}
           <div className="lg:col-span-2 space-y-8">
+
+        {/* نوع الطلب — في الإنشاء بس (تغيير النوع بعد الإنشاء مش مدعوم من الفورمة) */}
+        {!isEditMode && (
+          <section className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {SHIPMENT_KINDS.map(k => {
+                const ui = KIND_UI[k];
+                const active = form.shipmentKind === k;
+                return (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => setForm(f => ({
+                      ...f,
+                      shipmentKind: k,
+                      originalShipmentId: k === "replacement" ? f.originalShipmentId : "",
+                    }))}
+                    className={`rounded-lg border p-3 text-right transition-colors ${
+                      active ? `bg-muted/60 ${SHIPMENT_KIND_COLORS[k]}` : "border-border text-muted-foreground hover:bg-muted/40"
+                    }`}
+                  >
+                    <span className="flex items-center gap-2 text-xs font-black">
+                      <ui.icon className="w-4 h-4" />
+                      {SHIPMENT_KIND_LABELS[k]}
+                    </span>
+                    <span className="block text-[10px] mt-1 font-normal opacity-80">{SHIPMENT_KIND_HINTS[k]}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {form.shipmentKind === "replacement" && form.originalShipmentId && (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between gap-2 rounded-lg border border-violet-500/30 bg-violet-500/5 px-3 py-2 text-xs">
+                  <span>
+                    مربوط بالشحنة الأصلية{" "}
+                    <Link href={`/shipments/${form.originalShipmentId}`} className="font-bold underline decoration-dotted">
+                      {(sourceShipment as any)?.shipmentNumber ?? `#${form.originalShipmentId}`}
+                    </Link>
+                    {(sourceShipment as any)?.receiverName ? ` — ${(sourceShipment as any).receiverName}` : ""}
+                  </span>
+                  {!isEditMode && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPickedFromId(null);
+                        prefilledFromRef.current = null;
+                        setForm(f => ({ ...f, originalShipmentId: "", originalProductId: "", originalVariantId: "", originalQuantity: "" }));
+                      }}
+                      className="p-1 rounded hover:bg-muted/60"
+                      title="فك الربط / اختيار شحنة تانية"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+                {!isEditMode && sourceShipment && !form.originalProductId && (
+                  <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                    الشحنة الأصلية دي مش مربوطة بمنتج في المخزون، فمرتجع الاستبدال مش هيعمل حركة مخزون.
+                  </p>
+                )}
+              </div>
+            )}
+            {showOriginalPicker && !form.originalShipmentId && (
+              <Popover open={origOpen} onOpenChange={setOrigOpen}>
+                <PopoverTrigger asChild>
+                  <Button type="button" variant="outline" className="w-full justify-between h-10 text-xs font-normal">
+                    اختر الشحنة الأصلية (المسلّمة)
+                    <ChevronsUpDown className="w-3.5 h-3.5 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                  <Command shouldFilter={false}>
+                    <CommandInput
+                      placeholder="ابحث برقم الشحنة أو اسم/تليفون المستلم..."
+                      value={origSearch}
+                      onValueChange={setOrigSearch}
+                    />
+                    <CommandList>
+                      <CommandEmpty>{origLoading ? "جاري البحث..." : "مفيش شحنات مسلّمة مطابقة"}</CommandEmpty>
+                      <CommandGroup>
+                        {(originalCandidates ?? []).map((o: any) => (
+                          <CommandItem
+                            key={o.id}
+                            value={String(o.id)}
+                            onSelect={() => { setPickedFromId(o.id); setOrigOpen(false); }}
+                            className="text-xs"
+                          >
+                            <span className="font-mono font-bold ml-2">{o.shipmentNumber ?? `#${String(o.id).padStart(4, "0")}`}</span>
+                            <span className="truncate">{o.receiverName || o.customerName || "—"}</span>
+                            {o.receiverPhone && <span className="mr-auto text-muted-foreground" dir="ltr">{o.receiverPhone}</span>}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            )}
+          </section>
+        )}
 
         {/* بيانات المرسل */}
         <section className="space-y-4">
@@ -894,7 +1113,7 @@ export default function NewShipmentPage() {
                   {(mutation.isPending || bulkMutation.isPending)
                     ? <RefreshCw className="w-4 h-4 animate-spin" />
                     : isEditMode ? <Save className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-                  {isEditMode ? "حفظ التعديلات" : isBulkMode ? (drafts.length > 1 ? `إنشاء ${drafts.length} شحنات` : "إنشاء الشحنة") : "إنشاء الشحنة"}
+                  {isEditMode ? "حفظ التعديلات" : isBulkMode ? (drafts.length > 1 ? `إنشاء ${drafts.length} شحنات` : "إنشاء الشحنة") : cfg.submitLabel}
                 </Button>
                 <Button variant="outline" onClick={() => navigate(isEditMode ? `/shipments/${editId}` : "/orders")} className="w-full">إلغاء</Button>
               </div>

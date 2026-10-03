@@ -345,6 +345,53 @@ async function ensureShipmentKindColumns() {
 }
 if (IS_PRIMARY_INSTANCE) ensureShipmentKindColumns();
 
+// ─── Ensure shipments original-product columns exist (المنتج القديم في طلب الاستبدال) ──
+// productId/variantId على الشحنة هما المنتج الجديد (البديل) اللي بيتخصم
+// ويتوصل للعميل. original_product_id/original_variant_id هما المنتج القديم
+// اللي المندوب بياخده من العميل وقت الاستبدال — لازم يبقوا منفصلين تمامًا
+// عشان لما رجلة المرتجع تتقفل (returnReceived=1) يرجع المنتج الصح للمخزون،
+// مش نسخة تانية من البديل. راجع syncShipmentInventory في routes/shipments.ts.
+async function ensureShipmentOriginalProductColumns() {
+  try {
+    const [existingCols] = await db.execute(sql`
+      SELECT COLUMN_NAME FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'shipments'
+        AND COLUMN_NAME IN ('original_product_id', 'original_variant_id', 'original_quantity', 'original_color', 'original_size')
+    `);
+    const colNames = new Set((existingCols as unknown as any[]).map((r) => r.COLUMN_NAME));
+
+    if (!colNames.has("original_product_id")) {
+      await db.execute(sql`ALTER TABLE shipments ADD COLUMN original_product_id INT NULL`);
+    }
+    if (!colNames.has("original_variant_id")) {
+      await db.execute(sql`ALTER TABLE shipments ADD COLUMN original_variant_id INT NULL`);
+    }
+    if (!colNames.has("original_quantity")) {
+      await db.execute(sql`ALTER TABLE shipments ADD COLUMN original_quantity INT NULL`);
+    }
+    if (!colNames.has("original_color")) {
+      await db.execute(sql`ALTER TABLE shipments ADD COLUMN original_color VARCHAR(100) NULL`);
+    }
+    if (!colNames.has("original_size")) {
+      await db.execute(sql`ALTER TABLE shipments ADD COLUMN original_size VARCHAR(100) NULL`);
+    }
+
+    const [existingIdx] = await db.execute(sql`
+      SELECT DISTINCT INDEX_NAME FROM information_schema.STATISTICS
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'shipments'
+        AND INDEX_NAME = 'idx_shipments_original_product_id'
+    `);
+    const idxNames = new Set((existingIdx as unknown as any[]).map((r) => r.INDEX_NAME));
+    if (!idxNames.has("idx_shipments_original_product_id")) {
+      await db.execute(sql`ALTER TABLE shipments ADD INDEX idx_shipments_original_product_id (original_product_id)`);
+    }
+  } catch (err) {
+    logger.error({ err }, "ensureShipmentOriginalProductColumns failed");
+  }
+  logger.info("shipments original-product columns ensured");
+}
+if (IS_PRIMARY_INSTANCE) ensureShipmentOriginalProductColumns();
+
 // ─── Ensure shipping_companies.logo column exists ─────────────────────────────
 async function ensureShippingCompanyLogo() {
   try {

@@ -138,8 +138,19 @@ export const shipmentsTable = mysqlTable("shipments", {
   weight:          decimal("weight", { precision: 8, scale: 2 }), // الوزن (كجم)
   pieces:          int("pieces").default(1),                     // عدد القطع
   description:     text("description"),                          // وصف الشحنة
-  productId:       int("product_id"),                             // المنتج المرتبط بالشحنة (اختياري)
-  variantId:       int("variant_id"),                             // المتغير (لون/مقاس) المرتبط (اختياري)
+  productId:       int("product_id"),                             // المنتج المرتبط بالشحنة (اختياري) — في طلب الاستبدال، ده المنتج الجديد (البديل) اللي بيتخصم من المخزن ويتوصل للعميل
+  variantId:       int("variant_id"),                             // المتغير (لون/مقاس) المرتبط (اختياري) — بديل، زي productId فوق
+  // ── المنتج القديم (لطلبات الاستبدال فقط) ──────────────────────────────────
+  // ده المنتج اللي المندوب بياخده من العميل وقت الاستبدال — منفصل تمامًا عن
+  // productId/variantId فوق (اللي هو البديل الجديد). لما رجلة المرتجع تتقفل
+  // (returnReceived=1 بعد status=replaced)، اللي بيرجع فعليًا للمخزون هو
+  // originalProductId/originalVariantId، مش productId/variantId — لأن ده هو
+  // المنتج اللي فعلاً رجع، مش نسخة تانية من البديل. راجع syncShipmentInventory.
+  originalProductId: int("original_product_id"),
+  originalVariantId: int("original_variant_id"),
+  originalQuantity:  int("original_quantity"),                    // كمية المنتج القديم (لو مختلفة عن pieces)
+  originalColor:     varchar("original_color", { length: 100 }),
+  originalSize:      varchar("original_size",  { length: 100 }),
   warehouseId:     int("warehouse_id"),                           // المخزن المخصوم منه (اختياري)
   declaredValue:   decimal("declared_value", { precision: 12, scale: 2 }).default("0"), // القيمة المعلنة
   canOpen:         int("can_open"),                                // 1 = مسموح بفتح الشحنة، 0 = غير مسموح، null = لم يُحدد بعد

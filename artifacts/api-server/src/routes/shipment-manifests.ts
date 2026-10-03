@@ -22,6 +22,7 @@ import { requireAuth } from "../middlewares/requireAuth";
 import { getTenantId } from "../middlewares/requireTenant.js";
 import { syncShipmentInventory } from "./shipments.js";
 import { syncShipmentItemsInventory } from "../lib/inventory.js";
+import { getOriginalProductNamesByShipment } from "../lib/originalProductNames.js";
 import { syncShipmentStatusToManifests } from "../lib/manifestSync.js";
 import { broadcastUrgentToCompany } from "./representative.js";
 import { pushNotification } from "../lib/notifications.js";
@@ -209,6 +210,9 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
       warehouseNameMap = Object.fromEntries(warehouseRows.map(w => [w.id, w.name]));
     }
 
+    // ── اسم المنتج القديم في طلبات الاستبدال (لسطر المرتجع الفرعي) — استعلام واحد ──
+    const originalProductNameMap = await getOriginalProductNamesByShipment(shipments);
+
     // ── جلب أسعار المناطق (من قسم "المناطق والأسعار") دفعة واحدة لكل الشحنات في البيان ──
     const zoneIds = [...new Set(shipments.map(s => s.zoneId).filter((v): v is number => !!v))];
     let zonePriceMap: Record<number, number> = {};
@@ -309,6 +313,11 @@ router.get("/shipment-manifests/:id", async (req, res): Promise<void> => {
         // ترجع المخزن، ويعرض سطر المرتجع تحته زي الاستلام الجزئي بالظبط.
         shipmentStatus: sh?.status ?? null,
         shipmentKind:   sh?.shipmentKind ?? "new",
+        // اسم المنتج القديم (استبدال فقط) — null لو مش متسجل، والفرونت يقع على النص العام.
+        originalProductName: originalProductNameMap[item.shipmentId] ?? null,
+        originalQuantity:    sh?.originalQuantity ?? null,
+        originalColor:       sh?.originalColor ?? null,
+        originalSize:        sh?.originalSize ?? null,
         manifestRepName,
       };
     });
@@ -635,7 +644,7 @@ const UpdateItemSchema = z.object({
   // بيانات الشحنة وجدول shipments نفسه) — بنطبّعها فورًا بعد الـ parse تحت.
   // postponed ("قيد الشحن") من خيارات الفرونت إند (SHIPMENT_DELIVERY_OPTIONS) —
   // لازم تكون مقبولة هنا وإلا فشل الحفظ بـ 500 وقت اختيارها.
-  deliveryStatus: z.enum(["pending", "delivered", "returned", "delayed", "partial_delivered", "partial_received", "postponed"]),
+  deliveryStatus: z.enum(["pending", "delivered", "returned", "delayed", "partial_delivered", "partial_received", "postponed", "replaced", "parcel_picked"]),
   deliveryNote:   z.string().nullish(),
   partialQuantity: z.number().int().nullish(),
   returnReceived: z.boolean().nullish(),
@@ -656,9 +665,30 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
     const body = {
       ...parsedBody,
       deliveryStatus: (parsedBody.deliveryStatus === "partial_received" ? "partial_delivered" : parsedBody.deliveryStatus) as
-        "pending" | "delivered" | "returned" | "delayed" | "partial_delivered" | "postponed",
+        "pending" | "delivered" | "returned" | "delayed" | "partial_delivered" | "postponed" | "replaced" | "parcel_picked",
     };
     const now         = new Date();
+
+    // ─── استنتاج الحالة النوعية من نوع الشحنة ──────────────────────────────────
+    // المندوب بيختار "تسليم" واحد (مسلَّم / تم الاستبدال / تم إحضار الطرد حسب نوع
+    // الشحنة في الفرونت). هنا بنحدد الحالة النوعية الفعلية للشحنة من shipmentKind:
+    //   delivered + replacement → replaced ، delivered + pickup → parcel_picked.
+    // وبنمنع اختيار حالة نوعية على شحنة نوعها مش بتاعها.
+    {
+      const [kindRow] = await db.select({ kind: shipmentsTable.shipmentKind })
+        .from(shipmentsTable).where(eq(shipmentsTable.id, shipmentId)).limit(1);
+      const kindNow = kindRow?.kind ?? "new";
+      if (body.deliveryStatus === "delivered") {
+        if (kindNow === "replacement") body.deliveryStatus = "replaced";
+        else if (kindNow === "pickup") body.deliveryStatus = "parcel_picked";
+      } else if (body.deliveryStatus === "replaced" && kindNow !== "replacement") {
+        res.status(400).json({ error: "حالة \"تم الاستبدال\" متاحة لشحنات الاستبدال فقط" });
+        return;
+      } else if (body.deliveryStatus === "parcel_picked" && kindNow !== "pickup") {
+        res.status(400).json({ error: "حالة \"تم إحضار الطرد\" متاحة لشحنات إحضار الطرد فقط" });
+        return;
+      }
+    }
 
     // المندوب يقدر يعدّل بيانات شركته بس، وبشرط البيان يكون لسه مفتوح من ناحيته
     // (نفحص closedByRole مش status بس — لأن قفل المندوب "مؤقت" وميغيّرش status)
@@ -806,13 +836,24 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
       // بتفلتر على status="delayed" (زي كارت "مؤجل" في صفحة العميل التجاري)
       // رغم إنها فعليًا مؤجلة. postponed و delayed نفس المعنى في جدول الشحنات.
       postponed: "delayed",
+      // "تم الاستبدال"/"تم إحضار الطرد" — قيمتهم النوعية بتتسجل زي ما هي في
+      // shipments.status (مش بتتحول لـ "delivered")، عشان التفرقة تفضل محفوظة
+      // للتتبع/الإيصال/الفاتورة. مسار البيان (manifestSync) هو اللي بيعاملهم
+      // كـ"delivered" ماليًا، مش الحالة الأصلية نفسها.
+      replaced:       "replaced",
+      parcel_picked:  "parcel_picked",
     };
 
     // ربط المخزون: لو الحالة "مرتجع" أو "استلام جزئي" → نفس منطق صفحة الشحنة مباشرة
     // (deliveryStatus بتاع البيان بيستخدم "partial_delivered"، نظام المخزون بيتوقع "partial_received")
+    // "تم الاستبدال"/"تم إحضار الطرد" بتتبع نفس القاعدة (رجلة مرتجع لازم تدخل
+    // المخزون بس لما returnReceived=1) — بنمررهم بقيمتهم الأصلية زي ما هي، لأن
+    // syncShipmentInventory (المفرد) وsyncShipmentItemsInventory بيتعاملوا معاهم
+    // بالاسم replaced/parcel_picked مباشرة مش عن طريق تحويل وسيط زي returned.
     const inventoryStatus =
       body.deliveryStatus === "returned"          ? "returned" :
       body.deliveryStatus === "partial_delivered" ? "partial_received" :
+      (body.deliveryStatus === "replaced" || body.deliveryStatus === "parcel_picked") ? body.deliveryStatus :
       undefined;
 
     const shipmentPatch: Record<string, any> = {
@@ -829,7 +870,8 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
     }
     // returnReceived و returnReason بتاعين "مرتجع"/"استلام جزئي" — لازم ينعكسوا على جدول الشحنات
     // عشان صفحة الشحنات تعرض نفس التاج (ما زال عند شركة الشحن / في المخزن) من البيان
-    if (body.deliveryStatus === "returned" || body.deliveryStatus === "partial_delivered") {
+    if (body.deliveryStatus === "returned" || body.deliveryStatus === "partial_delivered" ||
+        body.deliveryStatus === "replaced" || body.deliveryStatus === "parcel_picked") {
       shipmentPatch.returnReceived = body.returnReceived == null ? null : body.returnReceived ? 1 : 0;
     } else {
       shipmentPatch.returnReceived = null;
@@ -874,7 +916,10 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
     await db.transaction(async (tx) => {
       await tx.update(shipmentManifestItemsTable)
         .set({
-          deliveryStatus: body.deliveryStatus,
+          // replaced/parcel_picked بيتخزنوا في بند البيان كـ "delivered" — الطلب اتنفّذ
+          // والفلوس اتحصّلت، فكل حسابات البيان (إيراد/شحن/عهدة) لازم تعامله كمسلَّم.
+          // الحالة النوعية الحقيقية محفوظة في shipments.status + shipmentKind.
+          deliveryStatus: (body.deliveryStatus === "replaced" || body.deliveryStatus === "parcel_picked") ? "delivered" : body.deliveryStatus,
           deliveryNote:   nextDeliveryNote,
           // العمود هو مصدر الحقيقة المالي: يفضل 1 طول ما البند no-op مُرحّل، ويترجّع 0 لو
           // رجع حيّ (فيتحسب تسليمه هنا). بنلمسه بس لو البند كان مُرحّلًا أصلًا.
@@ -888,7 +933,7 @@ router.patch("/shipment-manifests/:id/items/:shipmentId", async (req, res): Prom
           returnReceived: body.returnReceived == null ? null : body.returnReceived ? 1 : 0,
           ...(body.returnValueReceived !== undefined ? { returnValueReceived: body.returnValueReceived == null ? null : String(body.returnValueReceived) } : {}),
           ...(body.deliveredValueReceived !== undefined ? { deliveredValueReceived: body.deliveredValueReceived == null ? null : String(body.deliveredValueReceived) } : {}),
-          deliveredAt:    (body.deliveryStatus === "delivered" || body.deliveryStatus === "partial_delivered") ? now : undefined,
+          deliveredAt:    (body.deliveryStatus === "delivered" || body.deliveryStatus === "partial_delivered" || body.deliveryStatus === "replaced" || body.deliveryStatus === "parcel_picked") ? now : undefined,
         })
         .where(and(
           eq(shipmentManifestItemsTable.manifestId, manifestId),

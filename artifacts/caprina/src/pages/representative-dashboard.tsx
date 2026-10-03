@@ -28,17 +28,21 @@ import { RETURN_REASONS } from "@/lib/order-constants";
 import { applyDeliveryReadyTemplate } from "@/lib/whatsapp";
 import { ProfessionalBottomNav, type NavItem } from "@/components/professional-bottom-nav";
 import { PushNotificationsCard } from "@/pages/profile";
+import { isCompletedStatus, SHIPMENT_KIND_LABELS, getShipmentKind } from "@/lib/shipment-kind";
 
 const STATUS_LABELS: Record<string, string> = {
   waiting: "قيد الانتظار", pending: "قيد الانتظار",
   warehouse_ready: "قيد الشحن في المخزن", confirmed: "قيد الشحن في المخزن", picked_up: "قيد الشحن في المخزن",
   in_shipping: "قيد الشحن", in_transit: "قيد الشحن", out_for_delivery: "قيد الشحن",
   delivered: "استلم", received: "استلم",
+  replaced: "تم الاستبدال", parcel_picked: "تم إحضار الطرد",
   partial_received: "استلام جزئي",
   delayed: "مؤجل", returned: "مرتجع", cancelled: "مرتجع",
 };
 const STATUS_COLOR: Record<string, string> = {
   delivered: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+  replaced: "bg-violet-500/15 text-violet-400 border-violet-500/30",
+  parcel_picked: "bg-cyan-500/15 text-cyan-400 border-cyan-500/30",
   partial_received: "bg-teal-500/15 text-teal-400 border-teal-500/30",
   returned: "bg-red-500/15 text-red-400 border-red-500/30",
   cancelled: "bg-zinc-500/15 text-zinc-400 border-zinc-500/30",
@@ -54,12 +58,33 @@ const formatCurrency = (n: number) =>
 // بس بيحدّثوا shipmentsTable.status مباشرة عن طريق PATCH /shipments/:id.
 // الباك إند بيعمل sync تلقائي (syncShipmentStatusToManifests) فيحدّث deliveryStatus
 // جوه أي بيان مرتبط بنفس الشحنة، فمفيش حاجة إضافية مطلوبة هنا غير التحديث المباشر.
-const SHIPMENT_TAB_STATUS_OPTIONS: { value: string; label: string; color: string; bg: string }[] = [
-  { value: "delivered",         label: "مسلَّم ✓",   color: "text-emerald-400", bg: "border-emerald-500/40 bg-emerald-900/10" },
+//
+// ⚠️ خيار "الإنجاز" (الأول) بيتغير حسب نوع الطلب (shipmentKind):
+//   شحنة جديدة  → "مسلَّم ✓"          (delivered)
+//   طلب استبدال → "تم الاستبدال ✓"     (replaced)
+//   إحضار طرد   → "تم إحضار الطرد ✓"   (parcel_picked)
+// الباك إند كمان بيحوّل "delivered" للحالة النوعية الصح لوحده، فحتى لو الشاشة
+// دي بعتت delivered بالغلط الحالة هتتسجل صح — ده مجرد layer تاني للوضوح.
+const COMPLETION_OPTION_BY_KIND: Record<string, { value: string; label: string; color: string; bg: string }> = {
+  new:         { value: "delivered",     label: "مسلَّم ✓",         color: "text-emerald-400", bg: "border-emerald-500/40 bg-emerald-900/10" },
+  replacement: { value: "replaced",      label: "تم الاستبدال ✓",   color: "text-violet-400",  bg: "border-violet-500/40 bg-violet-900/10" },
+  pickup:      { value: "parcel_picked", label: "تم إحضار الطرد ✓", color: "text-cyan-400",    bg: "border-cyan-500/40 bg-cyan-900/10" },
+};
+
+const SHIPMENT_TAB_STATUS_OPTIONS_TAIL: { value: string; label: string; color: string; bg: string }[] = [
   { value: "partial_received",  label: "استلام جزئي", color: "text-teal-400",    bg: "border-teal-500/40 bg-teal-900/10" },
   { value: "delayed",           label: "مؤجل",        color: "text-orange-400",  bg: "border-orange-500/40 bg-orange-900/10" },
   { value: "returned",          label: "مرتجع",       color: "text-red-400",     bg: "border-red-500/40 bg-red-900/10" },
 ];
+
+function getShipmentTabStatusOptions(shipmentKind: string | null | undefined) {
+  const completion = COMPLETION_OPTION_BY_KIND[shipmentKind ?? "new"] ?? COMPLETION_OPTION_BY_KIND.new;
+  // "إحضار طرد" مالوش معنى في الاستلام الجزئي — المندوب إما جاب الطرد أو لأ.
+  const tail = shipmentKind === "pickup"
+    ? SHIPMENT_TAB_STATUS_OPTIONS_TAIL.filter(o => o.value !== "partial_received")
+    : SHIPMENT_TAB_STATUS_OPTIONS_TAIL;
+  return [completion, ...tail];
+}
 
 const RETURN_REASONS_NEED_VALUE_TAB = ["refused_paid", "quality"];
 
@@ -80,7 +105,9 @@ function ShipmentStatusEditor({ shipment, onSaved }: { shipment: any; onSaved: (
   const RETURN_REASONS_NEED_VALUE = ["refused_paid", "refused_unpaid", "quality"];
   const needsReturnValue = status === "returned" && RETURN_REASONS_NEED_VALUE.includes(returnReason);
 
-  const needsNote = status !== "delivered";
+  // الملاحظة مطلوبة في أي حالة غير حالات الإنجاز (مسلَّم / تم الاستبدال /
+  // تم إحضار الطرد) — كلهم يعتبروا "الطلب اتنفّذ" فمش محتاجين سبب.
+  const needsNote = !isCompletedStatus(status);
 
   const mutation = useMutation({
     mutationFn: () => {
@@ -156,7 +183,7 @@ function ShipmentStatusEditor({ shipment, onSaved }: { shipment: any; onSaved: (
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {SHIPMENT_TAB_STATUS_OPTIONS.map((o) => (
+                  {getShipmentTabStatusOptions(shipment.shipmentKind).map((o) => (
                     <SelectItem key={o.value} value={o.value} className="text-xs">
                       <span className={o.color}>{o.label}</span>
                     </SelectItem>
@@ -2434,6 +2461,11 @@ export function CreateManifestDialog({
     return null;
   }, [company.zoneIds]);
 
+  const { data: allZonesForFilter = [] } = useQuery<{ id: number; name: string; fromGovernorate?: string | null; toGovernorate?: string | null }[]>({
+    queryKey: ["shipment-zones"],
+    queryFn: () => apiFetch("/shipments/zones"),
+  });
+
   const availableShipments = useMemo(() => {
     if (!companyZoneIds || companyZoneIds.size === 0) return availableShipmentsAllZones;
     // فلتر صارم على مناطق المندوب: بنوسّع الـ ids لتشمل أي زون مكرر (نفس الاسم + نفس المحافظتين)
@@ -2470,11 +2502,6 @@ export function CreateManifestDialog({
       const next = new Set(selectedIds);
       filtered.forEach((s: Shipment) => next.delete(s.id));
       setSelectedIds(next);
-  const { data: allZonesForFilter = [] } = useQuery<{ id: number; name: string; fromGovernorate?: string | null; toGovernorate?: string | null }[]>({
-    queryKey: ["shipment-zones"],
-    queryFn: () => apiFetch("/shipments/zones"),
-  });
-
     } else {
       const next = new Set(selectedIds);
       filtered.forEach((s: Shipment) => next.add(s.id));

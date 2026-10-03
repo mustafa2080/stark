@@ -3475,7 +3475,15 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
                     📦 إحضار طرد
                   </span>
                 )}
-                {!isEditing && (
+                {/* رابط عكسي: طلبات الاستبدال اللي اتعملت على الشحنة دي */}
+                {Array.isArray((order as any).replacements) && (order as any).replacements.map((r: any) => (
+                  <Link key={r.id} href={`/shipments/${r.id}`}
+                    className="inline-flex items-center gap-1 text-[10px] font-bold text-purple-500 dark:text-purple-300 bg-purple-500/10 border border-purple-500/30 rounded-full px-2 py-0.5 hover:bg-purple-500/20">
+                    🔄 استبدال #{r.id}
+                  </Link>
+                ))}
+                {/* toggle قديم: بيتخفي لو الشحنة نفسها طلب استبدال (shipmentKind) عشان ماتظهرش شارتين بنفس المعنى */}
+                {!isEditing && (order as any).shipmentKind !== "replacement" && (
                   <button
                     type="button"
                     onClick={() => updateOrder.mutate({ id: order.id, data: { isReplacementRequested: (order as any).isReplacementRequested ? 0 : 1 } })}
@@ -3507,6 +3515,17 @@ tr.row-returned td{color:#aaa;text-decoration:line-through}
             className="h-8 text-xs gap-1.5 border-border bg-card hover:bg-muted">
             <Printer className="w-3.5 h-3.5" />طباعة
           </Button>
+
+          {/* إنشاء طلب استبدال لشحنة اتسلّمت — بيفتح فورمة الإنشاء متعبية ومربوطة بالشحنة دي */}
+          {canCreate
+            && ((order as any).shipmentKind ?? "new") === "new"
+            && ["delivered", "received", "partial_received"].includes(order.status) && (
+            <Button variant="outline" size="sm"
+              onClick={() => navigate(`/shipments/new?kind=replacement&from=${order.id}`)}
+              className="h-8 text-xs gap-1.5 border-violet-500/50 text-violet-500 hover:bg-violet-500/10 bg-card">
+              🔄 إنشاء استبدال
+            </Button>
+          )}
 
           {/* واتساب — للكل */}
           {(order.status === "pending" || order.status === "warehouse_ready") && (

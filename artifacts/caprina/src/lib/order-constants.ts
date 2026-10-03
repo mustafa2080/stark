@@ -29,11 +29,37 @@ export const returnReasonLabel = (
   return RETURN_REASONS.find(r => r.value === reason)?.label ?? reason;
 };
 
+/**
+ * اسم البضاعة اللي راجعة في رجلة مرتجع الاستبدال / إحضار الطرد، لعرضها في سطر
+ * المرتجع الفرعي تحت بند البيان (بيان المندوب وبيان العميل):
+ *   • استبدال + المنتج القديم متسجل → "اسم المنتج (لون / مقاس) ×كمية"
+ *   • استبدال بدون منتج متسجل / إحضار طرد → النص العام ("المنتج القديم" / "الطرد")
+ * الكمية بتتعرض بس لو > 1 عشان السطر يفضل قصير في الحالة الأشيع.
+ */
+export const returnLegItemLabel = (
+  status: string | null | undefined,
+  item?: {
+    originalProductName?: string | null;
+    originalColor?: string | null;
+    originalSize?: string | null;
+    originalQuantity?: number | null;
+  } | null,
+): string => {
+  if (status !== "replaced") return "الطرد";
+  const name = item?.originalProductName?.trim();
+  if (!name) return "المنتج القديم";
+  const variant = [item?.originalColor, item?.originalSize].filter(Boolean).join(" / ");
+  const qty = Number(item?.originalQuantity ?? 1);
+  return `${name}${variant ? ` (${variant})` : ""}${qty > 1 ? ` ×${qty}` : ""}`;
+};
+
 export const STATUS_LABELS: Record<string, string> = {
   pending:          "قيد الانتظار",
   warehouse_ready:  "قيد الشحن في المخزن",
   in_shipping:      "قيد الشحن",
   received:         "استلم",
+  replaced:         "تم الاستبدال",
+  parcel_picked:    "تم إحضار الطرد",
   partial_received: "استلام جزئي",
   delayed:          "مؤجل",
   returned:         "مرتجع",
@@ -52,6 +78,8 @@ export const STATUS_CLASSES: Record<string, string> = {
   warehouse_ready:  "bg-teal-50    dark:bg-teal-900/30    text-teal-700    dark:text-teal-400    border-teal-300    dark:border-teal-800",
   in_shipping:      "bg-sky-100    dark:bg-sky-900/40     text-sky-800     dark:text-sky-300     border-sky-400     dark:border-sky-700",
   received:         "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 border-emerald-400 dark:border-emerald-700",
+  replaced:         "bg-violet-100 dark:bg-violet-900/40  text-violet-800  dark:text-violet-300  border-violet-400  dark:border-violet-700",
+  parcel_picked:    "bg-cyan-100   dark:bg-cyan-900/40    text-cyan-800    dark:text-cyan-300    border-cyan-400    dark:border-cyan-700",
   partial_received: "bg-cyan-100   dark:bg-cyan-900/40    text-cyan-800    dark:text-cyan-300    border-cyan-400    dark:border-cyan-700",
   delayed:          "bg-blue-50    dark:bg-blue-900/30    text-blue-700    dark:text-blue-400    border-blue-300    dark:border-blue-800",
   returned:         "bg-red-100    dark:bg-red-900/40     text-red-800     dark:text-red-300     border-red-400     dark:border-red-700",

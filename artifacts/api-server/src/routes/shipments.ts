@@ -516,9 +516,12 @@ export async function syncShipmentInventory(
 
   // 2) تحول لحالة "مرتجع" → رجّع كل القطع للمخزن — فقط لما يتم تأكيد "تم الاستلام" فعليًا (returnReceived === 1)
   //    لأن المرتجع لسه عند شركة الشحن لحد ما يتأكد استلامه
+  //    ⚠️ طلب "إحضار طرد" مالوش خصم أصلاً (راجع isPickupKind فوق)، فلو المندوب
+  //    فشل يجيب الطرد وحالته بقت "مرتجع" مينفعش نرجّع للمخزن كمية ماخرجتش منه
+  //    — كان ده بيزوّد المخزون بكمية وهمية.
   const wasReturned = !!before.inventoryReturned;
 
-  if (newStatus === "returned") {
+  if (newStatus === "returned" && !isPickupKind) {
     const wasReturnReceived = before.returnReceived === 1;
     const isReturnReceivedNow = afterPatch.returnReceived === 1;
     if (isReturnReceivedNow && !wasReturnReceived && !wasReturned) {
@@ -530,7 +533,7 @@ export async function syncShipmentInventory(
   // 3) استلام جزئي → الباقي (الفرق بين القطع الكلية والمستلمة) يرجع للمخزن
   //    فقط لما يتم تأكيد "تم الاستلام" فعليًا (returnReceived === 1)، مش بمجرد تسجيل partial_received
   //    لأن الكمية الباقية لسه عند شركة الشحن لحد ما يتأكد استلامها
-  if (newStatus === "partial_received") {
+  if (newStatus === "partial_received" && !isPickupKind) {
     const wasReturnReceived = before.returnReceived === 1;
     const isReturnReceivedNow = afterPatch.returnReceived === 1;
     if (isReturnReceivedNow && !wasReturnReceived) {
@@ -1162,7 +1165,7 @@ router.get("/shipments/:id", async (req, res): Promise<void> => {
       .leftJoin(shipmentManifestsTable, eq(shipmentManifestsTable.id, shipmentManifestItemsTable.manifestId))
       .leftJoin(manifestShippingCompanyTable, eq(manifestShippingCompanyTable.id, shipmentManifestsTable.shippingCompanyId))
       .leftJoin(shipmentZonesTable, eq(shipmentsTable.zoneId, shipmentZonesTable.id))
-      .where(cond).limit(1);
+      .where(cond).orderBy(desc(shipmentManifestItemsTable.id)).limit(1);
     if (!rows.length) { res.status(404).json({ error: "الشحنة غير موجودة" }); return; }
     const row = rows[0];
     // إذا receiverCity فاضية، خد من المحافظة الخاصة بالمنطقة
@@ -1185,6 +1188,21 @@ router.get("/shipments/:id", async (req, res): Promise<void> => {
     (row as any).manifestId = manifestItem?.manifestId != null ? Number(manifestItem.manifestId) : null;
     (row as any).isUrgent   = row.isUrgent === 1 ? 1 : (manifestItem?.isUrgent != null ? Number(manifestItem.isUrgent) : 0);
     (row as any).urgentNote = row.urgentNote ?? manifestItem?.urgentNote ?? null;
+    // طلبات الاستبدال المربوطة بالشحنة دي (الرابط العكسي من الأصلية للاستبدال)
+    const replacementRows = await db
+      .select({
+        id: shipmentsTable.id,
+        shipmentNumber: shipmentsTable.shipmentNumber,
+        status: shipmentsTable.status,
+        createdAt: shipmentsTable.createdAt,
+      })
+      .from(shipmentsTable)
+      .where(tenantId !== null
+        ? and(eq(shipmentsTable.originalShipmentId, id), eq(shipmentsTable.tenantId, tenantId))
+        : eq(shipmentsTable.originalShipmentId, id))
+      .orderBy(desc(shipmentsTable.id))
+      .limit(20);
+    (row as any).replacements = replacementRows;
     res.json(row);
   } catch (e) {
     res.status(500).json({ error: "خطأ" });
@@ -1232,6 +1250,114 @@ router.post("/shipments/:id/rating", async (req, res): Promise<void> => {
   }
 });
 
+// ─── التحقق من ربط طلب الاستبدال بالشحنة الأصلية ──────────────────────────────
+// قبل كده originalShipmentId كان بيتخزن زي ما جاي من غير أي فحص: ممكن يشاور على
+// شحنة مش موجودة، أو تابعة لـ tenant تاني، أو على نفس الشحنة، أو يتعمل أكتر من
+// طلب استبدال نشط لنفس الشحنة الأصلية (والمرتجع يتسجل مرتين). الدالة دي بتقفل
+// الحالات دي كلها برسالة واضحة. بتتطبّق على طلبات الاستبدال فقط (باقي الأنواع
+// مابتخزّنش originalShipmentId أصلاً).
+const ORIGINAL_ELIGIBLE_STATUSES = ["delivered", "received", "partial_received", "replaced"];
+
+type OriginalLinkCheck =
+  | { ok: true }
+  | { ok: false; status: number; error: string; existingShipmentId?: number };
+
+async function validateOriginalShipmentLink(opts: {
+  tenantId: number | null;
+  kind: string | null | undefined;
+  originalShipmentId: number | null | undefined;
+  selfId?: number;
+}): Promise<OriginalLinkCheck> {
+  const { tenantId, kind, originalShipmentId, selfId } = opts;
+  if (kind !== "replacement" || !originalShipmentId) return { ok: true };
+
+  if (selfId && originalShipmentId === selfId) {
+    return { ok: false, status: 400, error: "لا يمكن ربط طلب الاستبدال بنفسه" };
+  }
+
+  const [orig] = await db
+    .select({ id: shipmentsTable.id, status: shipmentsTable.status })
+    .from(shipmentsTable)
+    .where(and(
+      eq(shipmentsTable.id, originalShipmentId),
+      isNull(shipmentsTable.deletedAt),
+      tenantId !== null ? eq(shipmentsTable.tenantId, tenantId) : undefined,
+    ))
+    .limit(1);
+  if (!orig) {
+    return { ok: false, status: 400, error: "الشحنة الأصلية غير موجودة" };
+  }
+  if (!ORIGINAL_ELIGIBLE_STATUSES.includes(orig.status)) {
+    return { ok: false, status: 400, error: "لا يمكن عمل استبدال إلا لشحنة تم تسليمها للعميل" };
+  }
+
+  const [dup] = await db
+    .select({ id: shipmentsTable.id, shipmentNumber: shipmentsTable.shipmentNumber })
+    .from(shipmentsTable)
+    .where(and(
+      eq(shipmentsTable.originalShipmentId, originalShipmentId),
+      eq(shipmentsTable.shipmentKind, "replacement"),
+      isNull(shipmentsTable.deletedAt),
+      sql`${shipmentsTable.status} <> 'cancelled'`,
+      selfId ? sql`${shipmentsTable.id} <> ${selfId}` : undefined,
+      tenantId !== null ? eq(shipmentsTable.tenantId, tenantId) : undefined,
+    ))
+    .limit(1);
+  if (dup) {
+    return {
+      ok: false,
+      status: 409,
+      error: `يوجد طلب استبدال نشط لنفس الشحنة الأصلية (${dup.shipmentNumber ?? `#${dup.id}`})`,
+      existingShipmentId: dup.id,
+    };
+  }
+  return { ok: true };
+}
+
+// ─── حماية تعديل نوع الطلب / الربط بالشحنة الأصلية (PUT + PATCH) ─────────────
+// shipmentKind بيتحدد وقت الإنشاء وعليه بيعتمد منطق المخزون (إحضار الطرد مفيهوش
+// خصم، الاستبدال بيرجّع المنتج القديم...). تغييره بعد ما الشحنة بدأت تتنفّذ
+// (خصم/إرجاع مخزون أو دخلت حالة إنجاز/مرتجع) كان بيبوّظ حسابات المخزون، فبنمنعه.
+// مسارين PUT/PATCH منفصلين في الملف، فالفحص هنا مرة واحدة ويتنادى من الاتنين.
+// بترجع true لو رفضت الطلب (الـ response اتبعت خلاص).
+async function rejectIfKindOrLinkInvalid(
+  res: import("express").Response,
+  tenantId: number | null,
+  existing: typeof shipmentsTable.$inferSelect,
+  d: { shipmentKind?: string | null; originalShipmentId?: number | null },
+): Promise<boolean> {
+  const currentKind = existing.shipmentKind ?? "new";
+  const kindChanging = d.shipmentKind != null && d.shipmentKind !== currentKind;
+
+  if (kindChanging) {
+    const executionStarted =
+      !!existing.inventoryDeducted ||
+      !!existing.inventoryReturned ||
+      COMPLETION_STATUSES.has(existing.status) ||
+      hasReturnLeg(existing.status);
+    if (executionStarted) {
+      res.status(400).json({ error: "لا يمكن تغيير نوع الطلب بعد بدء تنفيذ الشحنة أو تأثيرها على المخزون" });
+      return true;
+    }
+  }
+
+  const linkChanging =
+    d.originalShipmentId !== undefined && (d.originalShipmentId ?? null) !== (existing.originalShipmentId ?? null);
+  if (kindChanging || linkChanging) {
+    const check = await validateOriginalShipmentLink({
+      tenantId,
+      kind: d.shipmentKind ?? currentKind,
+      originalShipmentId: d.originalShipmentId !== undefined ? d.originalShipmentId : existing.originalShipmentId,
+      selfId: existing.id,
+    });
+    if (!check.ok) {
+      res.status(check.status).json({ error: check.error, existingShipmentId: check.existingShipmentId });
+      return true;
+    }
+  }
+  return false;
+}
+
 // ─── POST /shipments ──────────────────────────────────────────────────────────
 router.post("/shipments", async (req, res): Promise<void> => {
   try {
@@ -1241,6 +1367,15 @@ router.post("/shipments", async (req, res): Promise<void> => {
     if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
     const d = parsed.data;
+    const linkCheck = await validateOriginalShipmentLink({
+      tenantId,
+      kind: d.shipmentKind,
+      originalShipmentId: d.originalShipmentId,
+    });
+    if (!linkCheck.ok) {
+      res.status(linkCheck.status).json({ error: linkCheck.error, existingShipmentId: linkCheck.existingShipmentId });
+      return;
+    }
     const shipmentNumber = await generateShipmentNumber(tenantId);
     const now = new Date();
 
@@ -1411,6 +1546,29 @@ router.post("/shipments/bulk", async (req, res): Promise<void> => {
     const list = parsed.data.shipments;
     const now  = new Date();
 
+    // نفس فحص الشحنة الأصلية بتاع POST /shipments — ونمنع كمان تكرار نفس الشحنة
+    // الأصلية جوه نفس الدفعة (الفحص في الداتابيز ما بيشوفش اللي لسه ماتخزّنش).
+    const seenOriginals = new Set<number>();
+    for (let i = 0; i < list.length; i++) {
+      const item = list[i];
+      if (item.shipmentKind === "replacement" && item.originalShipmentId) {
+        if (seenOriginals.has(item.originalShipmentId)) {
+          res.status(400).json({ error: "نفس الشحنة الأصلية مكررة في أكتر من طلب استبدال", issues: [{ index: i + 1, field: "originalShipmentId", message: "مكررة" }] });
+          return;
+        }
+        seenOriginals.add(item.originalShipmentId);
+      }
+      const check = await validateOriginalShipmentLink({
+        tenantId,
+        kind: item.shipmentKind,
+        originalShipmentId: item.originalShipmentId,
+      });
+      if (!check.ok) {
+        res.status(check.status).json({ error: check.error, issues: [{ index: i + 1, field: "originalShipmentId", message: check.error }] });
+        return;
+      }
+    }
+
     // المناطق: نجيب receiverCity الناقصة من zone مرة واحدة لكل zoneId مميز
     const zoneIds = Array.from(new Set(list.map((d) => d.zoneId).filter((z): z is number => !!z)));
     const zoneGov = new Map<number, string | null>();
@@ -1459,6 +1617,13 @@ router.post("/shipments/bulk", async (req, res): Promise<void> => {
           productId:       d.productId   ?? undefined,
           variantId:       d.variantId   ?? undefined,
           warehouseId:     d.warehouseId ?? undefined,
+          // المنتج القديم (لطلب الاستبدال فقط) — كان بيتسقط في الإنشاء الجماعي فمرتجع
+          // الاستبدال ماكانش بيرجع للمخزن. نفس منطق POST /shipments بالظبط.
+          originalProductId: d.shipmentKind === "replacement" ? (d.originalProductId ?? undefined) : undefined,
+          originalVariantId: d.shipmentKind === "replacement" ? (d.originalVariantId ?? undefined) : undefined,
+          originalQuantity:  d.shipmentKind === "replacement" ? (d.originalQuantity  ?? undefined) : undefined,
+          originalColor:     d.shipmentKind === "replacement" ? (d.originalColor     ?? undefined) : undefined,
+          originalSize:      d.shipmentKind === "replacement" ? (d.originalSize      ?? undefined) : undefined,
           declaredValue:   String(d.declaredValue),
           canOpen:         d.canOpen === undefined || d.canOpen === null ? null : Number(d.canOpen),
           isDivisible:     d.isDivisible === undefined || d.isDivisible === null ? null : Number(d.isDivisible),
@@ -1563,6 +1728,7 @@ router.put("/shipments/:id", async (req, res): Promise<void> => {
 
     const d = parsed.data;
     if (await rejectIfReassignmentUnconfirmed(res, existingShipment, d.assignedUserId, d.confirmReassign)) return;
+    if (await rejectIfKindOrLinkInvalid(res, tenantId, existingShipment, d)) return;
     const updateData: any = { updatedAt: new Date() };
 
     if (d.status           !== undefined) updateData.status           = d.status;
@@ -1964,6 +2130,7 @@ router.patch("/shipments/:id", async (req, res): Promise<void> => {
 
     const d = parsed.data;
     if (await rejectIfReassignmentUnconfirmed(res, existingShipment, d.assignedUserId, d.confirmReassign)) return;
+    if (await rejectIfKindOrLinkInvalid(res, tenantId, existingShipment, d)) return;
     const updateData: any = { updatedAt: new Date() };
     // فتح واتساب له انتقال حالة واحد مسموح به فقط: pending/waiting →
     // warehouse_ready. لا نثق بحالة مرسلة من الواجهة في هذا المسار حتى لا

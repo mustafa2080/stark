@@ -24,7 +24,7 @@ function stepIndexForStatus(status: string): number {
   if (["pending", "waiting", "confirmed"].includes(status)) return 0;
   if (["warehouse_ready", "at_warehouse", "still_in_warehouse"].includes(status)) return 1;
   if (["in_transit", "picked_up", "out_for_delivery", "with_courier"].includes(status)) return 2;
-  if (["delivered", "received", "partial_received"].includes(status)) return 3;
+  if (["delivered", "received", "partial_received", "replaced", "parcel_picked"].includes(status)) return 3;
   return -1; // حالات خاصة (مرتجع/ملغي/متأخر) تتعامل بشكل منفصل
 }
 
@@ -66,6 +66,12 @@ function StatusTimeline({ status }: { status: string }) {
         {TIMELINE_STEPS.map((step, i) => {
           const done = i <= activeIdx;
           const Icon = step.icon;
+          // آخر خطوة بس بتتغير حسب نوع الطلب (الاستبدال/إحضار الطرد لهم
+          // ليبل مختلف عن "تم التسليم" العادي، رغم إنهم بياخدوا نفس المكان
+          // والتصميم في التايم لاين).
+          const label = i === TIMELINE_STEPS.length - 1
+            ? (status === "replaced" ? "تم الاستبدال" : status === "parcel_picked" ? "تم إحضار الطرد" : step.label)
+            : step.label;
           return (
             <div key={step.key} className="relative flex flex-col items-center gap-1.5 sm:gap-2 z-10 px-0.5" style={{ flex: 1 }}>
               <div className={cn("w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center transition-colors duration-500 shrink-0",
@@ -75,7 +81,7 @@ function StatusTimeline({ status }: { status: string }) {
                 <Icon size={16} className={cn("hidden sm:block", done ? "" : "text-muted-foreground/50")} color={done ? "#052e13" : "currentColor"} />
               </div>
               <span className={cn("text-[9px] sm:text-[11px] text-center font-bold leading-tight", done ? "text-foreground" : "text-muted-foreground/60")}>
-                {step.label}
+                {label}
               </span>
             </div>
           );

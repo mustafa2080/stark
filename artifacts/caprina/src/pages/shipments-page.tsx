@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { Link, useLocation } from "wouter";
 import { format } from "date-fns";
-import { Search, Filter, Plus, Package, CalendarDays, X, RotateCcw, MessageCircle, Trash2, CheckSquare, RefreshCw, ChevronUp, ChevronDown, Download, FileText, User, MapPin, Boxes, CreditCard, Clock, PackageCheck, Truck, CheckCircle2, ShieldAlert, AlertTriangle, Warehouse, Megaphone, UserCheck } from "lucide-react";
+import { Search, Filter, Plus, Package, CalendarDays, X, RotateCcw, RotateCw, PackagePlus, MessageCircle, Trash2, CheckSquare, RefreshCw, ChevronUp, ChevronDown, Download, FileText, User, MapPin, Boxes, CreditCard, Clock, PackageCheck, Truck, CheckCircle2, ShieldAlert, AlertTriangle, Warehouse, Megaphone, UserCheck } from "lucide-react";
 import { useUpdateOrder } from "@workspace/api-client-react";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { useDebounce } from "@/hooks/use-debounce";
@@ -52,6 +52,8 @@ const statusLabels: Record<string, string> = {
   partial_received: "استلام جزئي",
   delayed:          "مؤجل",
   returned:         "مرتجع",
+  replaced:         "تم الاستبدال",
+  parcel_picked:    "تم إحضار الطرد",
   // fallback للقيم القديمة في الـ DB
   out_for_delivery: "قيد الشحن",
   in_transit:       "قيد الشحن",
@@ -70,6 +72,8 @@ const statusClasses: Record<string, string> = {
   partial_received: "bg-cyan-100   dark:bg-cyan-900/40    text-cyan-800    dark:text-cyan-300    border-cyan-400    dark:border-cyan-700",
   delayed:          "bg-transparent text-violet-400 border-violet-400",
   returned:         "bg-red-100    dark:bg-red-900/40     text-red-800     dark:text-red-300     border-red-400     dark:border-red-700",
+  replaced:         "bg-purple-100 dark:bg-purple-900/40  text-purple-800  dark:text-purple-300  border-purple-400  dark:border-purple-700",
+  parcel_picked:    "bg-orange-100 dark:bg-orange-900/40  text-orange-800  dark:text-orange-300  border-orange-400  dark:border-orange-700",
   // fallback للقيم القديمة في الـ DB
   out_for_delivery: "bg-sky-100    dark:bg-sky-900/40     text-sky-800     dark:text-sky-300     border-sky-400     dark:border-sky-700",
   in_transit:       "bg-sky-100    dark:bg-sky-900/40     text-sky-800     dark:text-sky-300     border-sky-400     dark:border-sky-700",
@@ -88,6 +92,8 @@ const STATUS_ICONS: Record<string, React.ElementType> = {
   partial_received: AlertTriangle,
   delayed:          ShieldAlert,
   returned:         RotateCcw,
+  replaced:         RotateCw,
+  parcel_picked:    PackagePlus,
   // fallback للقيم القديمة في الـ DB
   out_for_delivery: Truck,
   in_transit:       Truck,
@@ -763,6 +769,8 @@ const EXCEL_STATUS_FILL: Record<string, string> = {
   delayed:          "FFA855F7",
   returned:         "FFEF4444",
   partial_received: "FF06B6D4",
+  replaced:         "FFC084FC",
+  parcel_picked:    "FFEA580C",
 };
 
 async function exportToExcel(
@@ -1733,6 +1741,27 @@ export default function Orders() {
                 <span className="relative z-10">شحنة جديدة</span>
               </Button>
               )}
+              {/* طلب استبدال / إحضار طرد — بيفتحوا نفس فورمة الإنشاء بنوع الطلب المحدد */}
+              {canCreate && (
+                <>
+                  <Button
+                    variant="outline"
+                    className="gap-2 font-bold text-sm border-violet-500/50 text-violet-500 hover:bg-violet-500/10"
+                    onClick={() => navigate("/shipments/new?kind=replacement")}
+                  >
+                    <RotateCw className="w-4 h-4" />
+                    <span>طلب استبدال</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="gap-2 font-bold text-sm border-cyan-500/50 text-cyan-500 hover:bg-cyan-500/10"
+                    onClick={() => navigate("/shipments/new?kind=pickup")}
+                  >
+                    <PackagePlus className="w-4 h-4" />
+                    <span>إحضار طرد</span>
+                  </Button>
+                </>
+              )}
             </>
           ))}
         </div>
@@ -1754,6 +1783,8 @@ export default function Orders() {
           delayed:          "مؤجل",
           returned:         "مرتجع",
           partial_received: "استلام جزئي",
+          replaced:         "تم الاستبدال",
+          parcel_picked:    "تم إحضار الطرد",
           // قيم قديمة في الـ DB
           waiting:          "قيد الانتظار",
           confirmed:        "قيد الشحن في المخزن",
@@ -1771,6 +1802,8 @@ export default function Orders() {
           delayed:          "99,102,241",
           returned:         "248,113,113",
           partial_received: "168,85,247",
+          replaced:         "192,132,252",
+          parcel_picked:    "251,146,60",
           // قيم قديمة — نفس الألوان
           waiting:          "251,191,36",
           confirmed:        "45,212,191",
@@ -2308,6 +2341,16 @@ export default function Orders() {
                         <TableCell className="font-mono text-xs text-primary font-bold">
                           #{order.id.toString().padStart(4,"0")}
                           {o.shipmentNumber && <div className="text-[9px] text-muted-foreground">{o.shipmentNumber}</div>}
+                          {o.shipmentKind === "replacement" && (
+                            <span className="mt-0.5 inline-flex items-center gap-0.5 rounded-full border border-purple-500/30 bg-purple-500/10 px-1.5 py-0 text-[9px] font-bold text-purple-500 dark:text-purple-300">
+                              🔄 استبدال{o.originalShipmentId ? ` (#${o.originalShipmentId})` : ""}
+                            </span>
+                          )}
+                          {o.shipmentKind === "pickup" && (
+                            <span className="mt-0.5 inline-flex items-center gap-0.5 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-1.5 py-0 text-[9px] font-bold text-cyan-500 dark:text-cyan-300">
+                              📦 إحضار طرد
+                            </span>
+                          )}
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">{format(new Date(order.createdAt), "yyyy/MM/dd")}</TableCell>
                         <TableCell className="text-sm font-semibold">

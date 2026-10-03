@@ -80,7 +80,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBrand } from "@/contexts/BrandContext";
 import { format } from "date-fns";
-import { RETURN_REASONS, returnReasonLabel } from "@/lib/order-constants";
+import { RETURN_REASONS, returnReasonLabel, returnLegItemLabel } from "@/lib/order-constants";
 
 const formatCurrency = (n: number | string | null | undefined) =>
   new Intl.NumberFormat("ar-EG", {
@@ -98,12 +98,16 @@ const DELIVERY_OPTIONS: { value: DeliveryStatus; label: string; color: string; b
 ];
 
 // ─── خيارات حالة التسليم لبيانات الشحنات (shipment manifests) ────────────────
-// تشمل كل قيم DeliveryStatus السبعة لتجنب الرجوع للقيمة الافتراضية الخاطئة (fallback)
+// تشمل كل قيم DeliveryStatus لتجنب الرجوع للقيمة الافتراضية الخاطئة (fallback).
+// "replaced"/"parcel_picked" خيارات تقفيل مخصصة لشحنات الاستبدال/إحضار الطرد —
+// بتتفلتر تحت في getOptionsForOrder حسب shipmentKind بتاع الشحنة نفسها.
 const SHIPMENT_DELIVERY_OPTIONS: { value: DeliveryStatus; label: string; color: string; bg: string }[] = [
   { value: "pending",           label: "قيد الانتظار", color: "text-muted-foreground",                                 bg: "border-border" },
   { value: "delivered",         label: "مسلَّم ✓",      color: "text-emerald-700 dark:text-emerald-400",                bg: "border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/20" },
   { value: "partial_delivered", label: "مسلَّم جزئي",   color: "text-teal-700 dark:text-teal-400",                     bg: "border-teal-300 dark:border-teal-700 bg-teal-50 dark:bg-teal-900/20" },
   { value: "delayed",           label: "مؤجل",          color: "text-orange-700  dark:text-orange-400",                bg: "border-orange-300  dark:border-orange-700  bg-orange-50  dark:bg-orange-900/20" },
+  { value: "replaced",          label: "تم الاستبدال",  color: "text-violet-700  dark:text-violet-400",                bg: "border-violet-300  dark:border-violet-700  bg-violet-50  dark:bg-violet-900/20" },
+  { value: "parcel_picked",     label: "تم إحضار الطرد", color: "text-cyan-700    dark:text-cyan-400",                 bg: "border-cyan-300    dark:border-cyan-700    bg-cyan-50    dark:bg-cyan-900/20" },
   { value: "returned",          label: "مرتجع",         color: "text-red-700     dark:text-red-400",                   bg: "border-red-300     dark:border-red-700     bg-red-50     dark:bg-red-900/20" },
 ];
 
@@ -172,9 +176,39 @@ function getShipmentShippingCost(order: any, company: any, zones: Array<{ id: nu
   return company?.shippingCost != null ? Number(company.shippingCost) : 0;
 }
 
-const deliveryOpt = (v: DeliveryStatus, isShipmentManifest = false) => {
+// الحالة اللي بتتعرض/تتختار في الـ UI. في بيان الشحنات بند الاستبدال/إحضار الطرد
+// بيتخزن ماليًا "delivered"، فبنرجّعه هنا لحالته النوعية حسب shipmentKind عشان
+// المندوب يشوف "تم الاستبدال"/"تم إحضار الطرد" بدل "مسلَّم". الحسابات المالية
+// بتفضل تقرا order.deliveryStatus الأصلي ("delivered") من غير أي تغيير.
+const uiStatusFor = (order: any, isShipmentManifest: boolean): DeliveryStatus => {
+  const st = order?.deliveryStatus as DeliveryStatus;
+  if (isShipmentManifest && st === "delivered") {
+    if (order?.shipmentKind === "replacement") return "replaced";
+    if (order?.shipmentKind === "pickup") return "parcel_picked";
+  }
+  return st;
+};
+
+const deliveryOpt = (v: DeliveryStatus, isShipmentManifest = false, order?: any) => {
   const list = isShipmentManifest ? SHIPMENT_DELIVERY_OPTIONS : DELIVERY_OPTIONS;
-  return list.find((o) => o.value === v) ?? list[0];
+  const effective = order ? uiStatusFor({ ...order, deliveryStatus: v }, isShipmentManifest) : v;
+  return list.find((o) => o.value === effective) ?? list[0];
+};
+
+// خيارات التسليم المتاحة للمندوب حسب نوع الشحنة (بيان الشحنات فقط):
+//   جديدة: مسلَّم / مسلَّم جزئي / مؤجل / مرتجع
+//   استبدال: تم الاستبدال / مؤجل / مرتجع
+//   إحضار طرد: تم إحضار الطرد / مؤجل / مرتجع
+// لو البند الحالي حالته خارج القايمة (بيانات قديمة) بنسيبها ظاهرة عشان الـ Select مايبوظش.
+const getOptionsForOrder = (order: any, currentStatus?: DeliveryStatus) => {
+  const kind = order?.shipmentKind;
+  const allowed: DeliveryStatus[] =
+    kind === "replacement" ? ["replaced", "delayed", "returned"] :
+    kind === "pickup"      ? ["parcel_picked", "delayed", "returned"] :
+                             ["delivered", "partial_delivered", "delayed", "returned"];
+  return SHIPMENT_DELIVERY_OPTIONS.filter(
+    (o) => o.value !== "pending" && (allowed.includes(o.value) || o.value === currentStatus),
+  );
 };
 
 function OrderDeliveryRow({
@@ -195,7 +229,7 @@ function OrderDeliveryRow({
   const { toast } = useToast();
   const { isAdmin } = useAuth();
   const [editing, setEditing] = useState(false);
-  const [status, setStatus] = useState<DeliveryStatus>(order.deliveryStatus);
+  const [status, setStatus] = useState<DeliveryStatus>(uiStatusFor(order, isShipmentManifest));
   const [note, setNote] = useState(order.deliveryNote ?? "");
   const [partialQty, setPartialQty] = useState(
     order.partialQuantity?.toString() ?? ""
@@ -227,7 +261,7 @@ function OrderDeliveryRow({
   // مزامنة الـ state مع الـ prop بعد كل refetch
   useEffect(() => {
     if (!editing) {
-      setStatus(order.deliveryStatus);
+      setStatus(uiStatusFor(order, isShipmentManifest));
       setNote(order.deliveryNote ?? "");
       setPartialQty(order.partialQuantity?.toString() ?? "");
       setReturnReceived(
@@ -242,7 +276,7 @@ function OrderDeliveryRow({
           : null
       );
     }
-  }, [order.deliveryStatus, order.deliveryNote, order.partialQuantity, (order as any).returnReceived, (order as any).returnValueReceived, (order as any).deliveredValueReceived, editing]);
+  }, [order.deliveryStatus, (order as any).shipmentKind, order.deliveryNote, order.partialQuantity, (order as any).returnReceived, (order as any).returnValueReceived, (order as any).deliveredValueReceived, editing]);
 
   const cancelMutation = useMutation({
     mutationFn: () =>
@@ -291,8 +325,13 @@ function OrderDeliveryRow({
         // ناقصة من هنا، فكانت بتترجم لـ"pending" بصمت مع partialQuantity=null، يعني
         // القيمة المستلمة فعليًا (زي 1000ج.م) كانت بتتسجل في شيت المندوب لكن تضيع
         // تمامًا من رصيد العميل المستحق (سبب فرق الخزنة الفعلية عن الرصيد المستحق).
-        const allowed = ["pending","delivered","partial_delivered","partial_received","returned","delayed","postponed"] as const;
-        const safeStatus = allowed.includes(status as any) ? status as "pending"|"delivered"|"partial_delivered"|"partial_received"|"returned"|"delayed"|"postponed" : "pending";
+        const allowed = ["pending","delivered","partial_delivered","partial_received","returned","delayed","postponed","replaced","parcel_picked"] as const;
+        const safeStatus = allowed.includes(status as any) ? status as "pending"|"delivered"|"partial_delivered"|"partial_received"|"returned"|"delayed"|"postponed"|"replaced"|"parcel_picked" : "pending";
+        // "replaced"/"parcel_picked" بيتعاملوا زي "returned" بالظبط من ناحية تتبّع
+        // رجوع البضاعة (returnReceived) — دي رجلة المرتجع (المنتج القديم/الطرد)
+        // اللي لازم ترجع المخزن؛ الفرق إن الحالة الظاهرة "تم الاستبدال"/"تم إحضار
+        // الطرد" مش "مرتجع"، عشان الطلب اتنفذ فعليًا ومحصّلش زي المرتجع العادي.
+        const isReplacementLeg = safeStatus === "replaced" || safeStatus === "parcel_picked";
         return shipmentManifestsApi.updateItem(manifestId, order.shipmentId, {
           deliveryStatus: safeStatus,
           deliveryNote: finalNote,
@@ -302,7 +341,7 @@ function OrderDeliveryRow({
               ? parseInt(partialQty)
               : null,
           returnReceived:
-            status === "returned" ? returnReceived :
+            status === "returned" || isReplacementLeg ? returnReceived :
             (status === "partial_delivered" || status === "partial_received") ? partialReturnReceived :
             null,
           returnReason: status === "returned" ? (returnReason || null) : null,
@@ -334,18 +373,18 @@ function OrderDeliveryRow({
       toast({ title: "خطأ", description: e.message, variant: "destructive" }),
   });
 
-  const opt = deliveryOpt(order.deliveryStatus, isShipmentManifest);
+  const opt = deliveryOpt(order.deliveryStatus, isShipmentManifest, order);
   const needsNote = status === "postponed" || status === "returned" || status === "delayed";
   const needsPartial = status === "partial_received" || status === "partial_delivered";
 
   const hasChanges =
-    status !== order.deliveryStatus ||
+    status !== uiStatusFor(order, isShipmentManifest) ||
     note !== (order.deliveryNote ?? "") ||
     ((status === "partial_received" || status === "partial_delivered") &&
       partialQty !== (order.partialQuantity?.toString() ?? "")) ||
     (status === "partial_received" &&
       partialReturnReceived !== ((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null)) ||
-    (status === "returned" &&
+    ((status === "returned" || status === "replaced" || status === "parcel_picked") &&
       returnReceived !== ((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null)) ||
     (status === "delivered" &&
       deliveredValueReceived !== ((order as any).deliveredValueReceived != null ? String((order as any).deliveredValueReceived) : "")) ||
@@ -452,11 +491,11 @@ function OrderDeliveryRow({
           {((order as any).shipmentStatus === "replaced" || (order as any).shipmentStatus === "parcel_picked") && (
             (order as any).returnReceived === 1 ? (
               <p className="text-[10px] text-emerald-600 mt-0.5 font-semibold">
-                ↩ {(order as any).shipmentStatus === "replaced" ? "المنتج القديم" : "الطرد"} في مخزن {(order as any).warehouseName || "—"}
+                ↩ {returnLegItemLabel((order as any).shipmentStatus, order as any)} في مخزن {(order as any).warehouseName || "—"}
               </p>
             ) : (
               <p className="text-[10px] text-orange-400 mt-0.5 font-semibold">
-                🚚 {(order as any).shipmentStatus === "replaced" ? "المنتج القديم" : "الطرد"} ما زال مع المندوب
+                🚚 {returnLegItemLabel((order as any).shipmentStatus, order as any)} ما زال مع المندوب
               </p>
             )
           )}
@@ -476,18 +515,18 @@ function OrderDeliveryRow({
           )}
           {(order.deliveryStatus === "delayed" || order.deliveryStatus === "postponed") && !editing && (
             <>
-              <p className="text-[10px] text-orange-400 mt-0.5 font-semibold truncate max-w-[110px]">
+              <p className="text-[10px] text-orange-400 mt-0.5 font-semibold leading-snug break-words">
                 ⏸ {order.deliveryNote || "لم يحدد السبب"}
               </p>
               {(order as any).manifestRepName && (
-                <p className="text-[10px] text-blue-500 dark:text-blue-300 mt-0.5 font-semibold truncate max-w-[110px]">
+                <p className="text-[10px] text-blue-500 dark:text-blue-300 mt-0.5 font-semibold leading-snug break-words">
                   🚚 مع {(order as any).manifestRepName}
                 </p>
               )}
             </>
           )}
           {order.deliveryStatus !== "delayed" && order.deliveryStatus !== "postponed" && order.deliveryNote && !editing && (
-            <p className="text-[10px] text-muted-foreground mt-0.5 truncate max-w-[110px]">
+            <p className="text-[10px] text-muted-foreground mt-0.5 leading-snug break-words">
               {order.deliveryNote}
             </p>
           )}
@@ -502,7 +541,7 @@ function OrderDeliveryRow({
                 className="h-6 text-[10px] px-1.5 text-muted-foreground"
                 onClick={() => {
                   setEditing(false);
-                  setStatus(order.deliveryStatus);
+                  setStatus(uiStatusFor(order, isShipmentManifest));
                   setNote(order.deliveryNote ?? "");
                   setPartialProduct("");
                   setPartialQty(order.partialQuantity?.toString() ?? "");
@@ -521,7 +560,7 @@ function OrderDeliveryRow({
                 size="sm"
                 className="h-6 text-[10px] px-1.5 text-primary hover:text-primary"
                 onClick={() => {
-                  setStatus(order.deliveryStatus);
+                  setStatus(uiStatusFor(order, isShipmentManifest));
                   setNote(order.deliveryNote ?? "");
                   setPartialQty(order.partialQuantity?.toString() ?? "");
                   setReturnReceived((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null);
@@ -649,12 +688,12 @@ function OrderDeliveryRow({
           <div className="flex justify-end">
             {editing ? (
               <Button variant="ghost" size="sm" className="h-6 text-[10px] px-1.5 text-muted-foreground"
-                onClick={() => { setEditing(false); setStatus(order.deliveryStatus); setNote(order.deliveryNote ?? ""); setPartialProduct(""); setPartialQty(order.partialQuantity?.toString() ?? ""); setReturnReceived((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null); setPartialReturnReceived(order.deliveryStatus === "partial_received" ? ((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null) : null); setReturnValueReceived((order as any).returnValueReceived != null ? String((order as any).returnValueReceived) : ""); setDeliveredValueReceived((order as any).deliveredValueReceived != null ? String((order as any).deliveredValueReceived) : ""); }}>
+                onClick={() => { setEditing(false); setStatus(uiStatusFor(order, isShipmentManifest)); setNote(order.deliveryNote ?? ""); setPartialProduct(""); setPartialQty(order.partialQuantity?.toString() ?? ""); setReturnReceived((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null); setPartialReturnReceived(order.deliveryStatus === "partial_received" ? ((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null) : null); setReturnValueReceived((order as any).returnValueReceived != null ? String((order as any).returnValueReceived) : ""); setDeliveredValueReceived((order as any).deliveredValueReceived != null ? String((order as any).deliveredValueReceived) : ""); }}>
                 <X className="w-3 h-3" />
               </Button>
             ) : (
               <Button variant="ghost" size="sm" className="h-6 text-[10px] px-1.5 text-primary hover:text-primary"
-                onClick={() => { setStatus(order.deliveryStatus); setNote(order.deliveryNote ?? ""); setPartialQty(order.partialQuantity?.toString() ?? ""); setReturnReceived((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null); setPartialReturnReceived(order.deliveryStatus === "partial_received" ? ((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null) : null); setReturnValueReceived((order as any).returnValueReceived != null ? String((order as any).returnValueReceived) : ""); setDeliveredValueReceived((order as any).deliveredValueReceived != null ? String((order as any).deliveredValueReceived) : ""); setEditing(true); }}>
+                onClick={() => { setStatus(uiStatusFor(order, isShipmentManifest)); setNote(order.deliveryNote ?? ""); setPartialQty(order.partialQuantity?.toString() ?? ""); setReturnReceived((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null); setPartialReturnReceived(order.deliveryStatus === "partial_received" ? ((order as any).returnReceived === 1 ? true : (order as any).returnReceived === 0 ? false : null) : null); setReturnValueReceived((order as any).returnValueReceived != null ? String((order as any).returnValueReceived) : ""); setDeliveredValueReceived((order as any).deliveredValueReceived != null ? String((order as any).deliveredValueReceived) : ""); setEditing(true); }}>
                 <Edit2 className="w-3 h-3 ml-0.5" />تقفيل
               </Button>
             )}
@@ -684,7 +723,7 @@ function OrderDeliveryRow({
                 </SelectTrigger>
                 <SelectContent>
                   {(isShipmentManifest
-                    ? SHIPMENT_DELIVERY_OPTIONS.filter((o) => o.value !== "pending")
+                    ? getOptionsForOrder(order, status)
                     : DELIVERY_OPTIONS.filter((o) => o.value !== "partial_received" || Number(order.quantity ?? 0) > 1)
                   ).map((o) => (
                     <SelectItem key={o.value} value={o.value} className="text-xs">
@@ -877,6 +916,36 @@ function OrderDeliveryRow({
               )}
             </div>
           )}
+          {/* حالة رجوع بضاعة رجلة الاستبدال/إحضار الطرد — نفس فكرة "حالة الاستلام"
+              فوق بس من غير سبب إرجاع ولا قيمة مستلمة، لأن الطلب اتنفذ ومحصّلش */}
+          {(status === "replaced" || status === "parcel_picked") && (
+            <div className="flex flex-wrap gap-2 items-end">
+              <div>
+                <Label className="text-[10px] mb-1 block text-muted-foreground">
+                  {status === "replaced" ? "حالة المنتج القديم *" : "حالة الطرد *"}
+                </Label>
+                <Select
+                  value={returnReceived === true ? "received" : returnReceived === false ? "at_shipping" : ""}
+                  onValueChange={v => setReturnReceived(v === "received" ? true : v === "at_shipping" ? false : null)}
+                >
+                  <SelectTrigger className={`h-8 text-xs w-52 bg-background ${status === "replaced" ? "border-violet-800/60 focus:ring-violet-700" : "border-cyan-800/60 focus:ring-cyan-700"}`}>
+                    <SelectValue placeholder="اختر الحالة... *" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="received" className="text-xs">
+                      <span className="text-emerald-600 dark:text-emerald-400">↩ رجعت المخزن</span>
+                    </SelectItem>
+                    <SelectItem value="at_shipping" className="text-xs">
+                      <span className="text-orange-600 dark:text-orange-400">🚚 لسه مع المندوب — سيُرحَّل</span>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {returnReceived === null && (
+                <p className="text-[10px] text-destructive w-full">⚠ يجب اختيار حالة {status === "replaced" ? "المنتج القديم" : "الطرد"} قبل الحفظ</p>
+              )}
+            </div>
+          )}
           <div>
             <Label className="text-[10px] mb-1 block text-muted-foreground">
               {needsNote ? "سبب / ملاحظة (مطلوب)" : "ملاحظة (اختياري)"}
@@ -919,7 +988,7 @@ function OrderDeliveryRow({
                 (needsNote && !note.trim()) ||
                 (needsPartial && (partialQty === "")) ||
                 (needsPartial && parseInt(partialQty) > (status === "partial_delivered" && isShipmentManifest ? Number(order.totalPrice ?? 0) : Number(order.quantity ?? 0))) ||
-                (status === "returned" && returnReceived === null) ||
+                ((status === "returned" || status === "replaced" || status === "parcel_picked") && returnReceived === null) ||
                 (needsReturnValue && returnValueReceived.trim() === "") ||
                 ((status === "partial_received" || status === "partial_delivered") && partialReturnReceived === null)
               }
@@ -1142,7 +1211,7 @@ function InvoiceGroupDeliveryRow({
   // حالة المجموعة: لو كل الطلبات بنفس الحالة → اعرضها
   // لو مختلطة بين partial_received و pending/postponed → partial_received (بعض المنتجات استُلمت وبعضها لا)
   // وإلا → "pending"
-  const statuses = [...new Set(group.map(o => o.deliveryStatus))];
+  const statuses = [...new Set(group.map(o => uiStatusFor(o, isShipmentManifest)))];
   const hasMixedPartial = statuses.includes("partial_received") && statuses.every(s => s === "partial_received" || s === "pending" || s === "postponed");
   const groupStatus: DeliveryStatus = statuses.length === 1
     ? statuses[0] as DeliveryStatus
@@ -1175,7 +1244,7 @@ function InvoiceGroupDeliveryRow({
 
   // لكل منتج في الفاتورة: حالة مستقلة — نستخدم o.id كـ key
   const [perOrderStatus, setPerOrderStatus] = useState<Record<number, DeliveryStatus>>(
-    Object.fromEntries(group.map(o => [o.id, o.deliveryStatus as DeliveryStatus]))
+    Object.fromEntries(group.map(o => [o.id, uiStatusFor(o, isShipmentManifest)]))
   );
   const [partialQtyMap, setPartialQtyMap] = useState<Record<number, string>>(
     Object.fromEntries(group.map(o => [o.id, o.partialQuantity?.toString() ?? ""]))
@@ -1233,7 +1302,7 @@ function InvoiceGroupDeliveryRow({
       setBulkReturnReason((rep as any).returnReason ?? "");
       setBulkReturnValueReceived((rep as any).returnValueReceived != null ? String((rep as any).returnValueReceived) : "");
       setBulkDeliveredValueReceived((rep as any).deliveredValueReceived != null ? String((rep as any).deliveredValueReceived) : "");
-      setPerOrderStatus(Object.fromEntries(group.map(o => [o.id, o.deliveryStatus as DeliveryStatus])));
+      setPerOrderStatus(Object.fromEntries(group.map(o => [o.id, uiStatusFor(o, isShipmentManifest)])));
       setPartialQtyMap(Object.fromEntries(group.map(o => [o.id, o.partialQuantity?.toString() ?? ""])));
       const serverPartialReturn = group[0]?.returnReceived === 1 ? true : group[0]?.returnReceived === 0 ? false : null;
       setPartialReturnReceived(groupStatus === "partial_received" && serverPartialReturn === null ? false : serverPartialReturn);
@@ -1323,13 +1392,17 @@ function InvoiceGroupDeliveryRow({
           // لازم تشمل كل قيم SHIPMENT_DELIVERY_OPTIONS (خصوصًا "postponed" = قيد الشحن)
           // وإلا اختيار "قيد الشحن" من التعديل الجماعي كان بيترجم بصمت لـ "pending"
           // قبل حتى ما يوصل للباك إند (نفس مشكلة الصف الفردي القديمة، لكن منسية هنا).
-          const allowedSt = ["pending","delivered","partial_delivered","returned","delayed","postponed"] as const;
-          const safeSt = allowedSt.includes(finalStatus as any) ? finalStatus as "pending"|"delivered"|"partial_delivered"|"returned"|"delayed"|"postponed" : "pending";
+          const allowedSt = ["pending","delivered","partial_delivered","returned","delayed","postponed","replaced","parcel_picked"] as const;
+          const safeSt = allowedSt.includes(finalStatus as any) ? finalStatus as "pending"|"delivered"|"partial_delivered"|"returned"|"delayed"|"postponed"|"replaced"|"parcel_picked" : "pending";
+          // "replaced"/"parcel_picked" بيستخدموا نفس bulkReturnReceived زي "returned"
+          // بالظبط — رجلة المرتجع (المنتج القديم/الطرد) لازم تتحدد حالتها في التعديل
+          // الجماعي برضو، مش بس الفردي.
+          const isBulkReplacementLeg = safeSt === "replaced" || safeSt === "parcel_picked";
           await shipmentManifestsApi.updateItem(manifestId, order.shipmentId, {
             deliveryStatus: safeSt,
             deliveryNote: bulkNote.trim() || null,
             partialQuantity: safeSt === "partial_delivered" ? finalPartialQty : null,
-            returnReceived: safeSt === "returned" ? bulkReturnReceived : null,
+            returnReceived: safeSt === "returned" || isBulkReplacementLeg ? bulkReturnReceived : null,
             returnReason: safeSt === "returned" ? (bulkReturnReason.trim() || null) : null,
             returnValueReceived: safeSt === "returned" && bulkNeedsReturnValue ? Number(bulkReturnValueReceived) : null,
             deliveredValueReceived:
@@ -1392,7 +1465,7 @@ function InvoiceGroupDeliveryRow({
         {/* Row — ديسكتوب فقط */}
         <div
           dir="rtl"
-          className="hidden sm:grid grid-cols-[28px_90px_minmax(0,0.65fr)_88px_84px_minmax(0,1.65fr)_72px_64px_64px_100px_90px] gap-0 items-start py-2.5 text-xs"
+          className="hidden sm:grid grid-cols-[28px_90px_minmax(0,0.65fr)_88px_84px_minmax(0,1.65fr)_72px_64px_64px_minmax(150px,1.3fr)_minmax(140px,1.3fr)] gap-0 items-start py-2.5 text-xs"
         >
           {/* تحديد */}
           <div className="flex items-center justify-center pt-0.5" onClick={e => e.stopPropagation()}>
@@ -1441,10 +1514,10 @@ function InvoiceGroupDeliveryRow({
               <p className="text-muted-foreground/40 text-[10px]">—</p>
             )}
           </div>
-          {/* العنوان التفصيلي */}
-          <div className="flex min-w-0 px-1.5 items-start overflow-hidden">
+          {/* العنوان التفصيلي — يظهر كامل دايمًا حتى لو الصف طال، من غير قص */}
+          <div className="flex min-w-0 px-1.5 items-start">
             {(rep as any).address ? (
-              <p className="text-[10px] leading-relaxed text-foreground/80 truncate">{(rep as any).address}</p>
+              <p className="text-[10px] leading-relaxed text-foreground/80 whitespace-normal break-words">{(rep as any).address}</p>
             ) : (
               <p className="text-muted-foreground/40 text-[10px]">—</p>
             )}
@@ -1484,12 +1557,12 @@ function InvoiceGroupDeliveryRow({
                   حالات متعددة
                 </Badge>
                 {group.map(o => {
-                  const opt = deliveryOpt(o.deliveryStatus as DeliveryStatus, isShipmentManifest);
+                  const opt = deliveryOpt(o.deliveryStatus as DeliveryStatus, isShipmentManifest, o);
                   const label = (o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") && o.partialQuantity
                     ? `×${o.partialQuantity}/${o.quantity} — ${formatCurrency(o.totalPrice ?? 0)}`
                     : formatCurrency(o.totalPrice ?? 0);
                   return (
-                    <p key={o.id} className={`text-[9px] truncate max-w-[110px] font-medium ${opt.color}`}>
+                    <p key={o.id} className={`text-[9px] leading-snug break-words font-medium ${opt.color}`}>
                       {o.deliveryStatus === "delivered" ? "✓" :
                        o.deliveryStatus === "returned" ? "✕" :
                        (o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") ? "◑" :
@@ -1504,7 +1577,7 @@ function InvoiceGroupDeliveryRow({
                   {displayOpt.label}
                 </Badge>
                 {group.filter(o => (displayPartialQtyMap[o.id] ?? 0) > 0).map(o => (
-                  <p key={o.id} className="text-[9px] text-teal-600 dark:text-teal-400 truncate max-w-[110px]">
+                  <p key={o.id} className="text-[9px] text-teal-600 dark:text-teal-400 leading-snug break-words">
                     ◑ ×{displayPartialQtyMap[o.id]} — {formatCurrency(o.totalPrice ?? 0)}
                   </p>
                 ))}
@@ -1593,7 +1666,7 @@ function InvoiceGroupDeliveryRow({
                       setBulkStatus(groupStatus);
                       setBulkNote(rep.deliveryNote ?? "");
                       setPartialQtyMap(Object.fromEntries(group.map(o => [o.id, o.partialQuantity?.toString() ?? ""])));
-                      setPerOrderStatus(Object.fromEntries(group.map(o => [o.id, o.deliveryStatus as DeliveryStatus])));
+                      setPerOrderStatus(Object.fromEntries(group.map(o => [o.id, uiStatusFor(o, isShipmentManifest)])));
                       setBulkReturnReceived((rep as any).returnReceived === 1 ? true : (rep as any).returnReceived === 0 ? false : null);
                       const existingPartialReturn = (rep as any).returnReceived === 1 ? true : (rep as any).returnReceived === 0 ? false : null;
                       setPartialReturnReceived(groupStatus === "partial_received" && existingPartialReturn === null ? false : existingPartialReturn);
@@ -1634,7 +1707,7 @@ function InvoiceGroupDeliveryRow({
           {/* ملاحظات */}
           <div className="flex min-w-0 px-1.5 items-start overflow-hidden">
             {rep.deliveryNote ? (
-              <p className="text-[10px] leading-relaxed text-foreground/80 truncate">{rep.deliveryNote}</p>
+              <p className="text-[10px] leading-snug text-foreground/80 break-words">{rep.deliveryNote}</p>
             ) : (
               <p className="text-muted-foreground/40 text-[10px]">—</p>
             )}
@@ -1690,7 +1763,7 @@ function InvoiceGroupDeliveryRow({
                     حالات متعددة
                   </Badge>
                   {group.map(o => {
-                    const opt = deliveryOpt(o.deliveryStatus as DeliveryStatus, isShipmentManifest);
+                    const opt = deliveryOpt(o.deliveryStatus as DeliveryStatus, isShipmentManifest, o);
                     const label = (o.deliveryStatus === "partial_received" || o.deliveryStatus === "partial_delivered") && o.partialQuantity
                       ? `×${o.partialQuantity}/${o.quantity} — ${formatCurrency(o.totalPrice ?? 0)}`
                       : formatCurrency(o.totalPrice ?? 0);
@@ -1750,7 +1823,7 @@ function InvoiceGroupDeliveryRow({
                     setBulkStatus(groupStatus);
                     setBulkNote(rep.deliveryNote ?? "");
                     setPartialQtyMap(Object.fromEntries(group.map(o => [o.id, o.partialQuantity?.toString() ?? ""])));
-                    setPerOrderStatus(Object.fromEntries(group.map(o => [o.id, o.deliveryStatus as DeliveryStatus])));
+                    setPerOrderStatus(Object.fromEntries(group.map(o => [o.id, uiStatusFor(o, isShipmentManifest)])));
                     setBulkReturnReceived((rep as any).returnReceived === 1 ? true : (rep as any).returnReceived === 0 ? false : null);
                     const existingPartialReturn = (rep as any).returnReceived === 1 ? true : (rep as any).returnReceived === 0 ? false : null;
                     setPartialReturnReceived(groupStatus === "partial_received" && existingPartialReturn === null ? false : existingPartialReturn);
@@ -1785,7 +1858,7 @@ function InvoiceGroupDeliveryRow({
                   </SelectTrigger>
                   <SelectContent>
                     {(isShipmentManifest
-                      ? SHIPMENT_DELIVERY_OPTIONS.filter((o) => o.value !== "pending")
+                      ? getOptionsForOrder(rep, bulkStatus)
                       : DELIVERY_OPTIONS.filter((o) => {
                           if (o.value !== "partial_received") return true;
                           // أظهر "استلام جزئي" فقط لو الكمية الكلية للمجموعة أكتر من 1
@@ -2079,10 +2152,13 @@ function InvoiceGroupDeliveryRow({
               );
             })()}
 
-            {/* حالة استلام المرتجع — تظهر فقط لما المستخدم يختار "مرتجع" */}
-            {bulkStatus === "returned" && (
+            {/* حالة استلام المرتجع — تظهر لما المستخدم يختار "مرتجع"، وكمان
+                "تم الاستبدال"/"تم إحضار الطرد" (بس من غير سبب إرجاع/قيمة مستلمة
+                لأن الطلب اتنفذ ومحصّلش زي المرتجع العادي) */}
+            {(bulkStatus === "returned" || bulkStatus === "replaced" || bulkStatus === "parcel_picked") && (
               <div className="space-y-2">
-                {/* سبب الإرجاع */}
+                {/* سبب الإرجاع — للمرتجع فقط */}
+                {bulkStatus === "returned" && (
                 <div className="w-full sm:w-auto">
                   <Label className="text-[10px] mb-1 block text-muted-foreground">سبب الإرجاع</Label>
                   <Select value={bulkReturnReason} onValueChange={setBulkReturnReason}>
@@ -2096,7 +2172,8 @@ function InvoiceGroupDeliveryRow({
                     </SelectContent>
                   </Select>
                 </div>
-                {bulkNeedsReturnValue && (
+                )}
+                {bulkStatus === "returned" && bulkNeedsReturnValue && (
                   <div className="w-full sm:w-auto">
                     <Label className="text-[10px] mb-1 block text-muted-foreground">القيمة المستلمة فعليًا *</Label>
                     <Input
@@ -2108,12 +2185,14 @@ function InvoiceGroupDeliveryRow({
                     />
                   </div>
                 )}
-                {bulkNeedsReturnValue && bulkReturnValueReceived.trim() === "" && (
+                {bulkStatus === "returned" && bulkNeedsReturnValue && bulkReturnValueReceived.trim() === "" && (
                   <p className="text-[10px] text-destructive font-medium">⚠ يجب إدخال القيمة المستلمة فعليًا قبل الحفظ</p>
                 )}
                 {isAdmin && (
                 <>
-                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">هل تم استلام المرتجع؟</p>
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+                  {bulkStatus === "returned" ? "هل تم استلام المرتجع؟" : bulkStatus === "replaced" ? "هل رجع المنتج القديم؟" : "هل رجع الطرد؟"}
+                </p>
                 <div className="flex gap-3">
                   <button type="button" onClick={() => setBulkReturnReceived(true)}
                     className="flex-1 relative outline-none cursor-pointer p-0 border-0 bg-transparent select-none"
@@ -2208,8 +2287,8 @@ function InvoiceGroupDeliveryRow({
                 disabled={
                   bulkMutation.isPending ||
                   (needsBulkNote && !bulkNote.trim()) ||
-                  (isAdmin && bulkStatus === "returned" && bulkReturnReceived === null) ||
-                  (bulkNeedsReturnValue && bulkReturnValueReceived.trim() === "") ||
+                  (isAdmin && (bulkStatus === "returned" || bulkStatus === "replaced" || bulkStatus === "parcel_picked") && bulkReturnReceived === null) ||
+                  (bulkStatus === "returned" && bulkNeedsReturnValue && bulkReturnValueReceived.trim() === "") ||
                   (bulkStatus === "partial_received" && partialReturnReceived === null) ||
                   (!isPerItemMode && (bulkStatus === "partial_received" || bulkStatus === "partial_delivered") && group[0] && (
                     partialQtyMap[group[0].id] === "" || partialQtyMap[group[0].id] === undefined
@@ -3936,11 +4015,18 @@ export default function ShippingManifestPage() {
               partial_received: "partial_delivered",
               delivered:        "delivered",
               received:         "delivered",
+              replaced:         "delivered",
+              parcel_picked:    "delivered",
             };
             return (statusMap[sh.status] ?? item.deliveryStatus) as DeliveryStatus;
           }
+          // بنود قديمة متخزنة replaced/parcel_picked (قبل الـ backfill) بتتعامل كـ delivered
+          if ((item.deliveryStatus as string) === "replaced" || (item.deliveryStatus as string) === "parcel_picked") return "delivered" as DeliveryStatus;
           return item.deliveryStatus as DeliveryStatus;
         })(),
+        shipmentKind: (item as any).shipmentKind ?? (sh as any)?.shipmentKind ?? "new",
+        shipmentStatus: (item as any).shipmentStatus ?? sh?.status ?? null,
+        originalProductName: (item as any).originalProductName ?? null,
         deliveryNote: item.deliveryNote,
         deliveredAt: item.deliveredAt,
         returnReceived: item.returnReceived,
@@ -5016,8 +5102,8 @@ export default function ShippingManifestPage() {
                 </div>
                 {/* ══ رأس الجدول المحسَّن — ديسكتوب فقط ══ */}
                 <div className="w-full sm:overflow-x-auto">
-                <div className="sm:min-w-[900px]">
-                <div dir="rtl" className="hidden sm:grid grid-cols-[28px_90px_minmax(0,0.65fr)_88px_84px_minmax(0,1.65fr)_72px_64px_64px_100px_90px] gap-0 border-b-2 border-border bg-muted/20 text-[10px] font-bold text-muted-foreground tracking-wide
+                <div className="sm:min-w-[1080px]">
+                <div dir="rtl" className="hidden sm:grid grid-cols-[28px_90px_minmax(0,0.65fr)_88px_84px_minmax(0,1.65fr)_72px_64px_64px_minmax(150px,1.3fr)_minmax(140px,1.3fr)] gap-0 border-b-2 border-border bg-muted/20 text-[10px] font-bold text-muted-foreground tracking-wide
                   [&>*:not(:last-child)]:border-l [&>*]:border-border/30">
                   {/* ─── تحديد ─── */}
                   <div className="flex items-center justify-center h-9">

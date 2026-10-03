@@ -774,11 +774,23 @@ export async function syncShipmentItemsInventory(
   // "إحضار طرد" (pickup) اتجاهه معكوس — مفيش بضاعة بتخرج من المخزن أصلاً،
   // فمفيش خصم. الدخول بيتسجل في الخطوة (4) تحت لما الطرد يوصل فعلاً.
   const [shipmentRow] = await db
-    .select({ kind: shipmentsTable.shipmentKind })
+    .select({
+      kind: shipmentsTable.shipmentKind,
+      description: shipmentsTable.description,
+      warehouseId: shipmentsTable.warehouseId,
+      inventoryReturned: shipmentsTable.inventoryReturned,
+      originalProductId: shipmentsTable.originalProductId,
+      originalVariantId: shipmentsTable.originalVariantId,
+      originalQuantity: shipmentsTable.originalQuantity,
+      originalColor: shipmentsTable.originalColor,
+      originalSize: shipmentsTable.originalSize,
+    })
     .from(shipmentsTable)
     .where(eq(shipmentsTable.id, shipmentId))
     .limit(1);
-  const isPickupKind = (shipmentRow?.kind ?? "new") === "pickup";
+  const shipmentKind = (shipmentRow?.kind ?? "new") as string;
+  const isPickupKind = shipmentKind === "pickup";
+  const isReplacementKind = shipmentKind === "replacement";
 
   // ── 1. خصم أولي لأي بند لسه ماخصمش ────────────────────────────────────────
   for (const item of items) {
@@ -864,6 +876,32 @@ export async function syncShipmentItemsInventory(
   //     فعليًا (returnReceived === true)، لأن البضاعة لحد اللحظة دي لسه في إيد
   //     المندوب. replacement = المنتج القديم راجع، pickup = الطرد اللي اتحضر.
   if ((newStatus === "replaced" || newStatus === "parcel_picked") && returnReceived === true) {
+    // الاستبدال: بنود الشحنة هي البدائل (اتخصمت في الخطوة 1)، فمينفعش نرجّعها.
+    // اللي بيرجع هو المنتج القديم المسجّل في original* على صف الشحنة، مرة واحدة
+    // بس (inventoryReturned على مستوى الشحنة بيمنع التكرار). لو مش متسجل → مفيش
+    // حاجة نرجّعها بدل ما نخمّن منتج غلط.
+    if (isReplacementKind) {
+      const hasOriginalLink = !!(shipmentRow?.originalProductId || shipmentRow?.originalVariantId);
+      if (hasOriginalLink && !shipmentRow?.inventoryReturned) {
+        await reverseShipping(
+          {
+            productId: shipmentRow!.originalProductId ?? null,
+            variantId: shipmentRow!.originalVariantId ?? null,
+            product: shipmentRow!.description ?? null,
+            color: shipmentRow!.originalColor ?? null,
+            size: shipmentRow!.originalSize ?? null,
+            warehouseId: shipmentRow!.warehouseId ?? null,
+          },
+          Number(shipmentRow!.originalQuantity ?? 1),
+          null,
+          shipmentId,
+        );
+        await db.update(shipmentsTable)
+          .set({ inventoryReturned: 1 })
+          .where(eq(shipmentsTable.id, shipmentId));
+      }
+      return;
+    }
     for (const item of items) {
       if (item.inventoryReturned) continue;
       if (!item.productId && !item.variantId) continue;
