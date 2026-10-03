@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useLocation, useParams, useSearch, Link } from "wouter";
-import { Plus, Package, User, MapPin, Boxes, CreditCard, RefreshCw, ArrowRight, Megaphone, Warehouse, UserCheck, Check, ChevronsUpDown, Save, Search, X, RotateCw, PackagePlus } from "lucide-react";
+import { Plus, Package, User, MapPin, Boxes, CreditCard, RefreshCw, ArrowRight, Megaphone, Warehouse, UserCheck, Check, ChevronsUpDown, Save, Search, X, RotateCw, PackagePlus, Layers } from "lucide-react";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -47,6 +47,27 @@ const PAYMENT_COLORS: Record<PaymentMethod, string> = {
   deferred: "bg-blue-500/10   text-blue-600   dark:text-blue-400   border-blue-400/40",
 };
 
+
+// ── الإنشاء المركّب (شحنة + استبدال + إحضار طرد في طلب واحد) ──
+// الحقول الخاصة بكل نوع (المستلم/المنطقة/السعر/الربط بالشحنة الأصلية...) بتتحفظ لكل تاب لوحده،
+// أما بيانات العميل والراسل والمخزن والمصدر فمشتركة بين التابات.
+const EMPTY_KIND_FIELDS = {
+  receiverName: "", receiverPhone: "", receiverPhone2: "", receiverAddress: "", receiverCity: "",
+  originalShipmentId: "", originalProductId: "", originalVariantId: "", originalQuantity: "",
+  zoneId: "", parcelType: "" as ParcelType | "",
+  weight: "", pieces: "1", description: "",
+  paymentMethod: "cod" as PaymentMethod,
+  codAmount: "", notes: "",
+  canOpen: "", isDivisible: "", rejectionPolicy: "",
+};
+type KindFields = typeof EMPTY_KIND_FIELDS;
+interface KindSlot { fields: KindFields; pickedFromId: number | null }
+
+function pickKindFields(src: KindFields): KindFields {
+  const out = { ...EMPTY_KIND_FIELDS } as Record<string, unknown>;
+  for (const k of Object.keys(EMPTY_KIND_FIELDS)) out[k] = (src as Record<string, unknown>)[k];
+  return out as KindFields;
+}
 
 const fc = (n: number) =>
   new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(n);
@@ -143,6 +164,13 @@ export default function NewShipmentPage() {
   const [openDraftUid, setOpenDraftUid] = useState<string | null>(null);
   const [showDraftErrors, setShowDraftErrors] = useState(false);
 
+  // ── الوضع المركّب: كل نوع (شحنة/استبدال/إحضار طرد) في تاب بحالته الخاصة، وزرار إنشاء واحد ──
+  // comboKinds = الأنواع اللي هتتبعت (أي تاب بتفتحه بيتضاف تلقائيًا ويقدر يتشال)،
+  // kindStash = بيانات التابات التانية (التاب الحالي بياناته في form مباشرةً).
+  const [comboMode, setComboMode] = useState(false);
+  const [comboKinds, setComboKinds] = useState<ShipmentKind[]>(["new"]);
+  const [kindStash, setKindStash] = useState<Partial<Record<ShipmentKind, KindSlot>>>({});
+
   const set = (k: keyof typeof form, v: string) => setForm(f => ({ ...f, [k]: v }));
 
   // إعدادات العرض حسب نوع الشحنة الحالي (مش الابتدائي بس — عشان لو المستخدم غيّر
@@ -229,7 +257,11 @@ export default function NewShipmentPage() {
   useEffect(() => {
     if (isEditMode || !sourceShipment || prefilledFromRef.current === (sourceShipment as any).id) return;
     const s = sourceShipment as any;
-    setForm(f => ({
+    setForm(f => {
+      // في الوضع المركّب لو العميل متحدد فعلًا: بيانات العميل/الراسل/المخزن مشتركة بين التابات،
+      // فبنملّا بس بيانات المستلم والمنتج ومانكتبش فوق العميل بتاع باقي التابات.
+      const keepShared = comboMode && !!f.clientId;
+      return {
       ...f,
       shipmentKind:    "replacement",
       originalShipmentId: String(s.id),
@@ -237,11 +269,11 @@ export default function NewShipmentPage() {
       originalProductId: s.productId != null ? String(s.productId) : f.originalProductId,
       originalVariantId: s.variantId != null ? String(s.variantId) : f.originalVariantId,
       originalQuantity:  s.pieces != null ? String(s.pieces) : f.originalQuantity,
-      clientId:        s.clientId != null ? String(s.clientId) : f.clientId,
-      senderName:      s.senderName ?? f.senderName,
-      senderPhone:     s.senderPhone ?? f.senderPhone,
-      senderPhone2:    s.senderPhone2 ?? f.senderPhone2,
-      senderCity:      s.senderCity ?? f.senderCity,
+      clientId:        !keepShared && s.clientId != null ? String(s.clientId) : f.clientId,
+      senderName:      keepShared ? f.senderName  : (s.senderName ?? f.senderName),
+      senderPhone:     keepShared ? f.senderPhone : (s.senderPhone ?? f.senderPhone),
+      senderPhone2:    keepShared ? f.senderPhone2 : (s.senderPhone2 ?? f.senderPhone2),
+      senderCity:      keepShared ? f.senderCity  : (s.senderCity ?? f.senderCity),
       receiverName:    s.receiverName ?? f.receiverName,
       receiverPhone:   s.receiverPhone ?? f.receiverPhone,
       receiverPhone2:  s.receiverPhone2 ?? f.receiverPhone2,
@@ -250,8 +282,9 @@ export default function NewShipmentPage() {
       zoneId:          s.zoneId != null ? String(s.zoneId) : f.zoneId,
       parcelType:      (s.parcelType ?? f.parcelType) as ParcelType | "",
       weight:          s.weight != null ? String(s.weight) : f.weight,
-      warehouseId:     s.warehouseId != null ? String(s.warehouseId) : f.warehouseId,
-    }));
+      warehouseId:     !keepShared && s.warehouseId != null ? String(s.warehouseId) : f.warehouseId,
+      };
+    });
     prefilledFromRef.current = s.id;
   }, [isEditMode, sourceShipment, effectiveFromId]);
 
@@ -342,7 +375,8 @@ export default function NewShipmentPage() {
   // الإنشاء الجماعي مش مناسب لطلب الاستبدال: كل استبدال مربوط بشحنة أصلية مختلفة.
   // (وقبل كده الـ bulk payload ماكانش بيبعت shipmentKind فكان الاستبدال/الإحضار
   // بيتحفظوا "شحنة جديدة" بصمت لما يتختار عميل تجاري.)
-  const isBulkMode = !isEditMode && !!form.clientId && form.shipmentKind !== "replacement";
+  // في الوضع المركّب كل تاب = شحنة واحدة بفورمتها الكاملة، فكروت الإنشاء الجماعي بتتعطل.
+  const isBulkMode = !isEditMode && !comboMode && !!form.clientId && form.shipmentKind !== "replacement";
   const draftErrors: DraftErrors[] = useMemo(() => drafts.map(validateDraft), [drafts]);
   const getZonePriceById = (zoneId: string) => {
     const z = zones.find(x => String(x.id) === zoneId);
@@ -389,6 +423,128 @@ export default function NewShipmentPage() {
       toast({ title: "لم يتم إنشاء أي شحنة", description: detail, variant: "destructive" });
     },
   });
+
+  // بيانات تاب معيّن: التاب الحالي من الفورمة مباشرةً، والباقي من الـ stash
+  const fieldsOf = (k: ShipmentKind): KindFields =>
+    k === form.shipmentKind ? pickKindFields(form as unknown as KindFields) : (kindStash[k]?.fields ?? EMPTY_KIND_FIELDS);
+
+  // نفس حسابات الشحنة الواحدة (سعر المنطقة + نوع الطرد، وCOD = الإجمالي - رسوم الشحن) لأي تاب
+  const calcFields = (fl: KindFields) => {
+    const z   = zones.find(x => String(x.id) === fl.zoneId);
+    const zp  = z ? getZonePriceForClient(z) : 0;
+    const pp  = Number(parcelPricing.find(p => p.parcelType === fl.parcelType)?.basePrice) || 0;
+    const fee = zp + pp;
+    const tot = Number(fl.codAmount) || 0;
+    return { zp, pp, fee, tot, codAmt: fl.paymentMethod === "cod" ? tot - fee : tot };
+  };
+
+  // التنقل بين الأنواع. في الوضع العادي بيغيّر النوع بس (زي الأول)، وفي المركّب بيحفظ
+  // بيانات التاب الحالي ويرجّع بيانات التاب الهدف من غير ما حاجة تضيع.
+  const switchKind = (target: ShipmentKind) => {
+    if (target === form.shipmentKind) return;
+    if (!comboMode) {
+      setForm(f => ({
+        ...f,
+        shipmentKind: target,
+        originalShipmentId: target === "replacement" ? f.originalShipmentId : "",
+      }));
+      return;
+    }
+    const cur = form.shipmentKind;
+    const next = kindStash[target];
+    setKindStash(s => ({ ...s, [cur]: { fields: pickKindFields(form as unknown as KindFields), pickedFromId } }));
+    setForm(f => ({ ...f, ...(next?.fields ?? EMPTY_KIND_FIELDS), shipmentKind: target }));
+    setPickedFromId(next?.pickedFromId ?? null);
+    // لو التاب فيه شحنة أصلية متربطة بالفعل ما نعيدش تعبئة الفورمة فوق اللي المستخدم كتبه
+    prefilledFromRef.current = next?.pickedFromId ?? null;
+    setComboKinds(prev => (prev.includes(target) ? prev : [...prev, target]));
+  };
+
+  const toggleCombo = (on: boolean) => {
+    setComboMode(on);
+    setKindStash({});
+    setComboKinds([form.shipmentKind]);
+  };
+
+  const toggleComboKind = (k: ShipmentKind) =>
+    setComboKinds(prev => (prev.includes(k) ? (prev.length > 1 ? prev.filter(x => x !== k) : prev) : [...prev, k]));
+
+  // تغيير العميل بيغيّر المناطق المتاحة (حسب محافظة الراسل) — فنصفّر المنطقة في باقي التابات كمان
+  useEffect(() => {
+    setKindStash(s => {
+      const keys = Object.keys(s) as ShipmentKind[];
+      if (!keys.length) return s;
+      const n: Partial<Record<ShipmentKind, KindSlot>> = {};
+      for (const k of keys) { const slot = s[k]; if (slot) n[k] = { ...slot, fields: { ...slot.fields, zoneId: "" } }; }
+      return n;
+    });
+  }, [form.clientId]);
+
+  function handleComboSubmit() {
+    if (!form.senderName) {
+      toast({ title: "الحقول المطلوبة", description: "اسم الراسل مطلوب", variant: "destructive" });
+      return;
+    }
+    if (!form.warehouseId) {
+      toast({ title: "المخزن مطلوب", description: "من فضلك اختر المخزن الذي ستُودَع فيه الشحنات", variant: "destructive" });
+      return;
+    }
+    // بنرتّب بترتيب SHIPMENT_KINDS (جديدة ← استبدال ← إحضار طرد) عشان الترقيم يطلع متتالي بنفس الترتيب
+    const slots = SHIPMENT_KINDS.filter(k => comboKinds.includes(k)).map(k => ({ kind: k, fl: fieldsOf(k) }));
+    // لو أي تاب ناقص ما نبعتش ولا واحدة، ونفتح التاب ده
+    for (const { kind, fl } of slots) {
+      let problem = "";
+      if (!fl.receiverName.trim()) problem = "اسم المستلم مطلوب";
+      else if (kind === "replacement" && !fl.originalShipmentId) problem = "اختر الشحنة الأصلية المسلّمة";
+      if (problem) {
+        toast({ title: `لم يتم إنشاء أي شحنة — ${SHIPMENT_KIND_LABELS[kind]}`, description: problem, variant: "destructive" });
+        switchKind(kind);
+        return;
+      }
+    }
+    const payload = slots.map(({ kind, fl }) => {
+      const { zp, pp, fee, tot, codAmt } = calcFields(fl);
+      return {
+        shipmentKind:    kind,
+        originalShipmentId: kind !== "new" && fl.originalShipmentId ? Number(fl.originalShipmentId) : undefined,
+        originalProductId:  kind === "replacement" && fl.originalProductId ? Number(fl.originalProductId) : undefined,
+        originalVariantId:  kind === "replacement" && fl.originalVariantId ? Number(fl.originalVariantId) : undefined,
+        originalQuantity:   kind === "replacement" && fl.originalQuantity  ? Number(fl.originalQuantity)  : undefined,
+        clientId:        form.clientId ? Number(form.clientId) : undefined,
+        senderName:      form.senderName,
+        senderPhone:     form.senderPhone || undefined,
+        senderPhone2:    form.senderPhone2 || undefined,
+        senderCity:      form.senderCity || undefined,
+        receiverName:    fl.receiverName,
+        receiverPhone:   fl.receiverPhone || undefined,
+        receiverPhone2:  fl.receiverPhone2 || undefined,
+        receiverAddress: fl.receiverAddress || undefined,
+        receiverCity:    fl.receiverCity || undefined,
+        zoneId:          fl.zoneId ? Number(fl.zoneId) : undefined,
+        zonePrice:       zp,
+        parcelType:      fl.parcelType || undefined,
+        parcelTypePrice: pp,
+        weight:          fl.weight || undefined,
+        pieces:          Number(fl.pieces) || 1,
+        description:     fl.description || undefined,
+        paymentMethod:   fl.paymentMethod,
+        codAmount:       codAmt,
+        shippingFee:     fee,
+        totalAmount:     tot,
+        notes:           fl.notes || undefined,
+        adSource:        form.adSource || undefined,
+        adCampaign:      form.adCampaign || undefined,
+        warehouseId:     form.warehouseId ? Number(form.warehouseId) : undefined,
+        assignedUserId:  form.assignedUserId ? Number(form.assignedUserId) : undefined,
+        shippingCompanyId: form.shippingCompanyId ? Number(form.shippingCompanyId) : undefined,
+        canOpen:         fl.canOpen     !== "" ? Number(fl.canOpen)     : undefined,
+        isDivisible:     fl.isDivisible !== "" ? Number(fl.isDivisible) : undefined,
+        rejectionPolicy: fl.rejectionPolicy || undefined,
+        status:          "waiting",
+      };
+    });
+    bulkMutation.mutate(payload);
+  }
 
   function handleBulkSubmit() {
     // 1) بيانات العميل الثابتة
@@ -524,7 +680,7 @@ export default function NewShipmentPage() {
         </button>
         <cfg.icon className={`w-5 h-5 ${cfg.iconClass}`} />
         <h1 className="text-base font-black">
-          {isEditMode ? "تعديل الشحنة" : SHIPMENT_KIND_LABELS[form.shipmentKind]}
+          {isEditMode ? "تعديل الشحنة" : comboMode ? "إنشاء مركّب" : SHIPMENT_KIND_LABELS[form.shipmentKind]}
         </h1>
       </div>
 
@@ -546,11 +702,7 @@ export default function NewShipmentPage() {
                   <button
                     key={k}
                     type="button"
-                    onClick={() => setForm(f => ({
-                      ...f,
-                      shipmentKind: k,
-                      originalShipmentId: k === "replacement" ? f.originalShipmentId : "",
-                    }))}
+                    onClick={() => switchKind(k)}
                     className={`rounded-lg border p-3 text-right transition-colors ${
                       active ? `bg-muted/60 ${SHIPMENT_KIND_COLORS[k]}` : "border-border text-muted-foreground hover:bg-muted/40"
                     }`}
@@ -558,12 +710,41 @@ export default function NewShipmentPage() {
                     <span className="flex items-center gap-2 text-xs font-black">
                       <ui.icon className="w-4 h-4" />
                       {SHIPMENT_KIND_LABELS[k]}
+                      {comboMode && (
+                        <span
+                          role="checkbox"
+                          aria-checked={comboKinds.includes(k)}
+                          tabIndex={0}
+                          title={comboKinds.includes(k) ? "داخل الطلب — اضغط لاستبعاده" : "خارج الطلب — اضغط لتضمينه"}
+                          onClick={e => { e.stopPropagation(); toggleComboKind(k); }}
+                          onKeyDown={e => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); e.stopPropagation(); toggleComboKind(k); } }}
+                          className={`mr-auto flex h-4 w-4 items-center justify-center rounded border ${
+                            comboKinds.includes(k) ? "bg-primary border-primary text-primary-foreground" : "border-muted-foreground/50"
+                          }`}
+                        >
+                          {comboKinds.includes(k) && <Check className="w-3 h-3" />}
+                        </span>
+                      )}
                     </span>
                     <span className="block text-[10px] mt-1 font-normal opacity-80">{SHIPMENT_KIND_HINTS[k]}</span>
                   </button>
                 );
               })}
             </div>
+            <label className="flex items-start gap-2 rounded-lg border border-dashed border-border px-3 py-2 text-xs cursor-pointer hover:bg-muted/30">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={comboMode}
+                onChange={e => toggleCombo(e.target.checked)}
+              />
+              <span>
+                <span className="flex items-center gap-1.5 font-bold"><Layers className="w-3.5 h-3.5" /> إنشاء أكتر من نوع في طلب واحد</span>
+                <span className="block text-[10px] text-muted-foreground mt-0.5">
+                  املا كل نوع في تابه وانقل بينهم براحتك (البيانات بتفضل محفوظة)، وبعدين زرار واحد ينشئ المحدد منهم ويتسجلوا ورا بعض.
+                </span>
+              </span>
+            </label>
             {form.shipmentKind === "replacement" && form.originalShipmentId && (
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between gap-2 rounded-lg border border-violet-500/30 bg-violet-500/5 px-3 py-2 text-xs">
@@ -1064,7 +1245,19 @@ export default function NewShipmentPage() {
 
               {/* التفاصيل */}
               <div className="px-5 py-4 space-y-3">
-                {isBulkMode ? (() => {
+                {comboMode ? (() => {
+                  // ملخص الطلب المركّب: سعر كل نوع مضمّن (نفس حساب التاب الواحد) + الإجمالي
+                  const kinds = SHIPMENT_KINDS.filter(k => comboKinds.includes(k));
+                  return [
+                    { label: "عدد الطلبات", value: String(kinds.length) },
+                    ...kinds.map(k => ({ label: SHIPMENT_KIND_LABELS[k], value: fc(calcFields(fieldsOf(k)).tot) })),
+                  ].map((row: any, i) => (
+                    <div key={i} className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">{row.label}</span>
+                      <span className="font-bold text-foreground">{row.value}</span>
+                    </div>
+                  ));
+                })() : isBulkMode ? (() => {
                   // ملخص إجمالي لكل الشحنات (نفس منطق حساب الكارت الواحد)
                   const rows = drafts.map(d => {
                     const zp = getZonePriceById(d.zoneId);
@@ -1098,7 +1291,7 @@ export default function NewShipmentPage() {
                 <div className="flex items-center justify-between border-t border-primary/20 pt-3 mt-1">
                   <span className="text-sm font-black">الإجمالي</span>
                   <span className="text-lg font-black text-primary">
-                    {isBulkMode ? fc(drafts.reduce((a, d) => a + (Number(d.codAmount) || 0), 0)) : fc(total)}
+                    {comboMode ? fc(SHIPMENT_KINDS.filter(k => comboKinds.includes(k)).reduce((a, k) => a + calcFields(fieldsOf(k)).tot, 0)) : isBulkMode ? fc(drafts.reduce((a, d) => a + (Number(d.codAmount) || 0), 0)) : fc(total)}
                   </span>
                 </div>
               </div>
@@ -1106,14 +1299,14 @@ export default function NewShipmentPage() {
               {/* الأزرار */}
               <div className="px-5 pb-5 space-y-2">
                 <Button
-                  onClick={isBulkMode ? handleBulkSubmit : handleSubmit}
+                  onClick={comboMode ? handleComboSubmit : isBulkMode ? handleBulkSubmit : handleSubmit}
                   disabled={mutation.isPending || bulkMutation.isPending}
                   className="w-full gap-2"
                 >
                   {(mutation.isPending || bulkMutation.isPending)
                     ? <RefreshCw className="w-4 h-4 animate-spin" />
                     : isEditMode ? <Save className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-                  {isEditMode ? "حفظ التعديلات" : isBulkMode ? (drafts.length > 1 ? `إنشاء ${drafts.length} شحنات` : "إنشاء الشحنة") : cfg.submitLabel}
+                  {isEditMode ? "حفظ التعديلات" : comboMode ? (comboKinds.length > 1 ? `إنشاء ${comboKinds.length} طلبات معًا` : cfg.submitLabel) : isBulkMode ? (drafts.length > 1 ? `إنشاء ${drafts.length} شحنات` : "إنشاء الشحنة") : cfg.submitLabel}
                 </Button>
                 <Button variant="outline" onClick={() => navigate(isEditMode ? `/shipments/${editId}` : "/orders")} className="w-full">إلغاء</Button>
               </div>
