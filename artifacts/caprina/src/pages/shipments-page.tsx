@@ -1116,6 +1116,12 @@ export default function Orders() {
     .sort()
     .join("||");
 
+  // فلتر نوع الطلب (الكل / شحنة جديدة / استبدال / إحضار طرد)
+  const [kindFilter, setKindFilter] = useState<string>("all");
+  // فلتر "مكان المرتجع": all | courier | client | wh:all | wh:<warehouseId>
+  const [returnLoc, setReturnLoc] = useState<string>("all");
+  const { data: whList } = useQuery({ queryKey: ["warehouses-for-filter"], queryFn: () => warehousesApi.list() });
+
   const { data: ordersResponse, isLoading } = useQuery({
     // ── Pagination server-side حقيقي: كل صفحة = طلب API جديد بـ limit/offset مختلفين ──
     // مهم: PAGE_SIZE لازم يكون في الـ queryKey — من غيره لما اليوزر يغيّر حجم الصفحة
@@ -1124,12 +1130,10 @@ export default function Orders() {
     // fetch جديد بالـ limit الجديد — ده كان السبب الحقيقي وراء "اختيار 200 بيفضل يعرض 100"
     queryKey: ["shipments-list", debouncedSearch, debouncedCustomerSearch, status, dateFrom, dateTo, senderNamesFilterKey, receiverNamesFilterKey, creatorNamesFilterKey, statusesFilterKey, phonesFilterKey, kindFilter, returnLoc, PAGE_SIZE, page],
     queryFn: () => apiFetch<any>(`/shipments?${new URLSearchParams({
-  // فلتر نوع الطلب (الكل / شحنة جديدة / استبدال / إحضار طرد)
-  const [kindFilter, setKindFilter] = useState<string>("all");
-  // فلتر "مكان المرتجع": all | courier | client | wh:all | wh:<warehouseId>
-  const [returnLoc, setReturnLoc] = useState<string>("all");
-  const { data: whList } = useQuery({ queryKey: ["warehouses-for-filter"], queryFn: () => warehousesApi.list() });
-
+      ...(kindFilter !== "all" ? { shipmentKind: kindFilter } : {}),
+      ...(returnLoc === "courier" ? { returnLocation: "courier" } : {}),
+      ...(returnLoc === "client" ? { returnLocation: "client" } : {}),
+      ...(returnLoc.startsWith("wh:") ? { returnLocation: "warehouse", ...(returnLoc !== "wh:all" ? { warehouseId: returnLoc.slice(3) } : {}) } : {}),
       ...(debouncedSearch ? { search: debouncedSearch } : {}),
       ...(debouncedCustomerSearch ? { customerName: debouncedCustomerSearch } : {}),
       ...(senderNamesFilterKey ? { senderNames: senderNamesFilterKey } : {}),
@@ -1138,10 +1142,6 @@ export default function Orders() {
       ...(statusesFilterKey ? { statuses: statusesFilterKey } : {}),
       ...(phonesFilterKey ? { phones: phonesFilterKey } : {}),
       ...(status !== "all" ? { status } : {}),
-      ...(kindFilter !== "all" ? { shipmentKind: kindFilter } : {}),
-      ...(returnLoc === "courier" ? { returnLocation: "courier" } : {}),
-      ...(returnLoc === "client" ? { returnLocation: "client" } : {}),
-      ...(returnLoc.startsWith("wh:") ? { returnLocation: "warehouse", ...(returnLoc !== "wh:all" ? { warehouseId: returnLoc.slice(3) } : {}) } : {}),
       ...(dateFrom ? { dateFrom } : {}),
       ...(dateTo ? { dateTo } : {}),
       limit: String(PAGE_SIZE),
@@ -1945,6 +1945,33 @@ export default function Orders() {
               <CalendarDays className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
               <Input type="date" className="pr-9 bg-card text-sm h-8 w-40 text-xs" value={dateTo} onChange={e => setDateTo(e.target.value)} title="إلى تاريخ" />
             </div>
+            <Select value={kindFilter} onValueChange={setKindFilter}>
+              <SelectTrigger className="h-8 w-36 bg-card text-xs" title="نوع الطلب">
+                <SelectValue placeholder="نوع الطلب" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">كل الأنواع</SelectItem>
+                <SelectItem value="new">شحنة جديدة</SelectItem>
+                <SelectItem value="replacement">استبدال</SelectItem>
+                <SelectItem value="pickup">إحضار طرد</SelectItem>
+              </SelectContent>
+            </Select>
+            {/* مكان المرتجع: مع المندوب / في مخزن (كل المخازن أو مخزن بعينه) / اتسلّم للعميل.
+                بيتدمج مع فلتر الحالة (مرتجع/جزئي...) ومع فلتر النوع (استبدال/إحضار طرد). */}
+            <Select value={returnLoc} onValueChange={setReturnLoc}>
+              <SelectTrigger className="h-8 w-44 bg-card text-xs" title="مكان المرتجع">
+                <SelectValue placeholder="مكان المرتجع" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">كل الأماكن</SelectItem>
+                <SelectItem value="courier">مرتجع مع المندوب</SelectItem>
+                <SelectItem value="wh:all">مرتجع في أي مخزن</SelectItem>
+                {(whList ?? []).map((w: any) => (
+                  <SelectItem key={w.id} value={`wh:${w.id}`}>مرتجع في {w.name}</SelectItem>
+                ))}
+                <SelectItem value="client">مرتجع اتسلّم للعميل</SelectItem>
+              </SelectContent>
+            </Select>
             <button
               type="button"
               onClick={() => {
@@ -1978,33 +2005,6 @@ export default function Orders() {
           <>
             {/* ── Mobile ── */}
             {/* بنعرض الشجرة دي بس لو فعلاً موبايل — قبل كده كانت بتتعمل mount دايمًا (مخفية بـ CSS بس)
-            <Select value={kindFilter} onValueChange={setKindFilter}>
-              <SelectTrigger className="h-8 w-36 bg-card text-xs" title="نوع الطلب">
-                <SelectValue placeholder="نوع الطلب" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">كل الأنواع</SelectItem>
-                <SelectItem value="new">شحنة جديدة</SelectItem>
-                <SelectItem value="replacement">استبدال</SelectItem>
-                <SelectItem value="pickup">إحضار طرد</SelectItem>
-              </SelectContent>
-            </Select>
-            {/* مكان المرتجع: مع المندوب / في مخزن (كل المخازن أو مخزن بعينه) / اتسلّم للعميل.
-                بيتدمج مع فلتر الحالة (مرتجع/جزئي...) ومع فلتر النوع (استبدال/إحضار طرد). */}
-            <Select value={returnLoc} onValueChange={setReturnLoc}>
-              <SelectTrigger className="h-8 w-44 bg-card text-xs" title="مكان المرتجع">
-                <SelectValue placeholder="مكان المرتجع" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">كل الأماكن</SelectItem>
-                <SelectItem value="courier">مرتجع مع المندوب</SelectItem>
-                <SelectItem value="wh:all">مرتجع في أي مخزن</SelectItem>
-                {(whList ?? []).map((w: any) => (
-                  <SelectItem key={w.id} value={`wh:${w.id}`}>مرتجع في {w.name}</SelectItem>
-                ))}
-                <SelectItem value="client">مرتجع اتسلّم للعميل</SelectItem>
-              </SelectContent>
-            </Select>
                 فكان كل صف بيتعمل له render مرتين (موبايل + ديسكتوب) حتى لو مش ظاهر، وده كان أكبر
                 سبب للتهنيج مع 200 صف. */}
             {false && (

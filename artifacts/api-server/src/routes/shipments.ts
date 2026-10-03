@@ -668,9 +668,6 @@ router.get("/shipments", async (req, res): Promise<void> => {
     const conditions: any[] = [];
     if (tenantId !== null) conditions.push(eq(shipmentsTable.tenantId, tenantId));
     conditions.push(isNull(shipmentsTable.deletedAt));
-    // حالات مترادفة — الداتابيز قد تحتوي أسماء قديمة وجديدة للنفس الحالة
-    // كل مجموعة = حالة واحدة منطقياً، الأول في المصفوفة هو الاسم الجديد المعتمد
-    const STATUS_GROUPS: Record<string, string[]> = {
     // فلتر نوع الطلب (شحنة جديدة / استبدال / إحضار طرد). "new" بيشمل الصفوف
     // القديمة اللي shipment_kind فيها NULL (قبل إضافة العمود) عشان ماتضيعش من الفلتر.
     if (kindFilter === "new") {
@@ -678,6 +675,9 @@ router.get("/shipments", async (req, res): Promise<void> => {
     } else if (kindFilter === "replacement" || kindFilter === "pickup") {
       conditions.push(eq(shipmentsTable.shipmentKind, kindFilter));
     }
+    // حالات مترادفة — الداتابيز قد تحتوي أسماء قديمة وجديدة للنفس الحالة
+    // كل مجموعة = حالة واحدة منطقياً، الأول في المصفوفة هو الاسم الجديد المعتمد
+    const STATUS_GROUPS: Record<string, string[]> = {
       pending:          ["pending", "waiting"],
       waiting:          ["waiting", "pending"],
       confirmed:        ["confirmed"],
@@ -712,9 +712,6 @@ router.get("/shipments", async (req, res): Promise<void> => {
     if (clientId) {
       conditions.push(eq(shipmentsTable.clientId, parseInt(clientId)));
     }
-    if (customerName) {
-      // مربع "ابحث باسم العميل" المنفصل — بيدور على اسم المستلم بس (العميل النهائي)
-      // بحث بكل الشحنات في السيرفر مش بس الصفحة الحالية المحمّلة في الفرونت
     // فلتر "مكان المرتجع" — بيوضّح المرتجعات (مرتجع/جزئي/استبدال/إحضار طرد) فين دلوقتي:
     //   courier   = لسه مع المندوب/شركة الشحن (returnReceived مش 1)
     //   warehouse = استُلم في المخزن (ولو warehouseId جه، في المخزن ده بالذات)
@@ -735,6 +732,9 @@ router.get("/shipments", async (req, res): Promise<void> => {
         }
       }
     }
+    if (customerName) {
+      // مربع "ابحث باسم العميل" المنفصل — بيدور على اسم المستلم بس (العميل النهائي)
+      // بحث بكل الشحنات في السيرفر مش بس الصفحة الحالية المحمّلة في الفرونت
       const nameWords = customerName.trim().split(/\s+/).filter(Boolean);
       if (nameWords.length) {
         conditions.push(and(...nameWords.map((w: string) => like(shipmentsTable.receiverName, `%${w}%`))));
