@@ -51,14 +51,14 @@ function buildReportHtml(data: OperationsReportData): string {
 
   const execHtml = data.executiveSummary ? `
     <div class="exec-grid">
-      <div class="exec-item"><div class="exec-val">${fc(data.executiveSummary.revenue)}</div><div class="exec-lbl">الإيرادات</div></div>
-      <div class="exec-item"><div class="exec-val">${fc(data.executiveSummary.profit)}</div><div class="exec-lbl">الأرباح</div></div>
-      <div class="exec-item"><div class="exec-val" style="color:${data.executiveSummary.growthRate >= 0 ? "#059669" : "#dc2626"}">${data.executiveSummary.growthRate}%</div><div class="exec-lbl">معدل النمو</div></div>
+      <div class="exec-item"><div class="exec-val">${fc(data.executiveSummary.revenue)}</div><div class="exec-lbl">إجمالي الإيرادات (من أول التشغيل)</div></div>
+      <div class="exec-item"><div class="exec-val">${fc(data.executiveSummary.profit)}</div><div class="exec-lbl">صافي الإيرادات (أرصدة الخزن)</div></div>
+      <div class="exec-item"><div class="exec-val" style="color:${data.executiveSummary.growthRate >= 0 ? "#059669" : "#dc2626"}">${data.executiveSummary.growthRate}%</div><div class="exec-lbl">نمو إيراد الشهر عن نفس الفترة السابقة</div></div>
       <div class="exec-item"><div class="exec-val">${fn(data.executiveSummary.clientsCount)}</div><div class="exec-lbl">عدد العملاء</div></div>
       <div class="exec-item"><div class="exec-val">${fn(data.executiveSummary.shipmentsCount)}</div><div class="exec-lbl">عدد الشحنات</div></div>
-      <div class="exec-item"><div class="exec-val">${data.executiveSummary.successRate}%</div><div class="exec-lbl">نسبة النجاح</div></div>
-      <div class="exec-item"><div class="exec-val">${data.executiveSummary.topArea || "—"}</div><div class="exec-lbl">أكثر المناطق نشاطاً</div></div>
-      <div class="exec-item"><div class="exec-val" style="color:#2563eb">${fc(data.executiveSummary.nextMonthForecast)}</div><div class="exec-lbl">توقعات الشهر القادم</div></div>
+      <div class="exec-item"><div class="exec-val">${data.executiveSummary.successRate}%</div><div class="exec-lbl">نسبة التسليم الناجح</div></div>
+      <div class="exec-item"><div class="exec-val">${data.executiveSummary.topArea || "—"}</div><div class="exec-lbl">أكثر مدينة طلباً</div></div>
+      <div class="exec-item"><div class="exec-val" style="color:#2563eb">${fc(data.executiveSummary.nextMonthForecast)}</div><div class="exec-lbl">الربح المتوقع من الشحنات الجارية</div></div>
     </div>` : `<p class="empty">لا توجد بيانات كافية</p>`;
 
   const financialHtml = data.financial ? `

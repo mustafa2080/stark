@@ -1,10 +1,10 @@
 ﻿import { Router, type IRouter } from "express";
-import { db, ordersTable, productsTable, productVariantsTable, shippingCompaniesTable, shippingManifestsTable, shippingManifestOrdersTable, warehouseStockTable, warehousesTable, inventoryMovementsTable, shipmentsTable, shipmentRatingsTable, usersTable, sessionLogsTable, shipmentManifestsTable, shipmentManifestItemsTable, expensesTable, cashTransactionsTable, receiverClientsTable, clientsTable, zoneCostsTable, shipmentZonesTable, appSettingsTable, parcelTypePricingTable } from "@workspace/db";
+import { db, ordersTable, productsTable, productVariantsTable, shippingCompaniesTable, shippingManifestsTable, shippingManifestOrdersTable, warehouseStockTable, warehousesTable, inventoryMovementsTable, shipmentsTable, shipmentRatingsTable, usersTable, sessionLogsTable, shipmentManifestsTable, shipmentManifestItemsTable, expensesTable, cashTransactionsTable, receiverClientsTable, clientsTable, zoneCostsTable, shipmentZonesTable, appSettingsTable, parcelTypePricingTable, cashRegistersTable } from "@workspace/db";
 import { eq, isNull, and, or, desc, lte, gte, sql, inArray, count, isNotNull } from "drizzle-orm";
 import { requireAdmin, requirePermission } from "../middlewares/requireRole.js";
 import { requireAuth } from "../middlewares/requireAuth.js";
 import { getTenantId } from "../middlewares/requireTenant.js";
-import { computeNetRevenueDueForAllClients, computeExpectedRevenueTotalForTenant } from "../lib/clientAccountBalance.js";
+import { computeNetRevenueDueForAllClients, computeExpectedRevenueTotalForTenant, computeRecentDeliveryRateForTenant } from "../lib/clientAccountBalance.js";
 
 // ── In-memory cache for heavy analytics endpoints ─────────────────────────────
 const analyticsCache = new Map<string, { data: any; expiresAt: number }>();
@@ -4489,14 +4489,14 @@ router.get("/analytics/recent-shipments", requireAuth, async (req, res): Promise
   }
 });
 
-// شاشة المدير التنفيذي — نظرة سريعة: إيرادات/أرباح الشهر الحالي، معدل النمو
-// (مقارنة بنفس الفترة من الشهر السابق)، عدد العملاء الفريدين، عدد الشحنات،
-// نسبة النجاح، أكثر منطقة نشاطاً، وتوقع مبسّط للشهر القادم (extrapolation خطي
-// بناءً على المعدل اليومي الحالي).
+// شاشة المدير التنفيذي — نظرة سريعة: إجمالي الإيرادات من أول التشغيل، صافي الإيرادات
+// (= إجمالي أرصدة الخزن)، إيراد الشهر ونموه مقارنة بنفس الفترة من الشهر الماضي،
+// عدد العملاء والشحنات، نسبة التسليم الناجح (من الشحنات المنتهية بس)، أكثر مدينة
+// طلباً، والربح المتوقع من الشحنات الجارية حالياً.
 router.get("/analytics/executive-summary", requireAuth, async (req, res): Promise<void> => {
   try {
     const tenantId = getTenantId(req);
-    const cacheKey = `executive-summary:${tenantId ?? "global"}`;
+    const cacheKey = `executive-summary:v2:${tenantId ?? "global"}`;
     const cached = getCached<any>(cacheKey);
     if (cached) { res.json(cached); return; }
 
@@ -4513,47 +4513,78 @@ router.get("/analytics/executive-summary", requireAuth, async (req, res): Promis
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    // نفس الفترة من الشهر الماضي (من أول الشهر لحد نفس اللحظة) — مقارنة عادلة بدل
+    // مقارنة شهر ناقص بشهر كامل.
+    const prevSamePeriodEnd = new Date(Math.min(
+      prevMonthStart.getTime() + (now.getTime() - monthStart.getTime()),
+      monthStart.getTime(),
+    ));
 
-    // ── إيرادات/أرباح حقيقية: نفس مصدر "رقم الـ 300" (بيانات المناديب المقفولة + مصروفات الخزنة) ──
-    // بدل الحساب القديم من shipmentsTable مباشرة اللي كان بيديلي رقم مختلف عن باقي الشاشة.
-    const [currentMonthPnl, prevMonthPnl] = await Promise.all([
+    // ── الإيرادات: إجمالي من أول ما السيستم اشتغل (نفس رقم "أول المدة" في مركز العمليات) ──
+    const [allTimePnl, currentMonthPnl, prevSamePeriodPnl] = await Promise.all([
+      computeManifestsPnl(tenantId, null, null),
       computeManifestsPnl(tenantId, monthStart, null),
-      computeManifestsPnl(tenantId, prevMonthStart, monthStart),
+      computeManifestsPnl(tenantId, prevMonthStart, prevSamePeriodEnd),
     ]);
-    const monthProfit = currentMonthPnl.netRevenue;
-    const prevMonthProfit = prevMonthPnl.netRevenue;
-    const growthRate = prevMonthProfit !== 0
-      ? Math.round(((monthProfit - prevMonthProfit) / Math.abs(prevMonthProfit)) * 1000) / 10
+    const totalRevenue = Math.round(allTimePnl.totalRevenue);
+    const monthRevenue = Math.round(currentMonthPnl.totalRevenue);
+    const prevSamePeriodRevenue = Math.round(prevSamePeriodPnl.totalRevenue);
+    const growthAvailable = prevSamePeriodRevenue > 0;
+    const growthRate = growthAvailable
+      ? Math.round(((monthRevenue - prevSamePeriodRevenue) / prevSamePeriodRevenue) * 1000) / 10
       : 0;
 
-    // ── عدد الشحنات: إجمالي كل الشحنات المسجلة (زي قسم الشحنات) — بدون فلتر شهر ──
-    const totalShipmentsCountRows = await db.select({ c: count() }).from(shipmentsTable).where(cond);
-    const shipmentsCount = totalShipmentsCountRows[0]?.c ?? 0;
+    // ── صافي الإيرادات = إجمالي أرصدة الخزن (نفس الرقم في شاشة الخزن) ──
+    const regCond = tenantId !== null
+      ? and(eq(cashRegistersTable.isActive, true), eq(cashRegistersTable.tenantId, tenantId))
+      : eq(cashRegistersTable.isActive, true);
+    const regRows = await db.select({ balance: cashRegistersTable.balance }).from(cashRegistersTable).where(regCond);
+    const treasuryBalance = Math.round(regRows.reduce((sum, r) => sum + parseFloat(r.balance ?? "0"), 0));
 
-    // ── نسبة النجاح وأكثر منطقة نشاطًا: تبقى من شحنات الشهر الحالي (دلالة تشغيلية) ──
-    const rows = await db
-      .select({
-        status: shipmentsTable.status,
-        createdAt: shipmentsTable.createdAt,
-        receiverCity: shipmentsTable.receiverCity,
-      })
+    // ── الشحنات: كل الشحنات المسجلة من أول التشغيل (بدون فلتر شهر) ──
+    const statusRows = await db
+      .select({ status: shipmentsTable.status, c: count() })
       .from(shipmentsTable)
-      .where(and(cond, gte(shipmentsTable.createdAt, monthStart)));
+      .where(cond)
+      .groupBy(shipmentsTable.status);
+    let shipmentsCount = 0;
+    let inProgressCount = 0;
+    let successCount = 0;
+    let failedCount = 0;
+    for (const r of statusRows) {
+      const n = Number(r.c ?? 0);
+      shipmentsCount += n;
+      const raw = r.status ?? "pending";
+      if (raw === "warehouse_ready" || raw === "in_shipping") inProgressCount += n;
+      if (raw === "cancelled") continue; // الملغي مش تسليم فاشل
+      const norm = normalize(raw);
+      if (norm === "received" || norm === "replaced" || norm === "parcel_picked") successCount += n;
+      else if (norm === "returned" || norm === "partial_received") failedCount += n;
+    }
+    // نسبة التسليم الناجح = الناجح ÷ (الناجح + المرتجع) من الشحنات اللي خلصت فعلاً.
+    // الشحنات الجارية/المعلّقة مش بتدخل في الحساب (كانت بتنزّل النسبة لـ 1%).
+    const finishedCount = successCount + failedCount;
+    const successRate = finishedCount > 0 ? Math.round((successCount / finishedCount) * 1000) / 10 : 0;
 
-    const monthShipmentsCount = rows.length;
-    const deliveredCount = rows.filter(r => normalize(r.status) === "received").length;
-    const successRate = monthShipmentsCount > 0 ? Math.round((deliveredCount / monthShipmentsCount) * 100) : 0;
-
+    // ── أكثر المدن طلباً: حسب عدد الشحنات حسب مدينة المستلم من أول التشغيل ──
+    const cityRows = await db
+      .select({ city: shipmentsTable.receiverCity, c: count() })
+      .from(shipmentsTable)
+      .where(cond)
+      .groupBy(shipmentsTable.receiverCity);
     const cityCounts = new Map<string, number>();
-    for (const r of rows) {
-      const city = (r.receiverCity ?? "").trim() || "غير محدد";
-      cityCounts.set(city, (cityCounts.get(city) ?? 0) + 1);
+    for (const r of cityRows) {
+      const city = (r.city ?? "").trim();
+      if (!city) continue; // مدينة فاضية مش بتتحسب كـ "أكثر منطقة"
+      cityCounts.set(city, (cityCounts.get(city) ?? 0) + Number(r.c ?? 0));
     }
-    let topArea = "—";
-    let topAreaCount = 0;
-    for (const [city, count] of cityCounts) {
-      if (count > topAreaCount) { topArea = city; topAreaCount = count; }
-    }
+    const topAreas = [...cityCounts.entries()]
+      .sort((x, y) => y[1] - x[1])
+      .slice(0, 3)
+      .map(([name, c]) => ({ name, count: c }));
+    const topArea = topAreas[0]?.name ?? "—";
+    const topAreaCount = topAreas[0]?.count ?? 0;
+    const topAreaShare = shipmentsCount > 0 ? Math.round((topAreaCount / shipmentsCount) * 100) : 0;
 
     // ── عدد العملاء: من جدول العملاء (clients) — نفس مصدر شاشة "العملاء التجاريون" بالكامل ──
     const clientsCountCond = tenantId !== null ? eq(clientsTable.tenantId, tenantId) : undefined;
@@ -4562,20 +4593,36 @@ router.get("/analytics/executive-summary", requireAuth, async (req, res): Promis
       : await db.select({ clientsCount: count() }).from(clientsTable);
     const clientsCount = clientsCountRows[0]?.clientsCount ?? 0;
 
-    // توقع الشهر القادم: مجموع هامش كل الشحنات الجارية حاليًا فى النظام (قيد الشحن
-    // فى المخزن / قيد الشحن) مضروبة فى نسبة تسليم ثابتة 60%، بدل الـ extrapolation
-    // القديم من متوسط الأداء التاريخي.
-    const nextMonthForecast = Math.round(await computeExpectedRevenueTotalForTenant(tenantId));
+    // ── الربح المتوقع من الشحنات الجارية: (سعر الشحن − تكلفة المندوب) لكل شحنة جارية
+    // × نسبة التسليم الفعلية لآخر 7 أيام. مش توقع بالتاريخ، ده رقم مبني على اللي
+    // شغّال فعلاً دلوقتي في النظام.
+    const [nextMonthForecastRaw, recentDeliveryRate] = await Promise.all([
+      computeExpectedRevenueTotalForTenant(tenantId),
+      computeRecentDeliveryRateForTenant(tenantId),
+    ]);
+    const nextMonthForecast = Math.round(nextMonthForecastRaw);
 
     const result = {
-      revenue: Math.round(currentMonthPnl.totalRevenue),
-      profit: Math.round(monthProfit),
+      // ⚠️ "revenue" = إجمالي الإيرادات من أول التشغيل، "profit" = صافي الإيرادات (إجمالي أرصدة الخزن)
+      revenue: totalRevenue,
+      profit: treasuryBalance,
+      monthRevenue,
+      prevSamePeriodRevenue,
       growthRate,
+      growthAvailable,
       clientsCount,
       shipmentsCount,
+      inProgressCount,
       successRate,
+      successCount,
+      finishedCount,
       topArea,
+      topAreaCount,
+      topAreaShare,
+      topAreas,
       nextMonthForecast,
+      forecastShipmentsCount: inProgressCount,
+      forecastDeliveryRate: Math.round(recentDeliveryRate * 100),
       generatedAt: new Date().toISOString(),
     };
     setCached(cacheKey, result, 2 * 60 * 1000);

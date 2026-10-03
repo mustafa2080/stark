@@ -915,7 +915,7 @@ export async function computeNetRevenueDueForAllClients(
 // خلال آخر 7 أيام، بنحسب كام بالمية منهم اتسلمت فعليًا. النسبة دي هي اللي
 // بتتضرب فيها هامش الشحنات الجارية فى computeExpectedRevenueTotalForTenant
 // بدل رقم ثابت مفترض، عشان تعكس الأداء الفعلي الحالي للتسليم.
-async function computeRecentDeliveryRateForTenant(tenantId: number | null): Promise<number> {
+export async function computeRecentDeliveryRateForTenant(tenantId: number | null): Promise<number> {
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   const conds: any[] = [
     inArray(shipmentsTable.status, ["received", "returned"]),

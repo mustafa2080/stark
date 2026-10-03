@@ -1,4 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import type { ReactNode } from "react";
 import { useState, useEffect, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -422,6 +423,80 @@ function useStaleManifests() {
     refetchInterval: 2 * 60_000,
     placeholderData: (prev: StaleManifestsResponse | undefined) => prev,
   });
+}
+
+// ── بطاقات شاشة المدير التنفيذي: كل رقم معاه سطر يوضّح معناه ─────────────────
+function ExecTile({ label, value, sub, valueClass = "", hint }: {
+  label: string; value: ReactNode; sub?: ReactNode; valueClass?: string; hint?: string;
+}) {
+  return (
+    <div className="rounded-lg border bg-muted/30 p-3 text-center flex flex-col gap-0.5" title={hint}>
+      <div className="text-[11px] font-semibold text-muted-foreground">{label}</div>
+      <div className={`text-xl font-black leading-tight ${valueClass}`}>{value}</div>
+      {sub ? <div className="text-[11px] text-muted-foreground leading-snug">{sub}</div> : null}
+    </div>
+  );
+}
+
+function ExecTiles({ es, fc, fn }: { es: ExecutiveSummaryResponse | undefined; fc: (n: number) => string; fn: (n: number) => string }) {
+  const growthAvailable = es?.growthAvailable ?? false;
+  const growth = es?.growthRate ?? 0;
+  const otherAreas = (es?.topAreas ?? []).slice(1).map((a) => a.name).join("، ");
+  return (
+    <>
+      <ExecTile
+        label="إجمالي الإيرادات"
+        value={fc(es?.revenue ?? 0)}
+        sub={`من أول ما السيستم اشتغل · هذا الشهر ${fc(es?.monthRevenue ?? 0)}`}
+        hint="إجمالي ما تم تحصيله من الشحنات المقفولة من بداية التشغيل لحد دلوقتي، قبل خصم أي مصروف"
+      />
+      <ExecTile
+        label="صافي الإيرادات"
+        value={fc(es?.profit ?? 0)}
+        valueClass={(es?.profit ?? 0) >= 0 ? "text-emerald-500" : "text-red-500"}
+        sub="إجمالي أرصدة الخزن (بعد المصروفات)"
+        hint="نفس رقم إجمالي أرصدة الخزن في شاشة الخزن"
+      />
+      <ExecTile
+        label="إيراد الشهر الحالي"
+        value={fc(es?.monthRevenue ?? 0)}
+        sub={growthAvailable ? (
+          <span className={`font-bold ${growth >= 0 ? "text-emerald-500" : "text-red-500"}`}>
+            {growth >= 0 ? "▲" : "▼"} {Math.abs(growth)}% عن نفس الفترة من الشهر الماضي
+          </span>
+        ) : "مفيش إيراد في نفس الفترة من الشهر الماضي للمقارنة"}
+        hint="إيراد الشهر الحالي من أول الشهر لحد النهارده، مقارنة بنفس عدد الأيام من الشهر اللي قبله"
+      />
+      <ExecTile label="عدد العملاء" value={fn(es?.clientsCount ?? 0)} sub="عميل مسجّل في النظام" />
+      <ExecTile
+        label="عدد الشحنات"
+        value={fn(es?.shipmentsCount ?? 0)}
+        sub={`إجمالي كل الشحنات · منها ${fn(es?.inProgressCount ?? 0)} جارية الآن`}
+      />
+      <ExecTile
+        label="نسبة التسليم الناجح"
+        value={`${es?.successRate ?? 0}%`}
+        sub={`${fn(es?.successCount ?? 0)} اتسلّمت من ${fn(es?.finishedCount ?? 0)} شحنة منتهية`}
+        hint="بتتحسب من الشحنات اللي خلصت فعلاً (اتسلّمت أو رجعت). الشحنات الجارية أو المعلّقة مش داخلة في النسبة"
+      />
+      <ExecTile
+        label="أكثر مدينة طلباً"
+        value={es?.topArea ?? "—"}
+        sub={<>
+          {`${fn(es?.topAreaCount ?? 0)} شحنة · ${es?.topAreaShare ?? 0}% من الإجمالي`}
+          {otherAreas ? <div>ثم: {otherAreas}</div> : null}
+        </>}
+        hint="بحسب عدد الشحنات المسجلة لكل مدينة مستلم، من أول التشغيل"
+      />
+      <ExecTile
+        label="الربح المتوقع من الشحنات الجارية"
+        value={fc(es?.nextMonthForecast ?? 0)}
+        valueClass="text-blue-500"
+        sub={`${fn(es?.forecastShipmentsCount ?? 0)} شحنة جارية × نسبة تسليم ${es?.forecastDeliveryRate ?? 0}%`}
+        hint="صافي ربح الشحنات اللي لسه في المخزن أو مع المندوب (سعر الشحن − تكلفة المندوب) مضروب في نسبة التسليم الفعلية لآخر 7 أيام"
+      />
+    </>
+  );
 }
 
 // ── جلب شاشة المدير التنفيذي (بيانات حقيقية من الباك اند) ─────────────────────
@@ -2985,22 +3060,13 @@ export default function OperationsCenterPage() {
             <Wallet className="w-4 h-4 text-emerald-500" /> شاشة المدير التنفيذي — نظرة سريعة
           </CardTitle>
         </CardHeader>
-        <CardContent className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-4 text-center">
+        <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {executiveSummaryLoading && !executiveSummary ? (
             Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="h-10 rounded bg-muted animate-pulse" />
+              <div key={i} className="h-20 rounded bg-muted animate-pulse" />
             ))
           ) : (
-            <>
-              <div><div className="text-lg font-black">{fc(executiveSummary?.revenue ?? 0)}</div><div className="text-[11px] text-muted-foreground">الإيرادات</div></div>
-              <div><div className="text-lg font-black">{fc(executiveSummary?.profit ?? 0)}</div><div className="text-[11px] text-muted-foreground">صافي الإيرادات</div></div>
-              <div><div className={`text-lg font-black ${(executiveSummary?.growthRate ?? 0) >= 0 ? "text-emerald-500" : "text-red-500"}`}>{executiveSummary?.growthRate ?? 0}%</div><div className="text-[11px] text-muted-foreground">معدل النمو</div></div>
-              <div><div className="text-lg font-black">{fn(executiveSummary?.clientsCount ?? 0)}</div><div className="text-[11px] text-muted-foreground">عدد العملاء</div></div>
-              <div><div className="text-lg font-black">{fn(executiveSummary?.shipmentsCount ?? 0)}</div><div className="text-[11px] text-muted-foreground">عدد الشحنات</div></div>
-              <div><div className="text-lg font-black">{executiveSummary?.successRate ?? 0}%</div><div className="text-[11px] text-muted-foreground">نسبة النجاح</div></div>
-              <div><div className="text-lg font-black">{executiveSummary?.topArea ?? "—"}</div><div className="text-[11px] text-muted-foreground">أكثر المناطق نشاطاً</div></div>
-              <div><div className="text-lg font-black text-blue-500">{fc(executiveSummary?.nextMonthForecast ?? 0)}</div><div className="text-[11px] text-muted-foreground">توقعات الشهر القادم</div></div>
-            </>
+            <ExecTiles es={executiveSummary} fc={fc} fn={fn} />
           )}
         </CardContent>
       </Card>

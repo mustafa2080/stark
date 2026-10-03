@@ -1060,6 +1060,18 @@ export interface ExecutiveSummaryResponse {
   topArea: string;
   nextMonthForecast: number;
   generatedAt: string;
+  // حقول إضافية بتوضّح كل رقم (الباك إند القديم ممكن مايرجعهاش، فكلها اختيارية)
+  monthRevenue?: number;
+  prevSamePeriodRevenue?: number;
+  growthAvailable?: boolean;
+  inProgressCount?: number;
+  successCount?: number;
+  finishedCount?: number;
+  topAreaCount?: number;
+  topAreaShare?: number;
+  topAreas?: { name: string; count: number }[];
+  forecastShipmentsCount?: number;
+  forecastDeliveryRate?: number;
 }
 
 export interface RevenueTrendDay {
