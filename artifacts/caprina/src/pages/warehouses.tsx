@@ -596,7 +596,7 @@ function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; o
   const [activeTab, setActiveTab] = useState<"stock" | "shipments" | "analytics" | "clients">("shipments");
   const [clientSearch, setClientSearch] = useState("");
   const [clientSort, setClientSort] = useState<"count" | "name" | "cod">("count");
-  const [shipmentStatusFilter, setShipmentStatusFilter] = useState<"all" | "active" | "returned" | "returned_partial">("active");
+  const [shipmentStatusFilter, setShipmentStatusFilter] = useState<"all" | "active" | "returned" | "returned_partial" | "replacement" | "pickup">("active");
 
   const { data: warehouse, isLoading } = useQuery({
     queryKey: ["warehouses", warehouseId],
@@ -781,10 +781,22 @@ function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; o
   };
 
   // ── طباعة جرد الشحنات ──────────────────────────────────────────────────────
-  const handlePrintShipments = () => {
+  const handlePrintShipments = async () => {
     if (!warehouse) return;
+    // نفتح النافذة الأول (قبل أي await) عشان المتصفح ما يحجبهاش كـ popup
+    const win = window.open("", "_blank", "width=1100,height=750");
+    if (!win) return;
     const printDate = new Date().toLocaleDateString("ar-EG", { year: "numeric", month: "long", day: "numeric" });
-    const ships = warehouseShipments?.shipments ?? [];
+    // الجرد المطبوع بيعكس الموجود فعليًا في المخزن دايمًا (قيد الشحن + المرتجعات اللي رجعت فعليًا)،
+    // بغض النظر عن التاب المفتوح دلوقتي.
+    let ships: NonNullable<typeof warehouseShipments>["shipments"] = [];
+    try {
+      ships = (await warehousesApi.shipments(warehouseId, "all")).shipments;
+    } catch {
+      win.close();
+      toast({ title: "تعذر تحميل بيانات الجرد", variant: "destructive" });
+      return;
+    }
     const rows = ships.map((s, i) => {
       const st = SHIPMENT_STATUS_MAP[s.status ?? ""] ?? { label: s.status ?? "—" };
       return `
@@ -807,8 +819,6 @@ function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; o
       const st = SHIPMENT_STATUS_MAP[k] ?? { label: k };
       return `<span style="background:#f3f4f6;padding:3px 10px;border-radius:12px;font-size:11px;margin:2px">${st.label}: ${v}</span>`;
     }).join("");
-    const win = window.open("", "_blank", "width=1100,height=750");
-    if (!win) return;
     win.document.write(`<!DOCTYPE html>
 <html dir="rtl" lang="ar">
 <head>
@@ -839,9 +849,9 @@ function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; o
     <div style="text-align:left"><p>تاريخ الطباعة: ${printDate}</p>${warehouse.isDefault ? '<span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:4px;font-size:11px">مخزن افتراضي</span>' : ""}</div>
   </div>
   <div class="stats">
-    <div class="stat"><div class="val">${ships.length}</div><div class="lbl">إجمالي الشحنات</div></div>
-    <div class="stat"><div class="val" style="color:#d97706">${statusCounts["warehouse_ready"] ?? 0}</div><div class="lbl">قيد الشحن</div></div>
-    <div class="stat"><div class="val" style="color:#16a34a">${statusCounts["delivered"] ?? 0}</div><div class="lbl">مسلّمة</div></div>
+    <div class="stat"><div class="val">${ships.length}</div><div class="lbl">إجمالي الموجود في المخزن</div></div>
+    <div class="stat"><div class="val" style="color:#d97706">${statusCounts["warehouse_ready"] ?? 0}</div><div class="lbl">أوردرات قيد الشحن</div></div>
+    <div class="stat"><div class="val" style="color:#dc2626">${ships.length - (statusCounts["warehouse_ready"] ?? 0)}</div><div class="lbl">مرتجعات فعلية</div></div>
     <div class="stat"><div class="val" style="color:#2563eb">${totalCod.toLocaleString("ar-EG")} ج.م</div><div class="lbl">إجمالي COD</div></div>
   </div>
   <div class="summary"><strong>توزيع الحالات:</strong>${summaryBadges}</div>
@@ -1215,14 +1225,16 @@ function StockEditor({ warehouseId, onClose, canEdit }: { warehouseId: number; o
         <div className="space-y-4">
 
           {/* إحصائيات سريعة */}
-          {/* تابات إحصائيات الشحنات — الكل / قيد الشحن في المخزن / مرتجع / مرتجع عن استلام جزئي
-              (المرتجع الكامل والمرتجع الجزئي مفصولين عن بعض بناءً على طلب صاحب المشروع) */}
-          <div className="grid grid-cols-4 gap-2">
+          {/* تابات شاشة المخزن (طلب المدير): الكل / قيد الشحن في المخزن / المرتجعات مصنفة:
+              مرتجع كامل — مرتجع جزئي — استبدال — إحضار طرد */}
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
             {[
               { label: "الكل",                     value: stats?.total ?? 0,          key: "all",              color: "text-foreground", bg: "bg-muted/20" },
               { label: "قيد الشحن في المخزن",       value: stats?.active ?? 0,         key: "active",           color: "text-amber-500",  bg: "bg-amber-500/10" },
-              { label: "مرتجع",                     value: stats?.returned ?? 0,       key: "returned",         color: "text-red-500",    bg: "bg-red-500/10" },
-              { label: "مرتجع عن استلام جزئي",      value: stats?.returnedPartial ?? 0, key: "returned_partial", color: "text-orange-500", bg: "bg-orange-500/10" },
+              { label: "مرتجع كامل",                value: stats?.returned ?? 0,       key: "returned",         color: "text-red-500",    bg: "bg-red-500/10" },
+              { label: "مرتجع جزئي",                value: stats?.returnedPartial ?? 0, key: "returned_partial", color: "text-orange-500", bg: "bg-orange-500/10" },
+              { label: "استبدال",                   value: stats?.replacement ?? 0,    key: "replacement",      color: "text-purple-500", bg: "bg-purple-500/10" },
+              { label: "إحضار طرد",                 value: stats?.pickup ?? 0,         key: "pickup",           color: "text-sky-500",    bg: "bg-sky-500/10" },
             ].map(s => (
               <button
                 key={s.key}

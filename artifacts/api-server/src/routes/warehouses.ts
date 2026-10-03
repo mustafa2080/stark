@@ -304,13 +304,14 @@ router.get("/warehouses/:id/shipments", async (req, res): Promise<void> => {
 
   // الشحنة لازم تكون أو كانت في warehouse_ready عشان تظهر في صفحة المخزن أصلاً —
   // الحالات اللي قبلها (pending, waiting, confirmed...) متظهرش خالص لحد ما توصل warehouse_ready
-  // "replaced"/"parcel_picked" (رجلة مرتجع الاستبدال/إحضار الطرد) لازم يظهروا هنا
-  // كمان — نفس معاملة "returned" بالظبط، لأن البضاعة (المنتج القديم/الطرد) بترجع
-  // فعليًا للمخزن بمجرد returnReceived=1، فلازم تاخد نفس مسار المرتجع الطبيعي.
+  // شاشة المخزن بتعرض حاجتين بس (طلب المدير):
+  //   1) أوردرات قيد الشحن في المخزن (warehouse_ready) — اللي المفروض تتشحن
+  //   2) المرتجعات اللي رجعت فعليًا للمخزن: مرتجع كامل / مرتجع جزئي / استبدال / إحضار طرد
+  // أي أوردر اتسلّم للعميل أو لسه في الطريق (picked_up / in_transit / out_for_delivery /
+  // delivered / received / delayed) مش بضاعة في المخزن، فمايظهرش هنا ولا في الطباعة/الجرد.
   const VISIBLE_IN_WAREHOUSE = [
-    "warehouse_ready", "picked_up", "in_transit", "out_for_delivery",
-    "delivered", "received", "partial_received", "returned", "cancelled", "delayed",
-    "replaced", "parcel_picked",
+    "warehouse_ready",
+    "returned", "partial_received", "replaced", "parcel_picked", "cancelled",
   ];
 
   const conditions: any[] = [
@@ -334,9 +335,16 @@ router.get("/warehouses/:id/shipments", async (req, res): Promise<void> => {
     // مسارها الطبيعي كمرتجع هنا بدل ما تفضل مختفية جوه حالة "تم الاستبدال".
     conditions.push(or(
       and(eq(shipmentsTable.status, "returned"), eq(shipmentsTable.returnReceived, 1)),
-      and(inArray(shipmentsTable.status, ["replaced", "parcel_picked"]), eq(shipmentsTable.returnReceived, 1)),
       eq(shipmentsTable.status, "cancelled"),
     ));
+  } else if (statusFilter === "replacement") {
+    // استبدال: رجلة المرتجع بتاعت المنتج القديم — بس بعد ما رجع فعليًا للمخزن (returnReceived=1)
+    conditions.push(eq(shipmentsTable.status, "replaced"));
+    conditions.push(eq(shipmentsTable.returnReceived, 1));
+  } else if (statusFilter === "pickup") {
+    // إحضار طرد: الطرد اللي المندوب جابه — بس بعد ما دخل المخزن فعليًا (returnReceived=1)
+    conditions.push(eq(shipmentsTable.status, "parcel_picked"));
+    conditions.push(eq(shipmentsTable.returnReceived, 1));
   } else if (statusFilter === "returned_partial") {
     // مرتجع عن استلام جزئي فقط، وبس اللي رجع فعليًا للمخزون (returnReceived=true) —
     // نفس شرط الـ stats بالظبط.
@@ -385,7 +393,7 @@ router.get("/warehouses/:id/shipments", async (req, res): Promise<void> => {
     .leftJoin(shippingCompaniesTable, eq(shipmentsTable.shippingCompanyId, shippingCompaniesTable.id))
     .where(and(...conditions))
     .orderBy(desc(shipmentsTable.createdAt))
-    .limit(200);
+    .limit(2000); // كان 200 — الجرد المطبوع لازم يعكس العدد الفعلي الكامل
 
   // ── المبلغ اللي المندوب حصّله فعليًا من العميل (من بيان مندوب الشحن) ───────
   // بنجيب آخر سجل manifest item لكل شحنة مرتجعة/جزئية عشان نحسب "المتبقي" الصح
@@ -453,8 +461,15 @@ router.get("/warehouses/:id/shipments", async (req, res): Promise<void> => {
     // "replaced"/"parcel_picked" مع returnReceived=1 بيتحسبوا ضمن "مرتجع" الكامل —
     // نفس رجلة المرتجع بتاعت returned بالظبط، فلازم ياخدوا نفس العداد.
     returned:  allForStats.filter(s =>
-      ((s.status === "returned" || s.status === "replaced" || s.status === "parcel_picked") && (s.returnReceived === 1 || (s.returnReceived as any) === true))
+      (s.status === "returned" && (s.returnReceived === 1 || (s.returnReceived as any) === true))
       || s.status === "cancelled"
+    ).length,
+    // استبدال / إحضار طرد: عدّادات منفصلة (رجعوا المخزن فعليًا بس)
+    replacement: allForStats.filter(s =>
+      s.status === "replaced" && (s.returnReceived === 1 || (s.returnReceived as any) === true)
+    ).length,
+    pickup: allForStats.filter(s =>
+      s.status === "parcel_picked" && (s.returnReceived === 1 || (s.returnReceived as any) === true)
     ).length,
     returnedPartial: allForStats.filter(s =>
       s.status === "partial_received" && (s.returnReceived === 1 || (s.returnReceived as any) === true)
