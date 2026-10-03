@@ -196,7 +196,24 @@ router.get("/warehouses", async (req, res): Promise<void> => {
           inArray(shipmentsTable.status, ["warehouse_ready"]),
         ));
 
-      return { ...w, totalUnits, skuCount, orderCount: Number(orderCountRow?.cnt ?? 0), shipmentCount: Number(shipmentCountRow?.cnt ?? 0) };
+      // المرتجعات اللي رجعت فعليًا للمخزن (مرتجع كامل/جزئي/استبدال/إحضار طرد) — نفس تعريف
+      // تابات شاشة المخزن، عشان الكارت من بره يبان فيه نفس الحاجة اللي جوه.
+      const [returnsCountRow] = await db
+        .select({ cnt: count() })
+        .from(shipmentsTable)
+        .where(and(
+          eq(shipmentsTable.warehouseId, w.id),
+          isNull(shipmentsTable.deletedAt),
+          or(
+            and(
+              inArray(shipmentsTable.status, ["returned", "partial_received", "replaced", "parcel_picked"]),
+              eq(shipmentsTable.returnReceived, 1),
+            ),
+            eq(shipmentsTable.status, "cancelled"),
+          ),
+        ));
+
+      return { ...w, totalUnits, skuCount, orderCount: Number(orderCountRow?.cnt ?? 0), shipmentCount: Number(shipmentCountRow?.cnt ?? 0), returnsCount: Number(returnsCountRow?.cnt ?? 0) };
     })
   );
 

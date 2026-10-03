@@ -1883,7 +1883,7 @@ export default function WarehousesPage() {
               </div>
             </CardHeader>
             <CardContent className="px-4 pb-4 space-y-3">
-              <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="grid grid-cols-4 gap-2 text-center">
                 <div className="bg-muted/20 rounded-md p-2">
                   <p className="text-base font-bold text-primary">{fmt(w.totalUnits)}</p>
                   <p className="text-[9px] text-muted-foreground mt-0.5">وحدة</p>
@@ -1900,6 +1900,10 @@ export default function WarehousesPage() {
                     </p>
                   </div>
                   <p className="text-[9px] text-muted-foreground mt-0.5">قيد الشحن</p>
+                </div>
+                <div className={`rounded-md p-2 ${(w.returnsCount ?? 0) > 0 ? "bg-red-500/10" : "bg-muted/20"}`}>
+                  <p className={`text-base font-bold ${(w.returnsCount ?? 0) > 0 ? "text-red-500" : ""}`}>{w.returnsCount ?? 0}</p>
+                  <p className="text-[9px] text-muted-foreground mt-0.5">مرتجعات</p>
                 </div>
               </div>
               {w.notes && <p className="text-[10px] text-muted-foreground border-t border-border pt-2">{w.notes}</p>}
