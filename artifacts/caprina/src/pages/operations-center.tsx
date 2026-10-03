@@ -454,8 +454,8 @@ function ExecTiles({ es, fc, fn }: { es: ExecutiveSummaryResponse | undefined; f
         label="صافي الإيرادات"
         value={fc(es?.profit ?? 0)}
         valueClass={(es?.profit ?? 0) >= 0 ? "text-emerald-500" : "text-red-500"}
-        sub="إجمالي أرصدة الخزن (بعد المصروفات)"
-        hint="نفس رقم إجمالي أرصدة الخزن في شاشة الخزن"
+        sub="إجمالي الإيرادات − المصروفات (من أول التشغيل)"
+        hint="نفس رقم صافي الإيراد في كارت فلتر أول المدة: إجمالي الإيرادات ناقص المصروفات"
       />
       <ExecTile
         label="إيراد الشهر الحالي"
@@ -493,7 +493,7 @@ function ExecTiles({ es, fc, fn }: { es: ExecutiveSummaryResponse | undefined; f
         value={fc(es?.nextMonthForecast ?? 0)}
         valueClass="text-blue-500"
         sub={`${fn(es?.forecastShipmentsCount ?? 0)} شحنة جارية × نسبة تسليم ${es?.forecastDeliveryRate ?? 0}%`}
-        hint="صافي ربح الشحنات اللي لسه في المخزن أو مع المندوب (سعر الشحن − تكلفة المندوب) مضروب في نسبة التسليم الفعلية لآخر 7 أيام"
+        hint="صافي ربح الشحنات اللي لسه في المخزن أو مع المندوب (سعر الشحن − تكلفة المندوب) مضروب في نسبة التسليم الفعلية (آخر 30 يوم، أو من أول التشغيل لو العينة قليلة)"
       />
     </>
   );

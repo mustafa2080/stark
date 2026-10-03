@@ -52,7 +52,7 @@ function buildReportHtml(data: OperationsReportData): string {
   const execHtml = data.executiveSummary ? `
     <div class="exec-grid">
       <div class="exec-item"><div class="exec-val">${fc(data.executiveSummary.revenue)}</div><div class="exec-lbl">إجمالي الإيرادات (من أول التشغيل)</div></div>
-      <div class="exec-item"><div class="exec-val">${fc(data.executiveSummary.profit)}</div><div class="exec-lbl">صافي الإيرادات (أرصدة الخزن)</div></div>
+      <div class="exec-item"><div class="exec-val">${fc(data.executiveSummary.profit)}</div><div class="exec-lbl">صافي الإيرادات (بعد المصروفات)</div></div>
       <div class="exec-item"><div class="exec-val" style="color:${data.executiveSummary.growthRate >= 0 ? "#059669" : "#dc2626"}">${data.executiveSummary.growthRate}%</div><div class="exec-lbl">نمو إيراد الشهر عن نفس الفترة السابقة</div></div>
       <div class="exec-item"><div class="exec-val">${fn(data.executiveSummary.clientsCount)}</div><div class="exec-lbl">عدد العملاء</div></div>
       <div class="exec-item"><div class="exec-val">${fn(data.executiveSummary.shipmentsCount)}</div><div class="exec-lbl">عدد الشحنات</div></div>

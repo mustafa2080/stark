@@ -916,20 +916,24 @@ export async function computeNetRevenueDueForAllClients(
 // بتتضرب فيها هامش الشحنات الجارية فى computeExpectedRevenueTotalForTenant
 // بدل رقم ثابت مفترض، عشان تعكس الأداء الفعلي الحالي للتسليم.
 export async function computeRecentDeliveryRateForTenant(tenantId: number | null): Promise<number> {
-  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  const conds: any[] = [
+  // عينة صغيرة (أيام قليلة) كانت بتطلّع نسبة 0% أو 100% مش حقيقية وبتصفّر الربح المتوقع.
+  // فبناخد آخر 30 يوم، ولو العينة أقل من الحد الأدنى بنرجع لنسبة التسليم من أول التشغيل.
+  const MIN_SAMPLE = 20;
+  const baseConds: any[] = [
     inArray(shipmentsTable.status, ["received", "returned"]),
-    gte(shipmentsTable.updatedAt, sevenDaysAgo),
     isNull(shipmentsTable.deletedAt),
   ];
-  if (tenantId !== null) conds.push(eq(shipmentsTable.tenantId, tenantId));
-  const rows = await db
-    .select({ status: shipmentsTable.status })
-    .from(shipmentsTable)
-    .where(and(...conds));
-  if (!rows.length) return 0.6; // مفيش بيانات كافية لآخر 7 أيام — نرجع لنسبة افتراضية محافظة
-  const deliveredCount = rows.filter(r => r.status === "received").length;
-  return deliveredCount / rows.length;
+  if (tenantId !== null) baseConds.push(eq(shipmentsTable.tenantId, tenantId));
+  const sample = async (since: Date | null) => {
+    const conds = since ? [...baseConds, gte(shipmentsTable.updatedAt, since)] : baseConds;
+    const rows = await db.select({ status: shipmentsTable.status }).from(shipmentsTable).where(and(...conds));
+    return { total: rows.length, delivered: rows.filter(r => r.status === "received").length };
+  };
+  const recent = await sample(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
+  if (recent.total >= MIN_SAMPLE) return recent.delivered / recent.total;
+  const all = await sample(null);
+  if (all.total > 0) return all.delivered / all.total;
+  return 0.6; // مفيش بيانات خالص — نسبة افتراضية محافظة
 }
 
 // ─── الإيراد المتوقع الإجمالي (على مستوى الشركة) — لكارت "توقعات الشهر القادم" ─

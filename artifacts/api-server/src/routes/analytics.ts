@@ -1,5 +1,5 @@
 ﻿import { Router, type IRouter } from "express";
-import { db, ordersTable, productsTable, productVariantsTable, shippingCompaniesTable, shippingManifestsTable, shippingManifestOrdersTable, warehouseStockTable, warehousesTable, inventoryMovementsTable, shipmentsTable, shipmentRatingsTable, usersTable, sessionLogsTable, shipmentManifestsTable, shipmentManifestItemsTable, expensesTable, cashTransactionsTable, receiverClientsTable, clientsTable, zoneCostsTable, shipmentZonesTable, appSettingsTable, parcelTypePricingTable, cashRegistersTable } from "@workspace/db";
+import { db, ordersTable, productsTable, productVariantsTable, shippingCompaniesTable, shippingManifestsTable, shippingManifestOrdersTable, warehouseStockTable, warehousesTable, inventoryMovementsTable, shipmentsTable, shipmentRatingsTable, usersTable, sessionLogsTable, shipmentManifestsTable, shipmentManifestItemsTable, expensesTable, cashTransactionsTable, receiverClientsTable, clientsTable, zoneCostsTable, shipmentZonesTable, appSettingsTable, parcelTypePricingTable } from "@workspace/db";
 import { eq, isNull, and, or, desc, lte, gte, sql, inArray, count, isNotNull } from "drizzle-orm";
 import { requireAdmin, requirePermission } from "../middlewares/requireRole.js";
 import { requireAuth } from "../middlewares/requireAuth.js";
@@ -4490,7 +4490,7 @@ router.get("/analytics/recent-shipments", requireAuth, async (req, res): Promise
 });
 
 // شاشة المدير التنفيذي — نظرة سريعة: إجمالي الإيرادات من أول التشغيل، صافي الإيرادات
-// (= إجمالي أرصدة الخزن)، إيراد الشهر ونموه مقارنة بنفس الفترة من الشهر الماضي،
+// (= الإيرادات − المصروفات)، إيراد الشهر ونموه مقارنة بنفس الفترة من الشهر الماضي،
 // عدد العملاء والشحنات، نسبة التسليم الناجح (من الشحنات المنتهية بس)، أكثر مدينة
 // طلباً، والربح المتوقع من الشحنات الجارية حالياً.
 router.get("/analytics/executive-summary", requireAuth, async (req, res): Promise<void> => {
@@ -4534,12 +4534,10 @@ router.get("/analytics/executive-summary", requireAuth, async (req, res): Promis
       ? Math.round(((monthRevenue - prevSamePeriodRevenue) / prevSamePeriodRevenue) * 1000) / 10
       : 0;
 
-    // ── صافي الإيرادات = إجمالي أرصدة الخزن (نفس الرقم في شاشة الخزن) ──
-    const regCond = tenantId !== null
-      ? and(eq(cashRegistersTable.isActive, true), eq(cashRegistersTable.tenantId, tenantId))
-      : eq(cashRegistersTable.isActive, true);
-    const regRows = await db.select({ balance: cashRegistersTable.balance }).from(cashRegistersTable).where(regCond);
-    const treasuryBalance = Math.round(regRows.reduce((sum, r) => sum + parseFloat(r.balance ?? "0"), 0));
+    // ── صافي الإيرادات = إجمالي الإيرادات − المصروفات، من أول التشغيل ──
+    // نفس معادلة كارت "صافي الإيراد" في فلتر "أول المدة" بمركز العمليات بالظبط
+    // (totalRevenue − totalExpenses)، مش رصيد الخزن (الرصيد بيتأثر بحركات تانية زي التحويلات).
+    const netRevenue = Math.round(allTimePnl.netRevenue);
 
     // ── الشحنات: كل الشحنات المسجلة من أول التشغيل (بدون فلتر شهر) ──
     const statusRows = await db
@@ -4603,9 +4601,9 @@ router.get("/analytics/executive-summary", requireAuth, async (req, res): Promis
     const nextMonthForecast = Math.round(nextMonthForecastRaw);
 
     const result = {
-      // ⚠️ "revenue" = إجمالي الإيرادات من أول التشغيل، "profit" = صافي الإيرادات (إجمالي أرصدة الخزن)
+      // ⚠️ "revenue" = إجمالي الإيرادات من أول التشغيل، "profit" = صافي الإيرادات (الإيرادات − المصروفات)
       revenue: totalRevenue,
-      profit: treasuryBalance,
+      profit: netRevenue,
       monthRevenue,
       prevSamePeriodRevenue,
       growthRate,
